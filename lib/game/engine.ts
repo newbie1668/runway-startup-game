@@ -16,6 +16,7 @@ import {
   NEWS_FLAVOUR,
   RIVAL_TAUNTS,
   STAGES,
+  UNICORN_TARGET,
   VENUES_BY_HUB,
   generateCompanyName,
   hubById,
@@ -27,6 +28,7 @@ import type {
   Dilemma,
   DilemmaEffectId,
   FxEvent,
+  CompanyStats,
   GameState,
   HubId,
   NewGameConfig,
@@ -193,6 +195,13 @@ function addProductToCap(state: GameState, gain: number): number {
   return state.stats.product - before;
 }
 
+/** Add to a 0..100 company stat and return the gain that survived the cap. */
+function addBoundedStat(stats: CompanyStats, key: 'hype' | 'morale', gain: number): number {
+  const before = stats[key];
+  stats[key] = clamp(before + gain, 0, 100);
+  return stats[key] - before;
+}
+
 export interface PitchReadiness {
   ready: boolean;
   reasons: string[];
@@ -310,10 +319,9 @@ export function performAction(
     }
     case 'press': {
       const gain = (8 + s.product * 0.09) * sector.hypeGainMult * hub.hypeMult;
-      const hypeBefore = s.hype;
-      s.hype = clamp(s.hype + gain, 0, 100);
+      const actualHypeGain = addBoundedStat(s, 'hype', gain);
       s.traction += Math.round(s.traction * 0.02 + 4);
-      message = `Hype +${(s.hype - hypeBefore).toFixed(0)}. A journalist replied with "interesting!!"`;
+      message = `Hype +${actualHypeGain.toFixed(0)}. A journalist replied with "interesting!!"`;
       break;
     }
     case 'retreat': {
@@ -373,10 +381,9 @@ export function performAction(
       const mult = synergy ? 2 : 1;
       switch (ev.kind) {
         case 'social': {
-          const moraleBefore = s.morale;
           s.connections += Math.round(2 * mult);
-          s.morale = clamp(s.morale + 3 * mult, 0, 100);
-          message = `Met ${Math.round(2 * mult)} useful people over lukewarm wine. Morale +${Math.round(s.morale - moraleBefore)}.`;
+          const moraleGain = addBoundedStat(s, 'morale', 3 * mult);
+          message = `Met ${Math.round(2 * mult)} useful people over lukewarm wine. Morale +${Math.round(moraleGain)}.`;
           break;
         }
         case 'pitch':
@@ -390,21 +397,18 @@ export function performAction(
           break;
         }
         case 'demo': {
-          const hypeBefore = s.hype;
           const contacts = Math.round(mult);
-          s.hype = clamp(s.hype + 6 * mult, 0, 100);
+          const hypeGain = addBoundedStat(s, 'hype', 6 * mult);
           s.connections += contacts;
-          message = `Demoed on stage. Hype +${Math.round(s.hype - hypeBefore)} and investor intros +${contacts}.`;
+          message = `Demoed on stage. Hype +${Math.round(hypeGain)} and investor intros +${contacts}.`;
           break;
         }
         case 'party': {
-          const moraleBefore = s.morale;
-          const hypeBefore = s.hype;
           const contacts = Math.round(mult);
-          s.morale = clamp(s.morale + 6 * mult, 0, 100);
-          s.hype = clamp(s.hype + 3 * mult, 0, 100);
+          const moraleGain = addBoundedStat(s, 'morale', 6 * mult);
+          const hypeGain = addBoundedStat(s, 'hype', 3 * mult);
           s.connections += contacts;
-          message = `Danced badly with two angels and a unicorn intern. Morale +${Math.round(s.morale - moraleBefore)}, hype +${Math.round(s.hype - hypeBefore)}, intros +${contacts}.`;
+          message = `Danced badly with two angels and a unicorn intern. Morale +${Math.round(moraleGain)}, hype +${Math.round(hypeGain)}, intros +${contacts}.`;
           break;
         }
       }
@@ -520,7 +524,11 @@ function tickRivals(state: GameState, dice: Dice) {
       const stage = STAGES[nextIndex];
       if (stage.id === 'unicorn') {
         rival.unicornWeek = state.week;
-        pushNews(state, 'rival', `🦄 ${rival.name} just hit a £1B valuation. The race is real.`);
+        pushNews(
+          state,
+          'rival',
+          `🦄 ${rival.name} just hit a ${UNICORN_TARGET.compactLabel} valuation. The race is real.`,
+        );
       } else {
         pushNews(
           state,

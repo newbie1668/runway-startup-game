@@ -221,6 +221,12 @@ export function hubById(id: HubId): Hub {
 // Funding stages
 // ---------------------------------------------------------------------------
 
+export const UNICORN_TARGET = {
+  valuation: 1_000_000_000,
+  compactLabel: '£1B',
+  sentenceLabel: 'One billion pounds',
+} as const;
+
 export const STAGES: readonly Stage[] = [
   {
     id: 'garage',
@@ -280,7 +286,7 @@ export const STAGES: readonly Stage[] = [
     id: 'unicorn',
     name: 'Unicorn',
     raise: 250_000_000,
-    valuation: 1_000_000_000,
+    valuation: UNICORN_TARGET.valuation,
     minProduct: 90,
     minTraction: 400_000,
     baseOdds: 0.33,

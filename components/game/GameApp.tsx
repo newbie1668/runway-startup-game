@@ -13,7 +13,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { STAGES, generateCompanyName, hubById, sectorById } from '@/lib/game/content';
+import {
+  STAGES,
+  UNICORN_TARGET,
+  generateCompanyName,
+  hubById,
+  sectorById,
+} from '@/lib/game/content';
 import {
   SAVE_VERSION,
   applyDilemmaChoice,
@@ -414,8 +420,10 @@ export function GameApp() {
               <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
                 Found a startup on a living map of London. Spend your focus, work the events scene,
                 out-raise your rivals — and reach a{' '}
-                <span className="font-bold text-amber-300">£1B valuation</span> before the money
-                runs out.
+                <span className="font-bold text-amber-300">
+                  {UNICORN_TARGET.compactLabel} valuation
+                </span>{' '}
+                before the money runs out.
               </p>
               <div className="mt-8 flex flex-col items-center gap-2.5">
                 <button

@@ -5,7 +5,7 @@
  */
 
 import { useId } from 'react';
-import { HUBS, STAGES, hubById, sectorById } from '@/lib/game/content';
+import { HUBS, STAGES, UNICORN_TARGET, hubById, sectorById } from '@/lib/game/content';
 import { score } from '@/lib/game/engine';
 import { fmtMoney, fmtUsers } from '@/lib/game/format';
 import type { Dilemma, DilemmaEffectId, GameState, HubId } from '@/lib/game/types';
@@ -133,7 +133,7 @@ const END_META = {
   won: {
     emoji: '🦄',
     headline: 'UNICORN',
-    sub: 'One billion pounds. In this economy.',
+    sub: `${UNICORN_TARGET.sentenceLabel}. In this economy.`,
     tint: 'text-amber-300',
     border: 'border-amber-300/50',
   },
