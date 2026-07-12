@@ -7,7 +7,7 @@
 import { HUBS, STAGES, hubById, sectorById } from '@/lib/game/content';
 import { score } from '@/lib/game/engine';
 import { fmtMoney, fmtUsers } from '@/lib/game/format';
-import type { Dilemma, GameState, HubId } from '@/lib/game/types';
+import type { Dilemma, DilemmaEffectId, GameState, HubId } from '@/lib/game/types';
 
 // ---------------------------------------------------------------------------
 
@@ -18,7 +18,7 @@ export function DilemmaModal({
 }: {
   dilemma: Dilemma;
   week: number;
-  onChoose: (effectId: string) => void;
+  onChoose: (effectId: DilemmaEffectId) => void;
 }) {
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[3px]">

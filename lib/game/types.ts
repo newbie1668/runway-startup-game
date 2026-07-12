@@ -111,16 +111,42 @@ export interface Dilemma {
   body: string;
   options: DilemmaOption[];
   /** Engine-side gate: can this card fire in the current state? */
-  condition?: string; // documented key checked in engine.ts
+  condition?: DilemmaCondition;
   weight: number;
   once: boolean;
 }
 
+export type DilemmaCondition = 'funded' | 'team3' | 'hype40' | 'traction1k' | 'lowMorale';
+
 export interface DilemmaOption {
   label: string;
   detail: string;
-  effectId: string; // resolved in engine.ts applyDilemmaChoice
+  effectId: DilemmaEffectId;
 }
+
+export type DilemmaEffectId =
+  | 'acquihire_accept'
+  | 'acquihire_decline'
+  | 'poach_counter'
+  | 'poach_release'
+  | 'viral_leanin'
+  | 'viral_ignore'
+  | 'flood_pay'
+  | 'flood_cafes'
+  | 'enterprise_sign'
+  | 'enterprise_decline'
+  | 'journalist_open'
+  | 'journalist_decline'
+  | 'accelerator_join'
+  | 'accelerator_decline'
+  | 'outage_warroom'
+  | 'outage_postmortem'
+  | 'burnout_rest'
+  | 'burnout_push'
+  | 'regulator_lawyers'
+  | 'regulator_inhouse'
+  | 'bridge_accept'
+  | 'bridge_decline';
 
 export type NewsTone = 'good' | 'bad' | 'neutral' | 'money' | 'rival';
 

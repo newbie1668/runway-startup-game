@@ -26,7 +26,14 @@ import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
 import type { MapRenderer, Scene } from '@/lib/game/render';
-import type { ActionId, FxEvent, GameState, HubId, SectorId } from '@/lib/game/types';
+import type {
+  ActionId,
+  DilemmaEffectId,
+  FxEvent,
+  GameState,
+  HubId,
+  SectorId,
+} from '@/lib/game/types';
 import { MapCanvas } from './MapCanvas';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
 import { Sidebar } from './Sidebar';
@@ -204,7 +211,7 @@ export function GameApp() {
   }, [commit]);
 
   const choose = useCallback(
-    (effectId: string) => {
+    (effectId: DilemmaEffectId) => {
       const g = gameRef.current;
       if (!g) return;
       sfx.play('click');

@@ -276,8 +276,12 @@ export class MapRenderer {
   // Particles
   // -------------------------------------------------------------------------
 
+  private particleOrigin(hubId: HubId | null) {
+    return hubId ? this.worldToScreen(HUB_POS[hubId]) : { x: this.cssW / 2, y: this.cssH / 2 };
+  }
+
   burstConfetti(hubId: HubId | null) {
-    const at = hubId ? this.worldToScreen(HUB_POS[hubId]) : { x: this.cssW / 2, y: this.cssH / 2 };
+    const at = this.particleOrigin(hubId);
     const colors = ['#f8c33a', '#7dd3fc', '#f472b6', '#a3e635', '#a78bfa', '#ffffff'];
     for (let i = 0; i < 110; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -299,7 +303,7 @@ export class MapRenderer {
   }
 
   floatText(hubId: HubId | null, text: string, color = '#4ade80') {
-    const at = hubId ? this.worldToScreen(HUB_POS[hubId]) : { x: this.cssW / 2, y: this.cssH / 2 };
+    const at = this.particleOrigin(hubId);
     this.particles.push({
       kind: 'float',
       x: at.x + (Math.random() - 0.5) * 30,
@@ -317,7 +321,7 @@ export class MapRenderer {
   }
 
   puffSmoke(hubId: HubId | null) {
-    const at = hubId ? this.worldToScreen(HUB_POS[hubId]) : { x: this.cssW / 2, y: this.cssH / 2 };
+    const at = this.particleOrigin(hubId);
     for (let i = 0; i < 14; i++) {
       this.particles.push({
         kind: 'smoke',
@@ -336,7 +340,7 @@ export class MapRenderer {
   }
 
   sparkle(hubId: HubId | null) {
-    const at = hubId ? this.worldToScreen(HUB_POS[hubId]) : { x: this.cssW / 2, y: this.cssH / 2 };
+    const at = this.particleOrigin(hubId);
     for (let i = 0; i < 26; i++) {
       const a = Math.random() * Math.PI * 2;
       const speed = 40 + Math.random() * 120;

@@ -25,6 +25,7 @@ import { Dice, seedFromString } from './rng';
 import type {
   ActionId,
   Dilemma,
+  DilemmaEffectId,
   FxEvent,
   GameState,
   HubId,
@@ -539,6 +540,8 @@ function rollEvents(state: GameState, dice: Dice): WeekEvent[] {
 function dilemmaAllowed(state: GameState, d: Dilemma): boolean {
   if (d.once && state.firedDilemmas.includes(d.id)) return false;
   switch (d.condition) {
+    case undefined:
+      return true;
     case 'funded':
       return state.stageIndex >= 1;
     case 'team3':
@@ -549,9 +552,12 @@ function dilemmaAllowed(state: GameState, d: Dilemma): boolean {
       return state.stats.traction >= 1000;
     case 'lowMorale':
       return state.stats.morale < 45;
-    default:
-      return true;
   }
+  return assertNeverCondition(d.condition);
+}
+
+function assertNeverCondition(condition: never): boolean {
+  throw new Error(`Unhandled dilemma condition: ${condition}`);
 }
 
 function drawDilemma(state: GameState, dice: Dice): Dilemma | null {
@@ -584,7 +590,7 @@ function bridgeDilemma(): Dilemma {
   };
 }
 
-export function applyDilemmaChoice(prev: GameState, effectId: string): GameState {
+export function applyDilemmaChoice(prev: GameState, effectId: DilemmaEffectId): GameState {
   if (!prev.pendingDilemma) return prev;
   const state = clone(prev);
   const dice = new Dice(state.rng);
@@ -742,10 +748,16 @@ export function applyDilemmaChoice(prev: GameState, effectId: string): GameState
     case 'bridge_decline':
       finishGame(state, 'bankrupt');
       break;
+    default:
+      return assertNeverEffect(effectId);
   }
 
   state.rng = dice.state;
   return state;
+}
+
+function assertNeverEffect(effectId: never): GameState {
+  throw new Error(`Unhandled dilemma effect: ${effectId}`);
 }
 
 // ---------------------------------------------------------------------------
