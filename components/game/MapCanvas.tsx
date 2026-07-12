@@ -147,7 +147,7 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     <canvas
       ref={canvasRef}
       className={className ?? 'h-full w-full touch-none select-none'}
-      aria-label="Map of London"
+      aria-label="Illustrated London startup neighbourhood map; use the neighbourhood selector to choose an HQ"
     />
   );
 }

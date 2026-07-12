@@ -16,6 +16,7 @@ import {
   NEWS_FLAVOUR,
   RIVAL_TAUNTS,
   STAGES,
+  UNICORN_TARGET,
   VENUES_BY_HUB,
   generateCompanyName,
   hubById,
@@ -27,6 +28,7 @@ import type {
   Dilemma,
   DilemmaEffectId,
   FxEvent,
+  CompanyStats,
   GameState,
   HubId,
   NewGameConfig,
@@ -185,6 +187,21 @@ export function productCap(state: GameState): number {
   return Math.min(100, 26 + state.stats.team * 9);
 }
 
+/** Add positive product progress without ever erasing work above a reduced team cap. */
+function addProductToCap(state: GameState, gain: number): number {
+  const before = state.stats.product;
+  const ceiling = Math.max(before, productCap(state));
+  state.stats.product = clamp(before + Math.max(0, gain), 0, ceiling);
+  return state.stats.product - before;
+}
+
+/** Add to a 0..100 company stat and return the gain that survived the cap. */
+function addBoundedStat(stats: CompanyStats, key: 'hype' | 'morale', gain: number): number {
+  const before = stats[key];
+  stats[key] = clamp(before + gain, 0, 100);
+  return stats[key] - before;
+}
+
 export interface PitchReadiness {
   ready: boolean;
   reasons: string[];
@@ -249,6 +266,7 @@ export function performAction(
   const s = state.stats;
   const sector = sectorById(state.sectorId);
   const hub = hubById(state.hubId);
+  const sceneMult = hub.synergySector === state.sectorId ? 1.1 : 1;
   let message = '';
 
   switch (actionId) {
@@ -258,12 +276,16 @@ export function performAction(
       // Gain shrinks to zero at the team's cap — hiring is the only way past it.
       const headroom = clamp(1 - s.product / cap, 0, 1);
       const gain =
-        (2.3 + 1.9 * Math.sqrt(s.team)) * moraleFactor * sector.buildMult * Math.sqrt(headroom);
-      s.product = clamp(s.product + gain, 0, cap);
+        (2.3 + 1.9 * Math.sqrt(s.team)) *
+        moraleFactor *
+        sector.buildMult *
+        sceneMult *
+        Math.sqrt(headroom);
+      const actualGain = addProductToCap(state, gain);
       message =
         headroom < 0.15
-          ? `Product +${gain.toFixed(1)} — the team of ${s.team} is at its limit. Hire to go further.`
-          : `Product +${gain.toFixed(1)}. The demo gets better every week.`;
+          ? `Product +${actualGain.toFixed(1)} — the team of ${s.team} is at its limit. Hire to go further.`
+          : `Product +${actualGain.toFixed(1)}. The demo gets better every week.`;
       break;
     }
     case 'growth': {
@@ -271,6 +293,7 @@ export function performAction(
         (18 + s.traction * 0.085) *
         (0.25 + s.product / 70) *
         sector.tractionMult *
+        sceneMult *
         (1 + s.hype / 140);
       s.traction = Math.max(0, s.traction + gain);
       s.hype = clamp(s.hype + 2, 0, 100);
@@ -296,9 +319,9 @@ export function performAction(
     }
     case 'press': {
       const gain = (8 + s.product * 0.09) * sector.hypeGainMult * hub.hypeMult;
-      s.hype = clamp(s.hype + gain, 0, 100);
+      const actualHypeGain = addBoundedStat(s, 'hype', gain);
       s.traction += Math.round(s.traction * 0.02 + 4);
-      message = `Hype +${gain.toFixed(0)}. A journalist replied with "interesting!!"`;
+      message = `Hype +${actualHypeGain.toFixed(0)}. A journalist replied with "interesting!!"`;
       break;
     }
     case 'retreat': {
@@ -355,33 +378,39 @@ export function performAction(
         return { state: prev, ok: false, message: 'That event is over (or you already went).' };
       ev.attended = true;
       const synergy = ev.sectorId === state.sectorId;
-      const mult = synergy ? 1.6 : 1;
+      const mult = synergy ? 2 : 1;
       switch (ev.kind) {
-        case 'social':
+        case 'social': {
           s.connections += Math.round(2 * mult);
-          s.morale = clamp(s.morale + 3, 0, 100);
-          message = `Met ${Math.round(2 * mult)} useful people over lukewarm wine.`;
+          const moraleGain = addBoundedStat(s, 'morale', 3 * mult);
+          message = `Met ${Math.round(2 * mult)} useful people over lukewarm wine. Morale +${Math.round(moraleGain)}.`;
           break;
+        }
         case 'pitch':
           s.connections += Math.round(3 * mult);
           message = `Investor intros +${Math.round(3 * mult)}. Business cards still exist, apparently.`;
           break;
-        case 'talk':
-          s.connections += 1;
-          s.product = clamp(s.product + 2 * mult, 0, productCap(state));
-          message = 'Took actual notes. Product +2 and one new contact.';
+        case 'talk': {
+          const contacts = Math.round(mult);
+          s.connections += contacts;
+          message = `Took actual notes. Product +${addProductToCap(state, 2 * mult).toFixed(1)} and ${contacts} new contact${contacts === 1 ? '' : 's'}.`;
           break;
-        case 'demo':
-          s.hype = clamp(s.hype + 6 * mult, 0, 100);
-          s.connections += 1;
-          message = `Demoed on stage. Hype +${Math.round(6 * mult)}.`;
+        }
+        case 'demo': {
+          const contacts = Math.round(mult);
+          const hypeGain = addBoundedStat(s, 'hype', 6 * mult);
+          s.connections += contacts;
+          message = `Demoed on stage. Hype +${Math.round(hypeGain)} and investor intros +${contacts}.`;
           break;
-        case 'party':
-          s.morale = clamp(s.morale + 6, 0, 100);
-          s.hype = clamp(s.hype + 3 * mult, 0, 100);
-          s.connections += 1;
-          message = 'Danced badly with two angels and a unicorn intern. Morale +6.';
+        }
+        case 'party': {
+          const contacts = Math.round(mult);
+          const moraleGain = addBoundedStat(s, 'morale', 6 * mult);
+          const hypeGain = addBoundedStat(s, 'hype', 3 * mult);
+          s.connections += contacts;
+          message = `Danced badly with two angels and a unicorn intern. Morale +${Math.round(moraleGain)}, hype +${Math.round(hypeGain)}, intros +${contacts}.`;
           break;
+        }
       }
       if (synergy) message += ' (Your scene — double value.)';
       break;
@@ -435,7 +464,7 @@ export function endWeek(prev: GameState): GameState {
 
   // Unused focus becomes idle tinkering.
   if (state.focusLeft > 0) {
-    s.product = clamp(s.product + 0.4 * state.focusLeft, 0, productCap(state));
+    addProductToCap(state, 0.4 * state.focusLeft);
   }
 
   // Rivals hustle too.
@@ -495,7 +524,11 @@ function tickRivals(state: GameState, dice: Dice) {
       const stage = STAGES[nextIndex];
       if (stage.id === 'unicorn') {
         rival.unicornWeek = state.week;
-        pushNews(state, 'rival', `🦄 ${rival.name} just hit a $1B valuation. The race is real.`);
+        pushNews(
+          state,
+          'rival',
+          `🦄 ${rival.name} just hit a ${UNICORN_TARGET.compactLabel} valuation. The race is real.`,
+        );
       } else {
         pushNews(
           state,
@@ -512,7 +545,11 @@ function tickRivals(state: GameState, dice: Dice) {
 // ---------------------------------------------------------------------------
 
 function rollEvents(state: GameState, dice: Dice): WeekEvent[] {
-  const count = 1 + (dice.chance(0.65) ? 1 : 0) + (dice.chance(0.3) ? 1 : 0);
+  const localScene = hubById(state.hubId).eventFrequencyMult;
+  const count =
+    1 +
+    (dice.chance(clamp(0.65 * localScene, 0, 1)) ? 1 : 0) +
+    (dice.chance(clamp(0.3 * localScene, 0, 1)) ? 1 : 0);
   const events: WeekEvent[] = [];
   const templates = dice.shuffle(EVENT_TEMPLATES);
   for (let i = 0; i < count && i < templates.length; i++) {
@@ -521,7 +558,7 @@ function rollEvents(state: GameState, dice: Dice): WeekEvent[] {
     // neighbourhood choice is felt.
     const hub = dice.weighted(HUBS, (h) => h.eventFrequencyMult * (h.id === state.hubId ? 1.5 : 1));
     events.push({
-      id: `w${state.week + 1}-e${i}`,
+      id: `w${state.week}-e${i}`,
       name: t.name,
       venue: dice.pick(VENUES_BY_HUB[hub.id]),
       hubId: hub.id,
@@ -591,7 +628,12 @@ function bridgeDilemma(): Dilemma {
 }
 
 export function applyDilemmaChoice(prev: GameState, effectId: DilemmaEffectId): GameState {
-  if (!prev.pendingDilemma) return prev;
+  if (
+    !prev.pendingDilemma ||
+    !prev.pendingDilemma.options.some((option) => option.effectId === effectId)
+  ) {
+    return prev;
+  }
   const state = clone(prev);
   const dice = new Dice(state.rng);
   const s = state.stats;
@@ -680,6 +722,7 @@ export function applyDilemmaChoice(prev: GameState, effectId: DilemmaEffectId): 
     case 'accelerator_join':
       s.cash += 100_000;
       s.connections += 5;
+      s.morale = clamp(s.morale - 8, 0, 100);
       state.valuation = Math.round(state.valuation * 0.93);
       pushNews(state, 'money', 'Joined the accelerator batch. Demo day looms.');
       break;

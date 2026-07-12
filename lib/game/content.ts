@@ -221,6 +221,12 @@ export function hubById(id: HubId): Hub {
 // Funding stages
 // ---------------------------------------------------------------------------
 
+export const UNICORN_TARGET = {
+  valuation: 1_000_000_000,
+  compactLabel: '£1B',
+  sentenceLabel: 'One billion pounds',
+} as const;
+
 export const STAGES: readonly Stage[] = [
   {
     id: 'garage',
@@ -280,7 +286,7 @@ export const STAGES: readonly Stage[] = [
     id: 'unicorn',
     name: 'Unicorn',
     raise: 250_000_000,
-    valuation: 1_000_000_000,
+    valuation: UNICORN_TARGET.valuation,
     minProduct: 90,
     minTraction: 400_000,
     baseOdds: 0.33,
@@ -419,7 +425,7 @@ export const DILEMMAS: readonly Dilemma[] = [
     options: [
       {
         label: 'Counter-offer',
-        detail: 'Keep them. Burn rises for good.',
+        detail: 'Pay £4,000 to keep them; morale lifts.',
         effectId: 'poach_counter',
       },
       {
@@ -511,12 +517,13 @@ export const DILEMMAS: readonly Dilemma[] = [
     id: 'accelerator',
     title: 'The accelerator calls',
     body: 'A famous accelerator offers cash and their network — for a slice of the company.',
+    condition: 'funded',
     weight: 0.9,
     once: true,
     options: [
       {
         label: 'Take the batch',
-        detail: 'Cash + investor intros now; a bite out of your valuation.',
+        detail: 'Cash + investor intros now; valuation and morale take a hit.',
         effectId: 'accelerator_join',
       },
       {
