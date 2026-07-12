@@ -322,6 +322,7 @@ export function GameApp() {
   // --- keyboard ---------------------------------------------------------------
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector('dialog[open]')) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key.toLowerCase() === 'm') {
         toggleMute();
@@ -358,7 +359,13 @@ export function GameApp() {
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-[#070c1a] text-slate-200 md:flex-row">
       {/* Map side */}
-      <div className="relative h-[44dvh] min-h-64 flex-none md:h-full md:flex-1">
+      <div
+        className={`relative ${
+          screen === 'play'
+            ? 'h-[44dvh] min-h-64 flex-none md:h-full md:flex-1'
+            : 'min-h-0 flex-1 md:h-full'
+        }`}
+      >
         <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
 
         {/* Map chrome */}
@@ -382,7 +389,8 @@ export function GameApp() {
         <button
           onClick={toggleMute}
           title="Toggle sound (M)"
-          className="absolute top-3 right-3 z-10 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
+          aria-label={muted ? 'Turn sound on' : 'Mute sound'}
+          className="absolute top-3 right-3 z-30 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
         >
           {muted ? '🔇' : '🔊'}
         </button>
@@ -403,10 +411,10 @@ export function GameApp() {
               <h1 className="mt-3 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-7xl font-black tracking-tight text-transparent drop-shadow-sm md:text-8xl">
                 RUNWAY
               </h1>
-              <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-slate-300">
+              <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
                 Found a startup on a living map of London. Spend your focus, work the events scene,
                 out-raise your rivals — and reach a{' '}
-                <span className="font-bold text-amber-300">$1B valuation</span> before the money
+                <span className="font-bold text-amber-300">£1B valuation</span> before the money
                 runs out.
               </p>
               <div className="mt-8 flex flex-col items-center gap-2.5">
@@ -444,6 +452,10 @@ export function GameApp() {
             onName={setDraftName}
             onSector={(s) => {
               setDraftSector(s);
+              sfx.play('click');
+            }}
+            onHub={(hubId) => {
+              setHubChoice(hubId);
               sfx.play('click');
             }}
             onRollName={rollName}

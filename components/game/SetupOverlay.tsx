@@ -6,8 +6,9 @@
  * Step 2: click a neighbourhood on the live map to plant the HQ.
  */
 
-import { SECTORS, hubById } from '@/lib/game/content';
+import { HUBS, SECTORS, hubById } from '@/lib/game/content';
 import type { Hub, HubId, SectorId } from '@/lib/game/types';
+import { ModalDialog } from './ModalDialog';
 
 export type SetupStep = 'identity' | 'hq';
 
@@ -18,6 +19,7 @@ interface Props {
   hubChoice: HubId | null;
   onName: (v: string) => void;
   onSector: (v: SectorId) => void;
+  onHub: (v: HubId) => void;
   onRollName: () => void;
   onToHq: () => void;
   onBack: () => void;
@@ -33,7 +35,7 @@ function hubPerks(hub: Hub): string[] {
   if (hub.rent >= 3000) perks.push('Painful rent');
   if (hub.synergySector) {
     const s = SECTORS.find((x) => x.id === hub.synergySector)!;
-    perks.push(`${s.emoji} ${s.name} scene bonus`);
+    perks.push(`${s.emoji} ${s.name} scene: +10% build & growth`);
   }
   return perks;
 }
@@ -41,63 +43,74 @@ function hubPerks(hub: Hub): string[] {
 export function SetupOverlay(props: Props) {
   if (props.step === 'identity') {
     return (
-      <div className="absolute inset-0 z-20 flex items-center justify-center overflow-y-auto bg-[#070c1a]/72 p-4 backdrop-blur-[2px]">
-        <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0b1226]/95 p-6 shadow-2xl shadow-black/60">
-          <p className="text-xs font-bold tracking-[0.25em] text-sky-300">STEP 1 OF 2</p>
-          <h2 className="mt-1 text-2xl font-black text-white">Incorporate your startup</h2>
+      <ModalDialog
+        labelledBy="setup-title"
+        dismissible
+        onDismiss={props.onBack}
+        panelClassName="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0b1226]/98 p-4 shadow-2xl shadow-black/60 sm:p-6"
+      >
+        <p className="text-xs font-bold tracking-[0.25em] text-sky-300">STEP 1 OF 2</p>
+        <h2 id="setup-title" className="mt-1 text-2xl font-black text-white">
+          Incorporate your startup
+        </h2>
 
-          <label className="mt-5 block text-sm font-semibold text-slate-300">Company name</label>
-          <div className="mt-1.5 flex gap-2">
-            <input
-              value={props.name}
-              onChange={(e) => props.onName(e.target.value)}
-              maxLength={24}
-              placeholder="e.g. Magpieflow"
-              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-base font-semibold text-white placeholder-slate-500 outline-none focus:border-amber-300/70"
-            />
-            <button
-              onClick={props.onRollName}
-              title="Roll a random name"
-              className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-3.5 text-xl transition hover:bg-white/10 active:scale-95"
-            >
-              🎲
-            </button>
-          </div>
-
-          <p className="mt-5 text-sm font-semibold text-slate-300">Pick your sector</p>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {SECTORS.map((s) => {
-              const active = props.sectorId === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => props.onSector(s.id)}
-                  className={`rounded-xl border p-3 text-left transition active:scale-[0.99] ${
-                    active
-                      ? 'border-amber-300/80 bg-amber-300/10'
-                      : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]'
-                  }`}
-                >
-                  <p className="text-sm font-bold text-white">
-                    {s.emoji} {s.name}
-                  </p>
-                  <p className="mt-0.5 text-xs leading-snug text-slate-400">{s.tagline}</p>
-                  <p className="mt-1.5 text-xs leading-snug text-emerald-300/90">+ {s.perk}</p>
-                  <p className="text-xs leading-snug text-rose-300/80">− {s.drawback}</p>
-                </button>
-              );
-            })}
-          </div>
-
+        <label htmlFor="company-name" className="mt-5 block text-sm font-semibold text-slate-300">
+          Company name
+        </label>
+        <div className="mt-1.5 flex gap-2">
+          <input
+            id="company-name"
+            data-dialog-autofocus
+            value={props.name}
+            onChange={(e) => props.onName(e.target.value)}
+            maxLength={24}
+            placeholder="e.g. Magpieflow"
+            className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-base font-semibold text-white placeholder-slate-500 outline-none focus:border-amber-300/70"
+          />
           <button
-            disabled={!props.name.trim() || !props.sectorId}
-            onClick={props.onToHq}
-            className="mt-5 w-full rounded-xl bg-amber-400 px-4 py-3 text-base font-black text-[#161003] transition enabled:hover:bg-amber-300 enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={props.onRollName}
+            title="Roll a random name"
+            aria-label="Roll a random company name"
+            className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-3.5 text-xl transition hover:bg-white/10 active:scale-95"
           >
-            Next — choose your neighbourhood →
+            🎲
           </button>
         </div>
-      </div>
+
+        <p className="mt-5 text-sm font-semibold text-slate-300">Pick your sector</p>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {SECTORS.map((s) => {
+            const active = props.sectorId === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => props.onSector(s.id)}
+                aria-pressed={active}
+                className={`rounded-xl border p-3 text-left transition active:scale-[0.99] ${
+                  active
+                    ? 'border-amber-300/80 bg-amber-300/10'
+                    : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]'
+                }`}
+              >
+                <p className="text-sm font-bold text-white">
+                  {s.emoji} {s.name}
+                </p>
+                <p className="mt-0.5 text-xs leading-snug text-slate-400">{s.tagline}</p>
+                <p className="mt-1.5 text-xs leading-snug text-emerald-300/90">+ {s.perk}</p>
+                <p className="text-xs leading-snug text-rose-300/80">− {s.drawback}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          disabled={!props.name.trim() || !props.sectorId}
+          onClick={props.onToHq}
+          className="mt-5 w-full rounded-xl bg-amber-400 px-4 py-3 text-base font-black text-[#161003] transition enabled:hover:bg-amber-300 enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next — choose your neighbourhood →
+        </button>
+      </ModalDialog>
     );
   }
 
@@ -105,10 +118,28 @@ export function SetupOverlay(props: Props) {
   const hub = props.hubChoice ? hubById(props.hubChoice) : null;
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-4">
-      <div className="mx-auto mt-2 max-w-md rounded-full border border-sky-300/30 bg-[#0b1226]/90 px-5 py-2.5 text-center shadow-lg">
-        <p className="text-sm font-bold text-sky-100">
-          Step 2 — click a glowing neighbourhood to plant your HQ
+      <div className="pointer-events-auto mx-auto mt-2 w-full max-w-md rounded-2xl border border-sky-300/30 bg-[#0b1226]/95 p-3 shadow-lg">
+        <p className="text-center text-sm font-bold text-sky-100">
+          Step 2 — choose from the list or click a glowing neighbourhood
         </p>
+        <label htmlFor="hq-select" className="sr-only">
+          Neighbourhood for your headquarters
+        </label>
+        <select
+          id="hq-select"
+          value={props.hubChoice ?? ''}
+          onChange={(event) => {
+            if (event.target.value) props.onHub(event.target.value as HubId);
+          }}
+          className="mt-2 w-full rounded-lg border border-white/15 bg-[#111a34] px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300"
+        >
+          <option value="">Select a neighbourhood</option>
+          {HUBS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name} — £{option.rent.toLocaleString('en-GB')}/week
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="mx-auto w-full max-w-xl">

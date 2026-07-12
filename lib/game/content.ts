@@ -419,7 +419,7 @@ export const DILEMMAS: readonly Dilemma[] = [
     options: [
       {
         label: 'Counter-offer',
-        detail: 'Keep them. Burn rises for good.',
+        detail: 'Pay £4,000 to keep them; morale lifts.',
         effectId: 'poach_counter',
       },
       {
@@ -511,12 +511,13 @@ export const DILEMMAS: readonly Dilemma[] = [
     id: 'accelerator',
     title: 'The accelerator calls',
     body: 'A famous accelerator offers cash and their network — for a slice of the company.',
+    condition: 'funded',
     weight: 0.9,
     once: true,
     options: [
       {
         label: 'Take the batch',
-        detail: 'Cash + investor intros now; a bite out of your valuation.',
+        detail: 'Cash + investor intros now; valuation and morale take a hit.',
         effectId: 'accelerator_join',
       },
       {
