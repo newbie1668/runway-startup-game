@@ -2,8 +2,8 @@
 
 RUNWAY is a standalone preview app for the London startup strategy game.
 
-It was extracted from London Startup Map PR #62 so the experiment can continue
-without adding `/game` to the main `londonstartupmap.com` codebase.
+It is a separate experiment from [London Startup Map](https://londonstartupmap.com/),
+so the game can continue without adding `/game` to the main product codebase.
 
 ## Local Development
 
@@ -24,5 +24,5 @@ pnpm build
 
 ## Repo Boundary
 
-This repo is intentionally separate from `newbie1668/london-startup-map`.
-Do not merge or deploy it under `londonstartupmap.com` without product approval.
+This repo is intentionally separate from the main London Startup Map product.
+Do not deploy it under `londonstartupmap.com` without product approval.
