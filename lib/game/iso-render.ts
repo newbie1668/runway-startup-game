@@ -410,15 +410,15 @@ export class IsoMapRenderer implements MapRendererApi {
     const rx = cluster.groundRx * TILE_W * 0.5 * z * padScale;
     const ry = cluster.groundRy * TILE_H * 0.5 * z * padScale;
 
-    drawHubPlaza(ctx, origin.x, origin.y, rx, ry, theme, z);
-    drawHubSign(ctx, hubId, origin.x, origin.y - ry - 8, z);
-
     const sprite = getCachedSprite(HUB_SPRITE_META[hubId].assetPath);
     if (sprite) {
       const meta = HUB_SPRITE_META[hubId];
       const sw = meta.drawW * TILE_W * z;
       const sh = meta.drawH * TILE_H * z;
       ctx.drawImage(sprite, origin.x - sw * meta.anchorX, origin.y - sh * meta.anchorY, sw, sh);
+    } else {
+      drawHubPlaza(ctx, origin.x, origin.y, rx, ry, theme, z);
+      drawHubSign(ctx, hubId, origin.x, origin.y - ry - 8, z);
     }
 
     const rivals = this.scene.rivals.filter((r) => r.alive && r.hubId === hubId);
@@ -455,6 +455,8 @@ export class IsoMapRenderer implements MapRendererApi {
         (kind === 'rival' &&
           rivalHoverId !== null &&
           rivals.some((r, i) => rivalSlots[i % rivalSlots.length] === b && r.id === rivalHoverId));
+
+      if (sprite && kind === 'neutral') continue;
 
       const base = isoToScreen(this.buildingIso(hubId, b), this.cam, w, h);
       const hw = b.w * TILE_W * 0.5 * this.cam.zoom;
