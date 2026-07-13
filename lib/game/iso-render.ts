@@ -4,7 +4,8 @@
  */
 
 import { HUBS } from './content';
-import { LANDMARKS, PARKS, THAMES, project } from './geo';
+import { LANDMARKS, project } from './geo';
+import { drawSky, drawParks, drawThames, drawRoads, drawHubSign } from './iso-scenery';
 import {
   TILE_H,
   TILE_W,
@@ -23,7 +24,6 @@ import {
 import type { MapRendererApi } from './map-renderer';
 import {
   HUB_CLUSTERS,
-  HUB_ROAD_EDGES,
   ISO_PALETTE,
   MIN_HIT_PX,
   sectorBuildingColors,
@@ -380,63 +380,11 @@ export class IsoMapRenderer implements MapRendererApi {
     if (!ctx || this.cssW === 0 || this.cssH === 0) return;
     const w = this.cssW;
     const h = this.cssH;
-    const z = this.cam.zoom;
 
-    const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, ISO_PALETTE.skyTop);
-    sky.addColorStop(1, ISO_PALETTE.skyBottom);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = ISO_PALETTE.groundFar;
-    ctx.fillRect(0, h * 0.52, w, h * 0.48);
-
-    // Parks
-    for (const park of PARKS) {
-      ctx.beginPath();
-      park.points.forEach((pt, i) => {
-        const p = worldToScreen(project(pt), this.cam, w, h);
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
-      });
-      ctx.closePath();
-      ctx.fillStyle = ISO_PALETTE.park;
-      ctx.fill();
-      ctx.strokeStyle = ISO_PALETTE.parkStroke;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    // Thames
-    ctx.beginPath();
-    THAMES.forEach((pt, i) => {
-      const p = worldToScreen(project(pt), this.cam, w, h);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    });
-    ctx.strokeStyle = ISO_PALETTE.thamesBank;
-    ctx.lineWidth = Math.max(8, z * 3.5);
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.strokeStyle = ISO_PALETTE.thames;
-    ctx.lineWidth = Math.max(5, z * 2.2);
-    ctx.stroke();
-
-    // Roads between hubs
-    for (const [a, b] of HUB_ROAD_EDGES) {
-      const pa = isoToScreen(this.hubOrigin(a), this.cam, w, h);
-      const pb = isoToScreen(this.hubOrigin(b), this.cam, w, h);
-      ctx.strokeStyle = ISO_PALETTE.roadEdge;
-      ctx.lineWidth = Math.max(12, 14 * z);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(pa.x, pa.y);
-      ctx.lineTo(pb.x, pb.y);
-      ctx.stroke();
-      ctx.strokeStyle = ISO_PALETTE.road;
-      ctx.lineWidth = Math.max(8, 10 * z);
-      ctx.stroke();
-    }
+    drawSky(ctx, w, h);
+    drawParks(ctx, this.cam, w, h);
+    drawThames(ctx, this.cam, w, h);
+    drawRoads(ctx, this.cam, w, h);
 
     // Hub clusters back-to-front
     const hubOrder = [...HUBS].sort((a, b) => {
@@ -458,10 +406,12 @@ export class IsoMapRenderer implements MapRendererApi {
     const theme = HUB_THEMES[hubId];
     const origin = isoToScreen(this.hubOrigin(hubId), this.cam, w, h);
     const z = this.cam.zoom;
-    const rx = cluster.groundRx * TILE_W * 0.5 * z;
-    const ry = cluster.groundRy * TILE_H * 0.5 * z;
+    const padScale = z < 0.55 ? 0.78 : 1;
+    const rx = cluster.groundRx * TILE_W * 0.5 * z * padScale;
+    const ry = cluster.groundRy * TILE_H * 0.5 * z * padScale;
 
     drawHubPlaza(ctx, origin.x, origin.y, rx, ry, theme, z);
+    drawHubSign(ctx, hubId, origin.x, origin.y - ry - 8, z);
 
     const sprite = getCachedSprite(HUB_SPRITE_META[hubId].assetPath);
     if (sprite) {
@@ -546,42 +496,66 @@ export class IsoMapRenderer implements MapRendererApi {
   }
 
   private drawLandmarks(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    ctx.strokeStyle = ISO_PALETTE.landmark;
-    ctx.fillStyle = ISO_PALETTE.landmark;
-    ctx.lineWidth = 1.2;
+    const s = Math.min(1.35, this.cam.zoom * 1.1);
     for (const lm of LANDMARKS) {
       const p = worldToScreen(project(lm.at), this.cam, w, h);
-      const s = Math.min(1.2, this.cam.zoom);
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.scale(s, s);
+      ctx.lineWidth = 1.1;
       switch (lm.kind) {
         case 'shard':
+          ctx.fillStyle = 'rgba(180, 200, 220, 0.85)';
+          ctx.strokeStyle = '#6a7a8a';
           ctx.beginPath();
-          ctx.moveTo(-5, 0);
-          ctx.lineTo(0, -18);
-          ctx.lineTo(5, 0);
+          ctx.moveTo(-6, 2);
+          ctx.lineTo(0, -22);
+          ctx.lineTo(6, 2);
+          ctx.closePath();
+          ctx.fill();
           ctx.stroke();
           break;
         case 'eye':
+          ctx.strokeStyle = '#5a6a7a';
+          ctx.fillStyle = 'rgba(220, 230, 240, 0.7)';
           ctx.beginPath();
-          ctx.arc(0, -10, 7, 0, Math.PI * 2);
+          ctx.arc(0, -11, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-8, -11);
+          ctx.lineTo(8, -11);
           ctx.stroke();
           break;
         case 'bigben':
-          ctx.strokeRect(-2, -14, 4, 14);
+          ctx.fillStyle = '#c4a86a';
+          ctx.strokeStyle = '#6a5a3a';
+          ctx.fillRect(-3, -16, 6, 16);
           ctx.beginPath();
-          ctx.moveTo(-2, -14);
-          ctx.lineTo(0, -18);
-          ctx.lineTo(2, -14);
+          ctx.moveTo(-3, -16);
+          ctx.lineTo(0, -21);
+          ctx.lineTo(3, -16);
+          ctx.closePath();
+          ctx.fill();
           ctx.stroke();
+          ctx.fillStyle = '#2a2a2a';
+          ctx.fillRect(-1.5, -12, 3, 3);
           break;
         case 'stpauls':
+          ctx.fillStyle = '#d8d0c0';
+          ctx.strokeStyle = '#8a8070';
+          ctx.fillRect(-5, -4, 10, 6);
           ctx.beginPath();
-          ctx.arc(0, -6, 5, Math.PI, 0);
+          ctx.arc(0, -6, 6, Math.PI, 0);
+          ctx.fill();
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, -12);
+          ctx.lineTo(0, -16);
           ctx.stroke();
           break;
         default:
+          ctx.fillStyle = ISO_PALETTE.landmark;
           ctx.fillRect(-2, -10, 4, 10);
       }
       ctx.restore();
