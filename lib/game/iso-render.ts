@@ -17,8 +17,6 @@ import {
   type ScreenPoint,
 } from './iso';
 import {
-  EVENT_COLOR,
-  PLAYER_COLOR,
   type HitTarget,
   type Scene,
 } from './map-scene';
@@ -32,6 +30,14 @@ import {
   type ClusterBuildingDef,
 } from './sprites';
 import type { HubId } from './types';
+import {
+  drawHubPlaza,
+  drawIllustratedBuilding,
+  drawIllustratedTent,
+  HUB_THEMES,
+  truncateLabel,
+} from './iso-draw';
+import { getCachedSprite, HUB_SPRITE_META, preloadHubSprites } from './sprite-loader';
 
 const EVENT_TENTS: Record<HubId, { wx: number; wy: number }> = {
   shoreditch: { wx: 0.9, wy: 1.35 },
@@ -87,30 +93,6 @@ function expandPoly(poly: ScreenPoint[], minSize: number): ScreenPoint[] {
   ];
 }
 
-function drawDiamond(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-  fill: string,
-  stroke?: string,
-) {
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - ry);
-  ctx.lineTo(cx + rx, cy);
-  ctx.lineTo(cx, cy + ry);
-  ctx.lineTo(cx - rx, cy);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-}
-
 type CanvasLike = HTMLCanvasElement | { width: number; height: number };
 
 export class IsoMapRenderer implements MapRendererApi {
@@ -137,6 +119,7 @@ export class IsoMapRenderer implements MapRendererApi {
     this.canvas = canvas;
     if ('getContext' in canvas) {
       this.ctx = canvas.getContext('2d');
+      preloadHubSprites();
     } else {
       this.ctx = null;
     }
@@ -472,18 +455,21 @@ export class IsoMapRenderer implements MapRendererApi {
 
   private drawHubCluster(ctx: CanvasRenderingContext2D, hubId: HubId, w: number, h: number) {
     const cluster = HUB_CLUSTERS[hubId];
+    const theme = HUB_THEMES[hubId];
     const origin = isoToScreen(this.hubOrigin(hubId), this.cam, w, h);
     const z = this.cam.zoom;
+    const rx = cluster.groundRx * TILE_W * 0.5 * z;
+    const ry = cluster.groundRy * TILE_H * 0.5 * z;
 
-    drawDiamond(
-      ctx,
-      origin.x,
-      origin.y,
-      cluster.groundRx * TILE_W * 0.5 * z,
-      cluster.groundRy * TILE_H * 0.5 * z,
-      ISO_PALETTE.hubSite,
-      ISO_PALETTE.hubSiteStroke,
-    );
+    drawHubPlaza(ctx, origin.x, origin.y, rx, ry, theme, z);
+
+    const sprite = getCachedSprite(HUB_SPRITE_META[hubId].assetPath);
+    if (sprite) {
+      const meta = HUB_SPRITE_META[hubId];
+      const sw = meta.drawW * TILE_W * z;
+      const sh = meta.drawH * TILE_H * z;
+      ctx.drawImage(sprite, origin.x - sw * meta.anchorX, origin.y - sh * meta.anchorY, sw, sh);
+    }
 
     const rivals = this.scene.rivals.filter((r) => r.alive && r.hubId === hubId);
     const events = this.scene.events.filter((e) => !e.attended && e.hubId === hubId);
@@ -491,161 +477,71 @@ export class IsoMapRenderer implements MapRendererApi {
     const sortedBuildings = [...cluster.buildings].sort((a, b) => a.wx + a.wy - (b.wx + b.wy));
 
     for (const b of sortedBuildings) {
-      let colors = { roof: b.roof, left: b.left, right: b.right };
+      let colors = { roof: b.roof, left: b.left, right: b.right, accent: cluster.accent };
       let label: string | null = null;
-      let kind: 'player' | 'rival' | 'neutral' | 'event' = b.role;
-      const hovered =
-        (b.role === 'player' &&
-          this.scene.playerHubId === hubId &&
-          this.hover?.type === 'player') ||
-        (b.role === 'rival' &&
-          rivals.some(
-            (r, i) =>
-              rivalSlots[i % rivalSlots.length] === b &&
-              this.hover?.type === 'rival' &&
-              this.hover.rivalId === r.id,
-          ));
+      let kind: 'player' | 'rival' | 'neutral' = 'neutral';
+      let companyName: string | undefined;
 
-      if (b.role === 'player') {
-        if (this.scene.playerHubId !== hubId) continue;
-        if (this.scene.playerSectorId) colors = sectorBuildingColors(this.scene.playerSectorId);
-        label = this.scene.companyName || 'YOU';
+      if (b.role === 'player' && this.scene.playerHubId === hubId) {
         kind = 'player';
+        if (this.scene.playerSectorId) {
+          colors = { ...sectorBuildingColors(this.scene.playerSectorId), accent: cluster.accent };
+        }
+        companyName = this.scene.companyName;
+        label = this.scene.companyName || 'YOU';
       } else if (b.role === 'rival') {
         const idx = rivalSlots.indexOf(b);
         const rival = rivals[idx];
-        if (!rival) continue;
-        colors = sectorBuildingColors(rival.sectorId);
-        label = rival.name;
-        kind = 'rival';
+        if (rival) {
+          kind = 'rival';
+          colors = { ...sectorBuildingColors(rival.sectorId), accent: cluster.accent };
+          label = rival.name;
+        }
       }
 
-      this.drawBuilding(ctx, hubId, b, colors, kind, hovered, w, h);
-      if (label && kind !== 'neutral') {
-        const iso = this.buildingIso(hubId, b);
-        const p = isoToScreen(iso, this.cam, w, h);
-        const short = kind === 'player' ? 'YOU' : label.split(' ')[0];
+      const rivalHoverId = this.hover?.type === 'rival' ? this.hover.rivalId : null;
+      const hovered =
+        (kind === 'player' && this.hover?.type === 'player') ||
+        (kind === 'rival' &&
+          rivalHoverId !== null &&
+          rivals.some((r, i) => rivalSlots[i % rivalSlots.length] === b && r.id === rivalHoverId));
+
+      const base = isoToScreen(this.buildingIso(hubId, b), this.cam, w, h);
+      const hw = b.w * TILE_W * 0.5 * this.cam.zoom;
+      const hd = b.d * TILE_H * 0.5 * this.cam.zoom;
+      const rise = b.h * TILE_H * this.cam.zoom;
+
+      drawIllustratedBuilding(ctx, base, hw, hd, rise, colors, theme.buildingStyle, {
+        kind,
+        gag: kind === 'neutral' ? theme.gag : undefined,
+        companyName,
+        hover: hovered,
+      });
+
+      if (label && kind === 'rival') {
         ctx.font = `bold ${Math.max(9, 10 * z)}px system-ui`;
-        ctx.fillStyle = 'rgba(15,23,42,0.75)';
-        ctx.fillText(short, p.x - ctx.measureText(short).width / 2, p.y - b.h * TILE_H * z - 16);
+        ctx.fillStyle = 'rgba(15,23,42,0.8)';
+        ctx.textAlign = 'center';
+        ctx.fillText(truncateLabel(label, 16), base.x, base.y - b.h * TILE_H * z - 18);
       }
     }
 
     for (const ev of events) {
       const tent = EVENT_TENTS[hubId];
       const iso = { ix: this.hubOrigin(hubId).ix + tent.wx, iy: this.hubOrigin(hubId).iy + tent.wy };
-      this.drawEventTent(ctx, iso, ev.name, this.hover?.type === 'event' && this.hover.eventId === ev.id, w, h);
-    }
-  }
-
-  private drawBuilding(
-    ctx: CanvasRenderingContext2D,
-    hubId: HubId,
-    b: ClusterBuildingDef,
-    colors: { roof: string; left: string; right: string },
-    kind: 'player' | 'rival' | 'neutral' | 'event',
-    hover: boolean,
-    w: number,
-    h: number,
-  ) {
-    const base = isoToScreen(this.buildingIso(hubId, b), this.cam, w, h);
-    const hw = b.w * TILE_W * 0.5 * this.cam.zoom;
-    const hd = b.d * TILE_H * 0.5 * this.cam.zoom;
-    const rise = b.h * TILE_H * this.cam.zoom;
-
-    ctx.beginPath();
-    ctx.moveTo(base.x - hw, base.y);
-    ctx.lineTo(base.x, base.y + hd);
-    ctx.lineTo(base.x, base.y + hd - rise);
-    ctx.lineTo(base.x - hw, base.y - rise);
-    ctx.closePath();
-    ctx.fillStyle = colors.left;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(base.x + hw, base.y);
-    ctx.lineTo(base.x, base.y + hd);
-    ctx.lineTo(base.x, base.y + hd - rise);
-    ctx.lineTo(base.x + hw, base.y - rise);
-    ctx.closePath();
-    ctx.fillStyle = colors.right;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(base.x, base.y - hd - rise);
-    ctx.lineTo(base.x + hw, base.y - rise);
-    ctx.lineTo(base.x, base.y + hd - rise);
-    ctx.lineTo(base.x - hw, base.y - rise);
-    ctx.closePath();
-    ctx.fillStyle = colors.roof;
-    ctx.fill();
-
-    if (kind === 'player') {
-      ctx.fillStyle = PLAYER_COLOR;
-      ctx.beginPath();
-      ctx.moveTo(base.x, base.y - hd - rise - 10);
-      ctx.lineTo(base.x + 8, base.y - hd - rise - 4);
-      ctx.lineTo(base.x, base.y - hd - rise + 2);
-      ctx.closePath();
-      ctx.fill();
-    } else if (kind === 'rival') {
-      ctx.fillStyle = colors.roof;
-      ctx.beginPath();
-      ctx.arc(base.x + hw * 0.5, base.y - rise * 0.65, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    if (hover) {
-      ctx.strokeStyle = 'rgba(15,23,42,0.55)';
-      ctx.lineWidth = 2;
-      const fp = this.buildingFootprint(hubId, b);
-      ctx.beginPath();
-      fp.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-      ctx.closePath();
-      ctx.stroke();
-    }
-  }
-
-  private drawEventTent(
-    ctx: CanvasRenderingContext2D,
-    iso: IsoPoint,
-    name: string,
-    hover: boolean,
-    w: number,
-    h: number,
-  ) {
-    const base = isoToScreen(iso, this.cam, w, h);
-    const z = this.cam.zoom;
-    const hw = 0.55 * TILE_W * 0.5 * z;
-    const hd = 0.5 * TILE_H * 0.5 * z;
-    const rise = 0.7 * TILE_H * z;
-
-    ctx.fillStyle = EVENT_COLOR + '55';
-    ctx.beginPath();
-    ctx.moveTo(base.x, base.y - hd);
-    ctx.lineTo(base.x + hw, base.y);
-    ctx.lineTo(base.x, base.y + hd);
-    ctx.lineTo(base.x - hw, base.y);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = EVENT_COLOR;
-    ctx.beginPath();
-    ctx.moveTo(base.x, base.y - hd - rise);
-    ctx.lineTo(base.x + hw, base.y);
-    ctx.lineTo(base.x - hw, base.y);
-    ctx.closePath();
-    ctx.fill();
-
-    const short = name.replace(/^\★\s*/, '').split(' ')[0];
-    ctx.font = `bold ${Math.max(9, 10 * z)}px system-ui`;
-    ctx.fillStyle = 'rgba(15,23,42,0.75)';
-    ctx.fillText(short, base.x - ctx.measureText(short).width / 2, base.y - hd - rise - 8);
-
-    if (hover) {
-      ctx.strokeStyle = 'rgba(15,23,42,0.55)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(base.x - hw - 4, base.y - hd - rise - 4, hw * 2 + 8, rise + hd + 8);
+      const base = isoToScreen(iso, this.cam, w, h);
+      const hw = 0.55 * TILE_W * 0.5 * this.cam.zoom;
+      const hd = 0.5 * TILE_H * 0.5 * this.cam.zoom;
+      const rise = 0.7 * TILE_H * this.cam.zoom;
+      drawIllustratedTent(
+        ctx,
+        base,
+        hw,
+        hd,
+        rise,
+        ev.name,
+        this.hover?.type === 'event' && this.hover.eventId === ev.id,
+      );
     }
   }
 
