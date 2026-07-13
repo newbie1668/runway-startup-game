@@ -1,35 +1,38 @@
 'use client';
 
 /**
- * Canvas host for the RUNWAY map renderer. Owns the requestAnimationFrame
- * loop and translates pointer input into camera moves (drag pan, wheel zoom,
- * two-finger pinch) and hit-tested clicks/hovers.
+ * Canvas host for the RUNWAY isometric map renderer.
  */
 
 import { useEffect, useRef, type RefObject } from 'react';
-import { MapRenderer, type HitTarget, type Scene } from '@/lib/game/render';
+import { IsoMapRenderer } from '@/lib/game/iso-render';
+import type { MapRendererApi } from '@/lib/game/map-renderer';
+import type { HitTarget, Scene } from '@/lib/game/map-scene';
 
 interface Props {
   scene: Scene;
-  rendererRef: RefObject<MapRenderer | null>;
-  onHit?: (target: HitTarget) => void;
+  rendererRef: RefObject<MapRendererApi | null>;
+  onHit?: (target: HitTarget, point: { x: number; y: number }) => void;
+  onHover?: (target: HitTarget | null) => void;
   className?: string;
 }
 
-export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
+export function MapCanvas({ scene, rendererRef, onHit, onHover, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onHitRef = useRef(onHit);
+  const onHoverRef = useRef(onHover);
   const sceneRef = useRef(scene);
 
   useEffect(() => {
     onHitRef.current = onHit;
+    onHoverRef.current = onHover;
     sceneRef.current = scene;
-  }, [onHit, scene]);
+  }, [onHit, onHover, scene]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const renderer = new MapRenderer(canvas);
+    const renderer = new IsoMapRenderer(canvas);
     renderer.scene = sceneRef.current;
     rendererRef.current = renderer;
     renderer.resize();
@@ -47,7 +50,6 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     const ro = new ResizeObserver(() => renderer.resize());
     ro.observe(canvas);
 
-    // --- Pointer input --------------------------------------------------
     const pointers = new Map<number, { x: number; y: number }>();
     let dragging = false;
     let moved = 0;
@@ -87,9 +89,11 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
           moved += Math.abs(p.x - prev.x) + Math.abs(p.y - prev.y);
         }
       } else {
-        // Pure hover.
         const hit = renderer.hitTest(p.x, p.y);
-        renderer.hover = hit;
+        if (renderer.hover !== hit) {
+          renderer.hover = hit;
+          onHoverRef.current?.(hit);
+        }
         canvas.style.cursor = hit ? 'pointer' : 'grab';
       }
     };
@@ -102,20 +106,20 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
         dragging = false;
         if (moved < 6) {
           const hit = renderer.hitTest(p.x, p.y);
-          if (hit) onHitRef.current?.(hit);
+          if (hit) onHitRef.current?.(hit, p);
         }
       }
     };
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
       const factor = Math.exp(-e.deltaY * 0.0016);
-      renderer.zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
+      renderer.zoomAt(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top, factor);
     };
 
     const onLeave = () => {
       renderer.hover = null;
+      onHoverRef.current?.(null);
     };
 
     canvas.addEventListener('pointerdown', onPointerDown);
@@ -147,7 +151,7 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     <canvas
       ref={canvasRef}
       className={className ?? 'h-full w-full touch-none select-none'}
-      aria-label="Illustrated London startup neighbourhood map; use the neighbourhood selector to choose an HQ"
+      aria-label="Illustrated isometric London startup map"
     />
   );
 }
