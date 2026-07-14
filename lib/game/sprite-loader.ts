@@ -17,6 +17,13 @@ export interface HubSpriteMeta {
   drawH: number;
 }
 
+/** Hubs with hand-illustrated cluster PNGs — skip procedural building draws. */
+export const ILLUSTRATED_HUBS: ReadonlySet<HubId> = new Set(['shoreditch']);
+
+export function isIllustratedHub(hubId: HubId): boolean {
+  return ILLUSTRATED_HUBS.has(hubId);
+}
+
 export const HUB_SPRITE_META: Record<HubId, HubSpriteMeta> = {
   shoreditch: { hubId: 'shoreditch', assetPath: '/map/hubs/shoreditch.png', anchorX: 0.5, anchorY: 0.55, drawW: 9.2, drawH: 7.4 },
   kingscross: { hubId: 'kingscross', assetPath: '/map/hubs/kingscross.png', anchorX: 0.5, anchorY: 0.55, drawW: 8.8, drawH: 7.0 },

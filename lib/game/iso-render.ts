@@ -34,10 +34,12 @@ import {
   drawHubPlaza,
   drawIllustratedBuilding,
   drawIllustratedTent,
+  drawPlayerOverlay,
+  drawRivalOverlay,
   HUB_THEMES,
   truncateLabel,
 } from './iso-draw';
-import { getCachedSprite, HUB_SPRITE_META, preloadHubSprites } from './sprite-loader';
+import { getCachedSprite, HUB_SPRITE_META, isIllustratedHub, preloadHubSprites } from './sprite-loader';
 
 const EVENT_TENTS: Record<HubId, { wx: number; wy: number }> = {
   shoreditch: { wx: 0.9, wy: 1.35 },
@@ -411,6 +413,7 @@ export class IsoMapRenderer implements MapRendererApi {
     const ry = cluster.groundRy * TILE_H * 0.5 * z * padScale;
 
     const sprite = getCachedSprite(HUB_SPRITE_META[hubId].assetPath);
+    const illustrated = Boolean(sprite && isIllustratedHub(hubId));
     if (sprite) {
       const meta = HUB_SPRITE_META[hubId];
       const sw = meta.drawW * TILE_W * z;
@@ -457,11 +460,22 @@ export class IsoMapRenderer implements MapRendererApi {
           rivals.some((r, i) => rivalSlots[i % rivalSlots.length] === b && r.id === rivalHoverId));
 
       if (sprite && kind === 'neutral') continue;
+      if (illustrated && kind === 'neutral') continue;
 
       const base = isoToScreen(this.buildingIso(hubId, b), this.cam, w, h);
       const hw = b.w * TILE_W * 0.5 * this.cam.zoom;
       const hd = b.d * TILE_H * 0.5 * this.cam.zoom;
       const rise = b.h * TILE_H * this.cam.zoom;
+
+      if (illustrated && kind === 'player') {
+        drawPlayerOverlay(ctx, base, hw, hd, rise, companyName, hovered);
+        continue;
+      }
+      if (illustrated && kind === 'rival' && label) {
+        drawRivalOverlay(ctx, base, hw, rise, colors.accent ?? colors.roof, label, hovered);
+        continue;
+      }
+      if (illustrated) continue;
 
       drawIllustratedBuilding(ctx, base, hw, hd, rise, colors, theme.buildingStyle, {
         kind,
@@ -470,7 +484,7 @@ export class IsoMapRenderer implements MapRendererApi {
         hover: hovered,
       });
 
-      if (label && kind === 'rival') {
+      if (label && kind === 'rival' && !illustrated) {
         ctx.font = `bold ${Math.max(9, 10 * z)}px system-ui`;
         ctx.fillStyle = 'rgba(15,23,42,0.8)';
         ctx.textAlign = 'center';

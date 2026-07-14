@@ -7,6 +7,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import fs from 'node:fs';
 import path from 'node:path';
 import { bakeHubCluster, HUB_IDS, hubSpriteCanvasSize } from '../lib/game/hub-sprite-bake';
+import { isIllustratedHub } from '../lib/game/sprite-loader';
 
 const OUT_DIR = path.join(process.cwd(), 'public/map/hubs');
 
@@ -14,6 +15,10 @@ async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   for (const hubId of HUB_IDS) {
+    if (isIllustratedHub(hubId)) {
+      console.log(`  ⊘ ${hubId}.png (illustrated — skipped)`);
+      continue;
+    }
     const { width, height } = hubSpriteCanvasSize(hubId);
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');

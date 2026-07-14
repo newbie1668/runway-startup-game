@@ -428,6 +428,91 @@ export function truncateLabel(text: string, maxLen: number): string {
   return `${text.slice(0, maxLen - 1)}…`;
 }
 
+/** Player marker on illustrated hub sprites — gold ring + company name, no procedural building. */
+export function drawPlayerOverlay(
+  ctx: CanvasRenderingContext2D,
+  base: ScreenPoint,
+  hw: number,
+  hd: number,
+  rise: number,
+  companyName: string | undefined,
+  hover: boolean,
+) {
+  ctx.strokeStyle = 'rgba(248,195,58,0.92)';
+  ctx.lineWidth = Math.max(2.5, hw * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(base.x, base.y - hd);
+  ctx.lineTo(base.x + hw + 6, base.y);
+  ctx.lineTo(base.x, base.y + hd + 6);
+  ctx.lineTo(base.x - hw - 6, base.y);
+  ctx.closePath();
+  ctx.stroke();
+
+  ctx.fillStyle = '#f8c33a';
+  ctx.beginPath();
+  ctx.moveTo(base.x, base.y - rise - 10);
+  ctx.lineTo(base.x + 11, base.y - rise - 2);
+  ctx.lineTo(base.x, base.y - rise + 6);
+  ctx.closePath();
+  ctx.fill();
+
+  if (companyName) {
+    const name = companyName.length > 18 ? `${companyName.slice(0, 16)}…` : companyName;
+    const fs = Math.max(9, rise * 0.11);
+    ctx.font = `bold ${fs}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.strokeStyle = 'rgba(15,23,42,0.6)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(name, base.x, base.y - rise - 16);
+    ctx.fillText(name, base.x, base.y - rise - 16);
+  }
+
+  if (hover) {
+    ctx.strokeStyle = 'rgba(15,23,42,0.7)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+}
+
+/** Rival badge on illustrated hub sprites. */
+export function drawRivalOverlay(
+  ctx: CanvasRenderingContext2D,
+  base: ScreenPoint,
+  hw: number,
+  rise: number,
+  accent: string,
+  label: string,
+  hover: boolean,
+) {
+  const bx = base.x + hw * 0.38;
+  const by = base.y - rise * 0.55;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(bx, by, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.arc(bx, by, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.font = `bold ${Math.max(9, rise * 0.09)}px system-ui`;
+  ctx.fillStyle = 'rgba(15,23,42,0.85)';
+  ctx.textAlign = 'center';
+  ctx.fillText(truncateLabel(label, 16), base.x, base.y - rise - 14);
+
+  if (hover) {
+    ctx.strokeStyle = 'rgba(15,23,42,0.65)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(bx, by, 11, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 export function drawIllustratedTent(
   ctx: CanvasRenderingContext2D,
   base: ScreenPoint,
