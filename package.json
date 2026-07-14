@@ -10,7 +10,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:game": "tsx scripts/test-game.ts",
-    "test:ui": "tsx scripts/test-ui.tsx"
+    "test:ui": "tsx scripts/test-ui.tsx",
+    "bake:map": "tsx scripts/bake-hub-sprites.ts",
+    "process:hub-sprite": "tsx scripts/process-hub-sprite.ts",
+    "process:hub-sprites": "tsx scripts/process-all-hub-sprites.ts"
   },
   "dependencies": {
     "next": "16.2.6",
@@ -18,6 +21,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -22,6 +22,7 @@ import {
 } from '../lib/game/engine';
 import { DILEMMAS, HUBS, SECTORS, STAGES } from '../lib/game/content';
 import type { GameState } from '../lib/game/types';
+import { runIsoMapTests } from './test-iso-map';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -417,5 +418,7 @@ check('rivals live their own lives', () => {
   const maxRivalStage = Math.max(...g.rivals.map((r) => r.stageIndex));
   assert.ok(maxRivalStage >= 2, `rivals should progress (max stage ${maxRivalStage})`);
 });
+
+runIsoMapTests();
 
 console.log(`\nAll ${passed} checks passed.`);

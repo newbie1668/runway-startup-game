@@ -17,7 +17,6 @@ import {
   STAGES,
   UNICORN_TARGET,
   generateCompanyName,
-  hubById,
   sectorById,
 } from '@/lib/game/content';
 import {
@@ -31,7 +30,8 @@ import {
 import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
-import type { MapRenderer, Scene } from '@/lib/game/render';
+import type { MapRendererApi } from '@/lib/game/map-renderer';
+import type { HitTarget, Scene } from '@/lib/game/map-scene';
 import type {
   ActionId,
   DilemmaEffectId,
@@ -41,6 +41,7 @@ import type {
   SectorId,
 } from '@/lib/game/types';
 import { MapCanvas } from './MapCanvas';
+import { MapCards, hitTooltip, type MapCardState } from './MapCards';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
 import { Sidebar } from './Sidebar';
 import { DilemmaModal, EndOverlay, MoveModal } from './Modals';
@@ -108,7 +109,9 @@ export function GameApp() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rendererRef = useRef<MapRenderer | null>(null);
+  const rendererRef = useRef<MapRendererApi | null>(null);
+  const [mapCard, setMapCard] = useState<MapCardState | null>(null);
+  const [mapTooltip, setMapTooltip] = useState<string | null>(null);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -300,29 +303,26 @@ export function GameApp() {
   }, [screen, game, setupStep, hubChoice, draftSector, draftName]);
 
   const onHit = useCallback(
-    (target: { type: string; hubId?: HubId; eventId?: string; rivalId?: string }) => {
-      const g = gameRef.current;
-      if (screen === 'setup' && setupStep === 'hq' && target.type === 'hub' && target.hubId) {
-        setHubChoice(target.hubId);
-        sfx.play('click');
+    (target: HitTarget, point: { x: number; y: number }) => {
+      setMapCard({ target, x: point.x, y: point.y });
+      sfx.play('click');
+    },
+    [],
+  );
+
+  const onMapHover = useCallback(
+    (target: HitTarget | null) => {
+      if (!target) {
+        setMapTooltip(null);
         return;
       }
-      if (screen !== 'play' || !g) return;
-      if (target.type === 'event' && target.eventId) {
-        act('attend', { eventId: target.eventId });
-      } else if (target.type === 'rival' && target.rivalId) {
-        const rival = g.rivals.find((r) => r.id === target.rivalId);
-        if (rival) {
-          showToast(
-            `${rival.name} — ${sectorById(rival.sectorId).name} rival at ${STAGES[rival.stageIndex].name}, HQ ${hubById(rival.hubId).name}. Keep shipping.`,
-            'info',
-          );
-        }
-      } else if (target.type === 'hub' && target.hubId && target.hubId !== g.hubId) {
-        showToast(`That's ${hubById(target.hubId).name}. Use "Move office…" to relocate.`, 'info');
-      }
+      const name =
+        screen === 'play' && game
+          ? hitTooltip(target, game, game.companyName)
+          : hitTooltip(target, null, draftName);
+      setMapTooltip(name || null);
     },
-    [screen, setupStep, act, showToast],
+    [screen, game, draftName],
   );
 
   // --- keyboard ---------------------------------------------------------------
@@ -372,7 +372,30 @@ export function GameApp() {
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
+        <MapCanvas
+          scene={scene}
+          rendererRef={rendererRef}
+          onHit={onHit}
+          onHover={onMapHover}
+        />
+        {mapTooltip && (
+          <div className="pointer-events-none absolute top-14 left-3 z-10 rounded-md border border-white/10 bg-[#0b1226]/90 px-2 py-1 text-xs font-bold text-white shadow-lg">
+            {mapTooltip}
+          </div>
+        )}
+        <MapCards
+          card={mapCard}
+          game={game}
+          setupMode={screen === 'setup' && setupStep === 'hq'}
+          hubChoice={hubChoice}
+          companyName={draftName}
+          sectorName={draftSector ? sectorById(draftSector).name : null}
+          onClose={() => setMapCard(null)}
+          onAttend={(eventId) => act('attend', { eventId })}
+          onMoveOffice={(hubId) => act('move', { hubId })}
+          onSelectHub={setHubChoice}
+          onOpenTarget={(target, x, y) => setMapCard({ target, x, y })}
+        />
 
         {/* Map chrome */}
         {screen === 'play' && game && (
@@ -403,7 +426,7 @@ export function GameApp() {
 
         {screen === 'play' && (
           <div className="pointer-events-none absolute bottom-2 left-3 hidden rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
-            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
+            🟡 your building · badges: rivals · tents: events · tap for details · drag to pan, scroll to zoom
           </div>
         )}
 
