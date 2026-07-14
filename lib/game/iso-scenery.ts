@@ -144,7 +144,6 @@ export function drawHubSign(
   y: number,
   zoom: number,
 ) {
-  if (zoom < 0.65) return;
   const hub = HUBS.find((h) => h.id === hubId)!;
   const label = hub.name.toUpperCase();
   ctx.font = `bold ${Math.max(8, 9 * zoom)}px system-ui`;

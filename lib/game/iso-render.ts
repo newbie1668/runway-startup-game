@@ -21,6 +21,7 @@ import {
   type HitTarget,
   type Scene,
 } from './map-scene';
+import { hubLod } from './map-lod';
 import type { MapRendererApi } from './map-renderer';
 import {
   HUB_CLUSTERS,
@@ -31,6 +32,7 @@ import {
 } from './sprites';
 import type { HubId } from './types';
 import {
+  drawHubFootprint,
   drawHubPlaza,
   drawIllustratedBuilding,
   drawIllustratedTent,
@@ -39,7 +41,7 @@ import {
   HUB_THEMES,
   truncateLabel,
 } from './iso-draw';
-import { getCachedSprite, HUB_SPRITE_META, ILLUSTRATED_SPRITE_MIN_ZOOM, isIllustratedHub, preloadHubSprites } from './sprite-loader';
+import { getCachedSprite, HUB_SPRITE_META, isIllustratedHub, preloadHubSprites } from './sprite-loader';
 
 const EVENT_TENTS: Record<HubId, { wx: number; wy: number }> = {
   shoreditch: { wx: 0.9, wy: 1.35 },
@@ -240,11 +242,30 @@ export class IsoMapRenderer implements MapRendererApi {
     const o = this.hubOrigin(hubId);
     const pad = isoToScreen(o, this.cam, this.cssW, this.cssH);
     const z = this.cam.zoom;
+    const lod = hubLod(z, this.computeFitZoom());
+    const scale = lod.footprintScale;
+
+    if (lod.flatFootprint) {
+      const r = Math.max(
+        MIN_HIT_PX * 0.45,
+        Math.min(cluster.groundRx * TILE_W, cluster.groundRy * TILE_H) * 0.5 * z * scale * 0.9,
+      );
+      return expandPoly(
+        [
+          { x: pad.x - r, y: pad.y },
+          { x: pad.x, y: pad.y - r * 0.55 },
+          { x: pad.x + r, y: pad.y },
+          { x: pad.x, y: pad.y + r * 0.55 },
+        ],
+        MIN_HIT_PX,
+      );
+    }
+
     return [
-      { x: pad.x, y: pad.y - cluster.groundRy * TILE_H * 0.5 * z },
-      { x: pad.x + cluster.groundRx * TILE_W * 0.5 * z, y: pad.y },
-      { x: pad.x, y: pad.y + cluster.groundRy * TILE_H * 0.5 * z },
-      { x: pad.x - cluster.groundRx * TILE_W * 0.5 * z, y: pad.y },
+      { x: pad.x, y: pad.y - cluster.groundRy * TILE_H * 0.5 * z * scale },
+      { x: pad.x + cluster.groundRx * TILE_W * 0.5 * z * scale, y: pad.y },
+      { x: pad.x, y: pad.y + cluster.groundRy * TILE_H * 0.5 * z * scale },
+      { x: pad.x - cluster.groundRx * TILE_W * 0.5 * z * scale, y: pad.y },
     ];
   }
 
@@ -408,34 +429,51 @@ export class IsoMapRenderer implements MapRendererApi {
     const theme = HUB_THEMES[hubId];
     const origin = isoToScreen(this.hubOrigin(hubId), this.cam, w, h);
     const z = this.cam.zoom;
-    const padScale = z < 0.55 ? 0.78 : 1;
-    const rx = cluster.groundRx * TILE_W * 0.5 * z * padScale;
-    const ry = cluster.groundRy * TILE_H * 0.5 * z * padScale;
+    const fitZ = this.computeFitZoom();
+    const lod = hubLod(z, fitZ);
+    const scale = lod.footprintScale;
+    const rx = cluster.groundRx * TILE_W * 0.5 * z * scale;
+    const ry = cluster.groundRy * TILE_H * 0.5 * z * scale;
 
     const sprite = getCachedSprite(HUB_SPRITE_META[hubId].assetPath);
     const illustrated = Boolean(sprite && isIllustratedHub(hubId));
-    const fitZ = this.computeFitZoom();
-    const spriteMinZoom = Math.max(ILLUSTRATED_SPRITE_MIN_ZOOM, fitZ * 1.05);
-    const showSprite = illustrated && sprite && z >= spriteMinZoom;
+    const hubHovered = this.hover?.type === 'hub' && this.hover.hubId === hubId;
+    const isPlayerHub = this.scene.playerHubId === hubId;
 
-    if (showSprite) {
+    const rivals = this.scene.rivals.filter((r) => r.alive && r.hubId === hubId);
+    const events = this.scene.events.filter((e) => !e.attended && e.hubId === hubId);
+
+    // --- Ground layer (continuous map POIs, not floating cards) ---
+    if (lod.flatFootprint) {
+      const pinR = Math.max(10, Math.min(rx, ry) * 0.85);
+      drawHubFootprint(ctx, origin.x, origin.y, theme, pinR, {
+        playerHub: isPlayerHub,
+        eventCount: lod.showEventTents ? events.length : 0,
+        hovered: hubHovered,
+      });
+    } else if (lod.showIllustratedSprite && illustrated && sprite) {
       const meta = HUB_SPRITE_META[hubId];
       const sw = meta.drawW * TILE_W * z;
       const sh = meta.drawH * TILE_H * z;
-      const fade = Math.min(1, (z - spriteMinZoom) / 0.15);
       ctx.save();
-      ctx.globalAlpha = fade;
+      ctx.globalAlpha = lod.spriteAlpha;
       ctx.drawImage(sprite, origin.x - sw * meta.anchorX, origin.y - sh * meta.anchorY, sw, sh);
       ctx.restore();
     } else {
       drawHubPlaza(ctx, origin.x, origin.y, rx, ry, theme, z);
+    }
+
+    if (lod.showHubSign) {
       drawHubSign(ctx, hubId, origin.x, origin.y - ry - 8, z);
     }
 
-    const rivals = this.scene.rivals.filter((r) => r.alive && r.hubId === hubId);
-    const events = this.scene.events.filter((e) => !e.attended && e.hubId === hubId);
+    if (!lod.showProceduralBuildings && !(lod.showIllustratedSprite && illustrated && sprite)) {
+      return;
+    }
+
     const rivalSlots = cluster.buildings.filter((b) => b.role === 'rival');
     const sortedBuildings = [...cluster.buildings].sort((a, b) => a.wx + a.wy - (b.wx + b.wy));
+    const showSprite = lod.showIllustratedSprite && illustrated && sprite;
 
     for (const b of sortedBuildings) {
       let colors = { roof: b.roof, left: b.left, right: b.right, accent: cluster.accent };
@@ -443,7 +481,7 @@ export class IsoMapRenderer implements MapRendererApi {
       let kind: 'player' | 'rival' | 'neutral' = 'neutral';
       let companyName: string | undefined;
 
-      if (b.role === 'player' && this.scene.playerHubId === hubId) {
+      if (b.role === 'player' && isPlayerHub) {
         kind = 'player';
         if (this.scene.playerSectorId) {
           colors = { ...sectorBuildingColors(this.scene.playerSectorId), accent: cluster.accent };
@@ -467,32 +505,36 @@ export class IsoMapRenderer implements MapRendererApi {
           rivalHoverId !== null &&
           rivals.some((r, i) => rivalSlots[i % rivalSlots.length] === b && r.id === rivalHoverId));
 
-      if (illustrated && !showSprite) continue;
+      if (showSprite && kind === 'neutral') continue;
       if (illustrated && kind === 'neutral') continue;
+      if (!lod.showProceduralBuildings && !showSprite) continue;
 
       const base = isoToScreen(this.buildingIso(hubId, b), this.cam, w, h);
-      const hw = b.w * TILE_W * 0.5 * this.cam.zoom;
-      const hd = b.d * TILE_H * 0.5 * this.cam.zoom;
-      const rise = b.h * TILE_H * this.cam.zoom;
+      const hw = b.w * TILE_W * 0.5 * z;
+      const hd = b.d * TILE_H * 0.5 * z;
+      const rise = b.h * TILE_H * z * (showSprite ? 1 : lod.proceduralAlpha);
 
-      if (illustrated && kind === 'player') {
+      if (showSprite && kind === 'player') {
         drawPlayerOverlay(ctx, base, hw, hd, rise, companyName, hovered);
         continue;
       }
-      if (illustrated && kind === 'rival' && label) {
+      if (showSprite && kind === 'rival' && label) {
         drawRivalOverlay(ctx, base, hw, rise, colors.accent ?? colors.roof, label, hovered);
         continue;
       }
-      if (illustrated) continue;
+      if (showSprite) continue;
 
+      ctx.save();
+      ctx.globalAlpha = lod.proceduralAlpha;
       drawIllustratedBuilding(ctx, base, hw, hd, rise, colors, theme.buildingStyle, {
         kind,
         gag: kind === 'neutral' ? theme.gag : undefined,
         companyName,
         hover: hovered,
       });
+      ctx.restore();
 
-      if (label && kind === 'rival' && !illustrated) {
+      if (label && kind === 'rival' && !showSprite) {
         ctx.font = `bold ${Math.max(9, 10 * z)}px system-ui`;
         ctx.fillStyle = 'rgba(15,23,42,0.8)';
         ctx.textAlign = 'center';
@@ -500,13 +542,15 @@ export class IsoMapRenderer implements MapRendererApi {
       }
     }
 
+    if (!lod.showEventTents) return;
+
     for (const ev of events) {
       const tent = EVENT_TENTS[hubId];
       const iso = { ix: this.hubOrigin(hubId).ix + tent.wx, iy: this.hubOrigin(hubId).iy + tent.wy };
       const base = isoToScreen(iso, this.cam, w, h);
-      const hw = 0.55 * TILE_W * 0.5 * this.cam.zoom;
-      const hd = 0.5 * TILE_H * 0.5 * this.cam.zoom;
-      const rise = 0.7 * TILE_H * this.cam.zoom;
+      const hw = 0.55 * TILE_W * 0.5 * z;
+      const hd = 0.5 * TILE_H * 0.5 * z;
+      const rise = 0.7 * TILE_H * z;
       drawIllustratedTent(
         ctx,
         base,

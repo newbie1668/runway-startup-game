@@ -41,4 +41,13 @@ public/map/hubs/{hubId}.png   # @2x hub cluster sprite
 docs/art/{hubId}-brief.md     # per-hub gag list + layout notes
 ```
 
-Regenerate procedural placeholders only for dev: `pnpm bake:map` (not production art).
+## Zoom tiers (Google / Apple Maps LOD)
+
+| Relative zoom | Level | What you see |
+|---------------|-------|--------------|
+| &lt; 1.1× fit | City | Flat coloured pins on the continuous map (footprints) |
+| 1.1–1.35× | District | Slightly larger pins, labels appear |
+| 1.35–1.65× | Neighbourhood | Isometric plazas + procedural buildings fade in |
+| &gt; 1.65× | Street | Full illustrated hub sprites |
+
+Logic: `lib/game/map-lod.ts`

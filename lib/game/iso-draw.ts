@@ -215,6 +215,53 @@ function drawPlazaTrees(ctx: CanvasRenderingContext2D, cx: number, cy: number, r
   }
 }
 
+/** Flat map pin at city zoom — sits on the ground plane like Google Maps footprints. */
+export function drawHubFootprint(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  theme: HubVisualTheme,
+  radius: number,
+  options: { playerHub: boolean; eventCount: number; hovered: boolean },
+) {
+  const r = Math.max(9, radius);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 2, r * 1.05, r * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = theme.plaza;
+  ctx.fill();
+  ctx.strokeStyle = options.playerHub ? '#f8c33a' : theme.plazaStroke;
+  ctx.lineWidth = options.playerHub ? 2.5 : 1.5;
+  ctx.stroke();
+
+  if (options.playerHub) {
+    ctx.fillStyle = '#f8c33a';
+    ctx.beginPath();
+    ctx.arc(cx, cy - r - 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (options.eventCount > 0) {
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.55, cy - r * 0.35, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (options.hovered) {
+    ctx.strokeStyle = 'rgba(15,23,42,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 3, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 export function drawHubPlaza(
   ctx: CanvasRenderingContext2D,
   cx: number,
