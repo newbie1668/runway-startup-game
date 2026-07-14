@@ -17,6 +17,9 @@ export interface HubSpriteMeta {
   drawH: number;
 }
 
+/** Zoom at or above this level shows full illustrated hub sprites. Below = plaza markers only. */
+export const ILLUSTRATED_SPRITE_MIN_ZOOM = 0.52;
+
 /** Hubs with hand-illustrated cluster PNGs — skip procedural building draws. */
 export const ILLUSTRATED_HUBS: ReadonlySet<HubId> = new Set([
   'shoreditch',

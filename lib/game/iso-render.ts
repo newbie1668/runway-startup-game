@@ -39,7 +39,7 @@ import {
   HUB_THEMES,
   truncateLabel,
 } from './iso-draw';
-import { getCachedSprite, HUB_SPRITE_META, isIllustratedHub, preloadHubSprites } from './sprite-loader';
+import { getCachedSprite, HUB_SPRITE_META, ILLUSTRATED_SPRITE_MIN_ZOOM, isIllustratedHub, preloadHubSprites } from './sprite-loader';
 
 const EVENT_TENTS: Record<HubId, { wx: number; wy: number }> = {
   shoreditch: { wx: 0.9, wy: 1.35 },
@@ -414,11 +414,19 @@ export class IsoMapRenderer implements MapRendererApi {
 
     const sprite = getCachedSprite(HUB_SPRITE_META[hubId].assetPath);
     const illustrated = Boolean(sprite && isIllustratedHub(hubId));
-    if (sprite) {
+    const fitZ = this.computeFitZoom();
+    const spriteMinZoom = Math.max(ILLUSTRATED_SPRITE_MIN_ZOOM, fitZ * 1.05);
+    const showSprite = illustrated && sprite && z >= spriteMinZoom;
+
+    if (showSprite) {
       const meta = HUB_SPRITE_META[hubId];
       const sw = meta.drawW * TILE_W * z;
       const sh = meta.drawH * TILE_H * z;
+      const fade = Math.min(1, (z - spriteMinZoom) / 0.15);
+      ctx.save();
+      ctx.globalAlpha = fade;
       ctx.drawImage(sprite, origin.x - sw * meta.anchorX, origin.y - sh * meta.anchorY, sw, sh);
+      ctx.restore();
     } else {
       drawHubPlaza(ctx, origin.x, origin.y, rx, ry, theme, z);
       drawHubSign(ctx, hubId, origin.x, origin.y - ry - 8, z);
@@ -459,7 +467,7 @@ export class IsoMapRenderer implements MapRendererApi {
           rivalHoverId !== null &&
           rivals.some((r, i) => rivalSlots[i % rivalSlots.length] === b && r.id === rivalHoverId));
 
-      if (sprite && kind === 'neutral') continue;
+      if (illustrated && !showSprite) continue;
       if (illustrated && kind === 'neutral') continue;
 
       const base = isoToScreen(this.buildingIso(hubId, b), this.cam, w, h);
