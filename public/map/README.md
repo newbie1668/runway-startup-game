@@ -1,36 +1,33 @@
 # Map sprites
 
-Hub cluster PNGs for the isometric map.
-
-## Illustrated hubs (Silicon Valley diorama style)
-
-| Hub | Status | Brief |
-|-----|--------|-------|
-| Shoreditch | **Pilot** | `docs/art/shoreditch-pilot-brief.md` |
-| Others | Placeholder | Procedural bake until illustrated |
-
-Illustrated hubs are listed in `lib/game/sprite-loader.ts` → `ILLUSTRATED_HUBS`. The renderer draws the PNG as the cluster and overlays player/rival markers only (no procedural buildings on top).
+All eight hub clusters use **illustrated PNG sprites** in Silicon Valley diorama style (see `docs/art/style-guide.md`).
 
 ## Layout
 
 ```
-public/map/hubs/shoreditch.png   ← illustrated pilot
-public/map/hubs/kingscross.png   ← procedural placeholder (re-bake or replace)
-...
+public/map/hubs/{hubId}.png   # @2x hub cluster sprite
+docs/art/sources/{hubId}-source.png   # full-res source before crop
 ```
 
-Metadata (anchor, draw size) lives in `lib/game/sprite-loader.ts` as `HUB_SPRITE_META`.
+Metadata (anchor, draw size) → `lib/game/sprite-loader.ts` → `HUB_SPRITE_META`.
 
-## Regenerate procedural placeholders
+Illustrated hubs → `ILLUSTRATED_HUBS` — renderer draws PNG + player/rival overlays only.
+
+## Add or replace a hub sprite
+
+1. Create source art (1536×1024 or similar, 16:9)
+2. Process to sprite dimensions:
+
+```bash
+pnpm process:hub-sprite shoreditch path/to/source.png
+```
+
+3. Add hub id to `ILLUSTRATED_HUBS` in `sprite-loader.ts` if new.
+
+## Procedural fallback (dev only)
 
 ```bash
 pnpm bake:map
 ```
 
-Does **not** overwrite hand-illustrated hubs in `ILLUSTRATED_HUBS` once we add bake guards — for now, avoid re-baking Shoreditch after the pilot lands.
-
-## Art references
-
-- https://www.yuco.com/works/silicon-valley
-- https://www.wired.com/2016/05/silicon-valley-title-sequence/
-- https://www.zachchristy.com/siliconvalley
+Skips hubs in `ILLUSTRATED_HUBS`.

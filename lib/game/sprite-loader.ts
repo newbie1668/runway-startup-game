@@ -18,7 +18,16 @@ export interface HubSpriteMeta {
 }
 
 /** Hubs with hand-illustrated cluster PNGs — skip procedural building draws. */
-export const ILLUSTRATED_HUBS: ReadonlySet<HubId> = new Set(['shoreditch']);
+export const ILLUSTRATED_HUBS: ReadonlySet<HubId> = new Set([
+  'shoreditch',
+  'kingscross',
+  'soho',
+  'farringdon',
+  'canarywharf',
+  'londonbridge',
+  'camden',
+  'battersea',
+]);
 
 export function isIllustratedHub(hubId: HubId): boolean {
   return ILLUSTRATED_HUBS.has(hubId);

@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "test:game": "tsx scripts/test-game.ts",
     "test:ui": "tsx scripts/test-ui.tsx",
-    "bake:map": "tsx scripts/bake-hub-sprites.ts"
+    "bake:map": "tsx scripts/bake-hub-sprites.ts",
+    "process:hub-sprite": "tsx scripts/process-hub-sprite.ts"
   },
   "dependencies": {
     "next": "16.2.6",

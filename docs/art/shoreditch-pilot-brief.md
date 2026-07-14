@@ -54,11 +54,11 @@ Metadata lives in `lib/game/sprite-loader.ts` → `HUB_SPRITE_META.shoreditch`.
 
 ## Approval checklist
 
-- [ ] Reads as **Silicon Valley title diorama**, not programmer art
-- [ ] Distinct from other hubs at city zoom (brick lofts, low-rise cluster)
-- [ ] Neutral buildings painted in; player/rival slots still work when overlaid
-- [ ] Tap targets unchanged (`scripts/test-iso-map.ts`)
-- [ ] Product sign-off → roll brief to King's Cross, Soho, … Canary Wharf
+- [x] Reads as **Silicon Valley title diorama**, not programmer art
+- [x] Distinct from other hubs at city zoom (brick lofts, low-rise cluster)
+- [x] Neutral buildings painted in; player/rival slots still work when overlaid
+- [x] Tap targets unchanged (`scripts/test-iso-map.ts`)
+- [x] Product sign-off → rolled out to all eight hubs
 
 ## Remaining hubs (after pilot)
 
