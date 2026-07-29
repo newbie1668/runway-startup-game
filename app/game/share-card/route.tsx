@@ -1,6 +1,10 @@
 import { ImageResponse } from 'next/og';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fmtMoney, fmtUsers } from '@/lib/game/format';
 import { snapshotFromSearchParams } from '@/lib/game/share';
+
+/* eslint-disable @next/next/no-img-element */
 
 export const runtime = 'nodejs';
 
@@ -9,7 +13,9 @@ export async function GET(request: Request) {
   const snapshot = snapshotFromSearchParams(url.searchParams);
   const progress =
     snapshot.valuation > 0 ? fmtMoney(snapshot.valuation) : `${fmtUsers(snapshot.traction)} users`;
-  const mapImage = new URL('/game/diorama/share-base.jpg', url.origin).toString();
+  const mapImage = Uint8Array.from(
+    await readFile(join(process.cwd(), 'public/game/diorama/share-base.jpg')),
+  ).buffer;
 
   return new ImageResponse(
     <div
@@ -24,9 +30,8 @@ export async function GET(request: Request) {
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={mapImage}
+        src={mapImage as unknown as string}
         alt=""
         style={{
           position: 'absolute',
