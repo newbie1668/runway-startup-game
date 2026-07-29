@@ -42,6 +42,7 @@ import type {
 } from '@/lib/game/types';
 import { DioramaMap } from './DioramaMap';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
+import { ShareProgressButton } from './ShareProgress';
 import { Sidebar } from './Sidebar';
 import { DilemmaModal, EndOverlay, MoveModal } from './Modals';
 
@@ -400,6 +401,8 @@ export function GameApp() {
           </div>
         )}
 
+        {screen === 'play' && game && <ShareProgressButton game={game} />}
+
         <button
           onClick={toggleMute}
           title="Toggle sound (M)"
@@ -408,12 +411,6 @@ export function GameApp() {
         >
           {muted ? '🔇' : '🔊'}
         </button>
-
-        {screen === 'play' && (
-          <div className="map-key pointer-events-none absolute bottom-3 left-3 hidden md:block">
-            Clay house: your HQ · violet cubes: rivals · orange tents: events
-          </div>
-        )}
 
         {/* Title screen */}
         {screen === 'title' && (

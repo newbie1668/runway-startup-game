@@ -16,8 +16,12 @@ const barlowCondensed = Barlow_Condensed({
 const SITE_NAME = 'RUNWAY';
 const DESCRIPTION =
   'A playable London startup strategy game. Pick a hub, grow your company, out-raise rivals, and try to reach unicorn status before the runway runs out.';
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: `${SITE_NAME} - the London startup game`,
     template: `%s · ${SITE_NAME}`,

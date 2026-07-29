@@ -6,7 +6,7 @@
  * Step 2: click a neighbourhood on the live map to plant the HQ.
  */
 
-import { HUBS, SECTORS, hubById } from '@/lib/game/content';
+import { SECTORS, hubById } from '@/lib/game/content';
 import type { Hub, HubId, SectorId } from '@/lib/game/types';
 import { ModalDialog } from './ModalDialog';
 
@@ -119,27 +119,10 @@ export function SetupOverlay(props: Props) {
   return (
     <div className="setup-hq-overlay pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-4">
       <div className="setup-hq-banner pointer-events-auto mx-auto mt-2 w-full max-w-md p-3">
-        <p className="text-center text-sm font-bold">
-          Step 2 — choose from the list or click a glowing neighbourhood
+        <p className="text-center text-sm font-black">Step 2 — choose your neighbourhood</p>
+        <p className="mt-1 text-center text-xs font-semibold">
+          Click a map marker. Weekly average rent is shown beside every area.
         </p>
-        <label htmlFor="hq-select" className="sr-only">
-          Neighbourhood for your headquarters
-        </label>
-        <select
-          id="hq-select"
-          value={props.hubChoice ?? ''}
-          onChange={(event) => {
-            if (event.target.value) props.onHub(event.target.value as HubId);
-          }}
-          className="mt-2 w-full rounded-lg border border-white/15 bg-[#111a34] px-3 py-2 text-sm font-semibold text-white outline-none focus:border-amber-300"
-        >
-          <option value="">Select a neighbourhood</option>
-          {HUBS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name} — £{option.rent.toLocaleString('en-GB')}/week
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="mx-auto w-full max-w-xl">

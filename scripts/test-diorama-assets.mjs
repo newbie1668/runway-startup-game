@@ -15,6 +15,7 @@ const hubs = [
   'battersea',
 ];
 const tokens = ['hq', 'rival', 'event', 'ring'];
+const geographyPath = join(root, 'scripts', 'blender-city', 'london-geography.json');
 
 function size(path) {
   assert.ok(existsSync(path), `missing asset: ${path}`);
@@ -22,6 +23,21 @@ function size(path) {
 }
 
 console.log('RUNWAY diorama asset checks');
+
+assert.ok(existsSync(geographyPath), 'frozen London geography snapshot is missing');
+const geography = JSON.parse(readFileSync(geographyPath, 'utf8'));
+assert.equal(geography.source.provider, 'OpenStreetMap contributors');
+assert.ok(geography.river.points.length >= 20, 'Thames line should retain its recognisable bends');
+assert.ok(geography.roads.length >= 80, 'London primary-road snapshot is unexpectedly sparse');
+const docklandsRiver = geography.river.points.filter(([lon]) => lon >= -0.06 && lon <= 0.01);
+const docklandsLatitudes = docklandsRiver.map(([, lat]) => lat);
+assert.ok(
+  Math.min(...docklandsLatitudes) < 51.49 && Math.max(...docklandsLatitudes) > 51.505,
+  'Thames geometry should preserve the Isle of Dogs loop',
+);
+console.log(
+  `  ✓ OSM geography snapshot includes ${geography.river.points.length} Thames points and ${geography.roads.length} road segments`,
+);
 
 const initialBytes =
   size(join(assetRoot, 'master-2560.avif')) +
@@ -47,6 +63,10 @@ const tokenBytes = tokens.reduce(
 );
 assert.ok(tokenBytes <= 120_000, `token corpus is ${tokenBytes} bytes; budget is 120000`);
 console.log(`  ✓ clay token corpus ${(tokenBytes / 1000).toFixed(0)}KB`);
+
+const shareImageBytes = size(join(assetRoot, 'share-base.jpg'));
+assert.ok(shareImageBytes <= 500_000, `share preview base is ${shareImageBytes} bytes`);
+console.log(`  ✓ social preview base ${(shareImageBytes / 1000).toFixed(0)}KB`);
 
 const manifestPath = join(assetRoot, 'manifest.json');
 assert.ok(existsSync(manifestPath), 'diorama manifest is missing');

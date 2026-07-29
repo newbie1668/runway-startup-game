@@ -67,6 +67,25 @@ function webp(input, target, width, height, quality = 82) {
   ]);
 }
 
+function shareJpeg(input, target) {
+  mkdirSync(dirname(target), { recursive: true });
+  run('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    input,
+    '-vf',
+    'scale=1200:675:flags=lanczos,crop=1200:630',
+    '-frames:v',
+    '1',
+    '-q:v',
+    '3',
+    target,
+  ]);
+}
+
 function tokenWebp(input, target) {
   mkdirSync(dirname(target), { recursive: true });
   run('cwebp', ['-quiet', '-mt', '-m', '6', '-q', '86', input, '-o', target]);
@@ -84,6 +103,7 @@ avif(masterInput, join(output, 'master-5120.avif'), 5120, 2880, 40);
 avif(masterInput, join(output, 'master-2560.avif'), 2560, 1440, 39);
 webp(masterInput, join(output, 'master-5120.webp'), 5120, 2880, 82);
 webp(masterInput, join(output, 'master-2560.webp'), 2560, 1440, 82);
+shareJpeg(masterInput, join(output, 'share-base.jpg'));
 
 const lqipPath = join(authoring, 'master-lqip.webp');
 webp(masterInput, lqipPath, 64, 36, 24);

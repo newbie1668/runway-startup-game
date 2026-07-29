@@ -12,6 +12,7 @@
     "test:game": "tsx scripts/test-game.ts",
     "test:ui": "tsx scripts/test-ui.tsx",
     "test:diorama": "node scripts/test-diorama-assets.mjs",
+    "fetch:diorama:geography": "node scripts/blender-city/fetch_london_geography.mjs",
     "render:diorama:preview": "sh scripts/blender-city/render.sh --preview",
     "render:diorama": "sh scripts/blender-city/render.sh --final",
     "render:diorama:tokens": "sh scripts/blender-city/render.sh --tokens-only",

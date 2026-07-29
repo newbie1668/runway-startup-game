@@ -5,6 +5,19 @@ London scene from deterministic `bpy` geometry, renders the wide city artwork,
 eight matching hub-focus views, clay marker tokens, and writes the hub-anchor
 manifest consumed by the browser.
 
+The map base is geographically anchored by
+[`london-geography.json`](london-geography.json), a frozen, simplified
+OpenStreetMap snapshot containing the River Thames, primary roads, and the
+eight hub coordinates. Refresh it only as an authoring step:
+
+```sh
+pnpm fetch:diorama:geography
+```
+
+The shipped game makes no runtime map request. Any refreshed snapshot and
+derived renders must retain the visible OpenStreetMap attribution and ODbL
+credit in `CREDITS.md`.
+
 ## Preview
 
 ```sh

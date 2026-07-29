@@ -32,13 +32,15 @@ body {
 
 button,
 select,
-input {
+input,
+textarea {
   font: inherit;
 }
 
 button:focus-visible,
 select:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
   outline: 3px solid var(--runway-yellow);
   outline-offset: 3px;
 }
@@ -71,11 +73,6 @@ input:focus-visible {
 }
 
 .diorama-master-layer picture {
-  opacity: 0;
-  transition: opacity 160ms linear;
-}
-
-.diorama-master-layer.is-loaded picture {
   opacity: 1;
 }
 
@@ -151,6 +148,25 @@ input:focus-visible {
   line-height: 1;
   letter-spacing: 0.06em;
   transition: opacity 120ms linear;
+}
+
+.hub-hotspot > span b,
+.hub-hotspot > span small {
+  display: block;
+}
+
+.hub-hotspot > span b {
+  font: inherit;
+}
+
+.hub-hotspot > span small {
+  margin-top: 0.18rem;
+  padding-top: 0.18rem;
+  border-top: 1px solid rgb(255 255 255 / 50%);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .diorama-map.mode-play .hub-hotspot > span {
@@ -295,6 +311,8 @@ input:focus-visible {
   bottom: 1rem;
   left: 1rem;
   width: min(28rem, calc(100% - 2rem));
+  max-height: calc(100% - 7rem);
+  overflow-y: auto;
   padding: 0.9rem 1rem;
   translate: 0 1.5rem;
   opacity: 0;
@@ -330,6 +348,7 @@ input:focus-visible {
 
 .focus-card dl {
   display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
   margin-top: 0.65rem;
 }
@@ -374,6 +393,19 @@ input:focus-visible {
   font-weight: 800;
   line-height: 1;
   text-transform: uppercase;
+}
+
+.hub-chip-strip button small {
+  display: block;
+  margin-top: 0.22rem;
+  color: var(--runway-yellow);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0;
+}
+
+.hub-chip-strip button.is-active small {
+  color: var(--runway-ink);
 }
 
 .hub-chip-strip button.is-active {
@@ -476,6 +508,24 @@ input:focus-visible {
   background: var(--runway-yellow);
 }
 
+.share-run-button {
+  position: absolute;
+  top: 0.75rem;
+  right: 4.2rem;
+  z-index: 30;
+  min-height: 2.5rem;
+  border: 0;
+  padding: 0.55rem 0.85rem;
+  clip-path: polygon(0.4rem 0, 100% 0, calc(100% - 0.4rem) 100%, 0 100%);
+  color: white;
+  background: var(--runway-teal);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .map-key {
   z-index: 14;
   padding: 0.35rem 0.55rem;
@@ -483,6 +533,23 @@ input:focus-visible {
   background: var(--runway-ink);
   font-size: 0.64rem;
   font-weight: 700;
+}
+
+.map-attribution {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.25rem;
+  z-index: 31;
+  color: rgb(255 255 255 / 82%);
+  font-size: 0.55rem;
+  line-height: 1;
+  text-decoration: none;
+  text-shadow: 0 1px 3px rgb(24 32 39 / 75%);
+}
+
+.map-attribution:hover,
+.map-attribution:focus-visible {
+  color: white;
 }
 
 .runway-toast {
@@ -685,7 +752,7 @@ input:focus-visible {
 .runway-dialog-panel select {
   border: 2px solid var(--runway-ink);
   border-radius: 0;
-  color: white;
+  color: white !important;
   background: var(--runway-ink);
 }
 
@@ -708,6 +775,10 @@ input:focus-visible {
   clip-path: polygon(0.65rem 0, 100% 0, calc(100% - 0.65rem) 100%, 0 100%);
 }
 
+.setup-hq-banner p:last-child {
+  color: rgb(24 32 39 / 72%);
+}
+
 .setup-hq-card {
   clip-path: polygon(0 0, calc(100% - 1rem) 0, 100% 1rem, 100% 100%, 0 100%);
 }
@@ -726,6 +797,243 @@ input:focus-visible {
 
 .setup-hq-card button {
   border-radius: 0;
+}
+
+.share-dialog-panel {
+  text-align: left;
+}
+
+.share-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.share-dialog-heading p,
+.end-share > p {
+  color: var(--runway-orange);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.share-dialog-heading h2 {
+  margin-top: 0.15rem;
+  font-size: clamp(1.5rem, 4vw, 2.15rem);
+  line-height: 0.98;
+}
+
+.share-dialog-heading > button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 2px solid var(--runway-ink);
+  color: var(--runway-ink);
+  background: transparent;
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.share-panel {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.85fr) minmax(15rem, 1.15fr);
+  gap: 0.9rem 1rem;
+  color: var(--runway-ink);
+  text-align: left;
+}
+
+.share-preview {
+  min-height: 10.5rem;
+  overflow: hidden;
+  border: 3px solid var(--runway-ink);
+  background: #64717a;
+}
+
+.share-preview img,
+.share-preview > div {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 10.5rem;
+  object-fit: cover;
+}
+
+.share-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.share-copy-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.share-copy-heading strong {
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
+.share-copy-heading span {
+  color: rgb(24 32 39 / 64%);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.share-copy textarea {
+  min-height: 8.3rem;
+  margin-top: 0.45rem;
+  resize: vertical;
+  border: 2px solid var(--runway-ink);
+  border-radius: 0;
+  padding: 0.7rem;
+  color: var(--runway-ink);
+  background: white;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.share-platforms {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.share-platforms a,
+.share-platforms button {
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0.5rem 0.72rem;
+  color: white;
+  background: var(--runway-ink);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.share-platforms a:nth-child(1) {
+  background: #0f1419;
+}
+
+.share-platforms a:nth-child(2) {
+  background: #1877f2;
+}
+
+.share-platforms a:nth-child(3) {
+  background: #187f45;
+}
+
+.share-platforms a:nth-child(4) {
+  background: var(--runway-orange);
+}
+
+.share-note {
+  grid-column: 1 / -1;
+  margin-top: -0.45rem;
+  color: rgb(24 32 39 / 64%);
+  font-size: 0.64rem;
+}
+
+.end-share {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 2px solid var(--runway-ink);
+}
+
+.end-share .share-panel {
+  grid-template-columns: 1fr;
+  margin-top: 0.55rem;
+}
+
+.end-share .share-preview {
+  min-height: 0;
+  aspect-ratio: 1200 / 630;
+}
+
+.end-share .share-preview img,
+.end-share .share-preview > div {
+  min-height: 0;
+}
+
+.end-share .share-copy textarea {
+  min-height: 6rem;
+}
+
+.end-share .share-platforms,
+.end-share .share-note {
+  grid-column: 1;
+}
+
+.shared-run-page {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: #64717a;
+}
+
+.shared-run-card {
+  width: min(68rem, 100%);
+  overflow: hidden;
+  border: 0.45rem solid var(--runway-ink);
+  background: var(--runway-cream);
+}
+
+.shared-run-card > img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+}
+
+.shared-run-card > div {
+  padding: clamp(1rem, 3vw, 2rem);
+  color: var(--runway-ink);
+}
+
+.shared-run-card p:first-child {
+  color: var(--runway-orange);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+.shared-run-card h1 {
+  max-width: 19ch;
+  margin-top: 0.25rem;
+  font-family: var(--font-billboard), sans-serif;
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 900;
+  line-height: 0.92;
+}
+
+.shared-run-card p:nth-of-type(2) {
+  margin-top: 0.7rem;
+  font-weight: 700;
+}
+
+.shared-run-card a {
+  display: inline-flex;
+  margin-top: 1.2rem;
+  padding: 0.75rem 1rem;
+  color: white;
+  background: var(--runway-orange);
+  font-family: var(--font-billboard), sans-serif;
+  font-weight: 900;
+  text-decoration: none;
+  text-transform: uppercase;
 }
 
 @keyframes token-pulse {
@@ -778,6 +1086,7 @@ input:focus-visible {
 
   .focus-card {
     bottom: 3.8rem;
+    max-height: calc(100% - 8.5rem);
   }
 
   .title-layer {
@@ -807,6 +1116,46 @@ input:focus-visible {
 
   .billboard-rail {
     border-top: 0.35rem solid var(--runway-ink);
+  }
+
+  .share-run-button {
+    right: 3.9rem;
+    padding-inline: 0.65rem;
+    font-size: 0.72rem;
+  }
+
+  .share-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .share-platforms,
+  .share-note {
+    grid-column: 1;
+  }
+
+  .share-copy-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .end-share .share-preview {
+    display: none;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 768px) {
+  .focus-card {
+    bottom: 0.75rem;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .focus-card h2 {
+    font-size: 1.05rem;
+  }
+
+  .focus-card dl {
+    margin-top: 0.4rem;
   }
 }
 

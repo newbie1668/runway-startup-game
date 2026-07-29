@@ -6,6 +6,18 @@ All environment, prop, landmark, and token meshes shipped in the game were
 authored in this repository. No third-party 3D model, texture, HDRI, or paid
 asset is included.
 
+## Map data
+
+The River Thames shape, primary-road alignments, and hub coordinates in the
+diorama are derived from © OpenStreetMap contributors and available under the
+Open Database License (ODbL) 1.0:
+https://www.openstreetmap.org/copyright.
+
+The simplified authoring snapshot is stored in
+`scripts/blender-city/london-geography.json`. RUNWAY's low-poly buildings,
+landmarks, props, materials, lighting, and composition remain original artwork
+authored in this repository.
+
 Issue #20 identified several CC0 kitbash libraries and CC-BY landmark models as
 possible source material. The production scene uses original procedural
 geometry instead, so those candidate assets are not redistributed and do not

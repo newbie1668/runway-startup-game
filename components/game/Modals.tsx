@@ -10,6 +10,7 @@ import { score } from '@/lib/game/engine';
 import { fmtMoney, fmtUsers } from '@/lib/game/format';
 import type { Dilemma, DilemmaEffectId, GameState, HubId } from '@/lib/game/types';
 import { ModalDialog } from './ModalDialog';
+import { SharePanel } from './ShareProgress';
 
 // ---------------------------------------------------------------------------
 
@@ -245,6 +246,11 @@ export function EndOverlay({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="end-share">
+        <p>SHARE THE RESULT</p>
+        <SharePanel game={game} />
       </div>
 
       <div className="mt-6 flex gap-2">

@@ -155,7 +155,6 @@ export function DioramaMap({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [pinchScale, setPinchScale] = useState(1);
   const [pinching, setPinching] = useState(false);
-  const [masterLoaded, setMasterLoaded] = useState(false);
   const [focusHub, setFocusHub] = useState<HubId | null>(null);
   const [focusReady, setFocusReady] = useState(false);
   const [focusSettled, setFocusSettled] = useState(false);
@@ -244,10 +243,13 @@ export function DioramaMap({
 
   const chooseFocus = useCallback(
     (hubId: HubId) => {
+      if (scene.mode === 'setup') {
+        onHit?.({ type: 'hub', hubId });
+        return;
+      }
       setFocusReady(false);
       setFocusSettled(false);
       setFocusHub(hubId);
-      if (scene.mode === 'setup') onHit?.({ type: 'hub', hubId });
     },
     [onHit, scene.mode],
   );
@@ -419,7 +421,7 @@ export function DioramaMap({
       style={
         {
           '--pinch-scale': pinchScale,
-          backgroundImage: `url("${DIORAMA_ASSETS.master.avifSmall}")`,
+          backgroundImage: `url("${DIORAMA_ASSETS.master.webpSmall}")`,
         } as CSSProperties
       }
       onPointerDown={onPointerDown}
@@ -430,7 +432,7 @@ export function DioramaMap({
       aria-label="London startup diorama. Choose a neighbourhood marker to inspect that hub."
     >
       <div
-        className={`diorama-master-layer ${masterLoaded ? 'is-loaded' : ''}`}
+        className="diorama-master-layer"
         style={
           {
             left: rect.left,
@@ -441,7 +443,7 @@ export function DioramaMap({
             '--pan-y': `${pan.y}px`,
             '--focus-x': `${focusAnchor.x * 100}%`,
             '--focus-y': `${focusAnchor.y * 100}%`,
-            backgroundImage: `url("${DIORAMA_ASSETS.master.lqip}")`,
+            backgroundImage: `url("${DIORAMA_ASSETS.master.webpSmall}")`,
           } as CSSProperties
         }
       >
@@ -459,7 +461,6 @@ export function DioramaMap({
           <img
             src={DIORAMA_ASSETS.master.webpSmall}
             alt="A low-poly London startup city wrapped around the Thames"
-            onLoad={() => setMasterLoaded(true)}
             draggable={false}
           />
         </picture>
@@ -508,9 +509,18 @@ export function DioramaMap({
                 chooseFocus(hub.id);
                 if (scene.mode === 'play') onHit?.({ type: 'hub', hubId: hub.id });
               }}
-              aria-label={`Focus ${hub.name}${hasPlayer ? ', your HQ' : ''}`}
+              aria-label={`${scene.mode === 'setup' ? 'Choose' : 'Focus'} ${hub.name}${
+                scene.mode === 'setup'
+                  ? `, average rent £${hub.rent.toLocaleString('en-GB')} per week`
+                  : hasPlayer
+                    ? ', your HQ'
+                    : ''
+              }`}
             >
-              <span>{hub.name}</span>
+              <span>
+                <b>{hub.name}</b>
+                {scene.mode === 'setup' && <small>£{hub.rent.toLocaleString('en-GB')}/wk</small>}
+              </span>
               <i aria-hidden="true">
                 {hasPlayer && <b className="status-dot player" />}
                 {hasRival && <b className="status-dot rival" />}
@@ -613,7 +623,8 @@ export function DioramaMap({
       {showHubChips && (
         <nav className="hub-chip-strip" aria-label="Jump to a startup hub">
           {HUBS.map((hub) => {
-            const active = focusHub === hub.id;
+            const active =
+              focusHub === hub.id || (scene.mode === 'setup' && scene.playerHubId === hub.id);
             const hasPlayer = scene.playerHubId === hub.id;
             const hasRival = scene.rivals.some((rival) => rival.hubId === hub.id && rival.alive);
             const hasEvent = scene.events.some(
@@ -624,9 +635,19 @@ export function DioramaMap({
                 type="button"
                 key={hub.id}
                 className={active ? 'is-active' : ''}
-                onClick={() => (focusHub ? chooseFocus(hub.id) : panToHub(hub.id))}
+                onClick={() => {
+                  if (scene.mode === 'setup') {
+                    panToHub(hub.id);
+                    chooseFocus(hub.id);
+                  } else if (focusHub) {
+                    chooseFocus(hub.id);
+                  } else {
+                    panToHub(hub.id);
+                  }
+                }}
               >
                 {hub.name.replace("King's Cross", "King's X").replace('London Bridge', 'Borough')}
+                {scene.mode === 'setup' && <small>£{hub.rent.toLocaleString('en-GB')}/wk</small>}
                 <span aria-hidden="true">
                   {hasPlayer && <i className="status-dot player" />}
                   {hasRival && <i className="status-dot rival" />}
@@ -637,6 +658,21 @@ export function DioramaMap({
           })}
         </nav>
       )}
+
+      {scene.mode === 'play' && !focusHub && (
+        <div className="map-key pointer-events-none absolute bottom-3 left-3 hidden md:block">
+          Clay house: your HQ · violet cubes: rivals · orange tents: events
+        </div>
+      )}
+
+      <a
+        className="map-attribution"
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noreferrer"
+      >
+        © OpenStreetMap contributors
+      </a>
 
       <div className="diorama-fx-layer" aria-hidden="true">
         {fx.map((item) => {

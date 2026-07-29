@@ -23,6 +23,13 @@ import { DilemmaModal, EndOverlay, MoveModal } from '../components/game/Modals';
 import { SetupOverlay } from '../components/game/SetupOverlay';
 import { DILEMMAS, HUBS } from '../lib/game/content';
 import { newGame } from '../lib/game/engine';
+import {
+  fallbackShareText,
+  shareImageUrl,
+  sharePageUrl,
+  snapshotFromGame,
+  snapshotFromSearchParams,
+} from '../lib/game/share';
 import type { DioramaController } from '../lib/game/map-scene';
 
 let passed = 0;
@@ -86,8 +93,8 @@ check('the London diorama ships responsive master art without covering the title
   for (const hub of HUBS) {
     const escapedName = hub.name.replaceAll("'", '&#x27;');
     assert.ok(
-      html.includes(`Focus ${escapedName}`),
-      `city state should expose a focus control for ${hub.name}`,
+      html.includes(`Choose ${escapedName}`),
+      `city state should expose a neighbourhood control for ${hub.name}`,
     );
   }
   assert.doesNotMatch(html, /<canvas/, 'the superseded canvas renderer should not remain');
@@ -107,6 +114,12 @@ check('the London diorama ships responsive master art without covering the title
     />,
   );
   assert.match(map, /aria-label="Jump to a startup hub"/);
+  for (const hub of HUBS) {
+    assert.ok(
+      map.includes(`£${hub.rent.toLocaleString('en-GB')}/wk`),
+      `setup map should show ${hub.name} rent`,
+    );
+  }
 });
 
 check('identity setup is a labelled, top-reachable dialog', () => {
@@ -118,17 +131,11 @@ check('identity setup is a labelled, top-reachable dialog', () => {
   assert.match(html, /my-auto/, 'the card should centre only when vertical space is available');
 });
 
-check('HQ setup exposes every neighbourhood through a labelled native selector', () => {
+check('HQ setup relies on the visible map markers instead of a duplicate selector', () => {
   const html = setupMarkup('hq');
-  assert.match(html, /<label[^>]+for="hq-select"/);
-  assert.match(html, /<select[^>]+id="hq-select"/);
-  for (const hub of HUBS) {
-    assert.ok(html.includes(`value="${hub.id}"`), `selector should include ${hub.name}`);
-    assert.ok(
-      html.includes(`£${hub.rent.toLocaleString('en-GB')}/week`),
-      `selector should explain ${hub.name} rent`,
-    );
-  }
+  assert.doesNotMatch(html, /<select/);
+  assert.doesNotMatch(html, /hq-select/);
+  assert.match(html, /Click a map marker/);
 });
 
 check('dilemma, move, and end overlays use modal dialog semantics', () => {
@@ -155,6 +162,36 @@ check('dilemma, move, and end overlays use modal dialog semantics', () => {
   const end = renderToStaticMarkup(<EndOverlay game={game} onRestart={noop} onTitle={noop} />);
   assert.match(end, /<dialog[^>]+aria-modal="true"/);
   assert.match(end, /aria-labelledby="end-title-/);
+  assert.match(end, /SHARE THE RESULT/);
+  assert.match(end, /Facebook/);
+  assert.match(end, /WhatsApp/);
+});
+
+check('share links carry a truthful checkpoint and a generated preview URL', () => {
+  const game = newGame({
+    companyName: 'Signal Foundry',
+    sectorId: 'ai',
+    hubId: 'kingscross',
+    seed: 7,
+  });
+  game.week = 6;
+  game.stats.traction = 4200;
+  const snapshot = snapshotFromGame(game);
+  const text = fallbackShareText(snapshot);
+  const pageUrl = sharePageUrl('https://runway.example', snapshot);
+  const imageUrl = shareImageUrl('https://runway.example', snapshot);
+  assert.match(text, /Signal Foundry/);
+  assert.match(text, /Week 6/);
+  assert.match(pageUrl, /\/game\/share\?/);
+  assert.match(imageUrl, /\/game\/share-card\?/);
+  const parsed = snapshotFromSearchParams(new URL(pageUrl).searchParams);
+  assert.deepEqual(parsed, snapshot);
+
+  game.phase = 'won';
+  game.week = 1;
+  const winText = fallbackShareText(snapshotFromGame(game));
+  assert.match(winText, /in 1 week\./);
+  assert.doesNotMatch(winText, /1 weeks/);
 });
 
 check('the London game uses pounds consistently for its unicorn goal', () => {

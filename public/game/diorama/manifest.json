@@ -5,8 +5,8 @@
     "camden": {
       "name": "CAMDEN",
       "anchor": {
-        "x": 0.38917,
-        "y": 0.25845
+        "x": 0.38573,
+        "y": 0.18811
       },
       "accent": "violet",
       "focus": {
@@ -19,8 +19,8 @@
     "kingscross": {
       "name": "KING'S CROSS",
       "anchor": {
-        "x": 0.50284,
-        "y": 0.32524
+        "x": 0.42531,
+        "y": 0.25996
       },
       "accent": "steel",
       "focus": {
@@ -33,8 +33,8 @@
     "soho": {
       "name": "SOHO",
       "anchor": {
-        "x": 0.35634,
-        "y": 0.34524
+        "x": 0.31206,
+        "y": 0.35295
       },
       "accent": "magenta",
       "focus": {
@@ -47,8 +47,8 @@
     "farringdon": {
       "name": "FARRINGDON",
       "anchor": {
-        "x": 0.47126,
-        "y": 0.41775
+        "x": 0.44486,
+        "y": 0.3803
       },
       "accent": "deep_green",
       "focus": {
@@ -61,8 +61,8 @@
     "shoreditch": {
       "name": "SHOREDITCH",
       "anchor": {
-        "x": 0.61825,
-        "y": 0.47121
+        "x": 0.55418,
+        "y": 0.40002
       },
       "accent": "orange",
       "focus": {
@@ -75,8 +75,8 @@
     "londonbridge": {
       "name": "LONDON BRIDGE",
       "anchor": {
-        "x": 0.5287,
-        "y": 0.59506
+        "x": 0.45066,
+        "y": 0.53755
       },
       "accent": "market_red",
       "focus": {
@@ -89,8 +89,8 @@
     "canarywharf": {
       "name": "CANARY WHARF",
       "anchor": {
-        "x": 0.75047,
-        "y": 0.66575
+        "x": 0.72531,
+        "y": 0.70635
       },
       "accent": "steel",
       "focus": {
@@ -103,8 +103,8 @@
     "battersea": {
       "name": "BATTERSEA",
       "anchor": {
-        "x": 0.20334,
-        "y": 0.48634
+        "x": 0.14151,
+        "y": 0.54319
       },
       "accent": "brick",
       "focus": {
@@ -116,7 +116,7 @@
     }
   },
   "master": {
-    "lqip": "data:image/webp;base64,UklGRggBAABXRUJQVlA4IPwAAADwBgCdASpAACQAPymMuVcuKaUjqBVbicAlCUfM/Afo0xgNvAauWvni1rbyxsEvlPlerWt0p4EjtrofJjIvCw0AAPnWhe4FfQ2suJ6sHqkPqckK+5tR7AWcPOxuEYVCo7qx4b86vcvfncoFDSpC6vy4RjiT1w4g+LJjBPKZX7n4k7gsaDLdQgRX5r7paXPw4ARkRGSBIeOVvqCMcI3c05Lnu2zbi8DjhQX5wNTPT058lLrZP7rK0xKXuuVVC85CcVvNkS9QpIt5RjFqgNFMA65w+GuCrFQqZqEenCEJ/3X0C5Z4xQ4RzlAx8RoGdz5N7VrIttcH26MtHYVgAAA=",
+    "lqip": "data:image/webp;base64,UklGRjoBAABXRUJQVlA4IC4BAAAwCACdASpAACQAPymAtFOuKCSirVZtscAlCWIAxfwTx2rJmvMkQv2apP/7UyYrwkp8SjepLnz4EpBrTDyzfqhiG6nwPaHItrQYBAD50/oIJLxE+TmAk5EpYdVFDaUanipeGErWdhkLysI7oM/v5S1RYa6gz0f22B15BGHfknBqv8oqI/JFpPA+sHpFvo2Yi8glSipae98KGRbSmDfct95cW+Ovhy2WB4PEeQwmyB068udWihf9zg6A/4QHiyQ8/ZMW39rS625eGWf3EHf8pWTECwN+eiEZnCBoWlTjyn35cCr/eJ6crfbdhDOhcG/VBWbT4+viMrnKeU73YxULvsfUvVDp1GmlI+v+oZQ7NOVtHJ5BXVwGjtsMZAVZOavqxYGBcDUKBkB0DxeSDoAAAA==",
     "avif": "/game/diorama/master-5120.avif",
     "avifSmall": "/game/diorama/master-2560.avif",
     "webp": "/game/diorama/master-5120.webp",

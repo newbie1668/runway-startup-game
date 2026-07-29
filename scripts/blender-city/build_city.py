@@ -1,9 +1,10 @@
 """Build and render the RUNWAY London diorama.
 
-The scene is deliberately art-directed rather than geographically literal:
-eight startup hubs wrap around a recognisable S-bend Thames, with London
-landmarks acting as anchors. Everything is generated through bpy so the scene
-is deterministic, inspectable, and does not depend on Blender add-ons.
+The scene uses a frozen OpenStreetMap snapshot for the River Thames, primary
+roads, and all eight hub coordinates. Area-specific buildings and landmarks
+are then art-directed on top as original low-poly geometry. Everything is
+generated through bpy so the scene is deterministic, inspectable, and does not
+depend on Blender add-ons.
 
 Examples:
   blender -b --factory-startup --python-exit-code 1 \
@@ -32,6 +33,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_DIR = SCRIPT_DIR.parent.parent
 AUTHORING_DIR = REPO_DIR / "artifacts" / "diorama-authoring"
 PUBLIC_DIR = REPO_DIR / "public" / "game" / "diorama"
+GEOGRAPHY_PATH = SCRIPT_DIR / "london-geography.json"
+GEOGRAPHY = json.loads(GEOGRAPHY_PATH.read_text())
 ARGS = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
 TOKENS_ONLY = "--tokens-only" in ARGS
 FINAL = "--final" in ARGS or TOKENS_ONLY
@@ -41,31 +44,40 @@ if "--focus-preview" in ARGS:
     focus_index = ARGS.index("--focus-preview") + 1
     if focus_index < len(ARGS):
         FOCUS_PREVIEW = ARGS[focus_index]
+print("RUNWAY diorama args:", ARGS)
 random.seed(20)
 
 STOREY = 3.0
-MASTER_CAMERA_LOCATION = Vector((420.0, -690.0, 680.0))
-MASTER_TARGET = Vector((0.0, 0.0, 8.0))
+MASTER_CAMERA_LOCATION = Vector((350.0, -570.0, 530.0))
+MASTER_TARGET = Vector((0.0, 0.0, 7.0))
 FOCUS_CAMERA_DISTANCE = {
-    "camden": 190,
-    "kingscross": 190,
-    "soho": 185,
-    "farringdon": 185,
-    "shoreditch": 205,
-    "londonbridge": 215,
-    "canarywharf": 245,
-    "battersea": 225,
+    "camden": 150,
+    "kingscross": 155,
+    "soho": 145,
+    "farringdon": 150,
+    "shoreditch": 160,
+    "londonbridge": 165,
+    "canarywharf": 205,
+    "battersea": 175,
 }
 
+PROJECTION = GEOGRAPHY["projection"]
+
+
+def geo_to_scene(lon: float, lat: float) -> tuple[float, float]:
+    return (
+        (lon - PROJECTION["centreLon"]) * PROJECTION["xUnitsPerDegree"],
+        (lat - PROJECTION["centreLat"]) * PROJECTION["yUnitsPerDegree"],
+    )
+
+
 HUBS = {
-    "camden": {"name": "CAMDEN", "point": (-100.0, 62.0, 0.0), "accent": "violet"},
-    "kingscross": {"name": "KING'S CROSS", "point": (-38.0, 65.0, 0.0), "accent": "steel"},
-    "soho": {"name": "SOHO", "point": (-92.0, 22.0, 0.0), "accent": "magenta"},
-    "farringdon": {"name": "FARRINGDON", "point": (-30.0, 24.0, 0.0), "accent": "deep_green"},
-    "shoreditch": {"name": "SHOREDITCH", "point": (38.0, 40.0, 0.0), "accent": "orange"},
-    "londonbridge": {"name": "LONDON BRIDGE", "point": (28.0, -22.0, 0.0), "accent": "market_red"},
-    "canarywharf": {"name": "CANARY WHARF", "point": (122.0, 5.0, 0.0), "accent": "steel"},
-    "battersea": {"name": "BATTERSEA", "point": (-118.0, -62.0, 0.0), "accent": "brick"},
+    hub_id: {
+        "name": hub["name"],
+        "point": (*geo_to_scene(hub["lon"], hub["lat"]), 0.0),
+        "accent": hub["accent"],
+    }
+    for hub_id, hub in GEOGRAPHY["hubs"].items()
 }
 
 
@@ -107,7 +119,7 @@ PALETTE = {
     "steel": srgb("#6686a4"),
     "glass": srgb("#466984"),
     "glass_light": srgb("#8cb4c7"),
-    "road": srgb("#34383b"),
+    "road": srgb("#687477"),
     "charcoal": srgb("#20292f"),
     "roof": srgb("#696d70"),
     "water": srgb("#5aafc4"),
@@ -710,7 +722,29 @@ def crowd(name: str, x: float, y: float, count: int, spread_x: float, spread_y: 
 
 
 def road(name: str, points: list[tuple[float, float]], width: float) -> None:
-    strip_mesh(name, points, width, 0.295, material("road", bevel=0))
+    # Draw each span as its own quad within one mesh. A conventional joined
+    # ribbon can fold over itself when an OSM route doubles back at the end of
+    # a divided carriageway, producing large triangular artefacts.
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, int, int, int]] = []
+    half = width / 2
+    for start, end in zip(points, points[1:]):
+        direction = Vector(end) - Vector(start)
+        if direction.length < 0.001:
+            continue
+        tangent = direction.normalized()
+        normal = Vector((-tangent.y, tangent.x)) * half
+        offset = len(vertices)
+        vertices.extend(
+            [
+                (start[0] + normal.x, start[1] + normal.y, 0.295),
+                (start[0] - normal.x, start[1] - normal.y, 0.295),
+                (end[0] - normal.x, end[1] - normal.y, 0.295),
+                (end[0] + normal.x, end[1] + normal.y, 0.295),
+            ]
+        )
+        faces.append((offset, offset + 1, offset + 2, offset + 3))
+    mesh_object(name, vertices, faces, material("road", bevel=0))
 
 
 def bridge(name: str, x: float, y: float, length: float, rotation: float = 0.0) -> None:
@@ -1250,14 +1284,27 @@ def gherkin(x: float, y: float) -> None:
     mesh_object("the_gherkin", vertices, faces, material("glass", roughness=0.18, bevel=0))
 
 
-def tower_bridge(x: float, y: float) -> None:
-    bridge("tower_bridge_deck", x, y, 32, 0)
-    for dx in (-9, 9):
-        box(f"tower_bridge_tower_{dx}", x + dx, y, 0, 5.5, 7.5, 24, material("sand"))
+def tower_bridge(x: float, y: float, rotation: float = 0.0) -> None:
+    bridge("tower_bridge_deck", x, y, 32, rotation)
+    direction = Vector((math.cos(rotation), math.sin(rotation)))
+    for offset in (-9, 9):
+        tx = x + direction.x * offset
+        ty = y + direction.y * offset
+        box(
+            f"tower_bridge_tower_{offset}",
+            tx,
+            ty,
+            0,
+            5.5,
+            7.5,
+            24,
+            material("sand"),
+            rotation,
+        )
         cone(
-            f"tower_bridge_roof_{dx}",
-            x + dx,
-            y,
+            f"tower_bridge_roof_{offset}",
+            tx,
+            ty,
             24,
             4.2,
             0.25,
@@ -1265,12 +1312,22 @@ def tower_bridge(x: float, y: float) -> None:
             material("steel"),
             vertices=8,
         )
-    box("tower_bridge_upper", x, y, 17.5, 18, 2.2, 2.2, material("steel"))
-    for dx in (-15, 15):
+    box(
+        "tower_bridge_upper",
+        x,
+        y,
+        17.5,
+        18,
+        2.2,
+        2.2,
+        material("steel"),
+        rotation,
+    )
+    for offset in (-15, 15):
         cone(
-            f"tower_bridge_pin_{dx}",
-            x + dx,
-            y,
+            f"tower_bridge_pin_{offset}",
+            x + direction.x * offset,
+            y + direction.y * offset,
             1.0,
             1.1,
             0.2,
@@ -1293,9 +1350,10 @@ def clear_scene() -> None:
 
 def build_city() -> None:
     clear_scene()
-    # The postcard plinth.
-    box("city_plinth", 0, 0, -4.0, 390, 215, 4.0, material("cream", bevel=0.35))
-    box("city_ground", 0, 0, 0, 382, 207, 0.18, material("lawn", bevel=0))
+    # A shallow model-table edge keeps the clay-diorama character while the
+    # map now reaches the camera frame instead of floating as a small postcard.
+    box("city_plinth", 0, 0, -2.0, 414, 238, 2.0, material("cream", bevel=0.35))
+    box("city_ground", 0, 0, 0, 406, 230, 0.18, material("lawn", bevel=0))
 
     # Each hub sits on a paved model-making tile. The overlaps deliberately
     # knit into one city while leaving green breathing room between districts.
@@ -1314,20 +1372,20 @@ def build_city() -> None:
             material("paver", bevel=0),
         )
 
-    river_points = [
-        (-195, -31),
-        (-150, -30),
-        (-115, -25),
-        (-80, -12),
-        (-45, -8),
-        (-10, -12),
-        (28, -7),
-        (65, -12),
-        (100, -21),
-        (145, -23),
-        (195, -17),
+    river_points = [geo_to_scene(lon, lat) for lon, lat in GEOGRAPHY["river"]["points"]]
+    river_widths = [
+        # Roughly 360m in the west, widening to about 650m in Docklands at
+        # this scene's 43m-per-unit projection.
+        8.5 + 6.5 * (index / max(1, len(river_points) - 1))
+        for index in range(len(river_points))
     ]
-    river_widths = [29, 28, 26, 25, 24, 25, 27, 30, 33, 36, 38]
+    strip_mesh(
+        "thames_embankment",
+        river_points,
+        [width + 2.5 for width in river_widths],
+        0.21,
+        material("sand", bevel=0),
+    )
     strip_mesh(
         "thames",
         river_points,
@@ -1336,17 +1394,16 @@ def build_city() -> None:
         material("water", roughness=0.28, bevel=0),
     )
 
-    # Roads tie the hubs together but remain subordinate to the river.
-    road("north_road", [(-175, 44), (-120, 44), (-70, 39), (-20, 43), (40, 39), (95, 30), (165, 26)], 7.2)
-    road("central_road", [(-170, 10), (-115, 14), (-70, 16), (-25, 17), (25, 18), (82, 12), (165, 5)], 6.6)
-    road("south_road", [(-175, -73), (-120, -66), (-72, -49), (-22, -39), (35, -37), (95, -43), (170, -48)], 7.0)
-    road("west_link", [(-115, 88), (-105, 55), (-98, 23), (-107, -12), (-118, -69)], 6.2)
-    road("city_link", [(-38, 91), (-34, 64), (-30, 25), (-5, -1), (28, -28), (42, -66)], 6.4)
-    road("east_link", [(42, 75), (38, 40), (67, 21), (122, 5), (145, -48)], 6.4)
+    # The principal road network comes from the same frozen OSM snapshot. Its
+    # thinner scale keeps the Thames and playable neighbourhoods legible.
+    road_width = {"motorway": 3.8, "trunk": 3.1, "primary": 1.85}
+    for index, item in enumerate(GEOGRAPHY["roads"]):
+        points = [geo_to_scene(lon, lat) for lon, lat in item["points"]]
+        road(f"osm_road_{index}_{item['ref']}", points, road_width[item["class"]])
 
-    bridge("westminster_bridge", -58, -10, 28)
-    bridge("london_bridge", 8, -10, 29)
-    tower_bridge(58, -12)
+    bridge("westminster_bridge", *geo_to_scene(-0.122, 51.501), 28, math.radians(78))
+    bridge("london_bridge", *geo_to_scene(-0.087, 51.508), 29, math.radians(82))
+    tower_bridge(*geo_to_scene(-0.0754, 51.5055), math.radians(90))
 
     build_camden()
     build_kingscross()
@@ -1357,48 +1414,39 @@ def build_city() -> None:
     build_canarywharf()
     build_battersea()
 
-    big_ben(-67, -2)
-    london_eye(-43, -12)
-    shard(18, -15)
-    gherkin(13, 9)
+    big_ben(*geo_to_scene(-0.1246, 51.5007))
+    london_eye(*geo_to_scene(-0.1195, 51.5033))
+    shard(*geo_to_scene(-0.0865, 51.5045))
+    gherkin(*geo_to_scene(-0.0803, 51.5145))
 
-    # Calmer connective tissue outside the hubs.
-    connective = [
-        (-157, 66),
-        (-153, 24),
-        (-156, -48),
-        (-64, -67),
-        (-20, -70),
-        (72, -63),
-        (105, 65),
-        (165, 54),
-        (171, 8),
-        (160, -61),
-        (73, 69),
-        (5, 74),
-        (-173, 84),
-        (-137, 88),
-        (-74, 90),
-        (35, 88),
-        (118, 83),
-        (157, 82),
-        (-178, -6),
-        (-165, -82),
-        (-78, -84),
-        (-37, -82),
-        (8, -87),
-        (51, -82),
-        (100, -76),
-        (148, -81),
-        (177, -7),
-        (179, 34),
-        (15, 4),
-        (78, 40),
-        (82, -3),
-        (-72, 48),
-        (-61, -34),
-        (-150, -14),
-    ]
+    # Calmer connective tissue follows real road alignments instead of a
+    # decorative grid. The handcrafted hub clusters remain the visual heroes.
+    connective: list[tuple[float, float]] = []
+    occupied_cells: set[tuple[int, int]] = set()
+    for route_index, item in enumerate(GEOGRAPHY["roads"]):
+        points = [geo_to_scene(lon, lat) for lon, lat in item["points"]]
+        if len(points) < 2:
+            continue
+        midpoint = points[len(points) // 2]
+        neighbour = points[min(len(points) - 1, len(points) // 2 + 1)]
+        dx = neighbour[0] - midpoint[0]
+        dy = neighbour[1] - midpoint[1]
+        magnitude = max(0.01, math.hypot(dx, dy))
+        side = -1 if route_index % 2 else 1
+        x = midpoint[0] + (-dy / magnitude) * (7.5 + route_index % 4)
+        y = midpoint[1] + (dx / magnitude) * (7.5 + route_index % 4) * side
+        if not (-192 < x < 192 and -104 < y < 104):
+            continue
+        if any(math.hypot(x - hub["point"][0], y - hub["point"][1]) < 31 for hub in HUBS.values()):
+            continue
+        cell = (round(x / 12), round(y / 12))
+        if cell in occupied_cells:
+            continue
+        occupied_cells.add(cell)
+        connective.append((x, y))
+        if len(connective) >= 52:
+            break
+
     for index, (x, y) in enumerate(connective):
         floors = 2 + index % 5
         key = ["cream", "brick", "sand", "warm_white"][index % 4]
@@ -1407,27 +1455,24 @@ def build_city() -> None:
         block_building(f"connective_{index}", x, y, width, depth, floors, key)
         tree(f"connective_tree_{index}", x + width * 0.7, y - 2, 0.9)
 
-    # Smaller perimeter blocks make the postcard feel inhabited without
-    # competing with the eight art-directed hub silhouettes.
+    # Smaller perimeter blocks keep the full-screen model inhabited without
+    # competing with the eight playable silhouettes.
     perimeter_infill = [
-        (-188, 62),
-        (-188, 34),
-        (-187, -37),
-        (-184, -64),
-        (-128, 96),
-        (-103, -94),
-        (-53, 96),
-        (-12, -97),
-        (43, 98),
-        (72, -95),
-        (108, 94),
-        (137, -94),
-        (185, 68),
-        (191, 42),
-        (193, 17),
-        (190, -32),
-        (183, -59),
-        (-145, -94),
+        (-195, 82),
+        (-194, 35),
+        (-194, -48),
+        (-160, 105),
+        (-112, -104),
+        (-58, 105),
+        (5, -105),
+        (62, 106),
+        (112, -104),
+        (160, 103),
+        (195, 70),
+        (196, 18),
+        (194, -42),
+        (158, -102),
+        (-165, -104),
     ]
     for index, (x, y) in enumerate(perimeter_infill):
         width = 7.5 + (index % 3) * 1.8
