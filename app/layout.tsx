@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist } from 'next/font/google';
+import { Barlow_Condensed, Geist } from 'next/font/google';
 import './globals.css';
 
 const geistSans = Geist({
@@ -7,11 +7,21 @@ const geistSans = Geist({
   subsets: ['latin'],
 });
 
+const barlowCondensed = Barlow_Condensed({
+  variable: '--font-billboard',
+  subsets: ['latin'],
+  weight: ['700', '800', '900'],
+});
+
 const SITE_NAME = 'RUNWAY';
 const DESCRIPTION =
   'A playable London startup strategy game. Pick a hub, grow your company, out-raise rivals, and try to reach unicorn status before the runway runs out.';
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: `${SITE_NAME} - the London startup game`,
     template: `%s · ${SITE_NAME}`,
@@ -39,7 +49,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-GB" className={`${geistSans.variable} h-full antialiased`}>
+    <html
+      lang="en-GB"
+      className={`${geistSans.variable} ${barlowCondensed.variable} h-full antialiased`}
+    >
       <body className="h-full" suppressHydrationWarning>
         {children}
       </body>

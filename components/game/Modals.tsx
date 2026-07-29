@@ -10,6 +10,7 @@ import { score } from '@/lib/game/engine';
 import { fmtMoney, fmtUsers } from '@/lib/game/format';
 import type { Dilemma, DilemmaEffectId, GameState, HubId } from '@/lib/game/types';
 import { ModalDialog } from './ModalDialog';
+import { SharePanel } from './ShareProgress';
 
 // ---------------------------------------------------------------------------
 
@@ -26,11 +27,7 @@ export function DilemmaModal({
   const titleId = `dilemma-title-${id}`;
   const bodyId = `dilemma-body-${id}`;
   return (
-    <ModalDialog
-      labelledBy={titleId}
-      describedBy={bodyId}
-      panelClassName="w-full max-w-lg rounded-2xl border border-violet-300/30 bg-[#0d1029] p-6 shadow-2xl"
-    >
+    <ModalDialog labelledBy={titleId} describedBy={bodyId} panelClassName="w-full max-w-lg p-6">
       <p className="text-xs font-black tracking-[0.25em] text-violet-300">
         WEEK {week} · DECISION TIME
       </p>
@@ -77,7 +74,7 @@ export function MoveModal({
       describedBy={descriptionId}
       dismissible
       onDismiss={onClose}
-      panelClassName="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/15 bg-[#0d1029] p-5 shadow-2xl"
+      panelClassName="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5"
     >
       <div className="flex items-center justify-between">
         <h3 id={titleId} className="text-lg font-black text-white">
@@ -186,10 +183,7 @@ export function EndOverlay({
   ];
 
   return (
-    <ModalDialog
-      labelledBy={titleId}
-      panelClassName={`w-full max-w-lg rounded-3xl border-2 ${meta.border} bg-[#0b0e24]/97 p-7 text-center shadow-2xl`}
-    >
+    <ModalDialog labelledBy={titleId} panelClassName="w-full max-w-lg p-7 text-center">
       <p className="text-6xl">{meta.emoji}</p>
       <h2
         id={titleId}
@@ -252,6 +246,11 @@ export function EndOverlay({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="end-share">
+        <p>SHARE THE RESULT</p>
+        <SharePanel game={game} />
       </div>
 
       <div className="mt-6 flex gap-2">

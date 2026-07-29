@@ -4,7 +4,7 @@
  * RUNWAY — the game shell.
  *
  * Owns the GameState, routes between screens (title → setup → play), pumps
- * engine fx into the canvas renderer + synth, handles keyboard shortcuts,
+ * engine fx into the diorama presentation + synth, handles keyboard shortcuts,
  * and persists a save to localStorage.
  *
  * All game transitions happen inside event handlers (never effects): compute
@@ -31,7 +31,7 @@ import {
 import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
-import type { MapRenderer, Scene } from '@/lib/game/render';
+import type { DioramaController, HitTarget, Scene } from '@/lib/game/map-scene';
 import type {
   ActionId,
   DilemmaEffectId,
@@ -40,8 +40,9 @@ import type {
   HubId,
   SectorId,
 } from '@/lib/game/types';
-import { MapCanvas } from './MapCanvas';
+import { DioramaMap } from './DioramaMap';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
+import { ShareProgressButton } from './ShareProgress';
 import { Sidebar } from './Sidebar';
 import { DilemmaModal, EndOverlay, MoveModal } from './Modals';
 
@@ -108,7 +109,8 @@ export function GameApp() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rendererRef = useRef<MapRenderer | null>(null);
+  const [foundingFxHub, setFoundingFxHub] = useState<HubId | null>(null);
+  const rendererRef = useRef<DioramaController | null>(null);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -243,11 +245,13 @@ export function GameApp() {
   const foundCompany = useCallback(() => {
     if (!draftSector || !hubChoice) return;
     const g = newGame({ companyName: draftName.trim(), sectorId: draftSector, hubId: hubChoice });
+    setFoundingFxHub(hubChoice);
     setGame(g);
     setScreen('play');
     sfx.play('raise');
-    rendererRef.current?.burstConfetti(hubChoice);
   }, [draftName, draftSector, hubChoice]);
+
+  const clearFoundingFx = useCallback(() => setFoundingFxHub(null), []);
 
   const continueSave = useCallback(() => {
     const g = parseSave(getSaveRaw());
@@ -271,12 +275,10 @@ export function GameApp() {
         playerHubId: game.hubId,
         playerSectorId: game.sectorId,
         companyName: game.companyName,
-        stageName: STAGES[game.stageIndex].name,
         rivals: game.rivals.map((r) => ({
           id: r.id,
           name: r.name,
           hubId: r.hubId,
-          sectorId: r.sectorId,
           stageName: r.alive ? STAGES[r.stageIndex].name : 'RIP',
           alive: r.alive,
         })),
@@ -293,14 +295,13 @@ export function GameApp() {
       playerHubId: screen === 'setup' && setupStep === 'hq' ? hubChoice : null,
       playerSectorId: draftSector,
       companyName: draftName,
-      stageName: '',
       rivals: [],
       events: [],
     };
   }, [screen, game, setupStep, hubChoice, draftSector, draftName]);
 
   const onHit = useCallback(
-    (target: { type: string; hubId?: HubId; eventId?: string; rivalId?: string }) => {
+    (target: HitTarget) => {
       const g = gameRef.current;
       if (screen === 'setup' && setupStep === 'hq' && target.type === 'hub' && target.hubId) {
         setHubChoice(target.hubId);
@@ -363,87 +364,77 @@ export function GameApp() {
   // ----------------------------------------------------------------------------
 
   return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-[#070c1a] text-slate-200 md:flex-row">
+    <div className="runway-shell flex h-dvh w-full flex-col overflow-hidden text-slate-200 md:flex-row">
       {/* Map side */}
       <div
         className={`relative ${
           screen === 'play'
-            ? 'h-[44dvh] min-h-64 flex-none md:h-full md:flex-1'
+            ? 'h-[52dvh] min-h-72 flex-none md:h-full md:flex-1'
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
+        <DioramaMap
+          key={screen === 'play' ? 'play' : 'intro'}
+          scene={scene}
+          controllerRef={rendererRef}
+          onHit={onHit}
+          celebrateHubId={foundingFxHub}
+          onCelebrationShown={clearFoundingFx}
+          showHubChips={screen !== 'title'}
+        />
 
         {/* Map chrome */}
         {screen === 'play' && game && (
-          <div className="pointer-events-none absolute top-3 left-3 rounded-xl border border-white/10 bg-[#0b1226]/85 px-3.5 py-2 backdrop-blur">
-            <p className="text-[10px] font-black tracking-[0.3em] text-amber-300">RUNWAY</p>
-            <p className="text-sm font-black text-white">
+          <div className="week-billboard pointer-events-none absolute top-3 left-3">
+            <p>RUNWAY</p>
+            <strong>
               Week {game.week}
-              <span className="mx-1.5 text-slate-600">·</span>
+              <span>·</span>
               {STAGES[game.stageIndex].name}
               {game.valuation > 0 && (
                 <>
-                  <span className="mx-1.5 text-slate-600">·</span>
-                  <span className="text-amber-200">{fmtMoney(game.valuation)}</span>
+                  <span>·</span>
+                  <em>{fmtMoney(game.valuation)}</em>
                 </>
               )}
-            </p>
+            </strong>
           </div>
         )}
+
+        {screen === 'play' && game && <ShareProgressButton game={game} />}
 
         <button
           onClick={toggleMute}
           title="Toggle sound (M)"
           aria-label={muted ? 'Turn sound on' : 'Mute sound'}
-          className="absolute top-3 right-3 z-30 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
+          className="sound-billboard absolute top-3 right-3 z-30"
         >
           {muted ? '🔇' : '🔊'}
         </button>
 
-        {screen === 'play' && (
-          <div className="pointer-events-none absolute bottom-2 left-3 hidden rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
-            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
-          </div>
-        )}
-
         {/* Title screen */}
         {screen === 'title' && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-gradient-to-b from-[#070c1a]/78 via-[#070c1a]/55 to-[#070c1a]/85 p-6">
-            <div className="w-full max-w-xl text-center">
-              <p className="text-xs font-black tracking-[0.5em] text-sky-300">
-                LONDON STARTUP MAP PRESENTS
-              </p>
-              <h1 className="mt-3 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-7xl font-black tracking-tight text-transparent drop-shadow-sm md:text-8xl">
-                RUNWAY
-              </h1>
-              <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
+          <div className="title-layer absolute inset-0 z-20">
+            <div className="title-lockup">
+              <p className="title-kicker">LONDON STARTUP MAP PRESENTS</p>
+              <h1>RUNWAY</h1>
+              <p className="title-copy">
                 Found a startup on a living map of London. Spend your focus, work the events scene,
                 out-raise your rivals — and reach a{' '}
-                <span className="font-bold text-amber-300">
-                  {UNICORN_TARGET.compactLabel} valuation
-                </span>{' '}
-                before the money runs out.
+                <strong>{UNICORN_TARGET.compactLabel} valuation</strong> before the money runs out.
               </p>
-              <div className="mt-8 flex flex-col items-center gap-2.5">
-                <button
-                  onClick={() => startSetup()}
-                  className="w-64 rounded-2xl bg-amber-400 px-6 py-3.5 text-lg font-black text-[#161003] shadow-lg shadow-amber-500/20 transition hover:bg-amber-300 hover:shadow-amber-400/30 active:scale-[0.98]"
-                >
+              <div className="title-actions">
+                <button onClick={() => startSetup()} className="title-primary">
                   New game
                 </button>
                 {save && (
-                  <button
-                    onClick={continueSave}
-                    className="w-64 rounded-2xl border border-white/20 px-6 py-3 text-base font-bold text-slate-200 transition hover:bg-white/5 active:scale-[0.98]"
-                  >
+                  <button onClick={continueSave} className="title-secondary">
                     Continue — week {save.week}, {save.companyName}
                   </button>
                 )}
               </div>
-              <p className="mt-8 text-xs text-slate-500">
-                Best with sound on 🔊 · built end-to-end by{' '}
-                <span className="font-bold text-slate-400">Fable</span>
+              <p className="title-credit">
+                Best with sound on 🔊 · built end-to-end by <strong>Fable</strong>
                 {' as a what-if: the startup map, but you\u2019re on it.'}
               </p>
             </div>
@@ -484,10 +475,8 @@ export function GameApp() {
         {toast && screen === 'play' && (
           <div
             key={toast.key}
-            className={`pointer-events-none absolute bottom-8 left-1/2 z-30 w-max max-w-[85%] -translate-x-1/2 rounded-xl border px-4 py-2.5 text-sm font-semibold shadow-xl backdrop-blur md:bottom-10 ${
-              toast.tone === 'warn'
-                ? 'border-rose-300/40 bg-rose-950/85 text-rose-100'
-                : 'border-sky-300/30 bg-[#0b1226]/92 text-slate-100'
+            className={`runway-toast pointer-events-none absolute bottom-8 left-1/2 z-30 w-max max-w-[85%] -translate-x-1/2 px-4 py-2.5 text-sm font-semibold md:bottom-10 ${
+              toast.tone === 'warn' ? 'is-warn' : ''
             }`}
           >
             {toast.text}
@@ -497,7 +486,10 @@ export function GameApp() {
 
       {/* Control panel */}
       {screen === 'play' && game && (
-        <aside className="min-h-0 flex-1 overflow-y-auto border-t border-white/10 bg-[#0a0f22] md:h-full md:w-[398px] md:flex-none md:border-t-0 md:border-l">
+        <aside
+          data-billboard-rail
+          className="billboard-rail min-h-0 flex-1 overflow-y-auto md:h-full md:w-[398px] md:flex-none"
+        >
           <Sidebar
             game={game}
             onAction={act}

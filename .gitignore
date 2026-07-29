@@ -57,4 +57,5 @@ next-env.d.ts
 # generated media artifacts
 outputs/
 brag-output*/
+/artifacts/diorama-authoring/
 .env.local

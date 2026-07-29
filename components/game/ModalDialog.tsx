@@ -105,9 +105,12 @@ export function ModalDialog({
       onClick={onBackdropClick}
       onKeyDown={onKeyDown}
       tabIndex={-1}
-      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto bg-transparent p-4 text-slate-200 backdrop:bg-[#070c1a]/90 open:flex open:items-start open:justify-center md:backdrop:bg-black/60 md:backdrop:backdrop-blur-[3px]"
+      className="runway-dialog fixed inset-0 z-50 m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto bg-transparent p-4 text-slate-200 open:flex open:items-start open:justify-center"
     >
-      <div className={`my-auto ${panelClassName}`} onClick={(event) => event.stopPropagation()}>
+      <div
+        className={`runway-dialog-panel my-auto ${panelClassName}`}
+        onClick={(event) => event.stopPropagation()}
+      >
         {children}
       </div>
     </dialog>
