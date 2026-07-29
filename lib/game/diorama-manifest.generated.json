@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "masterAspect": 1.7777777777777777,
+  "hubs": {
+    "camden": {
+      "name": "CAMDEN",
+      "anchor": {
+        "x": 0.38917,
+        "y": 0.25845
+      },
+      "accent": "violet",
+      "focus": {
+        "avif": "/game/diorama/focus/camden-2560.avif",
+        "avifSmall": "/game/diorama/focus/camden-1280.avif",
+        "webp": "/game/diorama/focus/camden-2560.webp",
+        "webpSmall": "/game/diorama/focus/camden-1280.webp"
+      }
+    },
+    "kingscross": {
+      "name": "KING'S CROSS",
+      "anchor": {
+        "x": 0.50284,
+        "y": 0.32524
+      },
+      "accent": "steel",
+      "focus": {
+        "avif": "/game/diorama/focus/kingscross-2560.avif",
+        "avifSmall": "/game/diorama/focus/kingscross-1280.avif",
+        "webp": "/game/diorama/focus/kingscross-2560.webp",
+        "webpSmall": "/game/diorama/focus/kingscross-1280.webp"
+      }
+    },
+    "soho": {
+      "name": "SOHO",
+      "anchor": {
+        "x": 0.35634,
+        "y": 0.34524
+      },
+      "accent": "magenta",
+      "focus": {
+        "avif": "/game/diorama/focus/soho-2560.avif",
+        "avifSmall": "/game/diorama/focus/soho-1280.avif",
+        "webp": "/game/diorama/focus/soho-2560.webp",
+        "webpSmall": "/game/diorama/focus/soho-1280.webp"
+      }
+    },
+    "farringdon": {
+      "name": "FARRINGDON",
+      "anchor": {
+        "x": 0.47126,
+        "y": 0.41775
+      },
+      "accent": "deep_green",
+      "focus": {
+        "avif": "/game/diorama/focus/farringdon-2560.avif",
+        "avifSmall": "/game/diorama/focus/farringdon-1280.avif",
+        "webp": "/game/diorama/focus/farringdon-2560.webp",
+        "webpSmall": "/game/diorama/focus/farringdon-1280.webp"
+      }
+    },
+    "shoreditch": {
+      "name": "SHOREDITCH",
+      "anchor": {
+        "x": 0.61825,
+        "y": 0.47121
+      },
+      "accent": "orange",
+      "focus": {
+        "avif": "/game/diorama/focus/shoreditch-2560.avif",
+        "avifSmall": "/game/diorama/focus/shoreditch-1280.avif",
+        "webp": "/game/diorama/focus/shoreditch-2560.webp",
+        "webpSmall": "/game/diorama/focus/shoreditch-1280.webp"
+      }
+    },
+    "londonbridge": {
+      "name": "LONDON BRIDGE",
+      "anchor": {
+        "x": 0.5287,
+        "y": 0.59506
+      },
+      "accent": "market_red",
+      "focus": {
+        "avif": "/game/diorama/focus/londonbridge-2560.avif",
+        "avifSmall": "/game/diorama/focus/londonbridge-1280.avif",
+        "webp": "/game/diorama/focus/londonbridge-2560.webp",
+        "webpSmall": "/game/diorama/focus/londonbridge-1280.webp"
+      }
+    },
+    "canarywharf": {
+      "name": "CANARY WHARF",
+      "anchor": {
+        "x": 0.75047,
+        "y": 0.66575
+      },
+      "accent": "steel",
+      "focus": {
+        "avif": "/game/diorama/focus/canarywharf-2560.avif",
+        "avifSmall": "/game/diorama/focus/canarywharf-1280.avif",
+        "webp": "/game/diorama/focus/canarywharf-2560.webp",
+        "webpSmall": "/game/diorama/focus/canarywharf-1280.webp"
+      }
+    },
+    "battersea": {
+      "name": "BATTERSEA",
+      "anchor": {
+        "x": 0.20334,
+        "y": 0.48634
+      },
+      "accent": "brick",
+      "focus": {
+        "avif": "/game/diorama/focus/battersea-2560.avif",
+        "avifSmall": "/game/diorama/focus/battersea-1280.avif",
+        "webp": "/game/diorama/focus/battersea-2560.webp",
+        "webpSmall": "/game/diorama/focus/battersea-1280.webp"
+      }
+    }
+  },
+  "master": {
+    "lqip": "data:image/webp;base64,UklGRggBAABXRUJQVlA4IPwAAADwBgCdASpAACQAPymMuVcuKaUjqBVbicAlCUfM/Afo0xgNvAauWvni1rbyxsEvlPlerWt0p4EjtrofJjIvCw0AAPnWhe4FfQ2suJ6sHqkPqckK+5tR7AWcPOxuEYVCo7qx4b86vcvfncoFDSpC6vy4RjiT1w4g+LJjBPKZX7n4k7gsaDLdQgRX5r7paXPw4ARkRGSBIeOVvqCMcI3c05Lnu2zbi8DjhQX5wNTPT058lLrZP7rK0xKXuuVVC85CcVvNkS9QpIt5RjFqgNFMA65w+GuCrFQqZqEenCEJ/3X0C5Z4xQ4RzlAx8RoGdz5N7VrIttcH26MtHYVgAAA=",
+    "avif": "/game/diorama/master-5120.avif",
+    "avifSmall": "/game/diorama/master-2560.avif",
+    "webp": "/game/diorama/master-5120.webp",
+    "webpSmall": "/game/diorama/master-2560.webp"
+  },
+  "tokens": {
+    "hq": "/game/diorama/tokens/hq.webp",
+    "rival": "/game/diorama/tokens/rival.webp",
+    "event": "/game/diorama/tokens/event.webp",
+    "ring": "/game/diorama/tokens/ring.webp"
+  }
+}

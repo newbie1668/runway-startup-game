@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
-import { Geist } from 'next/font/google';
+import { Barlow_Condensed, Geist } from 'next/font/google';
 import './globals.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
+});
+
+const barlowCondensed = Barlow_Condensed({
+  variable: '--font-billboard',
+  subsets: ['latin'],
+  weight: ['700', '800', '900'],
 });
 
 const SITE_NAME = 'RUNWAY';
@@ -39,7 +45,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-GB" className={`${geistSans.variable} h-full antialiased`}>
+    <html
+      lang="en-GB"
+      className={`${geistSans.variable} ${barlowCondensed.variable} h-full antialiased`}
+    >
       <body className="h-full" suppressHydrationWarning>
         {children}
       </body>

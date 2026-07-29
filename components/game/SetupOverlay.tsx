@@ -47,9 +47,9 @@ export function SetupOverlay(props: Props) {
         labelledBy="setup-title"
         dismissible
         onDismiss={props.onBack}
-        panelClassName="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0b1226]/98 p-4 shadow-2xl shadow-black/60 sm:p-6"
+        panelClassName="w-full max-w-2xl p-4 sm:p-6"
       >
-        <p className="text-xs font-bold tracking-[0.25em] text-sky-300">STEP 1 OF 2</p>
+        <p className="text-xs font-bold tracking-[0.25em] text-[#166178]">STEP 1 OF 2</p>
         <h2 id="setup-title" className="mt-1 text-2xl font-black text-white">
           Incorporate your startup
         </h2>
@@ -96,8 +96,8 @@ export function SetupOverlay(props: Props) {
                   {s.emoji} {s.name}
                 </p>
                 <p className="mt-0.5 text-xs leading-snug text-slate-400">{s.tagline}</p>
-                <p className="mt-1.5 text-xs leading-snug text-emerald-300/90">+ {s.perk}</p>
-                <p className="text-xs leading-snug text-rose-300/80">− {s.drawback}</p>
+                <p className="mt-1.5 text-xs leading-snug text-[#236f47]">+ {s.perk}</p>
+                <p className="text-xs leading-snug text-[#9b3545]">− {s.drawback}</p>
               </button>
             );
           })}
@@ -117,9 +117,9 @@ export function SetupOverlay(props: Props) {
   // Step 2: HQ pick. The map underneath is interactive; we only overlay chrome.
   const hub = props.hubChoice ? hubById(props.hubChoice) : null;
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-4">
-      <div className="pointer-events-auto mx-auto mt-2 w-full max-w-md rounded-2xl border border-sky-300/30 bg-[#0b1226]/95 p-3 shadow-lg">
-        <p className="text-center text-sm font-bold text-sky-100">
+    <div className="setup-hq-overlay pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-4">
+      <div className="setup-hq-banner pointer-events-auto mx-auto mt-2 w-full max-w-md p-3">
+        <p className="text-center text-sm font-bold">
           Step 2 — choose from the list or click a glowing neighbourhood
         </p>
         <label htmlFor="hq-select" className="sr-only">
@@ -144,7 +144,7 @@ export function SetupOverlay(props: Props) {
 
       <div className="mx-auto w-full max-w-xl">
         {hub ? (
-          <div className="pointer-events-auto rounded-2xl border border-amber-300/40 bg-[#0b1226]/95 p-5 shadow-2xl">
+          <div className="setup-hq-card pointer-events-auto p-5">
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="text-xl font-black text-white">{hub.name}</h3>
               <p className="text-sm font-bold text-amber-300">
@@ -178,7 +178,7 @@ export function SetupOverlay(props: Props) {
             </div>
           </div>
         ) : (
-          <div className="pointer-events-auto mx-auto flex w-fit gap-2 rounded-full border border-white/10 bg-[#0b1226]/85 px-4 py-2">
+          <div className="setup-hq-back pointer-events-auto mx-auto flex w-fit gap-2 px-4 py-2">
             <button
               onClick={props.onBack}
               className="text-sm font-bold text-slate-300 transition hover:text-white"

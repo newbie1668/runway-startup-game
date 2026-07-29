@@ -1,8 +1,16 @@
 @import 'tailwindcss';
 
 :root {
-  --background: #050505;
-  --foreground: #fafafa;
+  --background: #182027;
+  --foreground: #fff8e9;
+  --runway-cream: #f4e8ca;
+  --runway-ink: #182027;
+  --runway-orange: #e86c3a;
+  --runway-yellow: #f2c84b;
+  --runway-green: #4f9b5f;
+  --runway-teal: #2a8c8b;
+  --runway-magenta: #d14f88;
+  --runway-violet: #7656a8;
 }
 
 @theme inline {
@@ -19,5 +27,796 @@ body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--runway-yellow);
+  outline-offset: 3px;
+}
+
+.runway-shell {
+  background: var(--runway-ink);
+}
+
+.diorama-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: pan-y;
+  background-color: #64717a;
+  background-position: center;
+  background-size: cover;
+  user-select: none;
+}
+
+.diorama-master-layer {
+  position: absolute;
+  background-position: center;
+  background-size: cover;
+  transform: translate3d(var(--pan-x), var(--pan-y), 0) scale(var(--pinch-scale));
+  transform-origin: var(--focus-x) var(--focus-y);
+  transition: transform 410ms cubic-bezier(0.2, 0.82, 0.26, 1);
+  will-change: transform;
+}
+
+.diorama-master-layer picture {
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.diorama-master-layer.is-loaded picture {
+  opacity: 1;
+}
+
+.diorama-map.is-focused .diorama-master-layer {
+  transform: translate3d(var(--pan-x), var(--pan-y), 0) scale(1.76) scale(var(--pinch-scale));
+}
+
+.diorama-master-layer picture,
+.diorama-master-layer img,
+.diorama-focus-layer,
+.diorama-focus-layer img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.diorama-master-layer img,
+.diorama-focus-layer img {
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.diorama-focus-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  transform: scale(var(--pinch-scale));
+  transition:
+    opacity 120ms linear,
+    transform 180ms ease-out;
+  pointer-events: none;
+}
+
+.diorama-map.is-pinching .diorama-master-layer,
+.diorama-map.is-pinching .diorama-focus-layer {
+  transition: none;
+}
+
+.diorama-focus-layer.is-visible {
+  opacity: 1;
+}
+
+.hub-hotspot {
+  --hub-accent: var(--runway-orange);
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  translate: -50% -50%;
+  place-content: center;
+  border: 0;
+  color: var(--runway-ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+.hub-hotspot > span {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 0.2rem);
+  translate: -50% 0;
+  width: max-content;
+  max-width: 8.5rem;
+  padding: 0.2rem 0.45rem;
+  clip-path: polygon(0.3rem 0, 100% 0, calc(100% - 0.3rem) 100%, 0 100%);
+  color: white;
+  background: var(--hub-accent);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  transition: opacity 120ms linear;
+}
+
+.diorama-map.mode-play .hub-hotspot > span {
+  opacity: 0;
+}
+
+.diorama-map.mode-play .hub-hotspot:hover > span,
+.diorama-map.mode-play .hub-hotspot:focus-visible > span,
+.diorama-map.mode-play .hub-hotspot.has-player > span {
+  opacity: 1;
+}
+
+.hub-hotspot::after {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: var(--hub-accent);
+  content: '';
+}
+
+.hub-hotspot:hover::after,
+.hub-hotspot:focus-visible::after,
+.hub-hotspot.has-player::after {
+  scale: 1.25;
+}
+
+.hub-hotspot > i {
+  position: absolute;
+  top: calc(100% - 0.15rem);
+  left: 50%;
+  display: flex;
+  gap: 0.14rem;
+  translate: -50% 0;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border: 1px solid white;
+  border-radius: 50%;
+}
+
+.status-dot.player {
+  background: var(--runway-yellow);
+}
+
+.status-dot.rival {
+  background: var(--runway-violet);
+}
+
+.status-dot.event {
+  background: var(--runway-orange);
+}
+
+.token-button {
+  position: absolute;
+  z-index: 8;
+  width: 3.75rem;
+  height: 3.75rem;
+  translate: -50% -68%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    scale 150ms ease,
+    left 410ms cubic-bezier(0.2, 0.82, 0.26, 1),
+    top 410ms cubic-bezier(0.2, 0.82, 0.26, 1);
+}
+
+.token-button:hover,
+.token-button:focus-visible {
+  z-index: 10;
+  scale: 1.15;
+}
+
+.clay-token,
+.clay-token > img,
+.clay-token-placeholder,
+.clay-token-placeholder svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.clay-token {
+  position: relative;
+}
+
+.clay-token > img {
+  opacity: 0;
+  object-fit: contain;
+  transition: opacity 100ms linear;
+}
+
+.clay-token > img.is-loaded {
+  opacity: 1;
+}
+
+.clay-token-placeholder {
+  position: absolute;
+  inset: 20%;
+  color: var(--runway-orange);
+  animation: token-pulse 900ms ease-in-out infinite alternate;
+}
+
+.player-token {
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+.event-token {
+  width: 3.4rem;
+  height: 3.4rem;
+}
+
+.focus-back {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 20;
+  border: 0;
+  padding: 0.62rem 0.9rem;
+  clip-path: polygon(0.45rem 0, 100% 0, calc(100% - 0.45rem) 100%, 0 100%);
+  color: white;
+  background: var(--runway-ink);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.diorama-map.mode-play .focus-back {
+  top: 4.35rem;
+}
+
+.focus-card {
+  position: absolute;
+  z-index: 16;
+  bottom: 1rem;
+  left: 1rem;
+  width: min(28rem, calc(100% - 2rem));
+  padding: 0.9rem 1rem;
+  translate: 0 1.5rem;
+  opacity: 0;
+  color: var(--runway-ink);
+  background: var(--runway-cream);
+  clip-path: polygon(0 0, calc(100% - 1rem) 0, 100% 1rem, 100% 100%, 0 100%);
+  transition:
+    translate 220ms ease-out,
+    opacity 180ms linear;
+}
+
+.focus-card.is-visible {
+  translate: 0;
+  opacity: 1;
+}
+
+.focus-card > p {
+  color: var(--runway-orange);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.focus-card h2 {
+  max-width: 34ch;
+  margin-top: 0.15rem;
+  font-family: var(--font-billboard), sans-serif;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  font-weight: 800;
+  line-height: 1.02;
+}
+
+.focus-card dl {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.65rem;
+}
+
+.focus-card dt {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.focus-card dd {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.hub-chip-strip {
+  position: absolute;
+  z-index: 22;
+  right: 0.45rem;
+  bottom: 0.5rem;
+  left: 0.45rem;
+  display: none;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding: 0.35rem;
+  scrollbar-width: none;
+}
+
+.hub-chip-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.hub-chip-strip button {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0.48rem 0.65rem;
+  color: white;
+  background: var(--runway-ink);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.hub-chip-strip button.is-active {
+  color: var(--runway-ink);
+  background: var(--runway-yellow);
+}
+
+.hub-chip-strip button > span {
+  display: inline-flex;
+  gap: 0.1rem;
+  margin-left: 0.3rem;
+}
+
+.diorama-fx-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.diorama-fx {
+  position: absolute;
+  color: var(--runway-yellow);
+  font-size: 1.3rem;
+  font-weight: 900;
+  animation: fx-pop 2.1s ease-out both;
+}
+
+.diorama-fx.fx-confetti::before,
+.diorama-fx.fx-confetti::after {
+  position: absolute;
+  width: 0.35rem;
+  height: 0.35rem;
+  translate: -50% -50%;
+  background: var(--runway-yellow);
+  box-shadow:
+    -3.4rem -2.2rem 0 var(--runway-magenta),
+    3.6rem -2.8rem 0 var(--runway-teal),
+    -4.2rem 2.5rem 0 white,
+    4.5rem 2.1rem 0 var(--runway-orange),
+    -0.8rem -4.5rem 0 var(--runway-green),
+    1.2rem 4.3rem 0 var(--runway-violet);
+  content: '';
+  animation: confetti-burst 1.4s ease-out both;
+}
+
+.diorama-fx.fx-confetti::after {
+  rotate: 45deg;
+}
+
+.diorama-fx.fx-smoke {
+  font-size: 3rem;
+  color: #9aa2a6;
+  filter: blur(5px);
+}
+
+.week-billboard {
+  z-index: 18;
+  min-width: 11rem;
+  padding: 0.55rem 0.8rem;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.65rem) 100%, 0 100%);
+  color: white;
+  background: var(--runway-orange);
+}
+
+.week-billboard p,
+.week-billboard strong {
+  font-family: var(--font-billboard), sans-serif;
+}
+
+.week-billboard p {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+}
+
+.week-billboard strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.week-billboard strong > span {
+  margin: 0 0.35rem;
+  opacity: 0.6;
+}
+
+.week-billboard em {
+  color: var(--runway-yellow);
+  font-style: normal;
+}
+
+.sound-billboard {
+  width: 2.7rem;
+  height: 2.5rem;
+  border: 0;
+  clip-path: polygon(0.4rem 0, 100% 0, calc(100% - 0.4rem) 100%, 0 100%);
+  background: var(--runway-yellow);
+}
+
+.map-key {
+  z-index: 14;
+  padding: 0.35rem 0.55rem;
+  color: white;
+  background: var(--runway-ink);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.runway-toast {
+  border: 0;
+  border-radius: 0;
+  clip-path: polygon(0.55rem 0, 100% 0, calc(100% - 0.55rem) 100%, 0 100%);
+  color: white;
+  background: var(--runway-ink);
+  font-family: var(--font-billboard), sans-serif;
+}
+
+.runway-toast.is-warn {
+  color: var(--runway-ink);
+  background: var(--runway-yellow);
+}
+
+.title-layer {
+  display: flex;
+  align-items: flex-end;
+  padding: clamp(1rem, 4vw, 3.5rem);
+  pointer-events: none;
+}
+
+.title-lockup {
+  display: grid;
+  width: min(35rem, 100%);
+  pointer-events: auto;
+}
+
+.title-kicker {
+  width: max-content;
+  max-width: 100%;
+  padding: 0.45rem 0.75rem;
+  color: white;
+  background: var(--runway-teal);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: clamp(0.68rem, 1.2vw, 0.85rem);
+  font-weight: 900;
+  letter-spacing: 0.17em;
+}
+
+.title-lockup h1 {
+  width: max-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.05em 0.16em 0.08em;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 1.25rem) 100%, 0 100%);
+  color: var(--runway-ink);
+  background: var(--runway-yellow);
+  font-family: var(--font-billboard), sans-serif;
+  font-size: clamp(4.7rem, 12vw, 9rem);
+  font-weight: 900;
+  line-height: 0.77;
+  letter-spacing: -0.055em;
+}
+
+.title-copy {
+  max-width: 31rem;
+  padding: 0.8rem 1rem;
+  color: var(--runway-ink);
+  background: var(--runway-cream);
+  font-size: clamp(0.88rem, 1.6vw, 1.02rem);
+  font-weight: 600;
+  line-height: 1.42;
+}
+
+.title-copy strong {
+  color: #b63d29;
+  font-weight: 900;
+}
+
+.title-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.title-actions button {
+  min-height: 2.9rem;
+  border: 0;
+  padding: 0.65rem 1rem;
+  font-family: var(--font-billboard), sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.title-primary {
+  color: white;
+  background: var(--runway-orange);
+}
+
+.title-secondary {
+  color: white;
+  background: var(--runway-ink);
+}
+
+.title-credit {
+  width: max-content;
+  max-width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.3rem 0.55rem;
+  color: var(--runway-cream);
+  background: rgb(24 32 39 / 86%);
+  font-size: 0.7rem;
+}
+
+.billboard-rail {
+  border-color: var(--runway-ink);
+  background: var(--runway-cream);
+  color: var(--runway-ink);
+}
+
+.billboard-rail > div {
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.billboard-rail > div > div,
+.billboard-rail > div > button {
+  border: 0;
+  border-radius: 0;
+  color: var(--runway-ink);
+  background: white;
+  box-shadow: none;
+}
+
+.billboard-rail > div > div:nth-child(1) {
+  background: var(--runway-orange);
+}
+
+.billboard-rail > div > div:nth-child(2) {
+  background: var(--runway-yellow);
+}
+
+.billboard-rail > div > div:nth-child(3) {
+  background: var(--runway-teal);
+}
+
+.billboard-rail > div > div:nth-child(4) {
+  background: #e9d8b8;
+}
+
+.billboard-rail > div > div:nth-child(5) {
+  background: #c9d8dc;
+}
+
+.billboard-rail p,
+.billboard-rail span,
+.billboard-rail li {
+  color: inherit;
+}
+
+.billboard-rail h1,
+.billboard-rail h2,
+.billboard-rail h3,
+.billboard-rail .font-black {
+  font-family: var(--font-billboard), sans-serif;
+}
+
+.billboard-rail button {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.billboard-rail button:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+.runway-dialog::backdrop {
+  background: rgb(24 32 39 / 82%);
+}
+
+.runway-dialog-panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--runway-ink) !important;
+  background: var(--runway-cream) !important;
+  box-shadow: none !important;
+  clip-path: polygon(0 0, calc(100% - 1.2rem) 0, 100% 1.2rem, 100% 100%, 0 100%);
+}
+
+.runway-dialog-panel h2,
+.runway-dialog-panel h3,
+.runway-dialog-panel .font-black {
+  color: var(--runway-ink);
+  font-family: var(--font-billboard), sans-serif;
+}
+
+.runway-dialog-panel .text-white,
+.runway-dialog-panel .text-slate-200,
+.runway-dialog-panel .text-slate-300,
+.runway-dialog-panel .text-slate-400,
+.runway-dialog-panel .text-slate-500 {
+  color: var(--runway-ink);
+}
+
+.runway-dialog-panel input,
+.runway-dialog-panel select {
+  border: 2px solid var(--runway-ink);
+  border-radius: 0;
+  color: white;
+  background: var(--runway-ink);
+}
+
+.runway-dialog-panel button {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.setup-hq-banner,
+.setup-hq-card,
+.setup-hq-back {
+  border: 0;
+  border-radius: 0;
+  color: var(--runway-ink);
+  background: var(--runway-cream);
+  box-shadow: none;
+}
+
+.setup-hq-banner {
+  clip-path: polygon(0.65rem 0, 100% 0, calc(100% - 0.65rem) 100%, 0 100%);
+}
+
+.setup-hq-card {
+  clip-path: polygon(0 0, calc(100% - 1rem) 0, 100% 1rem, 100% 100%, 0 100%);
+}
+
+.setup-hq-card h3,
+.setup-hq-card button {
+  font-family: var(--font-billboard), sans-serif;
+}
+
+.setup-hq-card .text-white,
+.setup-hq-card .text-slate-200,
+.setup-hq-card .text-slate-300,
+.setup-hq-card .text-slate-400 {
+  color: var(--runway-ink);
+}
+
+.setup-hq-card button {
+  border-radius: 0;
+}
+
+@keyframes token-pulse {
+  to {
+    scale: 1.08;
+    opacity: 0.55;
+  }
+}
+
+@keyframes fx-pop {
+  0% {
+    translate: -50% 0;
+    scale: 0.5;
+    opacity: 0;
+  }
+  16% {
+    scale: 1.15;
+    opacity: 1;
+  }
+  100% {
+    translate: -50% -5rem;
+    scale: 0.9;
+    opacity: 0;
+  }
+}
+
+@keyframes confetti-burst {
+  from {
+    scale: 0.2;
+    opacity: 1;
+  }
+  to {
+    scale: 2.1;
+    opacity: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .diorama-map {
+    touch-action: none;
+  }
+
+  .hub-hotspot > span {
+    display: none;
+  }
+
+  .hub-chip-strip {
+    display: flex;
+  }
+
+  .focus-card {
+    bottom: 3.8rem;
+  }
+
+  .title-layer {
+    align-items: flex-end;
+    padding: 0.75rem;
+  }
+
+  .title-lockup h1 {
+    font-size: clamp(4.2rem, 24vw, 6rem);
+  }
+
+  .title-copy {
+    max-width: 25rem;
+  }
+
+  .title-actions {
+    flex-wrap: wrap;
+  }
+
+  .title-actions button {
+    flex: 1 1 11rem;
+  }
+
+  .title-credit {
+    display: none;
+  }
+
+  .billboard-rail {
+    border-top: 0.35rem solid var(--runway-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
