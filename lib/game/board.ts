@@ -872,13 +872,13 @@ function addNeighbourhoods(
   // --- Tower Hamlets: Whitechapel Road + East London Mosque ---
   addBoxLL(group, -0.0654, 51.5174, 1.45, 0.85, 1.55, brick, 0.12);
   addCylLL(group, -0.0653, 51.5175, 0.55, 0.62, 0.7, greenDome, 12).position.y = LAND_Y + 1.2;
-  const dome = new THREE.Mesh(
+  const mosqueDome = new THREE.Mesh(
     new THREE.SphereGeometry(0.58, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
     gold,
   );
   const mos = ll3(-0.0653, 51.5175);
-  dome.position.set(mos.x, LAND_Y + 1.55, mos.z);
-  group.add(dome);
+  mosqueDome.position.set(mos.x, LAND_Y + 1.55, mos.z);
+  group.add(mosqueDome);
   addCylLL(group, -0.0642, 51.5178, 0.08, 0.12, 2.35, cream, 8);
   addCylLL(group, -0.0642, 51.5178, 0.16, 0.16, 0.12, gold, 8).position.y = LAND_Y + 2.45;
 
