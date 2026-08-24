@@ -213,8 +213,8 @@ function shapeFromRing(ring: readonly LngLat[]): THREE.Shape {
   return shapeFromPts(ringToShapePts(ring));
 }
 
-/** Pull footprints back from the curb so asphalt ribbons read, not leftover gaps. */
-function insetShapePts(
+/** Shrink footprints toward the centroid so a dark asphalt pad reads around each block. */
+function shrinkTowardCentroid(
   pts: Array<{ x: number; y: number }>,
   dist: number,
 ): Array<{ x: number; y: number }> | null {
@@ -223,84 +223,23 @@ function insetShapePts(
   const v = closed ? pts.slice(0, -1) : pts.slice();
   const n = v.length;
   if (n < 3) return null;
-
-  let area = 0;
   let cx = 0;
   let cy = 0;
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (let i = 0; i < n; i++) {
-    const a = v[i];
-    const b = v[(i + 1) % n];
-    area += a.x * b.y - b.x * a.y;
-    cx += a.x;
-    cy += a.y;
-    if (a.x < minX) minX = a.x;
-    if (a.x > maxX) maxX = a.x;
-    if (a.y < minY) minY = a.y;
-    if (a.y > maxY) maxY = a.y;
+  for (const p of v) {
+    cx += p.x;
+    cy += p.y;
   }
-  if (Math.abs(area) < 0.12) return null;
   cx /= n;
   cy /= n;
-  const span = Math.min(maxX - minX, maxY - minY);
-  let d = dist;
-  if (span < d * 2.6) d = span * 0.22;
-  if (d < 0.16) return v;
-
-  const offset = (sign: number) => {
-    const out: Array<{ x: number; y: number }> = [];
-    for (let i = 0; i < n; i++) {
-      const prev = v[(i + n - 1) % n];
-      const cur = v[i];
-      const next = v[(i + 1) % n];
-      const e1x = cur.x - prev.x;
-      const e1y = cur.y - prev.y;
-      const e2x = next.x - cur.x;
-      const e2y = next.y - cur.y;
-      const l1 = Math.hypot(e1x, e1y) || 1;
-      const l2 = Math.hypot(e2x, e2y) || 1;
-      const in1x = (sign * -e1y) / l1;
-      const in1y = (sign * e1x) / l1;
-      const in2x = (sign * -e2y) / l2;
-      const in2y = (sign * e2x) / l2;
-      let nx = in1x + in2x;
-      let ny = in1y + in2y;
-      const nl = Math.hypot(nx, ny);
-      if (nl < 1e-6) {
-        out.push(cur);
-        continue;
-      }
-      nx /= nl;
-      ny /= nl;
-      const miter = Math.min(d * 2.2, d / Math.max(0.38, in1x * nx + in1y * ny));
-      out.push({ x: cur.x + nx * miter, y: cur.y + ny * miter });
-    }
-    return out;
-  };
-
-  const avgR = (poly: Array<{ x: number; y: number }>) => {
-    let r = 0;
-    for (const p of poly) r += Math.hypot(p.x - cx, p.y - cy);
-    return r / poly.length;
-  };
-
-  const sign = area > 0 ? 1 : -1;
-  let out = offset(sign);
-  if (avgR(out) > avgR(v) * 0.98) out = offset(-sign);
-
-  let area2 = 0;
-  for (let i = 0; i < out.length; i++) {
-    const a = out[i];
-    const b = out[(i + 1) % out.length];
-    area2 += a.x * b.y - b.x * a.y;
-  }
-  if (area2 * area < 0) return v;
-  if (Math.abs(area2) < Math.abs(area) * 0.14) return v;
-  if (avgR(out) >= avgR(v)) return v;
-  return out;
+  const rs = v.map((p) => Math.hypot(p.x - cx, p.y - cy));
+  const maxR = rs.reduce((m, r) => (r > m ? r : m), 0);
+  if (maxR < 0.42) return v;
+  return v.map((p, i) => {
+    const r = rs[i] || 1;
+    const pull = Math.min(dist, r * 0.4);
+    const t = (r - pull) / r;
+    return { x: cx + (p.x - cx) * t, y: cy + (p.y - cy) * t };
+  });
 }
 
 function extrudeRing(ring: readonly LngLat[], depth: number, material: THREE.Material): THREE.Mesh {
@@ -1160,8 +1099,8 @@ function addOsmFabric(
         street.dispose();
       }
       if (road.painted) {
-        const paintW = Math.min(0.14, Math.max(0.07, road.halfW * 0.1));
-        const lane = streetRibbon(line, paintW, LAND_Y + 0.05);
+        const paintW = Math.min(0.16, Math.max(0.08, road.halfW * 0.11));
+        const lane = streetRibbon(line, paintW, LAND_Y + 0.07);
         if (lane.getAttribute('position') && lane.getAttribute('position')!.count >= 4) {
           paintGeos.push(lane);
         } else {
@@ -1193,12 +1132,23 @@ function addOsmFabric(
     brick: [],
     fill: [],
   };
-  const curb = 0.72;
+  const padGeos: THREE.BufferGeometry[] = [];
+  const curb = 1.15;
   for (const b of clay.buildings) {
     try {
       const raw = ringToShapePts(b.ring);
-      const inset = insetShapePts(raw, curb) ?? raw;
-      const geo = new THREE.ExtrudeGeometry(shapeFromPts(inset), {
+      const pad = new THREE.ExtrudeGeometry(shapeFromPts(raw), {
+        depth: 0.045,
+        bevelEnabled: false,
+        curveSegments: 1,
+        steps: 1,
+      });
+      pad.rotateX(-Math.PI / 2);
+      pad.translate(0, LAND_Y + 0.012, 0);
+      padGeos.push(pad);
+
+      const shrunk = shrinkTowardCentroid(raw, curb) ?? raw;
+      const geo = new THREE.ExtrudeGeometry(shapeFromPts(shrunk), {
         depth: b.h,
         bevelEnabled: false,
         curveSegments: 1,
@@ -1210,6 +1160,13 @@ function addOsmFabric(
     } catch {
       /* degenerate footprint */
     }
+  }
+  const pads = mergeChunks(padGeos);
+  if (pads) {
+    const mesh = new THREE.Mesh(pads, streetMat);
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 1;
+    group.add(mesh);
   }
   (Object.keys(geos) as CityBlock['tone'][]).forEach((tone) => {
     const merged = mergeChunks(geos[tone]);

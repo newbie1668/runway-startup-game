@@ -115,10 +115,10 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       if (!line) continue;
       const highway = String(props.highway ?? '');
       const widthM = typeof props.width === 'number' ? props.width : 8;
-      // Board-scale ribbons, not OSM metres: halfW 0.95 ≈ 22px at the city eye.
+      // Board-scale ribbons, not OSM metres: halfW 1.05 ≈ 24px at the city eye.
       // Hairlines (≤0.22) read as gaps between blocks and fail the whole-board camera.
-      let halfW = clamp(widthM * 0.09, 0.95, 2.35);
-      if (highway === 'pedestrian') halfW = Math.min(halfW, 0.82);
+      let halfW = clamp(widthM * 0.1, 1.05, 2.4);
+      if (highway === 'pedestrian') halfW = Math.min(halfW, 0.88);
       roads.push({
         line,
         halfW,
