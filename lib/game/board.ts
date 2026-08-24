@@ -746,68 +746,82 @@ function addNeighbourhoods(
   }
 
   // --- Soho: terrace square + Centre Point ---
-  addBoxLL(group, -0.1298, 51.5166, 1.25, 8.2, 1.25, cream, 0.12);
-  addBoxLL(group, -0.1298, 51.5166, 1.45, 0.35, 1.45, dark, 0.12).position.y = LAND_Y + 8.35;
-  const sohoSq = addBoxLL(group, -0.1355, 51.5132, 3.6, 0.07, 3.2, park, 0);
+  addBoxLL(group, -0.1298, 51.5166, 1.35, 9.1, 1.35, cream, 0.12);
+  addBoxLL(group, -0.1298, 51.5166, 1.55, 0.42, 1.55, dark, 0.12).position.y = LAND_Y + 9.28;
+  addBoxLL(group, -0.1298, 51.5166, 1.05, 0.55, 1.05, cream, 0.12).position.y = LAND_Y + 8.55;
+  const sohoSq = addBoxLL(group, -0.1355, 51.5132, 4.2, 0.08, 3.6, park, 0);
   sohoSq.castShadow = false;
   for (const [lng, lat, yaw] of [
-    [-0.1378, 51.5132, 0.02],
-    [-0.1332, 51.5132, 0.02],
-    [-0.1355, 51.5148, 1.57],
-    [-0.1355, 51.5116, 1.57],
+    [-0.1382, 51.5132, 0.02],
+    [-0.1328, 51.5132, 0.02],
+    [-0.1355, 51.5152, 1.57],
+    [-0.1355, 51.5112, 1.57],
   ] as const) {
-    addBoxLL(group, lng, lat, 0.55, 1.45, 3.15, brick, yaw);
-    addBoxLL(group, lng, lat, 0.62, 0.22, 3.25, roof, yaw).position.y = LAND_Y + 1.55;
+    addBoxLL(group, lng, lat, 0.62, 1.65, 3.55, brick, yaw);
+    addBoxLL(group, lng, lat, 0.72, 0.26, 3.65, roof, yaw).position.y = LAND_Y + 1.76;
+  }
+  for (let i = 0; i < 6; i++) {
+    addBoxLL(group, -0.1338 + (i % 3) * 0.00115, 51.5142 + Math.floor(i / 3) * 0.0007, 0.42, 1.15, 0.95, brick, 0.08);
+    addBoxLL(group, -0.1372 + (i % 3) * 0.00105, 51.5122 + Math.floor(i / 3) * 0.00065, 0.38, 1.05, 0.88, brick, -0.06);
   }
 
   // --- Farringdon: Smithfield halls ---
   for (let i = 0; i < 9; i++) {
     const lng = -0.1064 + i * 0.00108;
-    addBoxLL(group, lng, 51.51875, 1.38, 2.55, 3.15, brick, 0);
-    const hall = addBoxLL(group, lng, 51.51875, 1.18, 0.92, 2.85, dark, 0);
-    hall.rotation.z = 0.58;
-    hall.position.y = LAND_Y + 2.65;
-    addBoxLL(group, lng, 51.51785, 1.28, 2.15, 2.65, brick, 0);
-    const hall2 = addBoxLL(group, lng, 51.51785, 1.08, 0.78, 2.35, dark, 0);
-    hall2.rotation.z = 0.58;
-    hall2.position.y = LAND_Y + 2.22;
+    addBoxLL(group, lng, 51.51875, 1.42, 2.75, 3.35, brick, 0);
+    const hall = addBoxLL(group, lng, 51.51875, 1.22, 1.05, 3.05, dark, 0);
+    hall.rotation.z = 0.62;
+    hall.position.y = LAND_Y + 2.88;
+    addBoxLL(group, lng, 51.51785, 1.32, 2.35, 2.85, brick, 0);
+    const hall2 = addBoxLL(group, lng, 51.51785, 1.12, 0.88, 2.55, dark, 0);
+    hall2.rotation.z = 0.62;
+    hall2.position.y = LAND_Y + 2.42;
   }
-  addCylLL(group, -0.1022, 51.5184, 1.25, 1.4, 1.15, cream, 8).position.y = LAND_Y + 3.25;
-  addCylLL(group, -0.1022, 51.5184, 0.22, 0.3, 1.55, dark, 8).position.y = LAND_Y + 4.2;
+  addBoxLL(group, -0.1022, 51.5183, 1.15, 3.15, 6.4, cream, 0);
+  for (const z of [-0.0011, 0, 0.0011]) {
+    addBoxLL(group, -0.1022, 51.5183 + z, 0.22, 2.05, 0.55, dark, 0).position.y = LAND_Y + 1.35;
+  }
+  addCylLL(group, -0.1022, 51.5184, 1.35, 1.55, 1.25, cream, 8).position.y = LAND_Y + 3.55;
+  addCylLL(group, -0.1022, 51.5184, 0.28, 0.38, 1.85, dark, 8).position.y = LAND_Y + 4.55;
+  addBoxLL(group, -0.1022, 51.5184, 0.55, 0.45, 0.55, cream, 0).position.y = LAND_Y + 5.55;
 
   // --- Canary Wharf: 1 Canada Square pyramid sitting in the dock basins ---
   const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x3aa8cc,
-    roughness: 0.28,
-    metalness: 0.04,
+    color: 0x2f9ec6,
+    roughness: 0.26,
+    metalness: 0.05,
   });
   const addBasin = (lng: number, lat: number, w: number, d: number) => {
     const p = ll3(lng, lat);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, d), waterMat);
-    mesh.position.set(p.x, LAND_Y + 0.09, p.z);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.2, d), waterMat);
+    mesh.position.set(p.x, LAND_Y + 0.12, p.z);
     mesh.receiveShadow = true;
     group.add(mesh);
-    addBoxLL(group, lng, lat + d * 0.00048, w + 0.35, 0.22, 0.22, dark, 0);
-    addBoxLL(group, lng, lat - d * 0.00048, w + 0.35, 0.22, 0.22, dark, 0);
+    addBoxLL(group, lng, lat + d * 0.0005, w + 0.45, 0.28, 0.28, dark, 0);
+    addBoxLL(group, lng, lat - d * 0.0005, w + 0.45, 0.28, 0.28, dark, 0);
+    addBoxLL(group, lng + w * 0.00042, lat, 0.28, 0.28, d + 0.35, dark, 0);
+    addBoxLL(group, lng - w * 0.00042, lat, 0.28, 0.28, d + 0.35, dark, 0);
   };
-  addBasin(-0.0198, 51.5069, 10.2, 2.35);
-  addBasin(-0.0188, 51.5034, 9.6, 2.15);
-  addBasin(-0.0178, 51.5012, 8.8, 1.95);
-  addBasin(-0.012, 51.5044, 2.4, 4.6);
-  addBasin(-0.0268, 51.5042, 2.3, 4.4);
-  addBasin(-0.018, 51.4952, 16.5, 7.2);
+  addBasin(-0.0196, 51.5071, 11.4, 2.85);
+  addBasin(-0.019, 51.5036, 10.8, 2.65);
+  addBasin(-0.0182, 51.5008, 9.6, 2.35);
+  addBasin(-0.0114, 51.5042, 2.8, 5.4);
+  addBasin(-0.0272, 51.504, 2.7, 5.2);
+  addBasin(-0.018, 51.4948, 18.5, 8.4);
+  addBoxLL(group, -0.0194, 51.5055, 10.4, 0.16, 1.35, cream, 0.05);
+  addBoxLL(group, -0.019, 51.5024, 9.6, 0.16, 1.25, cream, 0.05);
   const canada = ll3(-0.0194, 51.5049);
-  addBoxLL(group, -0.0194, 51.5049, 2.35, 12.4, 2.35, glass, 0.2);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.15, 4.2, 4), cream);
-  cap.position.set(canada.x, LAND_Y + 14.5, canada.z);
+  addBoxLL(group, -0.0194, 51.5049, 2.45, 12.8, 2.45, glass, 0.2);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.25, 4.6, 4), cream);
+  cap.position.set(canada.x, LAND_Y + 15.1, canada.z);
   cap.rotation.y = 0.2;
   cap.castShadow = true;
   group.add(cap);
-  addBoxLL(group, -0.0236, 51.5058, 1.55, 9.2, 1.55, glass, 0.08);
-  addBoxLL(group, -0.0158, 51.5054, 1.7, 8.1, 1.35, glass, 0.35);
-  addBoxLL(group, -0.0212, 51.5036, 1.35, 7.4, 1.35, glass, -0.1);
-  addBoxLL(group, -0.0172, 51.5032, 1.85, 6.2, 1.15, cream, 0.15);
-  addBoxLL(group, -0.0254, 51.5038, 1.2, 5.6, 1.2, glass, 0.4);
+  addBoxLL(group, -0.0238, 51.5056, 1.45, 8.6, 1.45, glass, 0.08);
+  addBoxLL(group, -0.0154, 51.5052, 1.55, 7.6, 1.25, glass, 0.35);
+  addBoxLL(group, -0.0214, 51.5026, 1.25, 6.8, 1.25, glass, -0.1);
+  addBoxLL(group, -0.0168, 51.5022, 1.65, 5.6, 1.05, cream, 0.15);
+  addBoxLL(group, -0.0256, 51.5028, 1.1, 5.1, 1.1, glass, 0.4);
 
   // --- London Bridge: Borough Market peaks under the Shard ---
   for (let i = 0; i < 12; i++) {
@@ -825,40 +839,58 @@ function addNeighbourhoods(
 
   // --- Camden: Roundhouse drum + lock horseshoe ---
   const rh = ll3(-0.1494, 51.5431);
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.65, 2.05, 20), brick);
-  drum.position.set(rh.x, LAND_Y + 1.05, rh.z);
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.55, 2.75, 2.35, 22), brick);
+  drum.position.set(rh.x, LAND_Y + 1.18, rh.z);
   drum.castShadow = true;
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(2.75, 1.35, 20), roof);
-  cone.position.set(rh.x, LAND_Y + 2.7, rh.z);
-  group.add(drum, cone);
-  addCylLL(group, -0.1494, 51.5431, 0.55, 0.65, 1.1, dark, 10).position.y = LAND_Y + 2.15;
-  for (let i = 0; i < (reduced ? 9 : 14); i++) {
-    const a = -0.15 + (i / 13) * Math.PI * 1.25;
+  const cornice = new THREE.Mesh(new THREE.TorusGeometry(2.62, 0.12, 8, 28), dark);
+  cornice.rotation.x = Math.PI / 2;
+  cornice.position.set(rh.x, LAND_Y + 2.28, rh.z);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(2.55, 0.85, 22), dark);
+  cone.position.set(rh.x, LAND_Y + 2.78, rh.z);
+  group.add(drum, cornice, cone);
+  addCylLL(group, -0.1494, 51.5431, 0.42, 0.5, 0.7, dark, 10).position.y = LAND_Y + 2.55;
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
     addBoxLL(
       group,
-      -0.1464 + Math.cos(a) * 0.00185,
-      51.5406 + Math.sin(a) * 0.0012,
+      -0.1494 + Math.cos(a) * 0.00205,
+      51.5431 + Math.sin(a) * 0.00128,
+      0.22,
+      0.72,
+      0.16,
+      dark,
+      -a,
+    ).position.y = LAND_Y + 1.15;
+  }
+  addBoxLL(group, -0.1478, 51.5422, 1.65, 1.15, 0.85, brick, 0.45);
+  const lockMat = new THREE.MeshStandardMaterial({ color: 0x2f9ec6, roughness: 0.26, metalness: 0.05 });
+  const addLockWater = (lng: number, lat: number, w: number, d: number, yaw: number) => {
+    const p = ll3(lng, lat);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.16, d), lockMat);
+    mesh.position.set(p.x, LAND_Y + 0.1, p.z);
+    mesh.rotation.y = yaw;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  };
+  addLockWater(-0.1464, 51.5404, 4.6, 1.15, 0.42);
+  addLockWater(-0.1476, 51.5412, 1.15, 2.8, 0.42);
+  addLockWater(-0.145, 51.5408, 1.15, 2.8, 0.42);
+  addBoxLL(group, -0.1472, 51.5416, 0.28, 0.95, 1.45, stone, 0.42);
+  addBoxLL(group, -0.1454, 51.5412, 0.28, 0.95, 1.45, stone, 0.42);
+  addBoxLL(group, -0.1462, 51.5414, 1.85, 0.22, 0.42, dark, 0.42);
+  for (let i = 0; i < (reduced ? 10 : 16); i++) {
+    const a = 0.2 + (i / 15) * Math.PI * 1.35;
+    addBoxLL(
+      group,
+      -0.1464 + Math.cos(a) * 0.00235,
+      51.5406 + Math.sin(a) * 0.00145,
+      0.48,
+      0.42,
       0.38,
-      0.32,
-      0.32,
       clayMat(candy[i % candy.length]),
       -a,
     );
   }
-  addBoxLL(group, -0.1462, 51.5408, 2.4, 0.22, 0.55, dark, 0.4);
-  addBoxLL(group, -0.1454, 51.5412, 0.18, 0.85, 1.15, stone, 0.4);
-  addBoxLL(group, -0.147, 51.5404, 0.18, 0.85, 1.15, stone, 0.4);
-  const lockWater = new THREE.Mesh(
-    new THREE.BoxGeometry(3.6, 0.12, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x3aa8cc, roughness: 0.28, metalness: 0.04 }),
-  );
-  const lockAt = ll3(-0.1464, 51.5406);
-  lockWater.position.set(lockAt.x, LAND_Y + 0.08, lockAt.z);
-  lockWater.rotation.y = 0.4;
-  lockWater.receiveShadow = true;
-  group.add(lockWater);
-  addBoxLL(group, -0.1468, 51.541, 0.22, 0.55, 2.05, dark, 0.4);
-  addBoxLL(group, -0.1456, 51.5402, 0.22, 0.55, 2.05, dark, 0.4);
 
   // --- Battersea: riverside circus; chimneys come from the landmark ---
   addBoxLL(group, -0.1408, 51.4836, 4.4, 1.85, 1.15, glass, 0.05);
