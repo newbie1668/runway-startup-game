@@ -192,15 +192,115 @@ export function hubPosition(hubId: HubId, y = LAND_Y): THREE.Vector3 {
   return worldTo3(project([hub.lng, hub.lat]), y);
 }
 
-function shapeFromRing(ring: readonly LngLat[]): THREE.Shape {
-  const shape = new THREE.Shape();
-  ring.forEach((ll, i) => {
+function ringToShapePts(ring: readonly LngLat[]): Array<{ x: number; y: number }> {
+  return ring.map((ll) => {
     const { x, z } = centerWorld(project(ll));
-    if (i === 0) shape.moveTo(x, -z);
-    else shape.lineTo(x, -z);
+    return { x, y: -z };
+  });
+}
+
+function shapeFromPts(pts: Array<{ x: number; y: number }>): THREE.Shape {
+  const shape = new THREE.Shape();
+  pts.forEach((p, i) => {
+    if (i === 0) shape.moveTo(p.x, p.y);
+    else shape.lineTo(p.x, p.y);
   });
   shape.closePath();
   return shape;
+}
+
+function shapeFromRing(ring: readonly LngLat[]): THREE.Shape {
+  return shapeFromPts(ringToShapePts(ring));
+}
+
+/** Pull footprints back from the curb so asphalt ribbons read, not leftover gaps. */
+function insetShapePts(
+  pts: Array<{ x: number; y: number }>,
+  dist: number,
+): Array<{ x: number; y: number }> | null {
+  if (pts.length < 3) return null;
+  const closed = pts[0].x === pts[pts.length - 1].x && pts[0].y === pts[pts.length - 1].y;
+  const v = closed ? pts.slice(0, -1) : pts.slice();
+  const n = v.length;
+  if (n < 3) return null;
+
+  let area = 0;
+  let cx = 0;
+  let cy = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const a = v[i];
+    const b = v[(i + 1) % n];
+    area += a.x * b.y - b.x * a.y;
+    cx += a.x;
+    cy += a.y;
+    if (a.x < minX) minX = a.x;
+    if (a.x > maxX) maxX = a.x;
+    if (a.y < minY) minY = a.y;
+    if (a.y > maxY) maxY = a.y;
+  }
+  if (Math.abs(area) < 0.12) return null;
+  cx /= n;
+  cy /= n;
+  const span = Math.min(maxX - minX, maxY - minY);
+  let d = dist;
+  if (span < d * 2.6) d = span * 0.22;
+  if (d < 0.16) return v;
+
+  const offset = (sign: number) => {
+    const out: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < n; i++) {
+      const prev = v[(i + n - 1) % n];
+      const cur = v[i];
+      const next = v[(i + 1) % n];
+      const e1x = cur.x - prev.x;
+      const e1y = cur.y - prev.y;
+      const e2x = next.x - cur.x;
+      const e2y = next.y - cur.y;
+      const l1 = Math.hypot(e1x, e1y) || 1;
+      const l2 = Math.hypot(e2x, e2y) || 1;
+      const in1x = (sign * -e1y) / l1;
+      const in1y = (sign * e1x) / l1;
+      const in2x = (sign * -e2y) / l2;
+      const in2y = (sign * e2x) / l2;
+      let nx = in1x + in2x;
+      let ny = in1y + in2y;
+      const nl = Math.hypot(nx, ny);
+      if (nl < 1e-6) {
+        out.push(cur);
+        continue;
+      }
+      nx /= nl;
+      ny /= nl;
+      const miter = Math.min(d * 2.2, d / Math.max(0.38, in1x * nx + in1y * ny));
+      out.push({ x: cur.x + nx * miter, y: cur.y + ny * miter });
+    }
+    return out;
+  };
+
+  const avgR = (poly: Array<{ x: number; y: number }>) => {
+    let r = 0;
+    for (const p of poly) r += Math.hypot(p.x - cx, p.y - cy);
+    return r / poly.length;
+  };
+
+  const sign = area > 0 ? 1 : -1;
+  let out = offset(sign);
+  if (avgR(out) > avgR(v) * 0.98) out = offset(-sign);
+
+  let area2 = 0;
+  for (let i = 0; i < out.length; i++) {
+    const a = out[i];
+    const b = out[(i + 1) % out.length];
+    area2 += a.x * b.y - b.x * a.y;
+  }
+  if (area2 * area < 0) return v;
+  if (Math.abs(area2) < Math.abs(area) * 0.14) return v;
+  if (avgR(out) >= avgR(v)) return v;
+  return out;
 }
 
 function extrudeRing(ring: readonly LngLat[], depth: number, material: THREE.Material): THREE.Mesh {
@@ -1026,20 +1126,79 @@ function addOsmFabric(
   clay: OsmClay,
   reduced: boolean,
   toneMat: Record<CityBlock['tone'], THREE.Material>,
-  asphalt: THREE.Material,
+  _asphalt: THREE.Material,
   _paint: THREE.Material,
   water: THREE.Material,
   waterDeep: THREE.Material,
 ): WorldPoint[][] {
+  const streetMat = new THREE.MeshBasicMaterial({
+    color: 0x3b3f45,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  const laneMat = new THREE.MeshBasicMaterial({
+    color: 0xf5f1e8,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+  });
+
+  const roadGeos: THREE.BufferGeometry[] = [];
+  const paintGeos: THREE.BufferGeometry[] = [];
+  const carLines: WorldPoint[][] = [];
+  for (const road of clay.roads) {
+    const line: WorldPoint[] = road.line.map(([lng, lat]) => project([lng, lat]));
+    carLines.push(line);
+    try {
+      const street = streetRibbon(line, road.halfW, LAND_Y + 0.035);
+      if (street.getAttribute('position') && street.getAttribute('position')!.count >= 4) {
+        roadGeos.push(street);
+      } else {
+        street.dispose();
+      }
+      if (road.painted) {
+        const paintW = Math.min(0.14, Math.max(0.07, road.halfW * 0.1));
+        const lane = streetRibbon(line, paintW, LAND_Y + 0.05);
+        if (lane.getAttribute('position') && lane.getAttribute('position')!.count >= 4) {
+          paintGeos.push(lane);
+        } else {
+          lane.dispose();
+        }
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  const roadMesh = mergeChunks(roadGeos);
+  if (roadMesh) {
+    const mesh = new THREE.Mesh(roadMesh, streetMat);
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 1;
+    group.add(mesh);
+  }
+  const paintMesh = mergeChunks(paintGeos);
+  if (paintMesh) {
+    const mesh = new THREE.Mesh(paintMesh, laneMat);
+    mesh.receiveShadow = false;
+    mesh.renderOrder = 2;
+    group.add(mesh);
+  }
+
   const geos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
     glass: [],
     stone: [],
     brick: [],
     fill: [],
   };
+  const curb = 0.72;
   for (const b of clay.buildings) {
     try {
-      const geo = new THREE.ExtrudeGeometry(shapeFromRing(b.ring), {
+      const raw = ringToShapePts(b.ring);
+      const inset = insetShapePts(raw, curb) ?? raw;
+      const geo = new THREE.ExtrudeGeometry(shapeFromPts(inset), {
         depth: b.h,
         bevelEnabled: false,
         curveSegments: 1,
@@ -1060,37 +1219,6 @@ function addOsmFabric(
     mesh.receiveShadow = true;
     group.add(mesh);
   });
-
-  const roadGeos: THREE.BufferGeometry[] = [];
-  const carLines: WorldPoint[][] = [];
-  for (const road of clay.roads) {
-    const line: WorldPoint[] = road.line.map(([lng, lat]) => project([lng, lat]));
-    carLines.push(line);
-    try {
-      const street = streetRibbon(line, road.halfW, LAND_Y + 0.12);
-      if (street.getAttribute('position') && street.getAttribute('position')!.count >= 4) {
-        roadGeos.push(street);
-      } else {
-        street.dispose();
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  const roadMesh = mergeChunks(roadGeos);
-  if (roadMesh) {
-    const streetMat = new THREE.MeshBasicMaterial({
-      color: 0x3b3f45,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    const mesh = new THREE.Mesh(roadMesh, streetMat);
-    mesh.receiveShadow = false;
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 3;
-    group.add(mesh);
-  }
 
   for (const w of clay.waters) {
     try {
