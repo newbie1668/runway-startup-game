@@ -572,12 +572,12 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   const groundMat = clayMat(0xf0eadc);
   const bankMat = clayMat(0xcbb89a, { roughness: 0.85 });
   const riverMat = new THREE.MeshStandardMaterial({
-    color: 0x2e7ea3,
+    color: 0x3aa8cc,
     roughness: 0.28,
     metalness: 0.04,
   });
   const riverDeepMat = new THREE.MeshStandardMaterial({
-    color: 0x1f6586,
+    color: 0x247aa3,
     roughness: 0.32,
     metalness: 0.05,
   });
@@ -601,11 +601,11 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   ground.receiveShadow = true;
   group.add(ground);
 
-  const banks = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 3.25, LAND_Y - 0.02), bankMat);
+  const banks = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 3.7, LAND_Y - 0.02), bankMat);
   banks.receiveShadow = true;
-  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.35, LAND_Y - 0.07), riverMat);
+  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.7, LAND_Y - 0.06), riverMat);
   river.receiveShadow = true;
-  const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.05, LAND_Y - 0.09), riverDeepMat);
+  const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.15, LAND_Y - 0.08), riverDeepMat);
   group.add(banks, river, channel);
 
   for (const park of PARKS) {
