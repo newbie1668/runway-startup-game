@@ -9,9 +9,11 @@ import assert from 'node:assert/strict';
 import React, { type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { metadata as gameMetadata } from '../app/game/page';
+import { metadata as simMetadata } from '../app/sim/page';
 import { GameApp } from '../components/game/GameApp';
 import { DilemmaModal, EndOverlay, MoveModal } from '../components/game/Modals';
 import { SetupOverlay } from '../components/game/SetupOverlay';
+import { SimApp } from '../components/sim/SimApp';
 import { DILEMMAS, HUBS } from '../lib/game/content';
 import { newGame } from '../lib/game/engine';
 
@@ -124,6 +126,16 @@ check('the London game uses pounds consistently for its unicorn goal', () => {
   assert.doesNotMatch(end, /dollars/i);
 
   assert.doesNotMatch(JSON.stringify(gameMetadata), /\$1B/);
+});
+
+check('the /sim map is a separate route with OSM chrome and no game HUD', () => {
+  const html = renderToStaticMarkup(<SimApp />);
+  assert.match(html, /Search buildings, streets, parks, neighbourhoods/);
+  assert.match(html, /OpenStreetMap/);
+  assert.match(html, /Canary Wharf/);
+  assert.match(html, /Westminster/);
+  assert.doesNotMatch(html, /unicorn/i);
+  assert.match(JSON.stringify(simMetadata), /Central London map/);
 });
 
 check('the mobile hero keeps its copy readable and sound control named', () => {

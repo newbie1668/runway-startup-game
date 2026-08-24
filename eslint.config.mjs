@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     'brag-output*/**',
     '.claude/**',
     '.vercel/**',
+    'data/**',
+    'public/data/**',
+    'docs/sim-london/**',
   ]),
 ]);
 

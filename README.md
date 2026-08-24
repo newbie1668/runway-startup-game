@@ -13,14 +13,20 @@ pnpm dev
 ```
 
 The game route is `/game`. The root route redirects there.
+A separate OpenStreetMap mesh of central London is at `/sim`.
 
 ## Checks
 
 ```bash
 pnpm test:game
+pnpm test:sim
 pnpm lint
 pnpm build
 ```
+
+`/sim` reads cached GeoJSON from `data/osm-central-london.geojson` (plus roads
+and landcover). Refresh the extract with `pnpm osm:fetch`. The clay-board work
+on the diorama branch can reuse the same building footprints.
 
 ## Repo Boundary
 

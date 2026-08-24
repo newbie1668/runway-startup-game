@@ -58,3 +58,9 @@ next-env.d.ts
 outputs/
 brag-output*/
 .env.local
+
+# OSM Overpass resume cache (processed GeoJSON in data/ is committed)
+data/.cache/
+
+# Copied at dev/build time from data/
+public/data/*.geojson
