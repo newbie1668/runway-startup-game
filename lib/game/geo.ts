@@ -4,10 +4,10 @@
  * A stylised vector map of central London: the Thames (with its famous
  * S-bend around the Isle of Dogs), simplified tube lines in their real TfL
  * colours, the big parks, and a few landmark glyphs. Coordinates are real
- * lng/lat, projected into a small "world unit" space the renderer draws in.
+ * lng/lat, projected into a small "world unit" space the 3D board uses.
  *
  * This is deliberately NOT Mapbox: the game map is self-contained, needs no
- * token, and is drawn from scratch on a <canvas>.
+ * token, and is extruded from these polygons into a miniature diorama.
  */
 
 export type LngLat = readonly [number, number]; // [lng, lat]
@@ -33,6 +33,40 @@ export function project([lng, lat]: LngLat): WorldPoint {
     x: (lng - LON_MIN) * 1000 * LAT_COS,
     y: (LAT_MAX - lat) * 1000,
   };
+}
+
+/** Centre the 2D world on the origin so the 3D camera can orbit the board. */
+export function centerWorld(p: WorldPoint): { x: number; z: number } {
+  return { x: p.x - WORLD.width / 2, z: p.y - WORLD.height / 2 };
+}
+
+export function pointInRing(lng: number, lat: number, ring: readonly LngLat[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const hit = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi + 1e-12) + xi;
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+export function distToSegment(p: WorldPoint, a: WorldPoint, b: WorldPoint): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  const x = a.x + dx * t;
+  const y = a.y + dy * t;
+  return Math.hypot(p.x - x, p.y - y);
+}
+
+export function distToPolyline(p: WorldPoint, line: readonly WorldPoint[]): number {
+  let min = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    min = Math.min(min, distToSegment(p, line[i - 1], line[i]));
+  }
+  return min;
 }
 
 // ---------------------------------------------------------------------------
@@ -290,3 +324,136 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138] },
   { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029] },
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Land masses — Thames is the shared shoreline so the S-bend reads as a cut
+// ---------------------------------------------------------------------------
+
+const THAMES_LAST = THAMES[THAMES.length - 1];
+const THAMES_FIRST = THAMES[0];
+
+export const LAND_NORTH: readonly LngLat[] = [
+  ...THAMES,
+  [LON_MAX, THAMES_LAST[1]],
+  [LON_MAX, LAT_MAX],
+  [LON_MIN, LAT_MAX],
+  [LON_MIN, THAMES_FIRST[1]],
+];
+
+export const LAND_SOUTH: readonly LngLat[] = [
+  ...[...THAMES].reverse(),
+  [LON_MIN, THAMES_FIRST[1]],
+  [LON_MIN, LAT_MIN],
+  [LON_MAX, LAT_MIN],
+  [LON_MAX, THAMES_LAST[1]],
+];
+
+export function isOnLand(lng: number, lat: number): boolean {
+  return pointInRing(lng, lat, LAND_NORTH) || pointInRing(lng, lat, LAND_SOUTH);
+}
+
+export function isInPark(lng: number, lat: number): boolean {
+  return PARKS.some((park) => pointInRing(lng, lat, park.points));
+}
+
+export interface District {
+  name: string;
+  /** [lngMin, lngMax, latMin, latMax] */
+  bbox: readonly [number, number, number, number];
+  count: number;
+  h: readonly [number, number];
+  tall: number;
+  tone: 'glass' | 'stone' | 'brick' | 'fill';
+}
+
+/** Building scatter — denser and taller around the eight startup hubs. */
+export const DISTRICTS: readonly District[] = [
+  {
+    name: 'Canary Wharf',
+    bbox: [-0.03, -0.008, 51.5, 51.508],
+    count: 90,
+    h: [1.6, 6.2],
+    tall: 0.42,
+    tone: 'glass',
+  },
+  {
+    name: 'The City',
+    bbox: [-0.1, -0.075, 51.51, 51.52],
+    count: 110,
+    h: [0.9, 3.6],
+    tall: 0.22,
+    tone: 'stone',
+  },
+  {
+    name: 'South Bank',
+    bbox: [-0.12, -0.08, 51.5, 51.508],
+    count: 55,
+    h: [0.6, 2.6],
+    tall: 0.12,
+    tone: 'stone',
+  },
+  {
+    name: 'West End',
+    bbox: [-0.15, -0.125, 51.508, 51.518],
+    count: 90,
+    h: [0.5, 1.9],
+    tall: 0.08,
+    tone: 'stone',
+  },
+  {
+    name: 'Shoreditch',
+    bbox: [-0.09, -0.065, 51.52, 51.532],
+    count: 85,
+    h: [0.4, 1.6],
+    tall: 0.06,
+    tone: 'brick',
+  },
+  {
+    name: "King's Cross",
+    bbox: [-0.135, -0.112, 51.528, 51.538],
+    count: 55,
+    h: [0.5, 1.8],
+    tall: 0.08,
+    tone: 'stone',
+  },
+  {
+    name: 'Camden',
+    bbox: [-0.155, -0.13, 51.535, 51.545],
+    count: 45,
+    h: [0.35, 1.2],
+    tall: 0.04,
+    tone: 'brick',
+  },
+  {
+    name: 'Battersea',
+    bbox: [-0.155, -0.13, 51.474, 51.486],
+    count: 40,
+    h: [0.4, 1.7],
+    tall: 0.08,
+    tone: 'brick',
+  },
+  {
+    name: 'Westminster',
+    bbox: [-0.14, -0.118, 51.496, 51.506],
+    count: 45,
+    h: [0.45, 1.8],
+    tall: 0.06,
+    tone: 'stone',
+  },
+  {
+    name: 'Fill North',
+    bbox: [-0.26, 0.05, 51.49, 51.548],
+    count: 420,
+    h: [0.22, 0.9],
+    tall: 0.02,
+    tone: 'fill',
+  },
+  {
+    name: 'Fill South',
+    bbox: [-0.26, 0.05, 51.455, 51.505],
+    count: 280,
+    h: [0.2, 0.75],
+    tall: 0.015,
+    tone: 'fill',
+  },
+];

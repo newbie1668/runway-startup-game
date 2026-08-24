@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
+  HUBS,
   STAGES,
   UNICORN_TARGET,
   generateCompanyName,
@@ -305,6 +306,7 @@ export function GameApp() {
       if (screen === 'setup' && setupStep === 'hq' && target.type === 'hub' && target.hubId) {
         setHubChoice(target.hubId);
         sfx.play('click');
+        rendererRef.current?.focusHub(target.hubId);
         return;
       }
       if (screen !== 'play' || !g) return;
@@ -392,6 +394,21 @@ export function GameApp() {
           </div>
         )}
 
+        {screen !== 'play' && (
+          <div className="absolute top-3 left-3 z-10 hidden max-w-[min(100%,22rem)] flex-wrap gap-1 md:flex">
+            {HUBS.map((hub) => (
+              <button
+                key={hub.id}
+                type="button"
+                onClick={() => rendererRef.current?.focusHub(hub.id)}
+                className="rounded-full border border-white/35 bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm backdrop-blur-md hover:bg-white"
+              >
+                {hub.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <button
           onClick={toggleMute}
           title="Toggle sound (M)"
@@ -403,14 +420,15 @@ export function GameApp() {
 
         {screen === 'play' && (
           <div className="pointer-events-none absolute bottom-2 left-3 hidden rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
-            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
+            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to orbit, scroll to
+            zoom
           </div>
         )}
 
         {/* Title screen */}
         {screen === 'title' && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-gradient-to-b from-[#070c1a]/78 via-[#070c1a]/55 to-[#070c1a]/85 p-6">
-            <div className="w-full max-w-xl text-center">
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-5 md:p-8">
+            <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/15 bg-[#0b1226]/72 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur-xl md:p-8">
               <p className="text-xs font-black tracking-[0.5em] text-sky-300">
                 LONDON STARTUP MAP PRESENTS
               </p>
@@ -465,6 +483,7 @@ export function GameApp() {
             onHub={(hubId) => {
               setHubChoice(hubId);
               sfx.play('click');
+              rendererRef.current?.focusHub(hubId);
             }}
             onRollName={rollName}
             onToHq={() => {

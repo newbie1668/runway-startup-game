@@ -14,6 +14,12 @@ pnpm dev
 
 The game route is `/game`. The root route redirects there.
 
+The map is a 3D London miniature. The look follows the HBO _Silicon Valley_
+opening titles by [yU+co](https://www.yuco.com/works/silicon-valley)
+(isometric daylight miniature, pop-up gags). Orbit, fly-to, and pins follow the
+[NYC AI Atlas](https://nycaiatlas.com) interaction model. Game mechanics are
+unchanged.
+
 ## Checks
 
 ```bash
