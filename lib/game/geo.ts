@@ -1,5 +1,3 @@
-import osmCentral from '../../data/osm-central-london.json';
-
 /**
  * RUNWAY — hand-drawn London geometry.
  *
@@ -780,7 +778,6 @@ function pushGrid(out: CityBlock[], district: District) {
       const lngC = lng + g.stepLng * 0.5;
       const latC = lat + g.stepLat * 0.5;
       if (fill && namedBboxContains(lngC, latC)) continue;
-      if (inOsmBoard(lngC, latC)) continue;
       if (!isOnLand(lngC, latC) || isInPark(lngC, latC)) continue;
       if (isInDock(lngC, latC) || inClearing(lngC, latC)) continue;
       if (nearLandmark(lngC, latC)) continue;
@@ -807,39 +804,12 @@ function pushGrid(out: CityBlock[], district: District) {
   }
 }
 
-/** Hyde Park–Docklands slice the OSM extract covers. */
-function inOsmBoard(lng: number, lat: number): boolean {
-  return lng >= -0.175 && lng <= 0.015 && lat >= 51.478 && lat <= 51.545;
-}
-
-function osmBlocks(): CityBlock[] {
-  const raw = osmCentral as unknown as {
-    buildings: { r: LngLat[]; h: number; t: CityBlock['tone'] }[];
-  };
-  const out: CityBlock[] = [];
-  for (const b of raw.buildings) {
-    if (!b.r || b.r.length < 3) continue;
-    let lng = 0;
-    let lat = 0;
-    for (const p of b.r) {
-      lng += p[0];
-      lat += p[1];
-    }
-    lng /= b.r.length;
-    lat /= b.r.length;
-    if (!isOnLand(lng, lat) || isInPark(lng, lat)) continue;
-    if (isInDock(lng, lat) || inClearing(lng, lat) || nearLandmark(lng, lat)) continue;
-    if (distToPolyline(project([lng, lat]), THAMES_PROJECTED) < 1.8) continue;
-    if (distToPolyline(project([lng, lat]), CANAL_PROJECTED) < 0.8) continue;
-    out.push({ ring: b.r, h: b.h, tone: b.t });
-  }
-  return out;
-}
-
 function buildCityBlocks(): CityBlock[] {
-  const out: CityBlock[] = [...AUTHORED, ...osmBlocks()];
-  // Named hub grids are cream boxes — OSM + authored pads + silhouettes replace them.
-  // Keep fill only outside the OSM slice so Kensington / Greenwich edges aren't bare.
+  const out: CityBlock[] = [...AUTHORED];
+  for (const d of DISTRICTS) {
+    if (d.tone === 'fill') continue;
+    pushGrid(out, d);
+  }
   for (const d of DISTRICTS) {
     if (d.tone !== 'fill') continue;
     pushGrid(out, d);
