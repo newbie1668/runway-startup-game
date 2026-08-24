@@ -1000,7 +1000,7 @@ function addOsmFabric(
   reduced: boolean,
   toneMat: Record<CityBlock['tone'], THREE.Material>,
   asphalt: THREE.Material,
-  paint: THREE.Material,
+  _paint: THREE.Material,
   water: THREE.Material,
   waterDeep: THREE.Material,
 ): WorldPoint[][] {
@@ -1035,26 +1035,26 @@ function addOsmFabric(
   });
 
   const roadGeos: THREE.BufferGeometry[] = [];
-  const paintGeos: THREE.BufferGeometry[] = [];
   const carLines: WorldPoint[][] = [];
   for (const road of clay.roads) {
     const line: WorldPoint[] = road.line.map(([lng, lat]) => project([lng, lat]));
     carLines.push(line);
     try {
-      roadGeos.push(ribbonGeometry(line, road.halfW, LAND_Y + 0.1));
-      if (road.painted) paintGeos.push(ribbonGeometry(line, 0.045, LAND_Y + 0.11));
+      roadGeos.push(ribbonGeometry(line, road.halfW, LAND_Y + 0.12));
     } catch {
       /* skip */
     }
   }
   const roadMesh = mergeChunks(roadGeos);
   if (roadMesh) {
-    const mesh = new THREE.Mesh(roadMesh, asphalt);
-    mesh.receiveShadow = true;
+    const streetMat = asphalt.clone();
+    streetMat.depthTest = false;
+    streetMat.depthWrite = false;
+    const mesh = new THREE.Mesh(roadMesh, streetMat);
+    mesh.receiveShadow = false;
+    mesh.renderOrder = 3;
     group.add(mesh);
   }
-  const paintMesh = mergeChunks(paintGeos);
-  if (paintMesh) group.add(new THREE.Mesh(paintMesh, paint));
 
   for (const w of clay.waters) {
     try {
