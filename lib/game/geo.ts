@@ -489,9 +489,9 @@ export const DISTRICTS: readonly District[] = [
     name: 'Kensington',
     bbox: [-0.21, -0.152, 51.49, 51.504],
     count: 70,
-    h: [0.4, 1.55],
+    h: [0.45, 1.7],
     tall: 0.05,
-    tone: 'stone',
+    tone: 'brick',
   },
   {
     name: 'Bloomsbury',
