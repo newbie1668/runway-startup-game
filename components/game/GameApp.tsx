@@ -14,7 +14,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  HUBS,
   STAGES,
   UNICORN_TARGET,
   generateCompanyName,
@@ -32,7 +31,7 @@ import {
 import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
-import type { MapRenderer, Scene } from '@/lib/game/render';
+import type { HitTarget, MapRenderer, Scene } from '@/lib/game/render';
 import type {
   ActionId,
   DilemmaEffectId,
@@ -41,6 +40,7 @@ import type {
   HubId,
   SectorId,
 } from '@/lib/game/types';
+import { AtlasHud, CLUSTER_ORDER, type ClusterId } from './AtlasHud';
 import { MapCanvas } from './MapCanvas';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
 import { Sidebar } from './Sidebar';
@@ -107,6 +107,9 @@ export function GameApp() {
   const [hubChoice, setHubChoice] = useState<HubId | null>(null);
 
   const [moveOpen, setMoveOpen] = useState(false);
+  const [cluster, setCluster] = useState<ClusterId>('all');
+  const [selected, setSelected] = useState<HitTarget | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
@@ -300,11 +303,51 @@ export function GameApp() {
     };
   }, [screen, game, setupStep, hubChoice, draftSector, draftName]);
 
+  const flyCluster = useCallback((id: ClusterId) => {
+    setCluster(id);
+    setSearchOpen(false);
+    const r = rendererRef.current;
+    if (id === 'all') {
+      r?.fitAll();
+      r?.select(null);
+      setSelected(null);
+      return;
+    }
+    r?.focusHub(id);
+    setSelected({ type: 'hub', hubId: id });
+  }, []);
+
+  const onSelect = useCallback((hit: HitTarget | null) => {
+    setSelected(hit);
+    if (hit?.type === 'hub') setCluster(hit.hubId);
+  }, []);
+
+  const pickFromSearch = useCallback(
+    (hit: HitTarget) => {
+      setSearchOpen(false);
+      setSelected(hit);
+      const hubId =
+        hit.type === 'hub'
+          ? hit.hubId
+          : hit.type === 'rival'
+            ? scene.rivals.find((r) => r.id === hit.rivalId)?.hubId
+            : scene.events.find((e) => e.id === hit.eventId)?.hubId;
+      if (hubId) {
+        setCluster(hubId);
+        rendererRef.current?.focusHub(hubId);
+      }
+      rendererRef.current?.select(hit);
+    },
+    [scene],
+  );
+
   const onHit = useCallback(
     (target: { type: string; hubId?: HubId; eventId?: string; rivalId?: string }) => {
       const g = gameRef.current;
       if (screen === 'setup' && setupStep === 'hq' && target.type === 'hub' && target.hubId) {
         setHubChoice(target.hubId);
+        setCluster(target.hubId);
+        setSelected({ type: 'hub', hubId: target.hubId });
         sfx.play('click');
         rendererRef.current?.focusHub(target.hubId);
         return;
@@ -332,8 +375,40 @@ export function GameApp() {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector('dialog[open]')) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key.toLowerCase() === 'm') {
+      if (e.key.toLowerCase() === 'm' && !e.metaKey && !e.ctrlKey) {
         toggleMute();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setSelected(null);
+        rendererRef.current?.select(null);
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCluster((current) => {
+          const i = CLUSTER_ORDER.indexOf(current);
+          const next =
+            e.key === 'ArrowDown'
+              ? CLUSTER_ORDER[(i + 1) % CLUSTER_ORDER.length]
+              : CLUSTER_ORDER[(i - 1 + CLUSTER_ORDER.length) % CLUSTER_ORDER.length];
+          const r = rendererRef.current;
+          if (next === 'all') {
+            r?.fitAll();
+            r?.select(null);
+            setSelected(null);
+          } else {
+            r?.focusHub(next);
+            setSelected({ type: 'hub', hubId: next });
+          }
+          return next;
+        });
         return;
       }
       const g = gameRef.current;
@@ -374,7 +449,23 @@ export function GameApp() {
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
+        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onSelect={onSelect} />
+
+        <AtlasHud
+          screen={screen}
+          scene={scene}
+          game={game}
+          cluster={cluster}
+          selected={selected}
+          searchOpen={searchOpen}
+          onCluster={flyCluster}
+          onSearchOpen={setSearchOpen}
+          onPick={pickFromSearch}
+          onClear={() => {
+            setSelected(null);
+            rendererRef.current?.select(null);
+          }}
+        />
 
         {/* Map chrome */}
         {screen === 'play' && game && (
@@ -391,21 +482,6 @@ export function GameApp() {
                 </>
               )}
             </p>
-          </div>
-        )}
-
-        {screen !== 'play' && (
-          <div className="absolute top-3 left-3 z-10 hidden max-w-[min(100%,22rem)] flex-wrap gap-1 md:flex">
-            {HUBS.map((hub) => (
-              <button
-                key={hub.id}
-                type="button"
-                onClick={() => rendererRef.current?.focusHub(hub.id)}
-                className="rounded-full border border-white/35 bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm backdrop-blur-md hover:bg-white"
-              >
-                {hub.name}
-              </button>
-            ))}
           </div>
         )}
 
@@ -483,7 +559,7 @@ export function GameApp() {
             onHub={(hubId) => {
               setHubChoice(hubId);
               sfx.play('click');
-              rendererRef.current?.focusHub(hubId);
+              flyCluster(hubId);
             }}
             onRollName={rollName}
             onToHq={() => {

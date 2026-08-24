@@ -133,4 +133,16 @@ check('the mobile hero keeps its copy readable and sound control named', () => {
   assert.match(html, /aria-label="Mute sound"/);
 });
 
+check('the title screen exposes the Atlas cluster rail and search without hiding the map canvas', () => {
+  const html = renderToStaticMarkup(<GameApp />);
+  const mapCanvas = html.indexOf('<canvas');
+  const miniCanvas = html.indexOf('<canvas', mapCanvas + 1);
+  assert.ok(mapCanvas > 0, 'map canvas should render first');
+  assert.ok(miniCanvas > mapCanvas, 'minimap canvas should come after the 3D map canvas');
+  assert.match(html, /The Whole Board/);
+  assert.match(html, /Shoreditch/);
+  assert.match(html, /Search/);
+  assert.match(html, /aria-label="Neighbourhoods"/);
+});
+
 console.log(`\nAll ${passed} UI checks passed.`);

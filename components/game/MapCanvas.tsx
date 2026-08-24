@@ -12,18 +12,21 @@ interface Props {
   scene: Scene;
   rendererRef: RefObject<MapRenderer | null>;
   onHit?: (target: HitTarget) => void;
+  onSelect?: (target: HitTarget | null) => void;
   className?: string;
 }
 
-export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
+export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onHitRef = useRef(onHit);
+  const onSelectRef = useRef(onSelect);
   const sceneRef = useRef(scene);
 
   useEffect(() => {
     onHitRef.current = onHit;
+    onSelectRef.current = onSelect;
     sceneRef.current = scene;
-  }, [onHit, scene]);
+  }, [onHit, onSelect, scene]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -79,6 +82,8 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
       canvas.style.cursor = 'grab';
       if (moved < 6) {
         const hit = renderer.hitTest(p.x, p.y);
+        renderer.select(hit);
+        onSelectRef.current?.(hit);
         if (hit) onHitRef.current?.(hit);
       }
     };

@@ -1,5 +1,5 @@
 /**
- * Static 3D London miniature — land, river, parks, tube, buildings, landmarks.
+ * Static 3D London miniature — land, river, parks, buildings, landmarks.
  *
  * Look: yU+co Silicon Valley titles (dense low-poly daylight diorama).
  * Geography: hand-authored polygons from geo.ts, not Mapbox.
@@ -15,7 +15,6 @@ import {
   LANDMARKS,
   PARKS,
   THAMES,
-  TUBE_LINES,
   centerWorld,
   distToPolyline,
   isInPark,
@@ -32,11 +31,11 @@ export const LAND_Y = 0.32;
 const THAMES_WORLD: WorldPoint[] = THAMES.map(project);
 
 const PALETTE = {
-  glass: [0xb7c4ce, 0xa8b8c4, 0xc5d0d8, 0x9aafbe],
-  stone: [0xe7e2d6, 0xd8d2c4, 0xefeae0, 0xcfc8b8],
-  brick: [0xc4a086, 0xb8957a, 0xd0b49a, 0xa67c63],
-  fill: [0xe4dfd2, 0xd5d0c4, 0xeee9dd, 0xc8c3b6],
-  roof: [0x6d757c, 0x8a6a52, 0x5c6658, 0x7a838c],
+  glass: [0xd8e2e8, 0xc9d6de, 0xe4ecf0, 0xb8c8d2],
+  stone: [0xf3efe6, 0xeae4d8, 0xf7f3ea, 0xddd6c8],
+  brick: [0xd9b09a, 0xc9a088, 0xe0c0aa, 0xb88870],
+  fill: [0xefeae0, 0xe6e0d4, 0xf4efe6, 0xdcd6ca],
+  roof: [0x8a8580, 0xa09080, 0x7a8078, 0x909890],
 } as const;
 
 function seeded(seed: number) {
@@ -131,71 +130,135 @@ function makeSkyTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function addLandmark(group: THREE.Group, kind: LandmarkKind, at: THREE.Vector3) {
-  const stone = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.55 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x8a93a0, roughness: 0.4, metalness: 0.2 });
+function addChip(group: THREE.Group, text: string, at: THREE.Vector3, y = 2.2) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 48;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 256, 48);
+  ctx.font = '700 20px ui-sans-serif, system-ui';
+  const w = Math.min(236, ctx.measureText(text).width + 28);
+  ctx.fillStyle = 'rgba(22,24,28,0.88)';
+  ctx.beginPath();
+  ctx.roundRect((256 - w) / 2, 8, w, 32, 10);
+  ctx.fill();
+  ctx.fillStyle = '#f8fafc';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 128, 30);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
+  );
+  sprite.position.set(at.x, LAND_Y + y, at.z);
+  sprite.scale.set(5.2, 1, 1);
+  group.add(sprite);
+}
+
+function addLandmark(group: THREE.Group, kind: LandmarkKind, at: THREE.Vector3, name: string) {
+  const stone = new THREE.MeshStandardMaterial({ color: 0xf0eadc, roughness: 0.62 });
+  const brick = new THREE.MeshStandardMaterial({ color: 0xc4a090, roughness: 0.7 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x5c6570, roughness: 0.4, metalness: 0.18 });
   const glass = new THREE.MeshStandardMaterial({
-    color: 0x9eb8c6,
-    roughness: 0.22,
-    metalness: 0.15,
-    transparent: true,
-    opacity: 0.92,
+    color: 0xc5d4de,
+    roughness: 0.18,
+    metalness: 0.12,
   });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xe8c872, roughness: 0.45, metalness: 0.3 });
 
   if (kind === 'shard') {
-    const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.55, 8.4, 4), glass);
-    mesh.position.set(at.x, LAND_Y + 4.2, at.z);
-    mesh.rotation.y = 0.4;
+    const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.62, 11.4, 4), glass);
+    mesh.position.set(at.x, LAND_Y + 5.7, at.z);
+    mesh.rotation.y = 0.38;
     mesh.castShadow = true;
     group.add(mesh);
+    addChip(group, name, at, 12.2);
     return;
   }
   if (kind === 'bigben') {
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.2, 0.55), stone);
-    tower.position.set(at.x, LAND_Y + 2.1, at.z);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.7, 4), dark);
-    cap.position.set(at.x, LAND_Y + 4.55, at.z);
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(0.62, 5.4, 0.62), stone);
+    tower.position.set(at.x, LAND_Y + 2.7, at.z);
+    const clock = new THREE.Mesh(new THREE.CircleGeometry(0.18, 16), gold);
+    clock.position.set(at.x, LAND_Y + 3.9, at.z + 0.32);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.9, 4), dark);
+    cap.position.set(at.x, LAND_Y + 5.85, at.z);
     tower.castShadow = cap.castShadow = true;
-    group.add(tower, cap);
+    group.add(tower, clock, cap);
+    addChip(group, name, at, 7.1);
     return;
   }
   if (kind === 'eye') {
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(1.15, 0.08, 8, 24),
-      new THREE.MeshStandardMaterial({ color: 0xdfe7ee, metalness: 0.4, roughness: 0.35 }),
+      new THREE.TorusGeometry(1.45, 0.07, 8, 28),
+      new THREE.MeshStandardMaterial({ color: 0xe8eef3, metalness: 0.45, roughness: 0.3 }),
     );
-    ring.position.set(at.x, LAND_Y + 1.35, at.z);
-    ring.rotation.y = 0.6;
-    group.add(ring);
+    ring.position.set(at.x, LAND_Y + 1.7, at.z);
+    ring.rotation.y = 0.55;
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), dark);
+    leg.position.set(at.x, LAND_Y + 0.85, at.z);
+    group.add(ring, leg);
+    addChip(group, name, at, 3.6);
     return;
   }
   if (kind === 'bttower') {
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 4.6, 8), dark);
-    stem.position.set(at.x, LAND_Y + 2.3, at.z);
-    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.12, 12), dark);
-    dish.position.set(at.x, LAND_Y + 3.6, at.z);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 5.4, 8), dark);
+    stem.position.set(at.x, LAND_Y + 2.7, at.z);
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.12, 12), dark);
+    dish.position.set(at.x, LAND_Y + 4.3, at.z);
     stem.castShadow = true;
     group.add(stem, dish);
+    addChip(group, name, at, 5.8);
     return;
   }
   if (kind === 'stpauls') {
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.9, 16), stone);
-    drum.position.set(at.x, LAND_Y + 1.1, at.z);
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.95, 1.1, 16), stone);
+    drum.position.set(at.x, LAND_Y + 1.2, at.z);
     const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(0.72, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.SphereGeometry(0.92, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
       stone,
     );
-    dome.position.set(at.x, LAND_Y + 1.55, at.z);
+    dome.position.set(at.x, LAND_Y + 1.75, at.z);
+    const lantern = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.45, 8), stone);
+    lantern.position.set(at.x, LAND_Y + 2.85, at.z);
     drum.castShadow = dome.castShadow = true;
-    group.add(drum, dome);
+    group.add(drum, dome, lantern);
+    addChip(group, name, at, 3.6);
+    return;
+  }
+  if (kind === 'towerbridge') {
+    const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.6, 0.42), stone);
+    const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.6, 0.42), stone);
+    t1.position.set(at.x - 0.85, LAND_Y + 1.3, at.z);
+    t2.position.set(at.x + 0.85, LAND_Y + 1.3, at.z);
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 0.18), dark);
+    walk.position.set(at.x, LAND_Y + 2.35, at.z);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.42), dark);
+    deck.position.set(at.x, LAND_Y + 0.55, at.z);
+    t1.castShadow = t2.castShadow = true;
+    group.add(t1, t2, walk, deck);
+    addChip(group, name, at, 3.3);
+    return;
+  }
+  if (kind === 'powerstation') {
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.15, 1.15), brick);
+    hall.position.set(at.x, LAND_Y + 0.58, at.z);
+    hall.castShadow = true;
+    group.add(hall);
+    for (const dx of [-0.7, -0.25, 0.25, 0.7]) {
+      const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.7, 8), stone);
+      stack.position.set(at.x + dx, LAND_Y + 1.55, at.z);
+      group.add(stack);
+    }
+    addChip(group, name, at, 3.1);
     return;
   }
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(1.35, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.SphereGeometry(1.55, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
     dark,
   );
   dome.position.set(at.x, LAND_Y, at.z);
   group.add(dome);
+  addChip(group, name, at, 2.4);
 }
 
 export interface LondonBoard {
@@ -209,16 +272,12 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   const group = new THREE.Group();
   const rnd = seeded(20260824);
 
-  const landMat = new THREE.MeshStandardMaterial({ color: 0xd9d4c6, roughness: 0.92 });
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x2f7eab,
-    roughness: 0.28,
-    metalness: 0.12,
-  });
+  const landMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.94 });
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0xe4dcc8, roughness: 0.96 });
   const riverMat = new THREE.MeshStandardMaterial({
-    color: 0x3b8fbc,
-    roughness: 0.32,
-    metalness: 0.08,
+    color: 0x4a9ec8,
+    roughness: 0.28,
+    metalness: 0.06,
   });
   const parkMat = new THREE.MeshStandardMaterial({ color: 0x6ea35a, roughness: 0.9 });
   const leafMat = new THREE.MeshStandardMaterial({
@@ -228,14 +287,14 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   });
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4f33, roughness: 0.9 });
 
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(420, 280), waterMat);
-  water.rotation.x = -Math.PI / 2;
-  water.position.y = -0.12;
-  water.receiveShadow = true;
-  group.add(water);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(420, 280), groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.12;
+  ground.receiveShadow = true;
+  group.add(ground);
 
   group.add(extrudeRing(LAND_NORTH, LAND_Y, landMat), extrudeRing(LAND_SOUTH, LAND_Y, landMat));
-  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.15, 0.04), riverMat);
+  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.45, 0.05), riverMat);
   river.receiveShadow = true;
   group.add(river);
 
@@ -256,17 +315,6 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
       leaf.castShadow = true;
       group.add(trunk, leaf);
     }
-  }
-
-  for (const line of TUBE_LINES) {
-    const pts = line.points.map((ll) => worldTo3(project(ll), LAND_Y + 0.08));
-    if (pts.length < 2) continue;
-    const curve = new THREE.CatmullRomCurve3(pts);
-    const tube = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, Math.max(12, pts.length * 6), 0.07, 5, false),
-      new THREE.MeshStandardMaterial({ color: line.color, roughness: 0.45 }),
-    );
-    group.add(tube);
   }
 
   type Sample = {
@@ -296,11 +344,14 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
       if (!isOnLand(lng, lat) || isInPark(lng, lat)) continue;
       const wp = project([lng, lat]);
       if (distToPolyline(wp, THAMES_WORLD) < 2.05) continue;
-      const { x, z } = centerWorld(wp);
-      const w = 0.32 + rnd() * (district.tone === 'fill' ? 0.45 : 0.7);
-      const d = 0.32 + rnd() * (district.tone === 'fill' ? 0.5 : 0.7);
-      const rad = Math.max(w, d) * 0.7;
-      if (occupied.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + rad) ** 2 * 0.55)) continue;
+      const raw = centerWorld(wp);
+      const cell = district.tone === 'fill' ? 0.85 : 0.55;
+      const x = Math.round(raw.x / cell) * cell;
+      const z = Math.round(raw.z / cell) * cell;
+      const w = 0.38 + rnd() * (district.tone === 'fill' ? 0.55 : 0.85);
+      const d = 0.28 + rnd() * (district.tone === 'fill' ? 0.4 : 0.55);
+      const rad = Math.max(w, d) * 0.72;
+      if (occupied.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + rad) ** 2 * 0.62)) continue;
       const tall = rnd() < district.tall;
       const h0 = district.h[0];
       const span = district.h[1] - district.h[0];
@@ -312,7 +363,7 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
         w,
         d,
         h,
-        rot: (rnd() - 0.5) * 0.12,
+        rot: 0,
         color: pal[Math.floor(rnd() * pal.length)],
         roof: PALETTE.roof[Math.floor(rnd() * PALETTE.roof.length)],
       });
@@ -353,7 +404,7 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   group.add(buildings, roofs);
 
   for (const lm of LANDMARKS) {
-    addLandmark(group, lm.kind, worldTo3(project(lm.at), LAND_Y));
+    addLandmark(group, lm.kind, worldTo3(project(lm.at), LAND_Y), lm.name);
   }
 
   const craneMat = new THREE.MeshStandardMaterial({ color: 0xe6a817, roughness: 0.5 });
@@ -395,23 +446,7 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   }
 
   for (const label of AREA_LABELS) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 256, 64);
-    ctx.font = '700 22px ui-sans-serif, system-ui';
-    ctx.fillStyle = 'rgba(40,48,60,0.45)';
-    ctx.textAlign = 'center';
-    ctx.fillText(label.text, 128, 40);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
-    );
-    sprite.position.copy(worldTo3(project(label.at), LAND_Y + 0.9));
-    sprite.scale.set(8, 2, 1);
-    group.add(sprite);
+    addChip(group, label.text, worldTo3(project(label.at), LAND_Y), 1.55);
   }
 
   const sky = makeSkyTexture();

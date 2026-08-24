@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { HUBS } from './content';
 import { LAND_Y, buildLondonBoard, hubPosition, type LondonBoard } from './board';
+import { stageBandFromName } from './stageBand';
 import type { HubId, SectorId } from './types';
 
 export const SECTOR_COLORS: Record<SectorId, string> = {
@@ -67,6 +68,7 @@ interface Particle {
 
 interface Flight {
   fromPos: THREE.Vector3;
+  midPos: THREE.Vector3 | null;
   toPos: THREE.Vector3;
   fromTarget: THREE.Vector3;
   toTarget: THREE.Vector3;
@@ -79,41 +81,55 @@ const HUB_POS = Object.fromEntries(HUBS.map((h) => [h.id, hubPosition(h.id)])) a
   THREE.Vector3
 >;
 
-function hexColor(hex: string): THREE.Color {
-  return new THREE.Color(hex);
-}
-
-function makePin(color: string, scale = 1): THREE.Group {
+function makeBadge(title: string, tag: string, accent: string): THREE.Group {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({
-    color: hexColor(color),
-    emissive: hexColor(color),
-    emissiveIntensity: 0.18,
-    roughness: 0.4,
-  });
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 512, 128);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(8, 16, 496, 96, 24);
+  ctx.fill();
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.roundRect(24, 32, 64, 64, 14);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 34px ui-sans-serif, system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(title.slice(0, 1).toUpperCase(), 56, 76);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '700 36px ui-sans-serif, system-ui';
+  ctx.textAlign = 'left';
+  ctx.fillText(title.slice(0, 18), 104, 58);
+  const tw = Math.min(180, ctx.measureText(tag).width + 28);
+  ctx.fillStyle = `${accent}22`;
+  ctx.beginPath();
+  ctx.roundRect(104, 70, tw, 32, 10);
+  ctx.fill();
+  ctx.fillStyle = accent;
+  ctx.font = '700 22px ui-sans-serif, system-ui';
+  ctx.fillText(tag, 118, 93);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
+  );
+  sprite.scale.set(5.8, 1.45, 1);
+  sprite.position.y = 2.35;
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.06 * scale, 0.08 * scale, 1.1 * scale, 8),
-    mat,
+    new THREE.CylinderGeometry(0.05, 0.07, 1.7, 8),
+    new THREE.MeshStandardMaterial({ color: 0xf4f4f5, roughness: 0.45 }),
   );
-  stem.position.y = 0.55 * scale;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28 * scale, 12, 10), mat);
-  head.position.y = 1.15 * scale;
-  const halo = new THREE.Mesh(
-    new THREE.RingGeometry(0.32 * scale, 0.42 * scale, 20),
-    new THREE.MeshBasicMaterial({
-      color: hexColor(color),
-      transparent: true,
-      opacity: 0.35,
-      side: THREE.DoubleSide,
-    }),
+  stem.position.y = 0.85;
+  const hit = new THREE.Mesh(
+    new THREE.SphereGeometry(0.9, 8, 8),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
   );
-  halo.rotation.x = -Math.PI / 2;
-  halo.position.y = 0.03;
-  g.add(stem, head, halo);
-  g.traverse((o) => {
-    const m = o as THREE.Mesh;
-    if (m.isMesh) m.castShadow = true;
-  });
+  hit.position.y = 2.1;
+  g.add(stem, sprite, hit);
   return g;
 }
 
@@ -152,6 +168,8 @@ export class MapRenderer {
   private board: LondonBoard;
   private pinRoot = new THREE.Group();
   private pickables: THREE.Object3D[] = [];
+  private beam: THREE.Group;
+  private selected: HitTarget | null = null;
   private particles: Particle[] = [];
   private flight: Flight | null = null;
   private reduced: boolean;
@@ -186,6 +204,8 @@ export class MapRenderer {
     this.threeScene.fog = new THREE.FogExp2(0xcfe6f2, 0.0048);
     this.threeScene.add(this.board.group);
     this.threeScene.add(this.pinRoot);
+    this.beam = this.makeBeam();
+    this.threeScene.add(this.beam);
 
     const hemi = new THREE.HemisphereLight(0xdbefff, 0x4a4335, 2.4);
     this.threeScene.add(hemi);
@@ -201,17 +221,17 @@ export class MapRenderer {
     sun.shadow.camera.bottom = -80;
     this.threeScene.add(sun);
 
-    this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
-    this.camera.position.set(-72, 58, 86);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+    this.camera.position.set(-48, 68, 58);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 18;
-    this.controls.maxDistance = 160;
-    this.controls.maxPolarAngle = Math.PI * 0.46;
-    this.controls.minPolarAngle = Math.PI * 0.18;
+    this.controls.dampingFactor = 0.07;
+    this.controls.minDistance = 16;
+    this.controls.maxDistance = 150;
+    this.controls.maxPolarAngle = Math.PI * 0.48;
+    this.controls.minPolarAngle = Math.PI * 0.28;
     this.controls.screenSpacePanning = false;
-    this.controls.target.set(4, 0, -6);
+    this.controls.target.set(2, 0, -5);
     this.controls.update();
     this.fitAll();
   }
@@ -232,14 +252,20 @@ export class MapRenderer {
   }
 
   fitAll() {
-    this.startFlight(new THREE.Vector3(-72, 58, 86), new THREE.Vector3(4, 0, -6), 1.05);
+    this.startFlight(new THREE.Vector3(-48, 68, 58), new THREE.Vector3(2, 0, -5), 1.15);
   }
 
   focusHub(hubId: HubId) {
     const p = HUB_POS[hubId].clone();
-    const target = new THREE.Vector3(p.x, LAND_Y + 0.6, p.z);
-    const pos = new THREE.Vector3(p.x - 16, LAND_Y + 12, p.z + 18);
-    this.startFlight(pos, target, 1.25);
+    const target = new THREE.Vector3(p.x, LAND_Y + 0.5, p.z);
+    const pos = new THREE.Vector3(p.x - 14, LAND_Y + 16, p.z + 16);
+    this.startFlight(pos, target, 1.55, true);
+    this.select({ type: 'hub', hubId });
+  }
+
+  select(hit: HitTarget | null) {
+    this.selected = hit;
+    this.placeBeam();
   }
 
   pan(dxPx: number, dyPx: number) {
@@ -362,6 +388,15 @@ export class MapRenderer {
     this.stepParticles(dt);
     this.controls.enabled = !this.flight;
     this.controls.update();
+    if (this.beam.visible) {
+      this.beam.rotation.y = t * 0.0004;
+      const pulse = 0.42 + Math.sin(t * 0.0021) * 0.1;
+      this.beam.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        const mat = mesh.material as THREE.MeshBasicMaterial | undefined;
+        if (mat?.transparent) mat.opacity = pulse;
+      });
+    }
     for (const child of this.pinRoot.children) {
       if (!child.userData.pulse) continue;
       const pulse = 1 + Math.sin(t * 0.003 + child.position.x) * 0.05;
@@ -375,9 +410,13 @@ export class MapRenderer {
     return this.controls.target.clone();
   }
 
-  private startFlight(toPos: THREE.Vector3, toTarget: THREE.Vector3, dur: number) {
+  private startFlight(toPos: THREE.Vector3, toTarget: THREE.Vector3, dur: number, cinematic = false) {
+    const fromPos = this.camera.position.clone();
+    const mid = fromPos.clone().lerp(toPos, 0.45);
+    mid.y += cinematic ? 18 : 0;
     this.flight = {
-      fromPos: this.camera.position.clone(),
+      fromPos,
+      midPos: cinematic ? mid : null,
       toPos,
       fromTarget: this.controls.target.clone(),
       toTarget,
@@ -391,9 +430,57 @@ export class MapRenderer {
     this.flight.t += dt;
     const k = Math.min(1, this.flight.t / this.flight.dur);
     const e = 1 - (1 - k) ** 3;
-    this.camera.position.lerpVectors(this.flight.fromPos, this.flight.toPos, e);
+    if (this.flight.midPos) {
+      const a = this.flight.fromPos.clone().lerp(this.flight.midPos, e);
+      this.camera.position.copy(a.lerp(this.flight.toPos, e));
+    } else {
+      this.camera.position.lerpVectors(this.flight.fromPos, this.flight.toPos, e);
+    }
     this.controls.target.lerpVectors(this.flight.fromTarget, this.flight.toTarget, e);
     if (k >= 1) this.flight = null;
+  }
+
+  private makeBeam(): THREE.Group {
+    const g = new THREE.Group();
+    g.visible = false;
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3b6bff,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+    });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.18, 9, 18, 1, true), mat);
+    shaft.position.y = 4.6;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.78, 28), mat.clone());
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.06;
+    g.add(shaft, ring);
+    return g;
+  }
+
+  private placeBeam() {
+    if (!this.selected) {
+      this.beam.visible = false;
+      return;
+    }
+    let pos: THREE.Vector3 | null = null;
+    if (this.selected.type === 'hub') pos = HUB_POS[this.selected.hubId].clone();
+    else {
+      const pin = this.pinRoot.children.find((c) => {
+        const hit = c.userData.hit as HitTarget | undefined;
+        if (!hit || hit.type !== this.selected?.type) return false;
+        if (hit.type === 'rival' && this.selected.type === 'rival') return hit.rivalId === this.selected.rivalId;
+        if (hit.type === 'event' && this.selected.type === 'event') return hit.eventId === this.selected.eventId;
+        return false;
+      });
+      if (pin) pos = pin.position.clone();
+    }
+    if (!pos) {
+      this.beam.visible = false;
+      return;
+    }
+    this.beam.position.copy(pos);
+    this.beam.visible = true;
   }
 
   private stepParticles(dt: number) {
@@ -434,16 +521,19 @@ export class MapRenderer {
 
     for (const hub of HUBS) {
       const p = HUB_POS[hub.id];
-      const g = makePin(
-        this.scene.playerHubId === hub.id ? PLAYER_COLOR : EVENT_COLOR,
-        this.scene.mode === 'setup' ? 1.15 : 0.72,
+      const isHq = this.scene.playerHubId === hub.id;
+      const band =
+        isHq && this.scene.stageName
+          ? stageBandFromName(this.scene.stageName)
+          : { label: isHq ? 'HQ' : 'Hub', color: EVENT_COLOR };
+      const g = makeBadge(
+        isHq && this.scene.companyName ? this.scene.companyName : hub.name,
+        band.label,
+        isHq ? band.color : EVENT_COLOR,
       );
       g.position.copy(p);
       g.userData.hit = { type: 'hub', hubId: hub.id } satisfies HitTarget;
       g.userData.pulse = this.scene.mode === 'setup';
-      const label = makeLabel(hub.name);
-      label.position.y = this.scene.mode === 'setup' ? 2.2 : 1.7;
-      g.add(label);
       this.pinRoot.add(g);
       this.pickables.push(g);
     }
@@ -451,29 +541,29 @@ export class MapRenderer {
     for (const rival of this.scene.rivals) {
       if (!rival.alive) continue;
       const i = slot(rival.hubId);
-      const g = makePin(SECTOR_COLORS[rival.sectorId], 0.85);
+      const band = stageBandFromName(rival.stageName);
+      const g = makeBadge(rival.name, band.label, band.color);
       const base = HUB_POS[rival.hubId];
       const ang = -Math.PI / 2 + i * 2.1;
-      const dist = i === 0 ? 0 : 1.6;
+      const dist = i === 0 ? 0 : 1.8;
       g.position.set(base.x + Math.cos(ang) * dist, LAND_Y, base.z + Math.sin(ang) * dist);
       g.userData.hit = { type: 'rival', rivalId: rival.id } satisfies HitTarget;
-      g.add(makeLabel(`${rival.name} · ${rival.stageName}`));
       this.pinRoot.add(g);
       this.pickables.push(g);
     }
 
     for (const ev of this.scene.events) {
       const i = slot(ev.hubId);
-      const g = makePin(ev.attended ? '#64748b' : EVENT_COLOR, 0.9);
+      const g = makeBadge(ev.name.replace(/^★ /, ''), ev.attended ? 'Done' : 'Event', ev.attended ? '#64748b' : EVENT_COLOR);
       const base = HUB_POS[ev.hubId];
       const ang = Math.PI / 2 + i * 1.9;
-      const dist = i === 0 ? 0 : 1.8;
+      const dist = i === 0 ? 0 : 2;
       g.position.set(base.x + Math.cos(ang) * dist, LAND_Y, base.z + Math.sin(ang) * dist);
       g.userData.hit = { type: 'event', eventId: ev.id } satisfies HitTarget;
       g.userData.pulse = !ev.attended;
-      g.add(makeLabel(ev.attended ? `✓ ${ev.name}` : ev.name));
       this.pinRoot.add(g);
       this.pickables.push(g);
     }
+    this.placeBeam();
   }
 }

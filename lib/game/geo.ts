@@ -308,7 +308,15 @@ export const AREA_LABELS: readonly AreaLabel[] = [
   { text: 'STRATFORD', at: [0.0, 51.5435] },
 ] as const;
 
-export type LandmarkKind = 'eye' | 'shard' | 'bigben' | 'bttower' | 'stpauls' | 'o2';
+export type LandmarkKind =
+  | 'eye'
+  | 'shard'
+  | 'bigben'
+  | 'bttower'
+  | 'stpauls'
+  | 'o2'
+  | 'towerbridge'
+  | 'powerstation';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -323,6 +331,8 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215] },
   { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138] },
   { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029] },
+  { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0755, 51.5055] },
+  { kind: 'powerstation', name: 'Battersea Power Station', at: [-0.1446, 51.4818] },
 ] as const;
 
 // ---------------------------------------------------------------------------
