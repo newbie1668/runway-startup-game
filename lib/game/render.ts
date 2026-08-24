@@ -3,8 +3,8 @@
  *
  * Stack: Three.js (Foo unlocked WebGL; Blender stills on
  * feat/sv-diorama-overhaul-20 are art direction only).
- * Look: yU+co Silicon Valley titles — dense low-poly, ~40° oblique
- * long-lens near-isometric, warm daylight, Thames S-curve, eight hubs.
+ * Look: yU+co Silicon Valley titles — tabletop miniature, ~45°
+ * tilt-shift, high-key clay, Thames S-curve, eight hubs.
  * Markers: clay-token HQ / rival / event pieces. Atlas supplies orbit,
  * fly-to, and pin select — not the old 2D night canvas.
  * Contract: React still feeds a Scene; clicks still return HitTarget.
@@ -12,6 +12,9 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { HUBS } from './content';
 import { LAND_Y, buildLondonBoard, hubPosition, type LondonBoard } from './board';
 import { stageBandFromName } from './stageBand';
@@ -163,7 +166,7 @@ function makeBadge(
 }
 
 const CITY_TARGET = new THREE.Vector3(2, 0, -5);
-const CITY_EYE = new THREE.Vector3(-64, 90, 78);
+const CITY_EYE = new THREE.Vector3(-72, 108, 72);
 const CITY_OFFSET = CITY_EYE.clone().sub(CITY_TARGET);
 
 function makeLabel(text: string, fill = '#1d2430'): THREE.Sprite {
@@ -210,6 +213,8 @@ export class MapRenderer {
   private pinKey = '';
   private cssW = 1;
   private cssH = 1;
+  private composer: EffectComposer | null = null;
+  private bokeh: BokehPass | null = null;
   scene: Scene = {
     mode: 'setup',
     playerHubId: null,
@@ -228,23 +233,23 @@ export class MapRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.reduced ? 1.25 : 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.22;
     this.renderer.shadowMap.enabled = !this.reduced;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.threeScene = new THREE.Scene();
     this.board = buildLondonBoard(this.reduced);
     this.threeScene.background = this.board.sky;
-    this.threeScene.fog = new THREE.FogExp2(0xcfe6f2, 0.0048);
+    this.threeScene.fog = new THREE.FogExp2(0xf0eadc, 0.0022);
     this.threeScene.add(this.board.group);
     this.threeScene.add(this.pinRoot);
     this.beam = this.makeBeam();
     this.threeScene.add(this.beam);
 
-    const hemi = new THREE.HemisphereLight(0xdbefff, 0x4a4335, 2.4);
+    const hemi = new THREE.HemisphereLight(0xfff4e6, 0xb7a894, 2.9);
     this.threeScene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffedc9, 3.1);
-    sun.position.set(-48, 52, 36);
+    const sun = new THREE.DirectionalLight(0xfff0d2, 3.55);
+    sun.position.set(-36, 88, 28);
     sun.castShadow = !this.reduced;
     sun.shadow.mapSize.set(this.reduced ? 512 : 1024, this.reduced ? 512 : 1024);
     sun.shadow.camera.near = 4;
@@ -255,24 +260,35 @@ export class MapRenderer {
     sun.shadow.camera.bottom = -80;
     this.threeScene.add(sun);
 
-    this.camera = new THREE.PerspectiveCamera(34, 1, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 500);
     this.camera.position.copy(CITY_EYE);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.07;
-    this.controls.minDistance = 20;
-    this.controls.maxDistance = 190;
-    this.controls.maxPolarAngle = Math.PI * 0.40;
-    this.controls.minPolarAngle = Math.PI * 0.26;
+    this.controls.minDistance = 22;
+    this.controls.maxDistance = 200;
+    this.controls.maxPolarAngle = Math.PI * 0.34;
+    this.controls.minPolarAngle = Math.PI * 0.22;
     this.controls.screenSpacePanning = false;
     this.controls.target.copy(CITY_TARGET);
     this.controls.update();
+    if (!this.reduced) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.threeScene, this.camera));
+      this.bokeh = new BokehPass(this.threeScene, this.camera, {
+        focus: 110,
+        aperture: 0.00018,
+        maxblur: 0.007,
+      });
+      this.composer.addPass(this.bokeh);
+    }
     this.fitAll();
   }
 
   dispose() {
     this.board.dispose();
     this.controls.dispose();
+    this.composer?.dispose();
     this.renderer.dispose();
   }
 
@@ -283,6 +299,10 @@ export class MapRenderer {
     this.camera.aspect = this.cssW / this.cssH;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(this.cssW, this.cssH, false);
+    this.composer?.setSize(this.cssW, this.cssH);
+    if (this.bokeh) {
+      (this.bokeh.uniforms as { aspect: { value: number } }).aspect.value = this.camera.aspect;
+    }
   }
 
   fitAll() {
@@ -468,7 +488,12 @@ export class MapRenderer {
       const pulse = 1 + Math.sin(t * 0.003 + child.position.x) * 0.05;
       child.scale.setScalar(pulse);
     }
-    this.renderer.render(this.threeScene, this.camera);
+    if (this.bokeh) {
+      (this.bokeh.uniforms as { focus: { value: number } }).focus.value =
+        this.camera.position.distanceTo(this.controls.target);
+    }
+    if (this.composer) this.composer.render();
+    else this.renderer.render(this.threeScene, this.camera);
   }
 
   private anchor(hubId: HubId | null): THREE.Vector3 {
