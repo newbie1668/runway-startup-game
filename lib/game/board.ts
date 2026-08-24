@@ -857,35 +857,56 @@ function addNeighbourhoods(
       -a,
     ).position.y = LAND_Y + 1.15;
   }
-  addBoxLL(group, -0.1478, 51.5422, 1.65, 1.15, 0.85, brick, 0.45);
+  addBoxLL(group, -0.1528, 51.5436, 1.65, 1.15, 0.85, brick, -0.2);
   const lockMat = new THREE.MeshStandardMaterial({ color: 0x2f9ec6, roughness: 0.26, metalness: 0.05 });
-  const addLockWater = (lng: number, lat: number, w: number, d: number, yaw: number) => {
+  const lockDeepMat = new THREE.MeshStandardMaterial({ color: 0x2478a3, roughness: 0.32, metalness: 0.05 });
+  const addLockWater = (
+    lng: number,
+    lat: number,
+    w: number,
+    d: number,
+    yaw: number,
+    h = 0.28,
+    mat: THREE.MeshStandardMaterial = lockMat,
+  ) => {
     const p = ll3(lng, lat);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.16, d), lockMat);
-    mesh.position.set(p.x, LAND_Y + 0.1, p.z);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    mesh.position.set(p.x, LAND_Y + 0.16, p.z);
     mesh.rotation.y = yaw;
     mesh.receiveShadow = true;
     group.add(mesh);
   };
-  addLockWater(-0.1464, 51.5404, 4.6, 1.15, 0.42);
-  addLockWater(-0.1476, 51.5412, 1.15, 2.8, 0.42);
-  addLockWater(-0.145, 51.5408, 1.15, 2.8, 0.42);
-  addBoxLL(group, -0.1472, 51.5416, 0.28, 0.95, 1.45, stone, 0.42);
-  addBoxLL(group, -0.1454, 51.5412, 0.28, 0.95, 1.45, stone, 0.42);
-  addBoxLL(group, -0.1462, 51.5414, 1.85, 0.22, 0.42, dark, 0.42);
+  // Basin east of the drum so a north camera sees lock and Roundhouse side by side.
+  addLockWater(-0.1406, 51.5428, 5.6, 3.8, 0.06, 0.3);
+  addLockWater(-0.1406, 51.5428, 1.45, 3.2, 0.06, 0.22, lockDeepMat);
+  addLockWater(-0.1474, 51.5415, 4.6, 1.15, 0.1, 0.26);
+  addLockWater(-0.1358, 51.5422, 3.4, 1.05, -0.16, 0.26);
+  addBoxLL(group, -0.1406, 51.5408, 5.8, 0.42, 0.55, stone, 0.06);
+  addBoxLL(group, -0.1376, 51.5428, 0.5, 0.42, 3.6, stone, 0.06);
+  addBoxLL(group, -0.1436, 51.5428, 0.5, 0.42, 3.6, stone, 0.06);
+  addBoxLL(group, -0.1418, 51.5444, 0.34, 1.45, 0.34, stone, 0);
+  addBoxLL(group, -0.1394, 51.5444, 0.34, 1.45, 0.34, stone, 0);
+  addBoxLL(group, -0.1406, 51.5444, 1.7, 0.95, 0.14, dark, 0);
+  addBoxLL(group, -0.1418, 51.5412, 0.34, 1.45, 0.34, stone, 0);
+  addBoxLL(group, -0.1394, 51.5412, 0.34, 1.45, 0.34, stone, 0);
+  addBoxLL(group, -0.1406, 51.5412, 1.7, 0.95, 0.14, dark, 0);
   for (let i = 0; i < (reduced ? 10 : 16); i++) {
-    const a = 0.2 + (i / 15) * Math.PI * 1.35;
-    addBoxLL(
-      group,
-      -0.1464 + Math.cos(a) * 0.00235,
-      51.5406 + Math.sin(a) * 0.00145,
-      0.48,
-      0.42,
-      0.38,
-      clayMat(candy[i % candy.length]),
-      -a,
-    );
+    const t = i / 15;
+    const lng = t < 0.45 ? -0.1358 : -0.1388 + (t - 0.45) * 0.006;
+    const lat = t < 0.45 ? 51.5452 - t * 0.0065 : 51.5402;
+    addBoxLL(group, lng, lat, 0.52, 0.48, 0.4, clayMat(candy[i % candy.length]), t < 0.45 ? 1.4 : 0.1);
   }
+  const lockCut = (
+    [
+      [-0.1548, 51.5418],
+      [-0.15, 51.5415],
+      [-0.1464, 51.5417],
+      [-0.1406, 51.5428],
+      [-0.135, 51.542],
+    ] as const
+  ).map(([lng, lat]) => project([lng, lat]));
+  group.add(new THREE.Mesh(ribbonGeometry(lockCut, 0.95, LAND_Y + 0.14), lockMat));
+  group.add(new THREE.Mesh(ribbonGeometry(lockCut, 0.4, LAND_Y + 0.16), lockDeepMat));
 
   // --- Battersea: riverside circus; chimneys come from the landmark ---
   addBoxLL(group, -0.1408, 51.4836, 4.4, 1.85, 1.15, glass, 0.05);
@@ -1001,12 +1022,13 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.62, LAND_Y - 0.03), riverMat));
   group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.28, LAND_Y - 0.05), riverDeepMat));
   for (const dock of DOCKS) {
-    const bed = extrudeRing(dock.ring, 0.16, riverDeepMat);
-    bed.position.y = LAND_Y + 0.02;
+    const camden = dock.name === 'Camden Lock';
+    const bed = extrudeRing(dock.ring, camden ? 0.28 : 0.16, riverDeepMat);
+    bed.position.y = LAND_Y + (camden ? 0.08 : 0.02);
     bed.castShadow = false;
     group.add(bed);
-    const water = extrudeRing(dock.ring, 0.12, riverMat);
-    water.position.y = LAND_Y + 0.05;
+    const water = extrudeRing(dock.ring, camden ? 0.22 : 0.12, riverMat);
+    water.position.y = LAND_Y + (camden ? 0.14 : 0.05);
     water.castShadow = false;
     group.add(water);
   }

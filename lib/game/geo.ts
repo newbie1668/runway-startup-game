@@ -123,10 +123,10 @@ export const THAMES: readonly LngLat[] = [
 
 export const CANAL: readonly LngLat[] = [
   [-0.158, 51.5418],
-  [-0.1495, 51.5412],
-  [-0.1462, 51.5408],
-  [-0.142, 51.5402],
-  [-0.1355, 51.538],
+  [-0.1502, 51.5416],
+  [-0.1464, 51.5418],
+  [-0.1406, 51.5428],
+  [-0.1355, 51.5416],
   [-0.1295, 51.5358],
   [-0.125, 51.5352],
   [-0.1195, 51.5346],
@@ -640,16 +640,16 @@ export const DOCKS: readonly { name: string; ring: LngLat[] }[] = [
   { name: 'Inner Dock East', ring: rectRing(-0.0118, 51.5048, 0.0046, 0.0058) },
   { name: 'Inner Dock West', ring: rectRing(-0.027, 51.5046, 0.0044, 0.0056) },
   { name: 'Limehouse Basin', ring: rectRing(-0.0322, 51.5112, 0.0056, 0.0024) },
-  { name: 'Camden Lock', ring: rectRing(-0.1464, 51.5406, 0.0038, 0.0026) },
+  { name: 'Camden Lock', ring: rectRing(-0.1406, 51.5428, 0.0084, 0.0048) },
 ];
 
 const CLEARINGS: readonly { at: LngLat; r: number }[] = [
   { at: [-0.0842, 51.5258], r: 0.0023 }, // Old Street roundabout
-  { at: [-0.1494, 51.5431], r: 0.0017 }, // Roundhouse
+  { at: [-0.1494, 51.5431], r: 0.0024 }, // Roundhouse
   { at: [-0.1258, 51.5316], r: 0.0034 }, // King's Cross sheds
   { at: [-0.1018, 51.5185], r: 0.0022 }, // Smithfield
   { at: [-0.0906, 51.5055], r: 0.0016 }, // Borough Market
-  { at: [-0.1462, 51.5408], r: 0.0015 }, // Camden Lock
+  { at: [-0.1406, 51.5428], r: 0.0034 }, // Camden Lock
   { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square pad
   { at: [-0.1269, 51.5194], r: 0.0024 }, // British Museum
   { at: [-0.0837, 51.5115], r: 0.0014 }, // Walkie Talkie
@@ -708,9 +708,9 @@ const AUTHORED: CityBlock[] = [
   { ring: rectRing(-0.1478, 51.4794, 0.0034, 0.0016), h: 1.55, tone: 'brick' },
   { ring: rectRing(-0.1412, 51.4788, 0.0026, 0.0018), h: 1.25, tone: 'brick' },
   { ring: rectRing(-0.139, 51.4826, 0.0022, 0.0012), h: 2.4, tone: 'glass' },
-  // Camden market sheds.
-  { ring: rectRing(-0.1428, 51.5406, 0.0024, 0.0011), h: 0.72, tone: 'brick' },
-  { ring: rectRing(-0.1455, 51.5392, 0.0018, 0.0015), h: 0.85, tone: 'brick' },
+  // Camden market sheds — east quay, not in the basin.
+  { ring: rectRing(-0.1362, 51.5424, 0.0016, 0.0020), h: 0.72, tone: 'brick' },
+  { ring: rectRing(-0.1370, 51.5406, 0.0020, 0.0012), h: 0.85, tone: 'brick' },
 
   // Shoreditch — Brick Lane bar, Great Eastern St warehouses, Boxpark pad.
   { ring: rectRing(-0.0718, 51.5224, 0.00055, 0.0048), h: 0.95, tone: 'brick' },
@@ -742,9 +742,9 @@ const AUTHORED: CityBlock[] = [
   { ring: rectRing(-0.1344, 51.5142, 0.0005, 0.0016), h: 0.86, tone: 'stone' },
   { ring: rectRing(-0.1362, 51.5124, 0.0005, 0.0019), h: 0.9, tone: 'brick' },
   { ring: rectRing(-0.1316, 51.5122, 0.0014, 0.00055), h: 0.78, tone: 'stone' },
-  // Camden — lock-side sheds.
-  { ring: rectRing(-0.1474, 51.5404, 0.0015, 0.0008), h: 0.65, tone: 'brick' },
-  { ring: rectRing(-0.1448, 51.5412, 0.0012, 0.0007), h: 0.58, tone: 'brick' },
+  // Camden — lock-side sheds on the south/east quay.
+  { ring: rectRing(-0.1386, 51.5402, 0.0015, 0.0008), h: 0.65, tone: 'brick' },
+  { ring: rectRing(-0.1354, 51.5438, 0.0012, 0.0014), h: 0.58, tone: 'brick' },
   // Battersea riverside glass + park-edge brick.
   { ring: rectRing(-0.1385, 51.4842, 0.0032, 0.0009), h: 2.1, tone: 'glass' },
   { ring: rectRing(-0.1495, 51.4834, 0.0024, 0.00085), h: 1.8, tone: 'glass' },

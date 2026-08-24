@@ -98,7 +98,7 @@ const HUB_SHOTS: Record<HubId, HubShot> = {
   farringdon: { lng: -0.1056, lat: 51.5187, dist: 8.4, theta: 2.92, y: 2.55 },
   canarywharf: { lng: -0.0194, lat: 51.5044, dist: 30, theta: 0.32, y: 8.0 },
   londonbridge: { lng: -0.0864, lat: 51.5045, dist: 28, theta: 0.45, y: 3.0 },
-  camden: { lng: -0.1479, lat: 51.5418, dist: 15, theta: 3.08, y: 1.35 },
+  camden: { lng: -0.1450, lat: 51.5430, dist: 22, theta: 3.02, y: 2.15 },
   battersea: { lng: -0.1446, lat: 51.4818, dist: 11, theta: 0.28, y: 13 },
 };
 
