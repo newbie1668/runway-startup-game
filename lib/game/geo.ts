@@ -113,6 +113,28 @@ export const THAMES: readonly LngLat[] = [
 ] as const;
 
 // ---------------------------------------------------------------------------
+// Regent's Canal — Camden Lock to the King's Cross basin, then east.
+// A second water spine so north-of-the-river hubs are not a beige smear.
+// ---------------------------------------------------------------------------
+
+export const CANAL: readonly LngLat[] = [
+  [-0.158, 51.5418],
+  [-0.1495, 51.5412],
+  [-0.1462, 51.5408],
+  [-0.142, 51.5402],
+  [-0.1355, 51.538],
+  [-0.1295, 51.5358],
+  [-0.125, 51.5352],
+  [-0.1195, 51.5346],
+  [-0.108, 51.5334],
+  [-0.096, 51.5324],
+  [-0.082, 51.5316],
+  [-0.068, 51.531],
+  [-0.052, 51.5304],
+  [-0.038, 51.5296],
+] as const;
+
+// ---------------------------------------------------------------------------
 // Parks (simple polygons)
 // ---------------------------------------------------------------------------
 
@@ -174,7 +196,34 @@ export const PARKS: readonly Park[] = [
       [-0.033, 51.5315],
     ],
   },
-] as const;
+  {
+    name: 'Soho Square',
+    points: [
+      [-0.1336, 51.5148],
+      [-0.1318, 51.5148],
+      [-0.1318, 51.5158],
+      [-0.1336, 51.5158],
+    ],
+  },
+  {
+    name: 'Golden Square',
+    points: [
+      [-0.1378, 51.5112],
+      [-0.1364, 51.5112],
+      [-0.1364, 51.5122],
+      [-0.1378, 51.5122],
+    ],
+  },
+  {
+    name: 'Hoxton Square',
+    points: [
+      [-0.0832, 51.5272],
+      [-0.0816, 51.5272],
+      [-0.0816, 51.5284],
+      [-0.0832, 51.5284],
+    ],
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Area labels + landmarks
@@ -407,6 +456,18 @@ function lRing(
   ];
 }
 
+function rotRing(lng: number, lat: number, w: number, d: number, rad: number): LngLat[] {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  const pts: LngLat[] = [
+    [-w / 2, -d / 2],
+    [w / 2, -d / 2],
+    [w / 2, d / 2],
+    [-w / 2, d / 2],
+  ];
+  return pts.map(([dx, dy]) => [lng + dx * c - dy * s, lat + dx * s + dy * c]);
+}
+
 function hash01(i: number, j: number, salt = 1): number {
   let n = (i * 374761393 + j * 668265263 + salt * 1274126177) >>> 0;
   n = Math.imul(n ^ (n >>> 13), 1274126177);
@@ -463,6 +524,32 @@ function grainFor(name: string) {
   }
 }
 
+export const DOCKS: readonly { name: string; ring: LngLat[] }[] = [
+  { name: 'North Dock', ring: rectRing(-0.0198, 51.5072, 0.0145, 0.0012) },
+  { name: 'Middle Dock', ring: rectRing(-0.0188, 51.5047, 0.0135, 0.0011) },
+  { name: 'South Dock', ring: rectRing(-0.0178, 51.5024, 0.012, 0.001) },
+];
+
+const CLEARINGS: readonly { at: LngLat; r: number }[] = [
+  { at: [-0.0876, 51.5256], r: 0.0023 }, // Old Street roundabout
+  { at: [-0.1494, 51.5431], r: 0.0017 }, // Roundhouse
+  { at: [-0.1258, 51.5316], r: 0.0034 }, // King's Cross sheds
+  { at: [-0.1018, 51.5185], r: 0.0022 }, // Smithfield
+  { at: [-0.0906, 51.5055], r: 0.0016 }, // Borough Market
+  { at: [-0.1462, 51.5408], r: 0.0015 }, // Camden Lock
+  { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square pad
+];
+
+const CANAL_PROJECTED: readonly WorldPoint[] = CANAL.map(project);
+
+export function isInDock(lng: number, lat: number): boolean {
+  return DOCKS.some((d) => pointInRing(lng, lat, d.ring));
+}
+
+function inClearing(lng: number, lat: number): boolean {
+  return CLEARINGS.some((c) => degDist([lng, lat], c.at) < c.r);
+}
+
 const AUTHORED: CityBlock[] = [
   // Canary Wharf cluster — 1 Canada Square and neighbours, real-ish pads.
   { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 9.6, tone: 'glass' },
@@ -503,6 +590,43 @@ const AUTHORED: CityBlock[] = [
   // Camden market sheds.
   { ring: rectRing(-0.1428, 51.5406, 0.0024, 0.0011), h: 0.72, tone: 'brick' },
   { ring: rectRing(-0.1455, 51.5392, 0.0018, 0.0015), h: 0.85, tone: 'brick' },
+
+  // Shoreditch — Brick Lane bar, Great Eastern St warehouses, Boxpark pad.
+  { ring: rectRing(-0.0718, 51.5224, 0.00055, 0.0048), h: 0.95, tone: 'brick' },
+  { ring: rotRing(-0.0765, 51.5248, 0.0032, 0.00115, 0.7), h: 1.2, tone: 'brick' },
+  { ring: rotRing(-0.0795, 51.5236, 0.0026, 0.00105, 0.7), h: 1.05, tone: 'brick' },
+  { ring: rectRing(-0.0778, 51.522, 0.0016, 0.0011), h: 0.7, tone: 'brick' },
+  { ring: rectRing(-0.0855, 51.5268, 0.0024, 0.0016), h: 1.35, tone: 'brick' },
+  // Farringdon — Smithfield long halls + Exmouth warehouse.
+  { ring: rectRing(-0.1016, 51.5186, 0.0038, 0.00115), h: 1.05, tone: 'brick' },
+  { ring: rectRing(-0.1016, 51.5175, 0.0036, 0.00085), h: 0.9, tone: 'brick' },
+  { ring: rectRing(-0.1088, 51.5228, 0.0028, 0.0007), h: 0.85, tone: 'brick' },
+  { ring: rectRing(-0.1042, 51.5212, 0.0018, 0.0014), h: 1.15, tone: 'brick' },
+  // London Bridge — Borough Market vaults + station shed.
+  { ring: rectRing(-0.0907, 51.5055, 0.0018, 0.0012), h: 0.7, tone: 'brick' },
+  { ring: rectRing(-0.0888, 51.5048, 0.0014, 0.0009), h: 0.62, tone: 'brick' },
+  { ring: rectRing(-0.0862, 51.5042, 0.0026, 0.00095), h: 1.15, tone: 'stone' },
+  { ring: rectRing(-0.0834, 51.5028, 0.0016, 0.0018), h: 2.4, tone: 'glass' },
+  // Canary — more tower pads around the docks.
+  { ring: rectRing(-0.0224, 51.5058, 0.0011, 0.0011), h: 8.1, tone: 'glass' },
+  { ring: rectRing(-0.0162, 51.5066, 0.00125, 0.0009), h: 7.0, tone: 'glass' },
+  { ring: rectRing(-0.015, 51.5036, 0.0018, 0.00085), h: 6.2, tone: 'glass' },
+  { ring: rectRing(-0.021, 51.5028, 0.0014, 0.001), h: 5.5, tone: 'glass' },
+  // King's Cross extra: Coal Drops + Google bar.
+  { ring: rectRing(-0.1268, 51.5348, 0.0022, 0.0008), h: 1.15, tone: 'brick' },
+  { ring: rectRing(-0.1252, 51.5356, 0.002, 0.00075), h: 1.05, tone: 'brick' },
+  { ring: rectRing(-0.1204, 51.5332, 0.0036, 0.0007), h: 1.85, tone: 'glass' },
+  // Soho — more tight terraces around the squares.
+  { ring: rectRing(-0.1332, 51.5138, 0.00055, 0.0018), h: 0.92, tone: 'brick' },
+  { ring: rectRing(-0.1344, 51.5142, 0.0005, 0.0016), h: 0.86, tone: 'stone' },
+  { ring: rectRing(-0.1362, 51.5124, 0.0005, 0.0019), h: 0.9, tone: 'brick' },
+  { ring: rectRing(-0.1316, 51.5122, 0.0014, 0.00055), h: 0.78, tone: 'stone' },
+  // Camden — lock-side sheds.
+  { ring: rectRing(-0.1474, 51.5404, 0.0015, 0.0008), h: 0.65, tone: 'brick' },
+  { ring: rectRing(-0.1448, 51.5412, 0.0012, 0.0007), h: 0.58, tone: 'brick' },
+  // Battersea riverside glass + park-edge brick.
+  { ring: rectRing(-0.1385, 51.4842, 0.0032, 0.0009), h: 2.1, tone: 'glass' },
+  { ring: rectRing(-0.1495, 51.4834, 0.0024, 0.00085), h: 1.8, tone: 'glass' },
 ];
 
 function namedBboxContains(lng: number, lat: number): boolean {
@@ -529,8 +653,10 @@ function pushGrid(out: CityBlock[], district: District) {
       const latC = lat + g.stepLat * 0.5;
       if (fill && namedBboxContains(lngC, latC)) continue;
       if (!isOnLand(lngC, latC) || isInPark(lngC, latC)) continue;
+      if (isInDock(lngC, latC) || inClearing(lngC, latC)) continue;
       if (nearLandmark(lngC, latC)) continue;
       if (distToPolyline(project([lngC, latC]), THAMES_PROJECTED) < 2.5) continue;
+      if (distToPolyline(project([lngC, latC]), CANAL_PROJECTED) < 1.05) continue;
       const n = hash01(col, row, district.name.length);
       if (fill && n > 0.58) continue;
       const inset = g.inset + n * 0.08;

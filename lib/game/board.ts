@@ -10,8 +10,10 @@ import { HUBS } from './content';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   AREA_LABELS,
+  CANAL,
   CITY_BLOCKS,
   type CityBlock,
+  DOCKS,
   LANDMARKS,
   PARKS,
   THAMES,
@@ -565,6 +567,211 @@ export interface LondonBoard {
   dispose: () => void;
 }
 
+function ll3(lng: number, lat: number, y = LAND_Y): THREE.Vector3 {
+  return worldTo3(project([lng, lat]), y);
+}
+
+function addBoxLL(
+  group: THREE.Group,
+  lng: number,
+  lat: number,
+  w: number,
+  h: number,
+  d: number,
+  mat: THREE.Material,
+  yaw = 0,
+) {
+  const p = ll3(lng, lat);
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  mesh.position.set(p.x, LAND_Y + h / 2, p.z);
+  mesh.rotation.y = yaw;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+  return mesh;
+}
+
+function addBarrelShed(
+  group: THREE.Group,
+  lng: number,
+  lat: number,
+  len: number,
+  width: number,
+  h: number,
+  yaw: number,
+  mat: THREE.Material,
+) {
+  addBoxLL(group, lng, lat, len, h * 0.62, width, mat, yaw);
+  const p = ll3(lng, lat);
+  const roof = new THREE.Mesh(
+    new THREE.CylinderGeometry(width * 0.52, width * 0.52, len, 12, 1, false, 0, Math.PI),
+    mat,
+  );
+  roof.rotation.z = Math.PI / 2;
+  roof.rotation.y = yaw;
+  roof.position.set(p.x, LAND_Y + h * 0.62, p.z);
+  roof.castShadow = true;
+  group.add(roof);
+}
+
+/** Distinctive clay pieces so each hub reads without a caption. */
+function addNeighbourhoods(
+  group: THREE.Group,
+  reduced: boolean,
+  mats: {
+    brick: THREE.Material;
+    stone: THREE.Material;
+    glass: THREE.Material;
+    asphalt: THREE.Material;
+    park: THREE.Material;
+    dark: THREE.Material;
+    cream: THREE.Material;
+  },
+) {
+  const { brick, stone, glass, asphalt, park, dark, cream } = mats;
+
+  // --- King's Cross: two train sheds, St Pancras towers, gasholder, granary plaza ---
+  addBarrelShed(group, -0.1256, 51.5319, 7.4, 2.15, 1.55, 0.04, stone);
+  addBarrelShed(group, -0.1232, 51.5305, 6.6, 1.95, 1.35, 0.04, cream);
+  addBoxLL(group, -0.1288, 51.5316, 1.15, 2.35, 1.35, brick, 0.04);
+  addBoxLL(group, -0.1294, 51.5324, 0.55, 3.1, 0.55, brick, 0.04);
+  addBoxLL(group, -0.1282, 51.5324, 0.55, 3.1, 0.55, brick, 0.04);
+  const plaza = addBoxLL(group, -0.1255, 51.5348, 3.4, 0.07, 2.4, cream, 0.1);
+  plaza.castShadow = false;
+  const holder = ll3(-0.1182, 51.5356);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.09, 8, 24), brick);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(holder.x, LAND_Y + 1.05, holder.z);
+  ring.castShadow = true;
+  group.add(ring);
+  addBoxLL(group, -0.1206, 51.5332, 4.2, 1.7, 0.95, glass, 0.08);
+
+  // --- Shoreditch: Old Street roundabout + Boxpark containers ---
+  const round = ll3(-0.0876, 51.5256);
+  const island = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.07, 20), park);
+  island.position.set(round.x, LAND_Y + 0.04, round.z);
+  const curb = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.26, 8, 28), asphalt);
+  curb.rotation.x = Math.PI / 2;
+  curb.position.set(round.x, LAND_Y + 0.05, round.z);
+  group.add(island, curb);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    addBoxLL(
+      group,
+      -0.0876 + Math.cos(a) * 0.00255,
+      51.5256 + Math.sin(a) * 0.0016,
+      1.15,
+      0.85 + (i % 3) * 0.18,
+      0.72,
+      brick,
+      -a,
+    );
+  }
+  const candy = [0xe11d48, 0x2563eb, 0xf59e0b, 0x0d9488, 0xf8fafc, 0x111827];
+  for (let i = 0; i < (reduced ? 6 : 10); i++) {
+    const col = i % 5;
+    const row = Math.floor(i / 5);
+    const box = addBoxLL(
+      group,
+      -0.0776 + col * 0.00055,
+      51.5222 + row * 0.0005,
+      0.42,
+      0.28,
+      0.22,
+      clayMat(candy[i % candy.length]),
+      0.15,
+    );
+    box.position.y = LAND_Y + 0.14 + row * 0.3;
+  }
+
+  // --- Soho: Centre Point slab + terrace bars hugging the squares ---
+  addBoxLL(group, -0.1306, 51.5166, 0.85, 4.4, 0.85, cream, 0.12);
+  addBoxLL(group, -0.1348, 51.5136, 0.42, 1.05, 2.35, brick, 0.02);
+  addBoxLL(group, -0.1362, 51.5128, 0.4, 0.95, 2.1, stone, 0.02);
+
+  // --- Farringdon: Smithfield bays ---
+  for (let i = 0; i < 5; i++) {
+    const lng = -0.1036 + i * 0.00095;
+    addBoxLL(group, lng, 51.5186, 0.85, 0.95, 1.35, brick, 0);
+    addBoxLL(group, lng, 51.5186, 0.7, 0.35, 1.2, dark, 0);
+    const roof = addBoxLL(group, lng, 51.5186, 0.88, 0.28, 1.38, dark, 0);
+    roof.rotation.z = 0.45;
+    roof.position.y = LAND_Y + 1.12;
+  }
+
+  // --- Canary Wharf: pyramid cap on 1 Canada Square ---
+  const canada = ll3(-0.0194, 51.5049);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.82, 1.55, 4), cream);
+  cap.position.set(canada.x, LAND_Y + 10.35, canada.z);
+  cap.rotation.y = 0.2;
+  cap.castShadow = true;
+  group.add(cap);
+
+  // --- London Bridge: Borough Market peaks ---
+  for (let i = 0; i < 6; i++) {
+    const lng = -0.0914 + (i % 3) * 0.0007;
+    const lat = 51.5052 + Math.floor(i / 3) * 0.00055;
+    addBoxLL(group, lng, lat, 0.7, 0.55, 0.7, brick, 0.1);
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.4, 4), dark);
+    const q = ll3(lng, lat);
+    peak.position.set(q.x, LAND_Y + 0.75, q.z);
+    peak.rotation.y = 0.8;
+    group.add(peak);
+  }
+  addBarrelShed(group, -0.0864, 51.5038, 3.8, 1.35, 1.05, 1.12, stone);
+
+  // --- Camden: Roundhouse + lock horseshoe stalls ---
+  const rh = ll3(-0.1494, 51.5431);
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.22, 0.95, 16), brick);
+  drum.position.set(rh.x, LAND_Y + 0.48, rh.z);
+  drum.castShadow = true;
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.28, 0.55, 16), dark);
+  cone.position.set(rh.x, LAND_Y + 1.22, rh.z);
+  group.add(drum, cone);
+  for (let i = 0; i < (reduced ? 7 : 12); i++) {
+    const a = -0.2 + (i / 11) * Math.PI * 1.15;
+    addBoxLL(
+      group,
+      -0.1462 + Math.cos(a) * 0.00135,
+      51.5408 + Math.sin(a) * 0.0009,
+      0.28,
+      0.22,
+      0.22,
+      clayMat(candy[i % candy.length]),
+      -a,
+    );
+  }
+
+  // --- Battersea: riverside bars already extruded; add a circus drum by the park ---
+  addBoxLL(group, -0.1408, 51.4836, 3.6, 1.55, 0.9, glass, 0.05);
+  const circus = ll3(-0.1378, 51.4796);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.18, 20), cream);
+  disc.position.set(circus.x, LAND_Y + 0.12, circus.z);
+  group.add(disc);
+
+  // --- City pickle (reads as the Square Mile from the east) ---
+  const gherkin = ll3(-0.0803, 51.5145);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.7, 5.2, 10), glass);
+  shaft.position.set(gherkin.x, LAND_Y + 2.7, gherkin.z);
+  shaft.castShadow = true;
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    glass,
+  );
+  dome.position.set(gherkin.x, LAND_Y + 5.25, gherkin.z);
+  group.add(shaft, dome);
+
+  // --- South Bank: National Theatre stacks ---
+  addBoxLL(group, -0.1148, 51.5073, 2.1, 1.15, 1.6, stone, 0.2);
+  addBoxLL(group, -0.1138, 51.507, 1.35, 1.7, 1.15, stone, 0.2);
+  addBoxLL(group, -0.0996, 51.5077, 2.4, 1.05, 1.35, brick, 0.15);
+  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 3.5, 8), brick);
+  const tate = ll3(-0.0994, 51.5077);
+  chimney.position.set(tate.x + 0.7, LAND_Y + 2.3, tate.z);
+  chimney.castShadow = true;
+  group.add(chimney);
+}
+
 export function buildLondonBoard(reduced: boolean): LondonBoard {
   const group = new THREE.Group();
   const rnd = seeded(20260824);
@@ -607,6 +814,16 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   river.receiveShadow = true;
   const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.15, LAND_Y - 0.08), riverDeepMat);
   group.add(banks, river, channel);
+
+  const canalWorld = CANAL.map(project);
+  group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.62, LAND_Y - 0.03), riverMat));
+  group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.28, LAND_Y - 0.05), riverDeepMat));
+  for (const dock of DOCKS) {
+    const water = extrudeRing(dock.ring, 0.05, riverMat);
+    water.position.y = LAND_Y - 0.07;
+    water.castShadow = false;
+    group.add(water);
+  }
 
   for (const park of PARKS) {
     const mesh = extrudeRing(park.points, 0.08, parkMat);
@@ -702,6 +919,16 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   for (const lm of LANDMARKS) {
     addLandmark(group, lm, worldTo3(project(lm.at), LAND_Y));
   }
+
+  addNeighbourhoods(group, reduced, {
+    brick: clayMat(0xd8a48c),
+    stone: clayMat(0xf0e6d4),
+    glass: clayMat(0xd2e0e8, { roughness: 0.52, metalness: 0.08 }),
+    asphalt: asphaltMat,
+    park: parkMat,
+    dark: clayMat(0x5a616c),
+    cream: clayMat(0xf7f1e4),
+  });
 
   const craneMat = clayMat(0xf5c518, { roughness: 0.45 });
   for (const [lng, lat, yaw] of [
