@@ -374,19 +374,25 @@ async function main() {
     );
     const ringLen = (feature: (typeof buildings)[number]) =>
       feature.geometry.coordinates[0]?.length ?? 0;
-    const named = (re: RegExp) => buildings.find((f) => re.test(f.properties.name ?? ''));
-    const stPaul = named(/st paul.?s cathedral/i);
-    const battersea = named(/battersea power station$/i);
-    const palace = named(/palace of westminster/i);
-    assert.ok(stPaul && ringLen(stPaul) > 20, 'St Paul’s should keep a detailed footprint');
+    const exact = (name: string) =>
+      buildings.find((f) => (f.properties.name ?? '').replace(/\u2019/g, "'") === name);
+    const stPaul = exact("St Paul's Cathedral");
+    const battersea = exact('Battersea Power Station');
+    const palace = exact('Palace of Westminster');
+    const shard = exact('The Shard');
+    const canada = exact('One Canada Square');
+    assert.ok(stPaul && ringLen(stPaul) > 100, 'St Paul’s should keep the full OSM footprint');
     assert.ok(
-      battersea && ringLen(battersea) > 16,
+      battersea && ringLen(battersea) > 40,
       'Battersea Power Station should not be a 10-vert cap',
     );
     assert.ok(
-      palace && ringLen(palace) > 20,
-      'Palace of Westminster should keep a detailed footprint',
+      palace && ringLen(palace) > 400,
+      'Palace of Westminster should keep the uncapped outline, not a 10-vert cap',
     );
+    assert.ok(palace && (palace.geometry.coordinates as number[][][]).length > 1, 'Palace holes');
+    assert.ok(shard && ringLen(shard) >= 20, 'The Shard should keep its OSM ring');
+    assert.ok(canada && ringLen(canada) >= 20, 'One Canada Square should keep its OSM ring');
     const packSrc = readFileSync(join(process.cwd(), 'scripts', 'pack-sim-mesh.ts'), 'utf8');
     assert.match(packSrc, /osm-central-london-simplified\.geojson/);
     const midpoints: Array<[(typeof SIM_HUBS)[number]['id'], (typeof SIM_HUBS)[number]['id']]> = [

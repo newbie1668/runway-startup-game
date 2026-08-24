@@ -37,17 +37,19 @@ const CORRIDOR_M = 500;
 const COORD_DECIMALS = 5;
 const ORDINARY_MAX_VERTS = 24;
 const LARGE_MAX_VERTS = 40;
-const LANDMARK_MAX_VERTS = 128;
 const ROAD_MAX_VERTS = 14;
 const WATER_MAX_VERTS = 72;
 const PARK_MAX_VERTS = 28;
 const BUILDING_TOLERANCE = 1.2e-5;
-const LANDMARK_TOLERANCE = 4e-6;
 const COVER_TOLERANCE = 5e-5;
 const ROAD_TOLERANCE = 2e-5;
 
 const LANDMARK_NAME =
   /shard|st paul|canada square|bishopsgate|battersea power|elizabeth tower|bt tower|st mary axe|fenchurch|palace of westminster|30 st mary/i;
+
+/** Named silhouettes keep full OSM rings — no 10-vert (or 128-vert) cap. */
+const SILHOUETTE_LANDMARK =
+  /^(the shard|one canada square|22 bishopsgate( tower)?|st\.? paul'?s cathedral|battersea power station|palace of westminster|elizabeth tower|bt tower|30 st mary axe)$/i;
 
 const KEEP_PARK_NAMES = new Set([
   'hyde park',
@@ -256,15 +258,42 @@ function isLandmark(feature: SimFeature<BuildingProperties>): boolean {
   return Boolean(feature.properties.name && LANDMARK_NAME.test(feature.properties.name));
 }
 
+function isSilhouetteLandmark(feature: SimFeature<BuildingProperties>): boolean {
+  const name = feature.properties.name?.trim() ?? '';
+  if (name && SILHOUETTE_LANDMARK.test(name)) return true;
+  return feature.properties.height >= 70;
+}
+
+function quantizeRings(rings: LngLat[][]): LngLat[][] {
+  return rings.map(quantizeRing).filter((ring) => ring.length >= 4);
+}
+
+function preserveLandmarkGeometry(
+  geometry: SimFeature['geometry'],
+): SimFeature<BuildingProperties>['geometry'] | null {
+  if (geometry.type === 'Polygon') {
+    const rings = quantizeRings(geometry.coordinates as LngLat[][]);
+    if (!rings[0]) return null;
+    return { type: 'Polygon', coordinates: rings };
+  }
+  if (geometry.type === 'MultiPolygon') {
+    const polys = (geometry.coordinates as LngLat[][][])
+      .map(quantizeRings)
+      .filter((poly) => poly[0] && poly[0].length >= 4);
+    if (!polys.length) return null;
+    return { type: 'MultiPolygon', coordinates: polys };
+  }
+  return null;
+}
+
 function buildingMaxVerts(feature: SimFeature<BuildingProperties>, area: number): number {
-  if (isLandmark(feature)) return LANDMARK_MAX_VERTS;
   if (area > 700 || feature.properties.height >= 40) return LARGE_MAX_VERTS;
   return ORDINARY_MAX_VERTS;
 }
 
 function slimBuilding(
   feature: SimFeature<BuildingProperties>,
-  ring: LngLat[],
+  geometry: SimFeature<BuildingProperties>['geometry'],
 ): SimFeature<BuildingProperties> {
   const props: BuildingProperties = {
     osmId: feature.properties.osmId,
@@ -278,7 +307,7 @@ function slimBuilding(
   return {
     type: 'Feature',
     properties: props,
-    geometry: { type: 'Polygon', coordinates: [ring] },
+    geometry,
   };
 }
 
@@ -410,11 +439,19 @@ async function main() {
   ) => {
     const outFeatures: SimFeature<SimProperties>[] = [];
     for (const row of buildingRows) {
-      const maxVerts = buildingMaxVerts(row.feature, row.area);
-      const tol = row.landmark ? LANDMARK_TOLERANCE : BUILDING_TOLERANCE;
-      const ring = simplifyFootprint(row.ring, maxVerts, tol);
+      if (isSilhouetteLandmark(row.feature)) {
+        const geometry = preserveLandmarkGeometry(row.feature.geometry);
+        if (!geometry) continue;
+        outFeatures.push(slimBuilding(row.feature, geometry));
+        continue;
+      }
+      const ring = simplifyFootprint(
+        row.ring,
+        buildingMaxVerts(row.feature, row.area),
+        BUILDING_TOLERANCE,
+      );
       if (!ring) continue;
-      outFeatures.push(slimBuilding(row.feature, ring));
+      outFeatures.push(slimBuilding(row.feature, { type: 'Polygon', coordinates: [ring] }));
     }
     outFeatures.push(...roadFeatures, ...cover);
     const fc = {
