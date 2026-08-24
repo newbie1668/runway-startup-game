@@ -1,0 +1,4 @@
+data/*.geojson
+data/.cache
+public/data/*.geojson
+pnpm-lock.yaml

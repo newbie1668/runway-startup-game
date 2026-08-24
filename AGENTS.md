@@ -6,6 +6,7 @@ Keep it separate from the main London Startup Map repo and domain for now:
 
 - Main product URL: `https://londonstartupmap.com/`
 - Game route in this app: `/game`
+- Map mesh route in this app: `/sim` (OSM footprints; not the game, not the clay board)
 
 Do not deploy or attach this app to `londonstartupmap.com` without explicit
 product approval.
