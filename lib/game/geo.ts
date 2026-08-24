@@ -634,10 +634,13 @@ function grainFor(name: string) {
 }
 
 export const DOCKS: readonly { name: string; ring: LngLat[] }[] = [
-  { name: 'North Dock', ring: rectRing(-0.0198, 51.5072, 0.0145, 0.0012) },
-  { name: 'Middle Dock', ring: rectRing(-0.0188, 51.5047, 0.0135, 0.0011) },
-  { name: 'South Dock', ring: rectRing(-0.0178, 51.5024, 0.012, 0.001) },
-  { name: 'Limehouse Basin', ring: rectRing(-0.0322, 51.5112, 0.0048, 0.0018) },
+  { name: 'North Dock', ring: rectRing(-0.0198, 51.5069, 0.0168, 0.0024) },
+  { name: 'Middle Dock', ring: rectRing(-0.0188, 51.5034, 0.0158, 0.0022) },
+  { name: 'South Dock', ring: rectRing(-0.0178, 51.5012, 0.0142, 0.002) },
+  { name: 'Inner Dock East', ring: rectRing(-0.012, 51.5044, 0.0038, 0.0046) },
+  { name: 'Inner Dock West', ring: rectRing(-0.0268, 51.5042, 0.0036, 0.0044) },
+  { name: 'Limehouse Basin', ring: rectRing(-0.0322, 51.5112, 0.0056, 0.0024) },
+  { name: 'Camden Lock', ring: rectRing(-0.1464, 51.5406, 0.0038, 0.0026) },
 ];
 
 const CLEARINGS: readonly { at: LngLat; r: number }[] = [
@@ -670,7 +673,7 @@ function inClearing(lng: number, lat: number): boolean {
 
 const AUTHORED: CityBlock[] = [
   // Canary Wharf cluster — 1 Canada Square and neighbours, real-ish pads.
-  { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 12.2, tone: 'glass' },
+  { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 0.42, tone: 'glass' },
   { ring: rectRing(-0.0174, 51.5055, 0.00135, 0.00105), h: 8.4, tone: 'glass' },
   { ring: rectRing(-0.0216, 51.5045, 0.0017, 0.00095), h: 7.2, tone: 'glass' },
   { ring: rectRing(-0.0144, 51.5052, 0.0021, 0.001), h: 6.6, tone: 'glass' },

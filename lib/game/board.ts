@@ -761,21 +761,45 @@ function addNeighbourhoods(
   }
 
   // --- Farringdon: Smithfield halls ---
-  for (let i = 0; i < 7; i++) {
-    const lng = -0.1054 + i * 0.00105;
-    addBoxLL(group, lng, 51.5187, 1.15, 1.55, 2.25, brick, 0);
-    const hall = addBoxLL(group, lng, 51.5187, 0.95, 0.55, 2.05, dark, 0);
-    hall.rotation.z = 0.52;
-    hall.position.y = LAND_Y + 1.72;
+  for (let i = 0; i < 9; i++) {
+    const lng = -0.1064 + i * 0.00108;
+    addBoxLL(group, lng, 51.51875, 1.38, 2.55, 3.15, brick, 0);
+    const hall = addBoxLL(group, lng, 51.51875, 1.18, 0.92, 2.85, dark, 0);
+    hall.rotation.z = 0.58;
+    hall.position.y = LAND_Y + 2.65;
+    addBoxLL(group, lng, 51.51785, 1.28, 2.15, 2.65, brick, 0);
+    const hall2 = addBoxLL(group, lng, 51.51785, 1.08, 0.78, 2.35, dark, 0);
+    hall2.rotation.z = 0.58;
+    hall2.position.y = LAND_Y + 2.22;
   }
-  addCylLL(group, -0.1018, 51.5188, 0.85, 0.95, 0.7, cream, 8).position.y = LAND_Y + 2.15;
-  addCylLL(group, -0.1018, 51.5188, 0.15, 0.2, 0.9, dark, 8).position.y = LAND_Y + 2.85;
+  addCylLL(group, -0.1022, 51.5184, 1.25, 1.4, 1.15, cream, 8).position.y = LAND_Y + 3.25;
+  addCylLL(group, -0.1022, 51.5184, 0.22, 0.3, 1.55, dark, 8).position.y = LAND_Y + 4.2;
 
-  // --- Canary Wharf: towers sitting in the dock basins ---
+  // --- Canary Wharf: 1 Canada Square pyramid sitting in the dock basins ---
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x3aa8cc,
+    roughness: 0.28,
+    metalness: 0.04,
+  });
+  const addBasin = (lng: number, lat: number, w: number, d: number) => {
+    const p = ll3(lng, lat);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, d), waterMat);
+    mesh.position.set(p.x, LAND_Y + 0.09, p.z);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    addBoxLL(group, lng, lat + d * 0.00048, w + 0.35, 0.22, 0.22, dark, 0);
+    addBoxLL(group, lng, lat - d * 0.00048, w + 0.35, 0.22, 0.22, dark, 0);
+  };
+  addBasin(-0.0198, 51.5069, 10.2, 2.35);
+  addBasin(-0.0188, 51.5034, 9.6, 2.15);
+  addBasin(-0.0178, 51.5012, 8.8, 1.95);
+  addBasin(-0.012, 51.5044, 2.4, 4.6);
+  addBasin(-0.0268, 51.5042, 2.3, 4.4);
+  addBasin(-0.018, 51.4952, 16.5, 7.2);
   const canada = ll3(-0.0194, 51.5049);
-  addBoxLL(group, -0.0194, 51.5049, 2.25, 12.2, 2.25, glass, 0.2);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.95, 3.6, 4), cream);
-  cap.position.set(canada.x, LAND_Y + 14.0, canada.z);
+  addBoxLL(group, -0.0194, 51.5049, 2.35, 12.4, 2.35, glass, 0.2);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.15, 4.2, 4), cream);
+  cap.position.set(canada.x, LAND_Y + 14.5, canada.z);
   cap.rotation.y = 0.2;
   cap.castShadow = true;
   group.add(cap);
@@ -824,6 +848,17 @@ function addNeighbourhoods(
   addBoxLL(group, -0.1462, 51.5408, 2.4, 0.22, 0.55, dark, 0.4);
   addBoxLL(group, -0.1454, 51.5412, 0.18, 0.85, 1.15, stone, 0.4);
   addBoxLL(group, -0.147, 51.5404, 0.18, 0.85, 1.15, stone, 0.4);
+  const lockWater = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 0.12, 2.4),
+    new THREE.MeshStandardMaterial({ color: 0x3aa8cc, roughness: 0.28, metalness: 0.04 }),
+  );
+  const lockAt = ll3(-0.1464, 51.5406);
+  lockWater.position.set(lockAt.x, LAND_Y + 0.08, lockAt.z);
+  lockWater.rotation.y = 0.4;
+  lockWater.receiveShadow = true;
+  group.add(lockWater);
+  addBoxLL(group, -0.1468, 51.541, 0.22, 0.55, 2.05, dark, 0.4);
+  addBoxLL(group, -0.1456, 51.5402, 0.22, 0.55, 2.05, dark, 0.4);
 
   // --- Battersea: riverside circus; chimneys come from the landmark ---
   addBoxLL(group, -0.1408, 51.4836, 4.4, 1.85, 1.15, glass, 0.05);
@@ -939,10 +974,20 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.62, LAND_Y - 0.03), riverMat));
   group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.28, LAND_Y - 0.05), riverDeepMat));
   for (const dock of DOCKS) {
-    const water = extrudeRing(dock.ring, 0.05, riverMat);
-    water.position.y = LAND_Y - 0.07;
+    const bed = extrudeRing(dock.ring, 0.16, riverDeepMat);
+    bed.position.y = LAND_Y + 0.02;
+    bed.castShadow = false;
+    group.add(bed);
+    const water = extrudeRing(dock.ring, 0.12, riverMat);
+    water.position.y = LAND_Y + 0.05;
     water.castShadow = false;
     group.add(water);
+  }
+  const dogs = THAMES.filter((ll) => ll[0] > -0.042);
+  if (dogs.length > 1) {
+    const dogsWorld = dogs.map(project);
+    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 3.15, LAND_Y + 0.06), riverMat));
+    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 1.35, LAND_Y + 0.07), riverDeepMat));
   }
 
   for (const park of PARKS) {
