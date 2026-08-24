@@ -614,7 +614,26 @@ function addBarrelShed(
   group.add(roof);
 }
 
-/** Distinctive clay pieces so each hub reads without a caption. */
+function addCylLL(
+  group: THREE.Group,
+  lng: number,
+  lat: number,
+  rTop: number,
+  rBot: number,
+  h: number,
+  mat: THREE.Material,
+  segs = 14,
+) {
+  const p = ll3(lng, lat);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, segs), mat);
+  mesh.position.set(p.x, LAND_Y + h / 2, p.z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+  return mesh;
+}
+
+/** Distinctive clay so hubs AND central boroughs read without a caption. */
 function addNeighbourhoods(
   group: THREE.Group,
   reduced: boolean,
@@ -770,6 +789,140 @@ function addNeighbourhoods(
   chimney.position.set(tate.x + 0.7, LAND_Y + 2.3, tate.z);
   chimney.castShadow = true;
   group.add(chimney);
+
+  const terracotta = clayMat(0xc4785a);
+  const gold = clayMat(0xe4c56a, { roughness: 0.48, metalness: 0.18 });
+  const greenDome = clayMat(0x3f8a5a);
+  const white = clayMat(0xeef2f5);
+
+  // --- Westminster: Whitehall spine, Horse Guards, Nelson's Column ---
+  addBoxLL(group, -0.1266, 51.5036, 0.55, 1.25, 4.6, stone, 0.08);
+  addBoxLL(group, -0.1284, 51.5046, 1.85, 0.85, 0.7, stone, 0.12);
+  addBoxLL(group, -0.1288, 51.5042, 0.55, 0.95, 1.55, stone, 0.12);
+  addBoxLL(group, -0.1272, 51.5042, 0.55, 0.95, 1.55, stone, 0.12);
+  addCylLL(group, -0.1281, 51.508, 0.12, 0.18, 3.4, stone, 10);
+  addCylLL(group, -0.1281, 51.508, 0.22, 0.22, 0.18, gold, 10).position.y = LAND_Y + 3.5;
+  for (const [dx, dz] of [
+    [-0.0011, -0.0007],
+    [0.0011, -0.0007],
+    [-0.0011, 0.0007],
+    [0.0011, 0.0007],
+  ] as const) {
+    addBoxLL(group, -0.1281 + dx, 51.508 + dz, 0.42, 0.28, 0.42, stone, 0);
+  }
+
+  // --- Kensington: Albert Hall drum, Exhibition Rd museums, Harrods ---
+  addCylLL(group, -0.1774, 51.5009, 1.28, 1.35, 1.15, terracotta, 20);
+  const ah = ll3(-0.1774, 51.5009);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.12, 8, 24), cream);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(ah.x, LAND_Y + 1.18, ah.z);
+  group.add(rim);
+  addCylLL(group, -0.1776, 51.5022, 0.12, 0.22, 1.85, gold, 6);
+  addBoxLL(group, -0.1762, 51.4962, 3.6, 1.35, 1.45, terracotta, 0.02);
+  addBoxLL(group, -0.1774, 51.496, 0.55, 1.85, 0.55, terracotta, 0.02);
+  addBoxLL(group, -0.175, 51.496, 0.55, 1.85, 0.55, terracotta, 0.02);
+  addBoxLL(group, -0.1724, 51.4966, 3.05, 1.15, 1.2, terracotta, 0.04);
+  addBoxLL(group, -0.1634, 51.4994, 2.55, 1.75, 1.85, terracotta, 0.08);
+  addBoxLL(group, -0.1634, 51.4994, 2.7, 0.18, 2.0, cream, 0.08).position.y = LAND_Y + 1.84;
+
+  // --- Bloomsbury: British Museum courtyard ---
+  addBoxLL(group, -0.1269, 51.5199, 3.5, 1.15, 0.7, stone, 0);
+  addBoxLL(group, -0.1285, 51.5188, 0.7, 1.05, 2.15, stone, 0);
+  addBoxLL(group, -0.1253, 51.5188, 0.7, 1.05, 2.15, stone, 0);
+  addBoxLL(group, -0.1269, 51.5178, 3.5, 1.35, 0.85, stone, 0);
+  addBoxLL(group, -0.1269, 51.5176, 1.15, 0.55, 0.35, cream, 0);
+
+  // --- Islington: Upper Street terraces + Angel wedge ---
+  for (let i = 0; i < 7; i++) {
+    addBoxLL(group, -0.1038, 51.5334 + i * 0.00115, 0.42, 0.82 + (i % 3) * 0.12, 1.05, brick, 0.04);
+    addBoxLL(group, -0.1051, 51.5338 + i * 0.00105, 0.38, 0.74 + (i % 2) * 0.1, 0.95, stone, 0.04);
+  }
+  addBoxLL(group, -0.1058, 51.5322, 1.15, 1.25, 1.15, brick, 0.6);
+
+  // --- City: Walkie Talkie, Cheesegrater, Tower of London ---
+  addCylLL(group, -0.0837, 51.5115, 0.95, 0.48, 6.4, glass, 10);
+  const grater = addBoxLL(group, -0.0821, 51.5139, 0.7, 8.1, 2.15, glass, 0.72);
+  grater.rotation.z = 0.22;
+  grater.position.y = LAND_Y + 4.05;
+  addBoxLL(group, -0.0761, 51.5081, 2.15, 1.55, 1.85, stone, 0.15);
+  for (const [dx, dz] of [
+    [-0.0009, -0.00065],
+    [0.0009, -0.00065],
+    [-0.0009, 0.00065],
+    [0.0009, 0.00065],
+  ] as const) {
+    addCylLL(group, -0.0761 + dx, 51.5081 + dz, 0.22, 0.26, 1.95, stone, 8);
+  }
+
+  // --- Hackney: Broadway Market stall street ---
+  for (let i = 0; i < (reduced ? 6 : 10); i++) {
+    addBoxLL(
+      group,
+      -0.0618,
+      51.5354 + i * 0.00038,
+      0.28,
+      0.22,
+      0.28,
+      clayMat(candy[i % candy.length]),
+      0.08,
+    );
+  }
+
+  // --- Tower Hamlets: Whitechapel Road + East London Mosque ---
+  addBoxLL(group, -0.0654, 51.5174, 1.45, 0.85, 1.55, brick, 0.12);
+  addCylLL(group, -0.0653, 51.5175, 0.55, 0.62, 0.7, greenDome, 12).position.y = LAND_Y + 1.2;
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.58, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    gold,
+  );
+  const mos = ll3(-0.0653, 51.5175);
+  dome.position.set(mos.x, LAND_Y + 1.55, mos.z);
+  group.add(dome);
+  addCylLL(group, -0.0642, 51.5178, 0.08, 0.12, 2.35, cream, 8);
+  addCylLL(group, -0.0642, 51.5178, 0.16, 0.16, 0.12, gold, 8).position.y = LAND_Y + 2.45;
+
+  // --- Southwark: Elephant & Castle roundabout ---
+  const el = ll3(-0.1, 51.4948);
+  const elIsland = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.07, 20), park);
+  elIsland.position.set(el.x, LAND_Y + 0.04, el.z);
+  const elCurb = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.28, 8, 28), asphalt);
+  elCurb.rotation.x = Math.PI / 2;
+  elCurb.position.set(el.x, LAND_Y + 0.05, el.z);
+  group.add(elIsland, elCurb);
+  addBoxLL(group, -0.1016, 51.4956, 1.05, 2.15, 1.05, cream, 0.2);
+
+  // --- Lambeth: Waterloo sheds, MI6 ziggurat, Brixton arcade ---
+  addBarrelShed(group, -0.1142, 51.5034, 5.2, 1.55, 1.45, 0.22, stone);
+  addBarrelShed(group, -0.1128, 51.5028, 4.8, 1.35, 1.25, 0.22, stone);
+  addBarrelShed(group, -0.1116, 51.5022, 4.4, 1.2, 1.1, 0.22, cream);
+  addBoxLL(group, -0.1245, 51.4872, 2.35, 1.15, 1.85, cream, 0.35);
+  addBoxLL(group, -0.1245, 51.4872, 1.85, 0.85, 1.45, cream, 0.35).position.y = LAND_Y + 1.55;
+  addBoxLL(group, -0.1245, 51.4872, 1.25, 0.7, 1.05, cream, 0.35).position.y = LAND_Y + 2.3;
+  for (let i = 0; i < 3; i++) {
+    addBoxLL(group, -0.1155 + i * 0.0011, 51.4614, 0.85, 0.55, 1.15, brick, 0.08);
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.38, 4), dark);
+    const q = ll3(-0.1155 + i * 0.0011, 51.4614);
+    peak.position.set(q.x, LAND_Y + 0.78, q.z);
+    peak.rotation.y = 0.8;
+    group.add(peak);
+  }
+
+  // --- Greenwich: Old Royal Naval College twin courts ---
+  addBoxLL(group, -0.0056, 51.4832, 2.85, 1.05, 1.25, cream, 0.05);
+  addBoxLL(group, -0.0114, 51.4832, 2.85, 1.05, 1.25, cream, 0.05);
+  addCylLL(group, -0.0085, 51.4812, 0.35, 0.42, 0.55, cream, 12);
+  addCylLL(group, -0.0085, 51.4812, 0.22, 0.22, 0.7, white, 10).position.y = LAND_Y + 0.9;
+
+  // --- Stratford: Olympic stadium ring ---
+  const st = ll3(-0.0166, 51.5386);
+  const bowl = new THREE.Mesh(new THREE.TorusGeometry(1.65, 0.28, 8, 24), white);
+  bowl.rotation.x = Math.PI / 2;
+  bowl.position.set(st.x, LAND_Y + 0.45, st.z);
+  bowl.castShadow = true;
+  const pitch = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 0.06, 20), park);
+  pitch.position.set(st.x, LAND_Y + 0.05, st.z);
+  group.add(bowl, pitch);
 }
 
 export function buildLondonBoard(reduced: boolean): LondonBoard {
