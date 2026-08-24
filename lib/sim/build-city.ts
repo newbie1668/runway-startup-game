@@ -1,4 +1,5 @@
-import earcut from 'earcut';
+import earcutImport from 'earcut';
+import { BUILDING_KIND_NAMES, type PackedCity } from './compact';
 import { OSM_BBOX, ROAD_WIDTH_M } from './constants';
 import { projectLngLat, signedAreaXZ, type Vec2 } from './projection';
 import type {
@@ -9,6 +10,11 @@ import type {
   SimFeature,
   SimFeatureCollection,
 } from './types';
+
+const earcut: typeof earcutImport =
+  typeof earcutImport === 'function'
+    ? earcutImport
+    : (earcutImport as unknown as { default: typeof earcutImport }).default;
 
 const CHUNK_M = 650;
 
@@ -143,7 +149,7 @@ export function buildingPalette(
   if (n.includes('shard')) {
     return { wall: [0.18, 0.22, 0.26], roof: [0.28, 0.32, 0.36], glass: 0.92 };
   }
-  if (n.includes("st paul") || n.includes("st. paul")) {
+  if (n.includes('st paul') || n.includes('st. paul')) {
     return { wall: [0.78, 0.74, 0.66], roof: [0.55, 0.42, 0.32], glass: 0.08 };
   }
   if (n.includes('westminster') || n.includes('parliament') || n.includes('elizabeth tower')) {
@@ -256,7 +262,7 @@ function triangulate(outer: Vec2[], holes: Vec2[][]): number[] {
 function extrudePolygon(
   w: Writer,
   outer: Vec2[],
-  holes: Vec2[],
+  holes: Vec2[][],
   minH: number,
   height: number,
   palette: BuildingPalette,
@@ -268,7 +274,18 @@ function extrudePolygon(
   const roofY = height;
   const tris = triangulate(outerCcw, holeCw);
   for (let i = 0; i < tris.length; i += 6) {
-    const a = addVertex(w, tris[i], roofY, tris[i + 1], 0, 1, 0, palette.roof[0], palette.roof[1], palette.roof[2]);
+    const a = addVertex(
+      w,
+      tris[i],
+      roofY,
+      tris[i + 1],
+      0,
+      1,
+      0,
+      palette.roof[0],
+      palette.roof[1],
+      palette.roof[2],
+    );
     const b = addVertex(
       w,
       tris[i + 2],
@@ -361,7 +378,13 @@ function eachLine(geometry: SimFeature['geometry'], visit: (line: LngLat[]) => v
   }
 }
 
-function addRibbon(w: Writer, points: Vec2[], width: number, y: number, color: [number, number, number]) {
+function addRibbon(
+  w: Writer,
+  points: Vec2[],
+  width: number,
+  y: number,
+  color: [number, number, number],
+) {
   if (points.length < 2) return;
   const left: Vec2[] = [];
   const right: Vec2[] = [];
@@ -381,14 +404,31 @@ function addRibbon(w: Writer, points: Vec2[], width: number, y: number, color: [
   for (let i = 0; i < points.length - 1; i++) {
     const a = addVertex(w, left[i].x, y, left[i].z, 0, 1, 0, color[0], color[1], color[2]);
     const b = addVertex(w, right[i].x, y, right[i].z, 0, 1, 0, color[0], color[1], color[2]);
-    const c = addVertex(w, right[i + 1].x, y, right[i + 1].z, 0, 1, 0, color[0], color[1], color[2]);
+    const c = addVertex(
+      w,
+      right[i + 1].x,
+      y,
+      right[i + 1].z,
+      0,
+      1,
+      0,
+      color[0],
+      color[1],
+      color[2],
+    );
     const d = addVertex(w, left[i + 1].x, y, left[i + 1].z, 0, 1, 0, color[0], color[1], color[2]);
     addTri(w, a, b, c);
     addTri(w, a, c, d);
   }
 }
 
-function addFlat(w: Writer, outer: Vec2[], holes: Vec2[], y: number, color: [number, number, number]) {
+function addFlat(
+  w: Writer,
+  outer: Vec2[],
+  holes: Vec2[][],
+  y: number,
+  color: [number, number, number],
+) {
   const outerCcw = ensureWinding(outer, true);
   const holeCw = holes.map((h) => ensureWinding(h, false));
   if (outerCcw.length < 3) return;
@@ -453,7 +493,12 @@ export async function buildCity(input: {
       const holes = holesLng.map(projectRing);
       if (outer.length < 3) return;
       const c = centroid(outer);
-      const palette = buildingPalette(props.building, props.height, props.name ?? null, props.osmId);
+      const palette = buildingPalette(
+        props.building,
+        props.height,
+        props.name ?? null,
+        props.osmId,
+      );
       extrudePolygon(
         getWriter(chunkKey(c.x, c.z, 'building')),
         outer,
@@ -532,6 +577,105 @@ export async function buildCity(input: {
     stats: {
       buildings: buildingCount,
       roads: roadFeatures.length,
+      parks,
+      water,
+      triangles,
+    },
+  };
+}
+
+export async function buildPackedCity(
+  packed: PackedCity,
+  onProgress?: (phase: string, ratio: number) => void,
+): Promise<CityMesh> {
+  const writers = new Map<string, Writer>();
+  const getWriter = (key: string) => {
+    let w = writers.get(key);
+    if (!w) {
+      w = makeWriter();
+      writers.set(key, w);
+    }
+    return w;
+  };
+
+  const pickables: Pickable[] = [];
+  for (let i = 0; i < packed.buildings.length; i++) {
+    const b = packed.buildings[i];
+    if (b.outer.length < 3) continue;
+    const building = BUILDING_KIND_NAMES[b.kind] ?? 'yes';
+    const c = centroid(b.outer);
+    const palette = buildingPalette(building, b.height, b.name ?? null, String(i));
+    extrudePolygon(
+      getWriter(chunkKey(c.x, c.z, 'building')),
+      b.outer,
+      [],
+      b.minHeight,
+      b.height,
+      palette,
+    );
+    if (b.name || b.height >= 70) {
+      pickables.push({
+        name: b.name ?? `${Math.round(b.height)}m ${building}`,
+        height: b.height,
+        x: c.x,
+        z: c.z,
+        building,
+      });
+    }
+    if (i % 500 === 0) {
+      onProgress?.('buildings', i / Math.max(1, packed.buildings.length));
+      await yieldFrame();
+    }
+  }
+
+  for (let i = 0; i < packed.roads.length; i++) {
+    const road = packed.roads[i];
+    if (road.points.length < 2) continue;
+    const c = road.points[Math.floor(road.points.length / 2)];
+    const highway = road.kind === 1 ? 'pedestrian' : road.kind === 2 ? 'motorway' : 'residential';
+    addRibbon(
+      getWriter(chunkKey(c.x, c.z, 'road')),
+      road.points,
+      road.width,
+      0.35,
+      roadColor(highway),
+    );
+    if (i % 300 === 0) {
+      onProgress?.('roads', i / Math.max(1, packed.roads.length));
+      await yieldFrame();
+    }
+  }
+
+  let parks = 0;
+  let water = 0;
+  for (const cover of packed.cover) {
+    if (cover.outer.length < 3) continue;
+    const c = centroid(cover.outer);
+    const color: [number, number, number] =
+      cover.kind === 'water' ? [0.12, 0.2, 0.26] : [0.27, 0.34, 0.24];
+    const y = cover.kind === 'water' ? 0.05 : 0.22;
+    addFlat(getWriter(chunkKey(c.x, c.z, cover.kind)), cover.outer, [], y, color);
+    if (cover.kind === 'water') water += 1;
+    else parks += 1;
+  }
+
+  const chunks: CityChunk[] = [];
+  let triangles = 0;
+  for (const [key, writer] of writers) {
+    const kind = key.split(':')[0] as CityChunk['kind'];
+    const chunk = finish(kind, key, writer);
+    if (!chunk) continue;
+    chunks.push(chunk);
+    triangles += chunk.indices.length / 3;
+  }
+
+  onProgress?.('mesh', 1);
+  return {
+    chunks,
+    pickables,
+    stats: {
+      buildings: packed.buildings.length,
+      roads: packed.roads.length,
       parks,
       water,
       triangles,

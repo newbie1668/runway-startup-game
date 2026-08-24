@@ -1,16 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import {
-  BUILDING_DATA_FILE,
-  LANDCOVER_DATA_FILE,
-  ROADS_DATA_FILE,
-  SIM_HUBS,
-  type SimHubId,
-} from '@/lib/sim/constants';
+import { SIM_HUBS, type SimHubId } from '@/lib/sim/constants';
 import { hubPose, lerpVec, overviewPose, pointPose, type CameraPose } from '@/lib/sim/camera';
 import type { CityMesh, Pickable } from '@/lib/sim/build-city';
-import type { BuildingProperties, LandcoverProperties, RoadProperties, SimFeatureCollection } from '@/lib/sim/types';
+import { COMPACT_PUBLIC_PATH } from '@/lib/sim/compact';
 
 export interface SimHudState {
   loading: boolean;
@@ -40,7 +34,11 @@ export function SimCanvas({ flyTo, flyGeneration, onHud, onInspect }: SimCanvasP
   const threeRef = useRef<{
     renderer: import('three').WebGLRenderer;
     camera: import('three').PerspectiveCamera;
-    controls: { target: { set: (x: number, y: number, z: number) => void; x: number; y: number; z: number }; enabled: boolean; update: () => void };
+    controls: {
+      target: { set: (x: number, y: number, z: number) => void; x: number; y: number; z: number };
+      enabled: boolean;
+      update: () => void;
+    };
     city: import('three').Group;
     pickables: Pickable[];
   } | null>(null);
@@ -65,15 +63,25 @@ export function SimCanvas({ flyTo, flyGeneration, onHud, onInspect }: SimCanvasP
       const THREE = await import('three');
       const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
       const { setupScene, createBuildingMaterial } = await import('@/lib/sim/scene-setup');
-      const { buildCity } = await import('@/lib/sim/build-city');
+      const { buildPackedCity } = await import('@/lib/sim/build-city');
+      const { unpackCity } = await import('@/lib/sim/compact');
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        powerPreference: 'high-performance',
+      });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
       renderer.setSize(host.clientWidth, host.clientHeight);
       host.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(52, host.clientWidth / Math.max(1, host.clientHeight), 2, 28000);
+      const camera = new THREE.PerspectiveCamera(
+        52,
+        host.clientWidth / Math.max(1, host.clientHeight),
+        2,
+        28000,
+      );
       setupScene(renderer, scene, camera);
 
       const controls = new OrbitControls(camera, renderer.domElement);
@@ -115,7 +123,7 @@ export function SimCanvas({ flyTo, flyGeneration, onHud, onInspect }: SimCanvasP
       try {
         hudRef.current({
           loading: true,
-          phase: 'Downloading OpenStreetMap extract',
+          phase: 'Downloading compact London mesh',
           ratio: 0.05,
           error: null,
           stats: null,
@@ -123,35 +131,28 @@ export function SimCanvas({ flyTo, flyGeneration, onHud, onInspect }: SimCanvasP
           selected: null,
           activeHub: 'overview',
         });
-        const [buildings, roads, landcover] = await Promise.all([
-          fetchJson<SimFeatureCollection<BuildingProperties>>(`/data/${BUILDING_DATA_FILE}`),
-          fetchJson<SimFeatureCollection<RoadProperties>>(`/data/${ROADS_DATA_FILE}`),
-          fetchJson<SimFeatureCollection<LandcoverProperties>>(`/data/${LANDCOVER_DATA_FILE}`),
-        ]);
+        const response = await fetch(COMPACT_PUBLIC_PATH);
+        if (!response.ok) throw new Error(`Missing ${COMPACT_PUBLIC_PATH} — run pnpm pack:sim`);
+        const buffer = await response.arrayBuffer();
         if (disposed) return;
-
-        const mesh = await buildCity({
-          buildings,
-          roads,
-          landcover,
-          onProgress: (phase, ratio) => {
-            if (disposed) return;
-            hudRef.current({
-              loading: true,
-              phase:
-                phase === 'buildings'
-                  ? 'Extruding footprints'
-                  : phase === 'roads'
-                    ? 'Laying streets'
-                    : 'Meshing London',
-              ratio: 0.15 + ratio * 0.75,
-              error: null,
-              stats: null,
-              pickables: [],
-              selected: null,
-              activeHub: 'overview',
-            });
-          },
+        const packed = unpackCity(buffer);
+        const mesh = await buildPackedCity(packed, (phase, ratio) => {
+          if (disposed) return;
+          hudRef.current({
+            loading: true,
+            phase:
+              phase === 'buildings'
+                ? 'Extruding footprints'
+                : phase === 'roads'
+                  ? 'Laying streets'
+                  : 'Meshing London',
+            ratio: 0.15 + ratio * 0.75,
+            error: null,
+            stats: null,
+            pickables: [],
+            selected: null,
+            activeHub: 'overview',
+          });
         });
         if (disposed) return;
 
@@ -257,8 +258,16 @@ export function SimCanvas({ flyTo, flyGeneration, onHud, onInspect }: SimCanvasP
         : flyTo.kind === 'hub'
           ? hubPose(SIM_HUBS.find((h) => h.id === flyTo.id)!)
           : pointPose(flyTo.x, flyTo.z, flyTo.height);
-    const fromPos = { x: ctx.camera.position.x, y: ctx.camera.position.y, z: ctx.camera.position.z };
-    const fromTarget = { x: ctx.controls.target.x, y: ctx.controls.target.y, z: ctx.controls.target.z };
+    const fromPos = {
+      x: ctx.camera.position.x,
+      y: ctx.camera.position.y,
+      z: ctx.camera.position.z,
+    };
+    const fromTarget = {
+      x: ctx.controls.target.x,
+      y: ctx.controls.target.y,
+      z: ctx.controls.target.z,
+    };
     const started = performance.now();
     const duration = 1400;
     ctx.controls.enabled = false;
@@ -279,15 +288,12 @@ export function SimCanvas({ flyTo, flyGeneration, onHud, onInspect }: SimCanvasP
   return <div ref={hostRef} className="absolute inset-0 h-full w-full" />;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Missing ${url} — run pnpm osm:fetch`);
-  }
-  return (await response.json()) as T;
-}
-
-function nearestPickable(items: Pickable[], x: number, z: number, maxDist: number): Pickable | null {
+function nearestPickable(
+  items: Pickable[],
+  x: number,
+  z: number,
+  maxDist: number,
+): Pickable | null {
   let best: Pickable | null = null;
   let bestD = maxDist;
   for (const item of items) {

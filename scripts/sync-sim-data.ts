@@ -1,12 +1,9 @@
-import { mkdir, copyFile, access } from 'node:fs/promises';
+import { mkdir, access } from 'node:fs/promises';
 import path from 'node:path';
-import { BUILDING_DATA_FILE, LANDCOVER_DATA_FILE, ROADS_DATA_FILE } from '../lib/sim/constants';
+import { COMPACT_FILE } from '../lib/sim/compact';
 
 const ROOT = process.cwd();
-const SRC = path.join(ROOT, 'data');
-const DEST = path.join(ROOT, 'public', 'data');
-
-const FILES = [BUILDING_DATA_FILE, ROADS_DATA_FILE, LANDCOVER_DATA_FILE];
+const SRC = path.join(ROOT, 'public', 'sim', COMPACT_FILE);
 
 async function exists(file: string): Promise<boolean> {
   try {
@@ -18,18 +15,15 @@ async function exists(file: string): Promise<boolean> {
 }
 
 async function main() {
-  await mkdir(DEST, { recursive: true });
-  let copied = 0;
-  for (const file of FILES) {
-    const from = path.join(SRC, file);
-    if (!(await exists(from))) {
-      console.warn(`skip missing ${from}`);
-      continue;
-    }
-    await copyFile(from, path.join(DEST, file));
-    copied += 1;
+  await mkdir(path.join(ROOT, 'public', 'sim'), { recursive: true });
+  if (!(await exists(SRC))) {
+    throw new Error(
+      `Missing ${SRC} — run pnpm pack:sim (do not copy the raw GeoJSON into public/)`,
+    );
   }
-  console.log(`Synced ${copied}/${FILES.length} OSM extracts to public/data`);
+  // Canonical runtime mesh already lives in public/sim. Keep public/data empty of GeoJSON.
+  await mkdir(path.join(ROOT, 'public', 'data'), { recursive: true });
+  console.log(`Sim mesh ready at public/sim/${COMPACT_FILE}`);
 }
 
 main().catch((error) => {

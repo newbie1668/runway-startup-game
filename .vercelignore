@@ -1,0 +1,3 @@
+# Clay-board extract stays in git for PR #22. Do not send 65MB JSON to Vercel.
+data/*.geojson
+data/.cache

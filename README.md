@@ -24,9 +24,10 @@ pnpm lint
 pnpm build
 ```
 
-`/sim` reads cached GeoJSON from `data/osm-central-london.geojson` (plus roads
-and landcover). Refresh the extract with `pnpm osm:fetch`. The clay-board work
-on the diorama branch can reuse the same building footprints.
+`/sim` fetches the compact mesh `public/sim/london.bin` (quantized footprints,
+not the raw 136k FeatureCollection). Rebuild that file with `pnpm pack:sim`.
+The clean GeoJSON extract stays in `data/` for the clay-board work; refresh it
+with `pnpm osm:fetch`. It is not requested on first paint of `/sim`.
 
 ## Repo Boundary
 
