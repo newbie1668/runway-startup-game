@@ -12,7 +12,8 @@
     "test:game": "tsx scripts/test-game.ts",
     "test:ui": "tsx scripts/test-ui.tsx",
     "test:sim": "tsx scripts/test-sim.ts",
-    "osm:fetch": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/fetch-osm-london.ts",
+    "osm:fetch": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/fetch-osm-london.ts && pnpm simplify:sim",
+    "simplify:sim": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/simplify-osm-london.ts",
     "pack:sim": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/pack-sim-mesh.ts",
     "sync:sim-data": "tsx scripts/sync-sim-data.ts"
   },

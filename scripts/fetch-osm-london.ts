@@ -6,9 +6,10 @@
  * (height, building:levels, highway, leisure, water) Overpass would have
  * returned. Runtime /sim never hits the network for geometry.
  *
- *   data/osm-central-london.geojson
- *   data/osm-central-london-roads.geojson
- *   data/osm-central-london-landcover.geojson
+ *   data/osm-central-london.geojson           (local / pack:sim only, gitignored)
+ *   data/osm-central-london-roads.geojson     (local / pack:sim only, gitignored)
+ *   data/osm-central-london-landcover.geojson (local / pack:sim only, gitignored)
+ *   data/osm-central-london-simplified.geojson (clay board for PR #22; committed)
  *
  * Usage: pnpm osm:fetch
  */
@@ -17,7 +18,12 @@ import { mkdir, writeFile, access } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { finished } from 'node:stream/promises';
 import path from 'node:path';
-import { BUILDING_DATA_FILE, LANDCOVER_DATA_FILE, OSM_BBOX, ROADS_DATA_FILE } from '../lib/sim/constants';
+import {
+  BUILDING_DATA_FILE,
+  LANDCOVER_DATA_FILE,
+  OSM_BBOX,
+  ROADS_DATA_FILE,
+} from '../lib/sim/constants';
 import {
   buildingFeature,
   collection,
@@ -34,7 +40,8 @@ const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, 'data');
 const CACHE_DIR = path.join(DATA_DIR, '.cache');
 const PBF_PATH = path.join(CACHE_DIR, 'greater-london-latest.osm.pbf');
-const PBF_URL = 'https://download.geofabrik.de/europe/united-kingdom/england/greater-london-latest.osm.pbf';
+const PBF_URL =
+  'https://download.geofabrik.de/europe/united-kingdom/england/greater-london-latest.osm.pbf';
 
 const MARGIN = 0.003;
 
@@ -148,7 +155,9 @@ async function main() {
       }
     }
     if (nodeCount > 0 && nodeCount % 1_000_000 < 8000) {
-      console.log(`  … ${nodeCount.toLocaleString('en-GB')} nodes, ${nodes.size.toLocaleString('en-GB')} in bbox`);
+      console.log(
+        `  … ${nodeCount.toLocaleString('en-GB')} nodes, ${nodes.size.toLocaleString('en-GB')} in bbox`,
+      );
     }
   });
 
@@ -163,11 +172,11 @@ async function main() {
     const tags = rel.tags ?? {};
     const interesting = Boolean(
       tags.building ||
-        tags.leisure ||
-        tags.landuse ||
-        tags.natural === 'water' ||
-        tags.waterway ||
-        tags.water,
+      tags.leisure ||
+      tags.landuse ||
+      tags.natural === 'water' ||
+      tags.waterway ||
+      tags.water,
     );
     if (!interesting) continue;
     const members = rel.members
@@ -175,9 +184,7 @@ async function main() {
       .map((m) => {
         const id = m.id ?? m.ref ?? 0;
         const geometry = wayGeom.get(id);
-        return geometry
-          ? { type: 'way', ref: id, role: m.role || 'outer', geometry }
-          : null;
+        return geometry ? { type: 'way', ref: id, role: m.role || 'outer', geometry } : null;
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
     if (members.length === 0) continue;
@@ -237,7 +244,9 @@ async function main() {
   const measured = buildings.filter(
     (f) => f.properties.heightSource === 'height' || f.properties.heightSource === 'levels',
   ).length;
-  console.log(`Wrote ${buildings.length} buildings (${named} named, ${measured} with OSM height/levels)`);
+  console.log(
+    `Wrote ${buildings.length} buildings (${named} named, ${measured} with OSM height/levels)`,
+  );
   console.log(`Wrote ${roads.length} roads`);
   console.log(`Wrote ${landcover.length} parks/water`);
   console.log(buildingPath);

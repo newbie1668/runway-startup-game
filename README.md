@@ -25,9 +25,11 @@ pnpm build
 ```
 
 `/sim` fetches the compact mesh `public/sim/london.bin` (quantized footprints,
-not the raw 136k FeatureCollection). Rebuild that file with `pnpm pack:sim`.
-The clean GeoJSON extract stays in `data/` for the clay-board work; refresh it
-with `pnpm osm:fetch`. It is not requested on first paint of `/sim`.
+not GeoJSON). Rebuild that file with `pnpm pack:sim` from the local full
+extract (`pnpm osm:fetch`). The clay board on PR #22 should use
+`data/osm-central-london-simplified.geojson` (hub-clustered, a few MB) — not
+the 50MB `data/osm-central-london.geojson`, which is gitignored and never
+requested on first paint of `/sim`. Rebuild the subset with `pnpm simplify:sim`.
 
 ## Repo Boundary
 

@@ -5,6 +5,10 @@ import {
   OSM_ATTRIBUTION,
   METERS_PER_LEVEL,
   OSM_ORIGIN,
+  METERS_PER_DEGREE_LAT,
+  METERS_PER_DEGREE_LNG,
+  SIMPLIFIED_DATA_FILE,
+  SIMPLIFIED_MAX_BYTES,
 } from '../lib/sim/constants';
 import {
   COMPACT_MAX_BYTES,
@@ -314,50 +318,76 @@ async function main() {
     },
   );
 
-  await checkAsync('cached extract is a clay-board-ready FeatureCollection', async () => {
-    const { existsSync, readFileSync } = await import('node:fs');
+  await checkAsync('simplified clay-board GeoJSON is a hub subset under a few MB', async () => {
+    const { existsSync, readFileSync, statSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const buildingsPath = join(process.cwd(), 'data', 'osm-central-london.geojson');
-    const roadsPath = join(process.cwd(), 'data', 'osm-central-london-roads.geojson');
-    const landPath = join(process.cwd(), 'data', 'osm-central-london-landcover.geojson');
-    if (!existsSync(buildingsPath)) {
-      console.log('  ↷ skip cached extract (run pnpm osm:fetch)');
-      return;
+    const simplifiedPath = join(process.cwd(), 'data', SIMPLIFIED_DATA_FILE);
+    const fullPath = join(process.cwd(), 'data', 'osm-central-london.geojson');
+    const gitignore = readFileSync(join(process.cwd(), '.gitignore'), 'utf8');
+    assert.match(gitignore, /osm-central-london\.geojson/);
+    assert.ok(existsSync(simplifiedPath), 'run pnpm simplify:sim');
+    const size = statSync(simplifiedPath).size;
+    assert.ok(size > 200_000, `simplified extract too small: ${size}`);
+    assert.ok(
+      size <= SIMPLIFIED_MAX_BYTES,
+      `simplified extract ${size} exceeds ${SIMPLIFIED_MAX_BYTES}`,
+    );
+    if (existsSync(fullPath)) {
+      assert.ok(
+        size < statSync(fullPath).size / 5,
+        'simplified file should be far smaller than the full extract',
+      );
     }
-    const buildings = JSON.parse(readFileSync(buildingsPath, 'utf8')) as {
+    const fc = JSON.parse(readFileSync(simplifiedPath, 'utf8')) as {
       type: string;
       attribution: string;
+      meta: { source: string };
       features: Array<{
-        properties: { height: number; osmId: string; layer: string };
-        geometry: { type: string };
+        properties: { height?: number; name?: string; layer: string; kind?: string };
+        geometry: { type: string; coordinates: number[][][] };
       }>;
     };
-    const roads = JSON.parse(readFileSync(roadsPath, 'utf8')) as { features: unknown[] };
-    const land = JSON.parse(readFileSync(landPath, 'utf8')) as {
-      features: Array<{ properties: { kind: string } }>;
-    };
-    assert.equal(buildings.type, 'FeatureCollection');
-    assert.match(buildings.attribution, /OpenStreetMap/);
+    assert.equal(fc.type, 'FeatureCollection');
+    assert.match(fc.attribution, /OpenStreetMap/);
+    assert.match(fc.meta.source, /clay board|PR #22/i);
+    const buildings = fc.features.filter((f) => f.properties.layer === 'building');
     assert.ok(
-      buildings.features.length > 8000,
-      `expected thousands of footprints, got ${buildings.features.length}`,
-    );
-    assert.equal(buildings.features[0]?.properties.layer, 'building');
-    assert.ok(buildings.features[0]?.properties.height > 0);
-    assert.ok(
-      buildings.features[0]?.geometry.type === 'Polygon' ||
-        buildings.features[0]?.geometry.type === 'MultiPolygon',
+      buildings.length > 1500 && buildings.length < 20_000,
+      `got ${buildings.length} buildings`,
     );
     assert.ok(
-      roads.features.length > 2000,
-      `expected a street network, got ${roads.features.length}`,
+      fc.features.some((f) => f.properties.layer === 'water' || f.properties.kind === 'water'),
+      'Thames / water should be in the clay subset',
     );
-    assert.ok(
-      land.features.some((f) => f.properties.kind === 'water'),
-      'Thames / water polygons should be in the landcover extract',
+    const blob = readFileSync(simplifiedPath, 'utf8');
+    assert.match(
+      blob,
+      /The Shard|One Canada Square|St Paul|Battersea Power|Palace of Westminster/i,
     );
-    const blob = readFileSync(buildingsPath, 'utf8');
-    assert.match(blob, /Shard|Canada Square|St Paul|Battersea|Westminster/i);
+    const packSrc = readFileSync(join(process.cwd(), 'scripts', 'pack-sim-mesh.ts'), 'utf8');
+    assert.match(packSrc, /osm-central-london-simplified\.geojson/);
+    for (const hub of SIM_HUBS) {
+      let nearby = 0;
+      for (const feature of buildings) {
+        const ring = feature.geometry.coordinates[0];
+        if (!ring?.length) continue;
+        const n = ring.length > 1 ? ring.length - 1 : ring.length;
+        let lng = 0;
+        let lat = 0;
+        for (let i = 0; i < n; i++) {
+          lng += ring[i][0];
+          lat += ring[i][1];
+        }
+        lng /= n;
+        lat /= n;
+        const dist = Math.hypot(
+          (lng - hub.lng) * METERS_PER_DEGREE_LNG,
+          (lat - hub.lat) * METERS_PER_DEGREE_LAT,
+        );
+        if (dist < 650) nearby += 1;
+      }
+      assert.ok(nearby >= 80, `${hub.name} should have clustered footprints, got ${nearby}`);
+    }
   });
 
   console.log(`\n${passed} tests passed`);

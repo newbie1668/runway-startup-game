@@ -59,8 +59,13 @@ outputs/
 brag-output*/
 .env.local
 
-# OSM Overpass resume cache (processed GeoJSON in data/ is committed)
+# OSM PBF resume cache
 data/.cache/
 
-# Copied at dev/build time from data/
+# Full 50MB+ extracts are local/pack:sim only. Clay board uses the simplified file.
+/data/osm-central-london.geojson
+/data/osm-central-london-roads.geojson
+/data/osm-central-london-landcover.geojson
+
+# Copied at dev/build time from data/ — never ship GeoJSON to the client
 public/data/*.geojson

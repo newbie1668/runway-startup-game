@@ -1,3 +1,4 @@
-# Clay-board extract stays in git for PR #22. Do not send 65MB JSON to Vercel.
+# GeoJSON is not needed on Vercel. /sim uses public/sim/london.bin.
+# The simplified clay-board file stays in git for PR #22; do not upload it.
 data/*.geojson
 data/.cache

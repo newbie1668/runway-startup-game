@@ -60,6 +60,9 @@ export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 export const BUILDING_DATA_FILE = 'osm-central-london.geojson';
 export const ROADS_DATA_FILE = 'osm-central-london-roads.geojson';
 export const LANDCOVER_DATA_FILE = 'osm-central-london-landcover.geojson';
+/** Clay-board subset for PR #22. Not the /sim runtime mesh. */
+export const SIMPLIFIED_DATA_FILE = 'osm-central-london-simplified.geojson';
+export const SIMPLIFIED_MAX_BYTES = 3.5 * 1024 * 1024;
 
 /** Storey height used when OSM only has building:levels (typical UK). */
 export const METERS_PER_LEVEL = 3.1;

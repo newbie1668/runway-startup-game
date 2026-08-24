@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   transpilePackages: ['three'],
-  // Clay-board GeoJSON stays in git for PR #22; do not trace it into serverless.
+  // Do not trace OSM GeoJSON (full or simplified) into serverless.
   outputFileTracingExcludes: {
     '*': ['./data/**/*.geojson', './data/.cache/**'],
   },

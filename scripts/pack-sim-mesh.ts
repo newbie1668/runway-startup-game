@@ -1,6 +1,7 @@
 /**
- * Pack the clay-board GeoJSON into a quantized binary the /sim client fetches.
- * The raw FeatureCollection stays in data/ for PR #22 and is not copied to public/.
+ * Pack the full local GeoJSON extract into the quantized binary /sim fetches.
+ * The 50MB FeatureCollection is gitignored. PR #22 uses the simplified subset
+ * (data/osm-central-london-simplified.geojson), not this packer input.
  *
  * Usage: pnpm pack:sim
  */
