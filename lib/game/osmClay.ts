@@ -115,8 +115,8 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       if (!line) continue;
       const highway = String(props.highway ?? '');
       const widthM = typeof props.width === 'number' ? props.width : 8;
-      let halfW = clamp(widthM * 0.012, 0.07, 0.4);
-      if (highway === 'pedestrian') halfW = Math.min(halfW, 0.11);
+      let halfW = clamp(widthM * 0.04, 0.22, 1.05);
+      if (highway === 'pedestrian') halfW = Math.min(halfW, 0.42);
       roads.push({
         line,
         halfW,

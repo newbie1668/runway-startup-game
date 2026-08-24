@@ -1041,8 +1041,8 @@ function addOsmFabric(
     const line: WorldPoint[] = road.line.map(([lng, lat]) => project([lng, lat]));
     carLines.push(line);
     try {
-      roadGeos.push(ribbonGeometry(line, road.halfW, LAND_Y + 0.03));
-      if (road.painted) paintGeos.push(ribbonGeometry(line, 0.028, LAND_Y + 0.04));
+      roadGeos.push(ribbonGeometry(line, road.halfW, LAND_Y + 0.1));
+      if (road.painted) paintGeos.push(ribbonGeometry(line, 0.045, LAND_Y + 0.11));
     } catch {
       /* skip */
     }
@@ -1096,6 +1096,9 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     color: 0x3b3f45,
     roughness: 0.92,
     metalness: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
   const paintMat = new THREE.MeshStandardMaterial({
     color: 0xf5f1e8,
