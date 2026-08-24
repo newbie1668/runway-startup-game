@@ -71,8 +71,16 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
       __runwayFocus?: (id: string) => void;
       __runwayFit?: () => void;
     };
-    w.__runwayFocus = (id) => renderer.focusHub(id as never);
-    w.__runwayFit = () => renderer.fitAll();
+    w.__runwayFocus = (id) => renderer.snapHub(id as never);
+    w.__runwayFit = () => renderer.snapAll();
+    (w as unknown as { __runwayPose?: () => unknown }).__runwayPose = () => {
+      const cam = (renderer as unknown as { camera: { position: { x: number; y: number; z: number } } }).camera;
+      const tgt = (renderer as unknown as { controls: { target: { x: number; y: number; z: number } } }).controls;
+      return {
+        cam: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+        target: { x: tgt.target.x, y: tgt.target.y, z: tgt.target.z },
+      };
+    };
 
     const buttons = new Map<string, HTMLButtonElement>();
 

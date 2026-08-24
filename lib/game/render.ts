@@ -94,12 +94,12 @@ type HubShot = { lng: number; lat: number; dist: number; theta: number; y: numbe
 const HUB_SHOTS: Record<HubId, HubShot> = {
   shoreditch: { lng: -0.0874, lat: 51.5256, dist: 26, theta: -0.52, y: 1.1 },
   kingscross: { lng: -0.1252, lat: 51.5322, dist: 30, theta: 0.18, y: 1.4 },
-  soho: { lng: -0.1352, lat: 51.5134, dist: 26, theta: -0.38, y: 1.2 },
+  soho: { lng: -0.1298, lat: 51.5166, dist: 22, theta: -0.4, y: 2.2 },
   farringdon: { lng: -0.1018, lat: 51.5188, dist: 24, theta: -0.12, y: 1.15 },
-  canarywharf: { lng: -0.0194, lat: 51.5049, dist: 32, theta: 0.42, y: 2.4 },
-  londonbridge: { lng: -0.0888, lat: 51.5048, dist: 30, theta: 0.58, y: 1.6 },
-  camden: { lng: -0.1482, lat: 51.5422, dist: 26, theta: 0.22, y: 1.3 },
-  battersea: { lng: -0.1446, lat: 51.4818, dist: 28, theta: 0.12, y: 2.2 },
+  canarywharf: { lng: -0.0194, lat: 51.5049, dist: 26, theta: 0.42, y: 3.2 },
+  londonbridge: { lng: -0.0864, lat: 51.5045, dist: 28, theta: 0.45, y: 3.0 },
+  camden: { lng: -0.1494, lat: 51.5431, dist: 26, theta: 3.05, y: 1.6 },
+  battersea: { lng: -0.1446, lat: 51.4818, dist: 11, theta: 0.28, y: 13 },
 };
 
 function ll3(lng: number, lat: number, y: number): THREE.Vector3 {
@@ -294,7 +294,7 @@ export class MapRenderer {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.07;
-    this.controls.minDistance = 12;
+    this.controls.minDistance = 8;
     this.controls.maxDistance = 220;
     this.controls.maxPolarAngle = Math.PI * 0.42;
     this.controls.minPolarAngle = Math.PI * 0.16;
@@ -342,6 +342,24 @@ export class MapRenderer {
     const { pos, target } = poseForShot(HUB_SHOTS[hubId]);
     this.startFlight(pos, target, 1.15, true);
     this.select({ type: 'hub', hubId });
+  }
+
+  /** Instant camera pose for stills / tests (no flight, no rAF). */
+  snapHub(hubId: HubId) {
+    const { pos, target } = poseForShot(HUB_SHOTS[hubId]);
+    this.flight = null;
+    this.camera.position.copy(pos);
+    this.controls.target.copy(target);
+    this.camera.lookAt(target);
+    this.controls.update();
+  }
+
+  snapAll() {
+    this.flight = null;
+    this.camera.position.copy(CITY_EYE);
+    this.controls.target.copy(CITY_TARGET);
+    this.camera.lookAt(CITY_TARGET);
+    this.controls.update();
   }
 
   /** Hide HTML pills + 3D caption sprites so the miniature has to read on its own. */

@@ -35,8 +35,39 @@ const THAMES_WORLD: WorldPoint[] = THAMES.map(project);
 const CLAY = { roughness: 0.9, metalness: 0.02 } as const;
 const CANDY = [0xe11d48, 0x0d9488, 0xf59e0b, 0x2563eb, 0xf8fafc, 0x111827, 0xda291c] as const;
 
+function clayGrain(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 32;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(32, 32);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = 168 + ((i * 17 + 11) % 62);
+    img.data[i] = n;
+    img.data[i + 1] = n;
+    img.data[i + 2] = n;
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const CLAY_GRAIN = clayGrain();
+
 function clayMat(color: number, extras: Record<string, number> = {}) {
-  return new THREE.MeshStandardMaterial({ color, ...CLAY, ...extras, flatShading: true });
+  return new THREE.MeshStandardMaterial({
+    color,
+    ...CLAY,
+    ...extras,
+    flatShading: true,
+    bumpMap: extras.bumpMap ? undefined : CLAY_GRAIN,
+    bumpScale: extras.bumpScale ?? 0.045,
+    roughnessMap: extras.roughnessMap ? undefined : CLAY_GRAIN,
+  });
 }
 
 function offsetWorld(line: readonly WorldPoint[], dist: number): WorldPoint[] {
@@ -741,9 +772,9 @@ function addNeighbourhoods(
 
   // --- Canary Wharf: towers sitting in the dock basins ---
   const canada = ll3(-0.0194, 51.5049);
-  addBoxLL(group, -0.0194, 51.5049, 2.05, 11.4, 2.05, glass, 0.2);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.45, 2.6, 4), cream);
-  cap.position.set(canada.x, LAND_Y + 13.7, canada.z);
+  addBoxLL(group, -0.0194, 51.5049, 2.25, 12.2, 2.25, glass, 0.2);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.95, 3.6, 4), cream);
+  cap.position.set(canada.x, LAND_Y + 14.0, canada.z);
   cap.rotation.y = 0.2;
   cap.castShadow = true;
   group.add(cap);

@@ -490,6 +490,7 @@ export function GameApp() {
         )}
 
         <button
+          data-chrome="sound"
           onClick={toggleMute}
           title="Toggle sound (M)"
           aria-label={muted ? 'Turn sound on' : 'Mute sound'}
