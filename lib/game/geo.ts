@@ -1,13 +1,14 @@
 /**
  * RUNWAY — hand-drawn London geometry.
  *
- * A stylised vector map of central London: the Thames (with its famous
- * S-bend around the Isle of Dogs), simplified tube lines in their real TfL
- * colours, the big parks, and a few landmark glyphs. Coordinates are real
- * lng/lat, projected into a small "world unit" space the 3D board uses.
+ * A stylised vector map of central London: the Thames (the S-bend around the
+ * Isle of Dogs is the spine), parks, landmarks, and OSM-style city-block
+ * footprints. Coordinates are real lng/lat, projected into world units the
+ * 3D board extrudes. Tube lines are intentionally absent — this is a
+ * tabletop city, not a TfL diagram.
  *
- * This is deliberately NOT Mapbox: the game map is self-contained, needs no
- * token, and is extruded from these polygons into a miniature diorama.
+ * This is deliberately NOT Mapbox / Google Earth / a store mesh: the game
+ * map is self-contained and extruded from these polygons.
  */
 
 export type LngLat = readonly [number, number]; // [lng, lat]
@@ -176,117 +177,6 @@ export const PARKS: readonly Park[] = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Tube lines (real TfL colours, simplified routes)
-// ---------------------------------------------------------------------------
-
-export interface TubeLine {
-  name: string;
-  color: string;
-  points: readonly LngLat[];
-}
-
-export const TUBE_LINES: readonly TubeLine[] = [
-  {
-    name: 'Central',
-    color: '#E32017',
-    points: [
-      [-0.224, 51.5045],
-      [-0.196, 51.509],
-      [-0.158, 51.5135],
-      [-0.141, 51.515],
-      [-0.12, 51.5172],
-      [-0.097, 51.515],
-      [-0.089, 51.5133],
-      [-0.083, 51.5178],
-      [-0.055, 51.527],
-      [-0.033, 51.525],
-      [0.0, 51.541],
-    ],
-  },
-  {
-    name: 'Victoria',
-    color: '#0098D4',
-    points: [
-      [-0.115, 51.462],
-      [-0.124, 51.486],
-      [-0.134, 51.489],
-      [-0.144, 51.4965],
-      [-0.143, 51.507],
-      [-0.141, 51.515],
-      [-0.138, 51.5245],
-      [-0.133, 51.528],
-      [-0.124, 51.53],
-      [-0.104, 51.546],
-    ],
-  },
-  {
-    name: 'Jubilee',
-    color: '#A0A5A9',
-    points: [
-      [-0.157, 51.5225],
-      [-0.149, 51.514],
-      [-0.143, 51.507],
-      [-0.125, 51.501],
-      [-0.113, 51.5035],
-      [-0.105, 51.504],
-      [-0.086, 51.505],
-      [-0.064, 51.498],
-      [-0.05, 51.498],
-      [-0.019, 51.5035],
-      [0.004, 51.5],
-      [0.008, 51.514],
-    ],
-  },
-  {
-    name: 'Northern',
-    color: '#3d3d46',
-    points: [
-      [-0.138, 51.462],
-      [-0.123, 51.472],
-      [-0.113, 51.482],
-      [-0.1, 51.494],
-      [-0.094, 51.501],
-      [-0.088, 51.505],
-      [-0.089, 51.5133],
-      [-0.089, 51.518],
-      [-0.088, 51.526],
-      [-0.106, 51.532],
-      [-0.124, 51.53],
-      [-0.143, 51.539],
-    ],
-  },
-  {
-    name: 'Elizabeth',
-    color: '#6950A1',
-    points: [
-      [-0.176, 51.5163],
-      [-0.149, 51.514],
-      [-0.13, 51.516],
-      [-0.105, 51.52],
-      [-0.083, 51.5178],
-      [-0.06, 51.5192],
-      [-0.015, 51.5055],
-    ],
-  },
-  {
-    name: 'Piccadilly',
-    color: '#003688',
-    points: [
-      [-0.174, 51.494],
-      [-0.16, 51.5005],
-      [-0.153, 51.5028],
-      [-0.143, 51.507],
-      [-0.134, 51.51],
-      [-0.128, 51.5113],
-      [-0.124, 51.513],
-      [-0.12, 51.5172],
-      [-0.1245, 51.523],
-      [-0.124, 51.53],
-    ],
-  },
-] as const;
-
-// ---------------------------------------------------------------------------
 // Area labels + landmarks
 // ---------------------------------------------------------------------------
 
@@ -309,14 +199,7 @@ export const AREA_LABELS: readonly AreaLabel[] = [
 ] as const;
 
 export type LandmarkKind =
-  | 'eye'
-  | 'shard'
-  | 'bigben'
-  | 'bttower'
-  | 'stpauls'
-  | 'o2'
-  | 'towerbridge'
-  | 'powerstation';
+  'eye' | 'shard' | 'bigben' | 'bttower' | 'stpauls' | 'o2' | 'towerbridge' | 'powerstation';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -451,6 +334,14 @@ export const DISTRICTS: readonly District[] = [
     tone: 'stone',
   },
   {
+    name: 'Clerkenwell',
+    bbox: [-0.112, -0.096, 51.518, 51.526],
+    count: 55,
+    h: [0.45, 1.7],
+    tall: 0.05,
+    tone: 'brick',
+  },
+  {
     name: 'Fill North',
     bbox: [-0.26, 0.05, 51.49, 51.548],
     count: 420,
@@ -467,3 +358,210 @@ export const DISTRICTS: readonly District[] = [
     tone: 'fill',
   },
 ];
+
+export const LAND_SLAB: readonly LngLat[] = [
+  [LON_MIN, LAT_MIN],
+  [LON_MAX, LAT_MIN],
+  [LON_MAX, LAT_MAX],
+  [LON_MIN, LAT_MAX],
+];
+
+export interface CityBlock {
+  ring: LngLat[];
+  h: number;
+  tone: District['tone'];
+}
+
+function rectRing(lng: number, lat: number, wLng: number, hLat: number): LngLat[] {
+  const hw = wLng / 2;
+  const hd = hLat / 2;
+  return [
+    [lng - hw, lat - hd],
+    [lng + hw, lat - hd],
+    [lng + hw, lat + hd],
+    [lng - hw, lat + hd],
+  ];
+}
+
+function lRing(
+  lng: number,
+  lat: number,
+  w: number,
+  d: number,
+  cutW: number,
+  cutD: number,
+): LngLat[] {
+  const x0 = lng - w / 2;
+  const x1 = lng + w / 2;
+  const y0 = lat - d / 2;
+  const y1 = lat + d / 2;
+  const cx = x1 - cutW;
+  const cy = y1 - cutD;
+  return [
+    [x0, y0],
+    [x1, y0],
+    [x1, cy],
+    [cx, cy],
+    [cx, y1],
+    [x0, y1],
+  ];
+}
+
+function hash01(i: number, j: number, salt = 1): number {
+  let n = (i * 374761393 + j * 668265263 + salt * 1274126177) >>> 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n >>> 0) % 10000) / 10000;
+}
+
+function degDist(a: LngLat, b: LngLat): number {
+  const dx = (a[0] - b[0]) * LAT_COS;
+  const dy = a[1] - b[1];
+  return Math.hypot(dx, dy);
+}
+
+const THAMES_PROJECTED: readonly WorldPoint[] = THAMES.map(project);
+
+function nearLandmark(lng: number, lat: number): boolean {
+  for (const lm of LANDMARKS) {
+    const clear =
+      lm.kind === 'shard' ||
+      lm.kind === 'eye' ||
+      lm.kind === 'bigben' ||
+      lm.kind === 'stpauls' ||
+      lm.kind === 'towerbridge'
+        ? 0.0042
+        : 0.0026;
+    if (degDist([lng, lat], lm.at) < clear) return true;
+  }
+  return false;
+}
+
+function grainFor(name: string) {
+  switch (name) {
+    case 'Canary Wharf':
+      return { stepLng: 0.00155, stepLat: 0.001, streetCol: 3, streetRow: 3, inset: 0.2 };
+    case 'The City':
+      return { stepLng: 0.00142, stepLat: 0.00095, streetCol: 4, streetRow: 3, inset: 0.16 };
+    case 'South Bank':
+      return { stepLng: 0.0017, stepLat: 0.0011, streetCol: 4, streetRow: 3, inset: 0.2 };
+    case 'West End':
+      return { stepLng: 0.00112, stepLat: 0.0008, streetCol: 3, streetRow: 3, inset: 0.14 };
+    case 'Shoreditch':
+      return { stepLng: 0.0019, stepLat: 0.00122, streetCol: 4, streetRow: 3, inset: 0.12 };
+    case "King's Cross":
+      return { stepLng: 0.00215, stepLat: 0.00112, streetCol: 3, streetRow: 4, inset: 0.15 };
+    case 'Camden':
+      return { stepLng: 0.0017, stepLat: 0.00115, streetCol: 4, streetRow: 3, inset: 0.18 };
+    case 'Battersea':
+      return { stepLng: 0.002, stepLat: 0.0013, streetCol: 3, streetRow: 3, inset: 0.16 };
+    case 'Westminster':
+      return { stepLng: 0.0015, stepLat: 0.001, streetCol: 4, streetRow: 3, inset: 0.18 };
+    case 'Clerkenwell':
+      return { stepLng: 0.00138, stepLat: 0.00095, streetCol: 4, streetRow: 3, inset: 0.15 };
+    default:
+      return { stepLng: 0.0054, stepLat: 0.0036, streetCol: 4, streetRow: 3, inset: 0.24 };
+  }
+}
+
+const AUTHORED: CityBlock[] = [
+  // Canary Wharf cluster — 1 Canada Square and neighbours, real-ish pads.
+  { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 9.6, tone: 'glass' },
+  { ring: rectRing(-0.0174, 51.5055, 0.00135, 0.00105), h: 8.4, tone: 'glass' },
+  { ring: rectRing(-0.0216, 51.5045, 0.0017, 0.00095), h: 7.2, tone: 'glass' },
+  { ring: rectRing(-0.0144, 51.5052, 0.0021, 0.001), h: 6.6, tone: 'glass' },
+  { ring: rectRing(-0.0238, 51.5061, 0.00115, 0.0019), h: 8.8, tone: 'glass' },
+  { ring: rectRing(-0.0262, 51.5035, 0.001, 0.00155), h: 7.5, tone: 'glass' },
+  { ring: rectRing(-0.0182, 51.5033, 0.00145, 0.0009), h: 5.4, tone: 'glass' },
+  { ring: rectRing(-0.0126, 51.5038, 0.0017, 0.00115), h: 5.0, tone: 'glass' },
+  { ring: rectRing(-0.0208, 51.5068, 0.0012, 0.001), h: 6.1, tone: 'glass' },
+  // City — Bank / Gherkin pad / Barbican grain.
+  { ring: rectRing(-0.0807, 51.5145, 0.0011, 0.0011), h: 6.4, tone: 'glass' },
+  { ring: rectRing(-0.088, 51.5155, 0.0023, 0.00135), h: 4.1, tone: 'stone' },
+  { ring: rectRing(-0.0832, 51.5136, 0.0016, 0.0017), h: 5.2, tone: 'glass' },
+  { ring: rectRing(-0.0935, 51.517, 0.0026, 0.0015), h: 2.7, tone: 'stone' },
+  { ring: rectRing(-0.0962, 51.5142, 0.0017, 0.0021), h: 3.3, tone: 'stone' },
+  { ring: lRing(-0.0864, 51.5178, 0.0024, 0.0018, 0.0011, 0.0008), h: 2.9, tone: 'stone' },
+  // King's Cross — train-shed bars.
+  { ring: rectRing(-0.1255, 51.5318, 0.0048, 0.00095), h: 1.45, tone: 'stone' },
+  { ring: rectRing(-0.123, 51.5304, 0.0042, 0.00085), h: 1.25, tone: 'stone' },
+  { ring: rectRing(-0.1276, 51.5342, 0.0025, 0.00135), h: 1.7, tone: 'brick' },
+  { ring: rectRing(-0.1212, 51.5336, 0.0022, 0.0016), h: 2.1, tone: 'glass' },
+  // Shoreditch warehouses.
+  { ring: rectRing(-0.0775, 51.5258, 0.0028, 0.0014), h: 1.15, tone: 'brick' },
+  { ring: rectRing(-0.0812, 51.5244, 0.0022, 0.0018), h: 1.05, tone: 'brick' },
+  { ring: lRing(-0.084, 51.5272, 0.0026, 0.0019, 0.0011, 0.0009), h: 0.95, tone: 'brick' },
+  { ring: rectRing(-0.0738, 51.5266, 0.0031, 0.0012), h: 1.35, tone: 'brick' },
+  // Soho terrace strips.
+  { ring: rectRing(-0.1342, 51.5132, 0.0007, 0.0024), h: 0.95, tone: 'stone' },
+  { ring: rectRing(-0.1356, 51.5134, 0.00065, 0.0022), h: 0.88, tone: 'brick' },
+  { ring: rectRing(-0.1328, 51.5126, 0.0007, 0.0026), h: 1.02, tone: 'stone' },
+  { ring: rectRing(-0.1368, 51.5118, 0.0018, 0.0007), h: 0.82, tone: 'brick' },
+  // Battersea industrial.
+  { ring: rectRing(-0.1478, 51.4794, 0.0034, 0.0016), h: 1.55, tone: 'brick' },
+  { ring: rectRing(-0.1412, 51.4788, 0.0026, 0.0018), h: 1.25, tone: 'brick' },
+  { ring: rectRing(-0.139, 51.4826, 0.0022, 0.0012), h: 2.4, tone: 'glass' },
+  // Camden market sheds.
+  { ring: rectRing(-0.1428, 51.5406, 0.0024, 0.0011), h: 0.72, tone: 'brick' },
+  { ring: rectRing(-0.1455, 51.5392, 0.0018, 0.0015), h: 0.85, tone: 'brick' },
+];
+
+function namedBboxContains(lng: number, lat: number): boolean {
+  for (const d of DISTRICTS) {
+    if (d.tone === 'fill') continue;
+    const [lng0, lng1, lat0, lat1] = d.bbox;
+    if (lng >= lng0 && lng <= lng1 && lat >= lat0 && lat <= lat1) return true;
+  }
+  return false;
+}
+
+function pushGrid(out: CityBlock[], district: District) {
+  const [lng0, lng1, lat0, lat1] = district.bbox;
+  const g = grainFor(district.name);
+  const fill = district.tone === 'fill';
+  let col = 0;
+  for (let lng = lng0; lng < lng1 - g.stepLng * 0.35; lng += g.stepLng) {
+    col += 1;
+    let row = 0;
+    for (let lat = lat0; lat < lat1 - g.stepLat * 0.35; lat += g.stepLat) {
+      row += 1;
+      if (col % g.streetCol === 0 || row % g.streetRow === 0) continue;
+      const lngC = lng + g.stepLng * 0.5;
+      const latC = lat + g.stepLat * 0.5;
+      if (fill && namedBboxContains(lngC, latC)) continue;
+      if (!isOnLand(lngC, latC) || isInPark(lngC, latC)) continue;
+      if (nearLandmark(lngC, latC)) continue;
+      if (distToPolyline(project([lngC, latC]), THAMES_PROJECTED) < 2.5) continue;
+      const n = hash01(col, row, district.name.length);
+      if (fill && n > 0.58) continue;
+      const inset = g.inset + n * 0.08;
+      const w = g.stepLng * (1 - inset);
+      const d = g.stepLat * (1 - inset * 0.9);
+      const h0 = district.h[0];
+      const span = district.h[1] - district.h[0];
+      const tall = n < district.tall;
+      const h = tall ? h0 + (0.55 + n * 0.45) * span : h0 + Math.pow(n, 1.45) * span * 0.72;
+      const ring =
+        n > 0.72 && n < 0.86
+          ? lRing(lngC, latC, w * 1.15, d * 1.1, w * 0.45, d * 0.42)
+          : n > 0.86
+            ? rectRing(lngC, latC, w * 1.55, d * 0.72)
+            : rectRing(lngC, latC, w, d);
+      out.push({ ring, h, tone: district.tone });
+    }
+  }
+}
+
+function buildCityBlocks(): CityBlock[] {
+  const out: CityBlock[] = [...AUTHORED];
+  for (const d of DISTRICTS) {
+    if (d.tone === 'fill') continue;
+    pushGrid(out, d);
+  }
+  for (const d of DISTRICTS) {
+    if (d.tone !== 'fill') continue;
+    pushGrid(out, d);
+  }
+  return out;
+}
+
+export const CITY_BLOCKS: readonly CityBlock[] = buildCityBlocks();
