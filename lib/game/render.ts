@@ -95,10 +95,10 @@ const HUB_SHOTS: Record<HubId, HubShot> = {
   shoreditch: { lng: -0.0874, lat: 51.5256, dist: 26, theta: -0.52, y: 1.1 },
   kingscross: { lng: -0.1252, lat: 51.5322, dist: 30, theta: 0.18, y: 1.4 },
   soho: { lng: -0.1326, lat: 51.515, dist: 18, theta: -0.32, y: 2.6 },
-  farringdon: { lng: -0.1040, lat: 51.5186, dist: 8.8, theta: 2.38, y: 2.45 },
+  farringdon: { lng: -0.1052, lat: 51.5187, dist: 11.2, theta: 2.12, y: 2.05 },
   canarywharf: { lng: -0.0194, lat: 51.5026, dist: 40, theta: 0.52, y: 5.4 },
   londonbridge: { lng: -0.0864, lat: 51.5045, dist: 28, theta: 0.45, y: 3.0 },
-  camden: { lng: -0.1494, lat: 51.5431, dist: 26, theta: 3.05, y: 1.6 },
+  camden: { lng: -0.1479, lat: 51.5418, dist: 15, theta: 3.08, y: 1.35 },
   battersea: { lng: -0.1446, lat: 51.4818, dist: 11, theta: 0.28, y: 13 },
 };
 
