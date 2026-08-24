@@ -393,6 +393,20 @@ async function main() {
     assert.ok(palace && (palace.geometry.coordinates as number[][][]).length > 1, 'Palace holes');
     assert.ok(shard && ringLen(shard) >= 20, 'The Shard should keep its OSM ring');
     assert.ok(canada && ringLen(canada) >= 20, 'One Canada Square should keep its OSM ring');
+    const eye = exact('London Eye');
+    const monument = exact('The Monument to the Great Fire of London');
+    const elizabeth = exact('Elizabeth Tower');
+    const kpmg = exact('KPMG');
+    assert.ok(
+      eye && ringLen(eye) > 20,
+      `London Eye should be a readable disc, not a ${eye ? ringLen(eye) : 0}-vert pier`,
+    );
+    assert.ok(
+      monument && ringLen(monument) > 20,
+      'Monument should be a disc, not a 5-vert OSM base',
+    );
+    assert.ok(elizabeth && ringLen(elizabeth) <= 8, 'Elizabeth Tower stays a square tower');
+    assert.ok(kpmg && ringLen(kpmg) <= 6, 'ordinary named blocks stay capped, not disc-ified');
     const packSrc = readFileSync(join(process.cwd(), 'scripts', 'pack-sim-mesh.ts'), 'utf8');
     assert.match(packSrc, /osm-central-london-simplified\.geojson/);
     const midpoints: Array<[(typeof SIM_HUBS)[number]['id'], (typeof SIM_HUBS)[number]['id']]> = [
@@ -450,11 +464,32 @@ async function main() {
   });
 
   await checkAsync('sim stills are in-repo for GitHub pixel-score', async () => {
-    const { existsSync, statSync } = await import('node:fs');
+    const { existsSync, readFileSync, statSync } = await import('node:fs');
     const { join } = await import('node:path');
     for (const file of ['whole-board.png', 'thames.png', 'canary-wharf.png', 'westminster.png']) {
       const shot = join(process.cwd(), 'docs', 'sim-london', file);
       assert.ok(existsSync(shot), `missing ${file}`);
+      assert.ok(
+        statSync(shot).size > 200_000,
+        `${file} looks empty (${statSync(shot).size} bytes)`,
+      );
+    }
+    const extractClient = readFileSync(
+      join(process.cwd(), 'scripts', 'extract-still-client.ts'),
+      'utf8',
+    );
+    assert.match(extractClient, /extract\.geojson/);
+    assert.doesNotMatch(extractClient, /london\.bin/);
+    assert.doesNotMatch(extractClient, /COMPACT_PUBLIC_PATH/);
+    for (const file of [
+      'extract-whole-board.png',
+      'extract-streets.png',
+      'extract-canary.png',
+      'extract-westminster.png',
+      'extract-farringdon.png',
+    ]) {
+      const shot = join(process.cwd(), 'docs', 'sim-london', file);
+      assert.ok(existsSync(shot), `missing ${file} — run pnpm stills:extract`);
       assert.ok(
         statSync(shot).size > 200_000,
         `${file} looks empty (${statSync(shot).size} bytes)`,

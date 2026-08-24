@@ -15,7 +15,8 @@
     "osm:fetch": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/fetch-osm-london.ts && pnpm simplify:sim",
     "simplify:sim": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/simplify-osm-london.ts",
     "pack:sim": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/pack-sim-mesh.ts",
-    "sync:sim-data": "tsx scripts/sync-sim-data.ts"
+    "sync:sim-data": "tsx scripts/sync-sim-data.ts",
+    "stills:extract": "tsx scripts/render-extract-stills.ts"
   },
   "dependencies": {
     "earcut": "^3.2.3",
@@ -31,6 +32,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.185.4",
+    "esbuild": "0.28.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "osm-pbf-parser": "^2.3.0",

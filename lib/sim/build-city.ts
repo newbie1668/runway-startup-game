@@ -459,6 +459,17 @@ function roadColor(highway: string): [number, number, number] {
   return [0.16, 0.16, 0.17];
 }
 
+/** Throwaway extract stills only. /sim keeps the default dark asphalt. */
+export interface CityPreviewOptions {
+  roadColor?: [number, number, number];
+  waterColor?: [number, number, number];
+  parkColor?: [number, number, number];
+  roadY?: number;
+  waterY?: number;
+  parkY?: number;
+  roadWidthScale?: number;
+}
+
 export function worldExtentMeters(): { width: number; depth: number } {
   const sw = projectLngLat(OSM_BBOX.west, OSM_BBOX.south);
   const ne = projectLngLat(OSM_BBOX.east, OSM_BBOX.north);
@@ -470,6 +481,7 @@ export async function buildCity(input: {
   roads: SimFeatureCollection<RoadProperties>;
   landcover: SimFeatureCollection<LandcoverProperties>;
   onProgress?: (phase: string, ratio: number) => void;
+  preview?: CityPreviewOptions;
 }): Promise<CityMesh> {
   const writers = new Map<string, Writer>();
   const getWriter = (key: string) => {
@@ -533,8 +545,11 @@ export async function buildCity(input: {
       const pts = line.map(([lng, lat]) => projectLngLat(lng, lat));
       if (pts.length < 2) return;
       const c = pts[Math.floor(pts.length / 2)];
-      const width = props.width || ROAD_WIDTH_M[props.highway] || 6;
-      addRibbon(getWriter(chunkKey(c.x, c.z, 'road')), pts, width, 0.35, roadColor(props.highway));
+      const width =
+        (props.width || ROAD_WIDTH_M[props.highway] || 6) * (input.preview?.roadWidthScale ?? 1);
+      const y = input.preview?.roadY ?? 0.35;
+      const color = input.preview?.roadColor ?? roadColor(props.highway);
+      addRibbon(getWriter(chunkKey(c.x, c.z, 'road')), pts, width, y, color);
     });
     if (i % 300 === 0) {
       input.onProgress?.('roads', i / Math.max(1, roadFeatures.length));
@@ -547,8 +562,10 @@ export async function buildCity(input: {
   for (const feature of input.landcover.features) {
     const kind = feature.properties.kind;
     const color: [number, number, number] =
-      kind === 'water' ? [0.12, 0.2, 0.26] : [0.27, 0.34, 0.24];
-    const y = kind === 'water' ? 0.05 : 0.22;
+      kind === 'water'
+        ? (input.preview?.waterColor ?? [0.12, 0.2, 0.26])
+        : (input.preview?.parkColor ?? [0.27, 0.34, 0.24]);
+    const y = kind === 'water' ? (input.preview?.waterY ?? 0.05) : (input.preview?.parkY ?? 0.22);
     eachPolygon(feature.geometry, (outerLng, holesLng) => {
       const outer = projectRing(outerLng);
       const holes = holesLng.map(projectRing);

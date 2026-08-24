@@ -11,6 +11,8 @@ import path from 'node:path';
 import {
   BUILDING_DATA_FILE,
   LANDCOVER_DATA_FILE,
+  METERS_PER_DEGREE_LAT,
+  METERS_PER_DEGREE_LNG,
   OSM_ATTRIBUTION,
   OSM_BBOX,
   ROADS_DATA_FILE,
@@ -45,11 +47,20 @@ const COVER_TOLERANCE = 5e-5;
 const ROAD_TOLERANCE = 2e-5;
 
 const LANDMARK_NAME =
-  /shard|st paul|canada square|bishopsgate|battersea power|elizabeth tower|bt tower|st mary axe|fenchurch|palace of westminster|30 st mary/i;
+  /shard|st paul|canada square|bishopsgate|battersea power|elizabeth tower|bt tower|st mary axe|fenchurch|palace of westminster|30 st mary|london eye|monument to the great fire/i;
 
 /** Named silhouettes keep full OSM rings — no 10-vert (or 128-vert) cap. */
 const SILHOUETTE_LANDMARK =
-  /^(the shard|one canada square|22 bishopsgate( tower)?|st\.? paul'?s cathedral|battersea power station|palace of westminster|elizabeth tower|bt tower|30 st mary axe)$/i;
+  /^(the shard|one canada square|22 bishopsgate( tower)?|st\.? paul'?s cathedral|battersea power station|palace of westminster|elizabeth tower|bt tower|30 st mary axe|london eye|the monument to the great fire of london)$/i;
+
+/** OSM only mapped these as tiny piers/bases (≤5 verts). Synthesize a readable disc. */
+const DISC_SILHOUETTE = /^(london eye|the monument to the great fire of london)$/i;
+const DISC_VERTS = 36;
+const DISC_RADIUS_M: Record<string, number> = {
+  'london eye': 60,
+  'the monument to the great fire of london': 6,
+};
+const SPARSE_SILHOUETTE_VERTS = 5;
 
 const KEEP_PARK_NAMES = new Set([
   'hyde park',
@@ -264,6 +275,63 @@ function isSilhouetteLandmark(feature: SimFeature<BuildingProperties>): boolean 
   return feature.properties.height >= 70;
 }
 
+function namedSilhouette(feature: SimFeature<BuildingProperties>): boolean {
+  const name = feature.properties.name?.trim() ?? '';
+  return Boolean(name && SILHOUETTE_LANDMARK.test(name));
+}
+
+function uniqueVertCount(ring: LngLat[]): number {
+  const closed =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1];
+  return closed ? ring.length - 1 : ring.length;
+}
+
+function ringRadiusM(ring: LngLat[]): number {
+  const [lng, lat] = centroid(ring);
+  const origin = projectLngLat(lng, lat);
+  const closed =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1];
+  const open = closed ? ring.slice(0, -1) : ring;
+  let max = 0;
+  for (const p of open) {
+    const q = projectLngLat(p[0], p[1]);
+    max = Math.max(max, Math.hypot(q.x - origin.x, q.z - origin.z));
+  }
+  return max;
+}
+
+function synthesizeDisc(center: LngLat, radiusM: number, n = DISC_VERTS): LngLat[] {
+  const [lng, lat] = center;
+  const dLat = radiusM / METERS_PER_DEGREE_LAT;
+  const dLng = radiusM / METERS_PER_DEGREE_LNG;
+  const ring: LngLat[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    ring.push([
+      roundCoord(lng + Math.cos(a) * dLng, COORD_DECIMALS),
+      roundCoord(lat + Math.sin(a) * dLat, COORD_DECIMALS),
+    ]);
+  }
+  ring.push(ring[0]);
+  return ring;
+}
+
+function discRadiusFor(feature: SimFeature<BuildingProperties>, outer: LngLat[]): number {
+  const key = (feature.properties.name ?? '').trim().toLowerCase();
+  if (key in DISC_RADIUS_M) return DISC_RADIUS_M[key];
+  return Math.max(6, ringRadiusM(outer));
+}
+
+function shouldSynthesizeDisc(feature: SimFeature<BuildingProperties>, outer: LngLat[]): boolean {
+  const name = feature.properties.name?.trim() ?? '';
+  if (name && DISC_SILHOUETTE.test(name)) return true;
+  return namedSilhouette(feature) && uniqueVertCount(outer) <= SPARSE_SILHOUETTE_VERTS;
+}
+
 function quantizeRings(rings: LngLat[][]): LngLat[][] {
   return rings.map(quantizeRing).filter((ring) => ring.length >= 4);
 }
@@ -439,6 +507,11 @@ async function main() {
   ) => {
     const outFeatures: SimFeature<SimProperties>[] = [];
     for (const row of buildingRows) {
+      if (shouldSynthesizeDisc(row.feature, row.ring)) {
+        const disc = synthesizeDisc(centroid(row.ring), discRadiusFor(row.feature, row.ring));
+        outFeatures.push(slimBuilding(row.feature, { type: 'Polygon', coordinates: [disc] }));
+        continue;
+      }
       if (isSilhouetteLandmark(row.feature)) {
         const geometry = preserveLandmarkGeometry(row.feature.geometry);
         if (!geometry) continue;
