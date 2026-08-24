@@ -8,15 +8,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { HUBS, hubById, sectorById } from '@/lib/game/content';
-import {
-  LAND_NORTH,
-  LAND_SOUTH,
-  PARKS,
-  THAMES,
-  WORLD,
-  centerWorld,
-  project,
-} from '@/lib/game/geo';
+import { LAND_NORTH, LAND_SOUTH, PARKS, THAMES, WORLD, centerWorld, project } from '@/lib/game/geo';
 import { STAGE_LEGEND, stageBandFromName } from '@/lib/game/stageBand';
 import type { HitTarget, Scene } from '@/lib/game/render';
 import type { GameState, HubId } from '@/lib/game/types';
@@ -71,6 +63,8 @@ export function AtlasHud({
   const card = describePin(selected, scene, game);
   const pinCount = 8 + scene.rivals.filter((r) => r.alive).length + scene.events.length;
 
+  if (!play) return null;
+
   return (
     <>
       <div
@@ -98,7 +92,9 @@ export function AtlasHud({
                     on ? 'bg-sky-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <span className={`font-mono text-[11px] ${on ? 'text-sky-700' : 'text-slate-400'}`}>
+                  <span
+                    className={`font-mono text-[11px] ${on ? 'text-sky-700' : 'text-slate-400'}`}
+                  >
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span className="truncate font-semibold">{item.name}</span>
@@ -110,7 +106,10 @@ export function AtlasHud({
           <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-200/80 pt-2 text-[11px] font-medium text-slate-600">
             {STAGE_LEGEND.map((item) => (
               <span key={item.label} className="inline-flex items-center gap-1.5">
-                <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: item.color }} />
+                <i
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: item.color }}
+                />
                 {item.label}
               </span>
             ))}
@@ -146,21 +145,14 @@ export function AtlasHud({
           </article>
         )}
 
-        {screen !== 'title' && (
-          <p className={`${glass} px-3 py-2 text-[11px] leading-snug font-medium text-slate-600`}>
-            <span className="font-bold text-slate-800">How to explore</span>
-            <br />
-            ↑↓ neighbourhoods · ⌘K search · click a pin
-            <br />
-            drag to orbit · scroll to zoom
-            {play ? (
-              <>
-                <br />
-                B G H P T I · N next week · 1–3 events
-              </>
-            ) : null}
-          </p>
-        )}
+        <p className={`${glass} px-3 py-2 text-[11px] leading-snug font-medium text-slate-600`}>
+          <span className="font-bold text-slate-800">How to explore</span>
+          <br />
+          ↑↓ neighbourhoods · ⌘K search · click a pin
+          <br />
+          drag to orbit · scroll to zoom
+          <br />B G H P T I · N next week · 1–3 events
+        </p>
       </div>
 
       <div className="pointer-events-none absolute top-3 right-14 z-30 hidden md:block">
@@ -177,7 +169,12 @@ export function AtlasHud({
       </div>
 
       {searchOpen && (
-        <SearchPanel scene={scene} game={game} onPick={onPick} onClose={() => onSearchOpen(false)} />
+        <SearchPanel
+          scene={scene}
+          game={game}
+          onPick={onPick}
+          onClose={() => onSearchOpen(false)}
+        />
       )}
 
       <MiniMap cluster={cluster} selected={selected} onCluster={onCluster} />
@@ -325,7 +322,8 @@ function SearchPanel({
 }
 
 function buildSearchIndex(scene: Scene, game: GameState | null) {
-  const items: { key: string; title: string; hint: string; haystack: string; hit: HitTarget }[] = [];
+  const items: { key: string; title: string; hint: string; haystack: string; hit: HitTarget }[] =
+    [];
   if (scene.companyName && scene.playerHubId) {
     items.push({
       key: 'player',
@@ -377,7 +375,8 @@ function MiniMap({
   onCluster: (id: ClusterId) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const selectedHub = selected?.type === 'hub' ? selected.hubId : cluster === 'all' ? null : cluster;
+  const selectedHub =
+    selected?.type === 'hub' ? selected.hubId : cluster === 'all' ? null : cluster;
 
   useEffect(() => {
     const canvas = canvasRef.current;

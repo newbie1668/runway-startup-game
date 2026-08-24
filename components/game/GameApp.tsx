@@ -126,6 +126,10 @@ export function GameApp() {
     sfx.muted = muted;
   }, [muted]);
 
+  useEffect(() => {
+    rendererRef.current?.setCaptionsVisible(screen === 'play');
+  }, [screen]);
+
   // Persist the run after every committed change (external-system sync only).
   useEffect(() => {
     if (!game) return;
@@ -503,7 +507,10 @@ export function GameApp() {
 
         {/* Title screen */}
         {screen === 'title' && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-5 md:p-8">
+          <div
+            data-chrome="title"
+            className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-5 md:p-8"
+          >
             <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/15 bg-[#0b1226]/72 p-5 text-center shadow-2xl shadow-black/30 backdrop-blur-xl md:p-6">
               <p className="text-xs font-black tracking-[0.5em] text-sky-300">
                 LONDON STARTUP MAP PRESENTS
@@ -546,33 +553,35 @@ export function GameApp() {
 
         {/* Setup overlay */}
         {screen === 'setup' && (
-          <SetupOverlay
-            step={setupStep}
-            name={draftName}
-            sectorId={draftSector}
-            hubChoice={hubChoice}
-            onName={setDraftName}
-            onSector={(s) => {
-              setDraftSector(s);
-              sfx.play('click');
-            }}
-            onHub={(hubId) => {
-              setHubChoice(hubId);
-              sfx.play('click');
-              flyCluster(hubId);
-            }}
-            onRollName={rollName}
-            onToHq={() => {
-              setSetupStep('hq');
-              sfx.play('confirm');
-              rendererRef.current?.fitAll();
-            }}
-            onBack={() => {
-              if (setupStep === 'hq') setSetupStep('identity');
-              else setScreen('title');
-            }}
-            onConfirm={foundCompany}
-          />
+          <div data-chrome="setup">
+            <SetupOverlay
+              step={setupStep}
+              name={draftName}
+              sectorId={draftSector}
+              hubChoice={hubChoice}
+              onName={setDraftName}
+              onSector={(s) => {
+                setDraftSector(s);
+                sfx.play('click');
+              }}
+              onHub={(hubId) => {
+                setHubChoice(hubId);
+                sfx.play('click');
+                flyCluster(hubId);
+              }}
+              onRollName={rollName}
+              onToHq={() => {
+                setSetupStep('hq');
+                sfx.play('confirm');
+                rendererRef.current?.fitAll();
+              }}
+              onBack={() => {
+                if (setupStep === 'hq') setSetupStep('identity');
+                else setScreen('title');
+              }}
+              onConfirm={foundCompany}
+            />
+          </div>
         )}
 
         {/* Toast */}

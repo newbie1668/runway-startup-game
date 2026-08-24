@@ -234,6 +234,7 @@ function makeSkyTexture(): THREE.CanvasTexture {
 }
 
 function addChip(group: THREE.Group, text: string, at: THREE.Vector3, y = 2.2) {
+  return;
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 48;
@@ -525,27 +526,29 @@ function addLandmark(group: THREE.Group, lm: Landmark, at: THREE.Vector3) {
   }
 
   if (kind === 'powerstation') {
-    addPart(group, new THREE.BoxGeometry(4.6, 1.55, 2.1), brick, at.x, y0 + 0.78, at.z);
-    addPart(group, new THREE.BoxGeometry(4.2, 0.35, 2.3), cream, at.x, y0 + 1.65, at.z);
-    for (const dx of [-1.45, -0.5, 0.5, 1.45]) {
+    addPart(group, new THREE.BoxGeometry(8.4, 2.6, 4.2), brick, at.x, y0 + 1.3, at.z);
+    addPart(group, new THREE.BoxGeometry(7.6, 1.15, 3.6), brick, at.x, y0 + 3.15, at.z);
+    addPart(group, new THREE.BoxGeometry(8.0, 0.45, 4.5), cream, at.x, y0 + 2.7, at.z);
+    addPart(group, new THREE.BoxGeometry(3.4, 1.8, 3.4), cream, at.x + 0.2, y0 + 4.4, at.z);
+    for (const dx of [-2.7, -0.9, 0.9, 2.7]) {
       addPart(
         group,
-        new THREE.CylinderGeometry(0.22, 0.28, 3.4, 10),
+        new THREE.CylinderGeometry(0.42, 0.52, 7.6, 12),
         cream,
         at.x + dx,
-        y0 + 3.4,
-        at.z,
+        y0 + 7.4,
+        at.z - 0.15,
       );
       addPart(
         group,
-        new THREE.CylinderGeometry(0.18, 0.22, 0.35, 10),
+        new THREE.CylinderGeometry(0.32, 0.42, 0.55, 12),
         dark,
         at.x + dx,
-        y0 + 5.2,
-        at.z,
+        y0 + 11.35,
+        at.z - 0.15,
       );
     }
-    addChip(group, lm.name, at, 5.8);
+    addChip(group, lm.name, at, 12.2);
     return;
   }
 
@@ -633,7 +636,7 @@ function addCylLL(
   return mesh;
 }
 
-/** Distinctive clay so hubs AND central boroughs read without a caption. */
+/** Distinctive clay so each hub reads without a name pill. */
 function addNeighbourhoods(
   group: THREE.Group,
   reduced: boolean,
@@ -648,170 +651,186 @@ function addNeighbourhoods(
   },
 ) {
   const { brick, stone, glass, asphalt, park, dark, cream } = mats;
+  const candy = [0xe11d48, 0x2563eb, 0xf59e0b, 0x0d9488, 0xf8fafc, 0x111827];
+  const terracotta = clayMat(0xc45c3e);
+  const roof = clayMat(0x6b4b3e);
 
-  // --- King's Cross: two train sheds, St Pancras towers, gasholder, granary plaza ---
-  addBarrelShed(group, -0.1256, 51.5319, 7.4, 2.15, 1.55, 0.04, brick);
-  addBarrelShed(group, -0.1232, 51.5305, 6.6, 1.95, 1.35, 0.04, brick);
-  addBoxLL(group, -0.1288, 51.5316, 1.15, 2.35, 1.35, brick, 0.04);
-  addBoxLL(group, -0.1294, 51.5324, 0.55, 3.1, 0.55, brick, 0.04);
-  addBoxLL(group, -0.1282, 51.5324, 0.55, 3.1, 0.55, brick, 0.04);
-  const plaza = addBoxLL(group, -0.1255, 51.5348, 3.4, 0.07, 2.4, cream, 0.1);
+  // --- King's Cross: train sheds, St Pancras towers, gasholder ---
+  addBarrelShed(group, -0.1258, 51.5318, 11.2, 3.15, 2.45, 0.04, brick);
+  addBarrelShed(group, -0.123, 51.5304, 10.4, 2.85, 2.15, 0.04, brick);
+  addBoxLL(group, -0.1288, 51.5316, 1.55, 3.4, 1.85, brick, 0.04);
+  addBoxLL(group, -0.1296, 51.5326, 0.72, 5.4, 0.72, brick, 0.04);
+  addBoxLL(group, -0.128, 51.5326, 0.72, 5.4, 0.72, brick, 0.04);
+  addBoxLL(group, -0.1288, 51.5328, 1.85, 1.15, 0.7, roof, 0.04);
+  const plaza = addBoxLL(group, -0.1255, 51.5348, 4.2, 0.08, 3.0, cream, 0.1);
   plaza.castShadow = false;
   const holder = ll3(-0.1182, 51.5356);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.09, 8, 24), brick);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.16, 10, 36), terracotta);
   ring.rotation.x = Math.PI / 2;
-  ring.position.set(holder.x, LAND_Y + 1.05, holder.z);
+  ring.position.set(holder.x, LAND_Y + 1.85, holder.z);
   ring.castShadow = true;
   group.add(ring);
-  addBoxLL(group, -0.1206, 51.5332, 4.2, 1.7, 0.95, glass, 0.08);
+  addCylLL(group, -0.1182, 51.5356, 1.85, 1.85, 0.18, brick, 28).position.y = LAND_Y + 0.12;
+  addBoxLL(group, -0.1206, 51.5332, 5.4, 2.35, 1.25, glass, 0.08);
 
-  // --- Shoreditch: Old Street roundabout + Boxpark containers ---
-  const round = ll3(-0.0842, 51.5258);
-  const island = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.08, 20), park);
-  island.position.set(round.x, LAND_Y + 0.04, round.z);
-  const curb = new THREE.Mesh(new THREE.TorusGeometry(1.62, 0.32, 8, 28), asphalt);
+  // --- Shoreditch: Old Street circus + Boxpark ---
+  const round = ll3(-0.0874, 51.5256);
+  const island = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 1.85, 0.1, 28), park);
+  island.position.set(round.x, LAND_Y + 0.05, round.z);
+  const curb = new THREE.Mesh(new THREE.TorusGeometry(2.65, 0.48, 10, 40), asphalt);
   curb.rotation.x = Math.PI / 2;
-  curb.position.set(round.x, LAND_Y + 0.05, round.z);
-  group.add(island, curb);
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
+  curb.position.set(round.x, LAND_Y + 0.06, round.z);
+  const inner = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.08, 8, 32), cream);
+  inner.rotation.x = Math.PI / 2;
+  inner.position.set(round.x, LAND_Y + 0.08, round.z);
+  group.add(island, curb, inner);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
     addBoxLL(
       group,
-      -0.0842 + Math.cos(a) * 0.00255,
-      51.5258 + Math.sin(a) * 0.0016,
-      1.15,
-      0.85 + (i % 3) * 0.18,
-      0.72,
+      -0.0874 + Math.cos(a) * 0.0036,
+      51.5256 + Math.sin(a) * 0.0022,
+      1.45,
+      1.05 + (i % 3) * 0.28,
+      0.92,
       brick,
       -a,
     );
   }
-  const candy = [0xe11d48, 0x2563eb, 0xf59e0b, 0x0d9488, 0xf8fafc, 0x111827];
-  for (let i = 0; i < (reduced ? 6 : 10); i++) {
-    const col = i % 5;
-    const row = Math.floor(i / 5);
+  for (let i = 0; i < (reduced ? 8 : 12); i++) {
+    const col = i % 6;
+    const row = Math.floor(i / 6);
     const box = addBoxLL(
       group,
-      -0.0776 + col * 0.00055,
-      51.5222 + row * 0.0005,
-      0.42,
+      -0.0818 + col * 0.00062,
+      51.5224 + row * 0.00055,
+      0.55,
+      0.34,
       0.28,
-      0.22,
       clayMat(candy[i % candy.length]),
-      0.15,
+      0.18,
     );
-    box.position.y = LAND_Y + 0.14 + row * 0.3;
+    box.position.y = LAND_Y + 0.18 + row * 0.36;
   }
 
-  // --- Soho: Centre Point slab + terrace bars hugging the squares ---
-  addBoxLL(group, -0.1306, 51.5166, 1.05, 6.4, 1.05, cream, 0.12);
-  addBoxLL(group, -0.1348, 51.5136, 0.48, 1.25, 2.85, brick, 0.02);
-  addBoxLL(group, -0.1362, 51.5128, 0.46, 1.15, 2.55, stone, 0.02);
-  addBoxLL(group, -0.1336, 51.5132, 0.44, 1.2, 2.65, brick, 0.04);
-  addBoxLL(group, -0.1374, 51.5118, 2.15, 0.95, 0.44, stone, 0.02);
-  addBoxLL(group, -0.1322, 51.5152, 2.05, 0.9, 0.42, brick, 0.08);
-
-  // --- Farringdon: Smithfield bays ---
-  for (let i = 0; i < 6; i++) {
-    const lng = -0.1044 + i * 0.00095;
-    addBoxLL(group, lng, 51.5186, 0.95, 1.15, 1.65, brick, 0);
-    addBoxLL(group, lng, 51.5186, 0.78, 0.42, 1.45, dark, 0);
-    const roof = addBoxLL(group, lng, 51.5186, 1.02, 0.32, 1.68, dark, 0);
-    roof.rotation.z = 0.45;
-    roof.position.y = LAND_Y + 1.32;
+  // --- Soho: terrace square + Centre Point ---
+  addBoxLL(group, -0.1298, 51.5166, 1.25, 8.2, 1.25, cream, 0.12);
+  addBoxLL(group, -0.1298, 51.5166, 1.45, 0.35, 1.45, dark, 0.12).position.y = LAND_Y + 8.35;
+  const sohoSq = addBoxLL(group, -0.1355, 51.5132, 3.6, 0.07, 3.2, park, 0);
+  sohoSq.castShadow = false;
+  for (const [lng, lat, yaw] of [
+    [-0.1378, 51.5132, 0.02],
+    [-0.1332, 51.5132, 0.02],
+    [-0.1355, 51.5148, 1.57],
+    [-0.1355, 51.5116, 1.57],
+  ] as const) {
+    addBoxLL(group, lng, lat, 0.55, 1.45, 3.15, brick, yaw);
+    addBoxLL(group, lng, lat, 0.62, 0.22, 3.25, roof, yaw).position.y = LAND_Y + 1.55;
   }
 
-  // --- Canary Wharf: pyramid cap on 1 Canada Square ---
+  // --- Farringdon: Smithfield halls ---
+  for (let i = 0; i < 7; i++) {
+    const lng = -0.1054 + i * 0.00105;
+    addBoxLL(group, lng, 51.5187, 1.15, 1.55, 2.25, brick, 0);
+    const hall = addBoxLL(group, lng, 51.5187, 0.95, 0.55, 2.05, dark, 0);
+    hall.rotation.z = 0.52;
+    hall.position.y = LAND_Y + 1.72;
+  }
+  addCylLL(group, -0.1018, 51.5188, 0.85, 0.95, 0.7, cream, 8).position.y = LAND_Y + 2.15;
+  addCylLL(group, -0.1018, 51.5188, 0.15, 0.2, 0.9, dark, 8).position.y = LAND_Y + 2.85;
+
+  // --- Canary Wharf: towers sitting in the dock basins ---
   const canada = ll3(-0.0194, 51.5049);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.82, 1.55, 4), cream);
-  cap.position.set(canada.x, LAND_Y + 12.95, canada.z);
+  addBoxLL(group, -0.0194, 51.5049, 2.05, 11.4, 2.05, glass, 0.2);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.45, 2.6, 4), cream);
+  cap.position.set(canada.x, LAND_Y + 13.7, canada.z);
   cap.rotation.y = 0.2;
   cap.castShadow = true;
   group.add(cap);
+  addBoxLL(group, -0.0236, 51.5058, 1.55, 9.2, 1.55, glass, 0.08);
+  addBoxLL(group, -0.0158, 51.5054, 1.7, 8.1, 1.35, glass, 0.35);
+  addBoxLL(group, -0.0212, 51.5036, 1.35, 7.4, 1.35, glass, -0.1);
+  addBoxLL(group, -0.0172, 51.5032, 1.85, 6.2, 1.15, cream, 0.15);
+  addBoxLL(group, -0.0254, 51.5038, 1.2, 5.6, 1.2, glass, 0.4);
 
-  // --- London Bridge: Borough Market peaks ---
-  for (let i = 0; i < 8; i++) {
-    const lng = -0.0918 + (i % 4) * 0.00075;
-    const lat = 51.5051 + Math.floor(i / 4) * 0.0006;
-    addBoxLL(group, lng, lat, 0.9, 0.7, 0.9, brick, 0.1);
-    const peak = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.55, 4), dark);
+  // --- London Bridge: Borough Market peaks under the Shard ---
+  for (let i = 0; i < 12; i++) {
+    const lng = -0.0926 + (i % 4) * 0.00085;
+    const lat = 51.5052 + Math.floor(i / 4) * 0.00062;
+    addBoxLL(group, lng, lat, 1.05, 0.85, 1.05, brick, 0.12);
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(0.78, 0.85, 4), roof);
     const q = ll3(lng, lat);
-    peak.position.set(q.x, LAND_Y + 0.98, q.z);
+    peak.position.set(q.x, LAND_Y + 1.28, q.z);
     peak.rotation.y = 0.8;
+    peak.castShadow = true;
     group.add(peak);
   }
-  addBarrelShed(group, -0.0864, 51.5038, 4.6, 1.55, 1.25, 1.12, stone);
+  addBarrelShed(group, -0.0864, 51.5038, 6.2, 2.05, 1.85, 1.12, stone);
 
-  // --- Camden: Roundhouse + lock horseshoe stalls ---
+  // --- Camden: Roundhouse drum + lock horseshoe ---
   const rh = ll3(-0.1494, 51.5431);
-  const drum = new THREE.Mesh(new THREE.CylinderGeometry(1.65, 1.75, 1.25, 16), brick);
-  drum.position.set(rh.x, LAND_Y + 0.62, rh.z);
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.65, 2.05, 20), brick);
+  drum.position.set(rh.x, LAND_Y + 1.05, rh.z);
   drum.castShadow = true;
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.85, 0.75, 16), dark);
-  cone.position.set(rh.x, LAND_Y + 1.62, rh.z);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(2.75, 1.35, 20), roof);
+  cone.position.set(rh.x, LAND_Y + 2.7, rh.z);
   group.add(drum, cone);
-  for (let i = 0; i < (reduced ? 7 : 12); i++) {
-    const a = -0.2 + (i / 11) * Math.PI * 1.15;
+  addCylLL(group, -0.1494, 51.5431, 0.55, 0.65, 1.1, dark, 10).position.y = LAND_Y + 2.15;
+  for (let i = 0; i < (reduced ? 9 : 14); i++) {
+    const a = -0.15 + (i / 13) * Math.PI * 1.25;
     addBoxLL(
       group,
-      -0.1462 + Math.cos(a) * 0.00135,
-      51.5408 + Math.sin(a) * 0.0009,
-      0.28,
-      0.22,
-      0.22,
+      -0.1464 + Math.cos(a) * 0.00185,
+      51.5406 + Math.sin(a) * 0.0012,
+      0.38,
+      0.32,
+      0.32,
       clayMat(candy[i % candy.length]),
       -a,
     );
   }
+  addBoxLL(group, -0.1462, 51.5408, 2.4, 0.22, 0.55, dark, 0.4);
+  addBoxLL(group, -0.1454, 51.5412, 0.18, 0.85, 1.15, stone, 0.4);
+  addBoxLL(group, -0.147, 51.5404, 0.18, 0.85, 1.15, stone, 0.4);
 
-  // --- Battersea: riverside bars already extruded; add a circus drum by the park ---
-  addBoxLL(group, -0.1408, 51.4836, 3.6, 1.55, 0.9, glass, 0.05);
+  // --- Battersea: riverside circus; chimneys come from the landmark ---
+  addBoxLL(group, -0.1408, 51.4836, 4.4, 1.85, 1.15, glass, 0.05);
   const circus = ll3(-0.1378, 51.4796);
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.18, 20), cream);
-  disc.position.set(circus.x, LAND_Y + 0.12, circus.z);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 0.22, 24), cream);
+  disc.position.set(circus.x, LAND_Y + 0.14, circus.z);
   group.add(disc);
 
-  // --- City pickle (reads as the Square Mile from the east) ---
+  // --- City pickle ---
   const gherkin = ll3(-0.0803, 51.5145);
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.7, 5.2, 10), glass);
-  shaft.position.set(gherkin.x, LAND_Y + 2.7, gherkin.z);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.92, 6.4, 12), glass);
+  shaft.position.set(gherkin.x, LAND_Y + 3.3, gherkin.z);
   shaft.castShadow = true;
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.SphereGeometry(0.64, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
     glass,
   );
-  dome.position.set(gherkin.x, LAND_Y + 5.25, gherkin.z);
+  dome.position.set(gherkin.x, LAND_Y + 6.5, gherkin.z);
   group.add(shaft, dome);
 
   // --- South Bank: National Theatre stacks ---
-  addBoxLL(group, -0.1148, 51.5073, 2.1, 1.15, 1.6, stone, 0.2);
-  addBoxLL(group, -0.1138, 51.507, 1.35, 1.7, 1.15, stone, 0.2);
-  addBoxLL(group, -0.0996, 51.5077, 2.4, 1.05, 1.35, brick, 0.15);
-  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 3.5, 8), brick);
+  addBoxLL(group, -0.1148, 51.5073, 2.4, 1.45, 1.9, stone, 0.2);
+  addBoxLL(group, -0.1138, 51.507, 1.55, 2.05, 1.35, stone, 0.2);
+  addBoxLL(group, -0.0996, 51.5077, 2.7, 1.25, 1.55, brick, 0.15);
+  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 4.2, 8), brick);
   const tate = ll3(-0.0994, 51.5077);
-  chimney.position.set(tate.x + 0.7, LAND_Y + 2.3, tate.z);
+  chimney.position.set(tate.x + 0.7, LAND_Y + 2.7, tate.z);
   chimney.castShadow = true;
   group.add(chimney);
 
   const gold = clayMat(0xe4c56a, { roughness: 0.48, metalness: 0.18 });
 
-  // --- Westminster: Whitehall spine, Horse Guards, Nelson's Column ---
+  // --- Westminster spine ---
   addBoxLL(group, -0.1266, 51.5036, 0.85, 1.65, 6.8, stone, 0.08);
   addBoxLL(group, -0.1284, 51.5046, 2.65, 1.25, 1.05, stone, 0.12);
-  addBoxLL(group, -0.1288, 51.5042, 0.78, 1.35, 2.25, stone, 0.12);
-  addBoxLL(group, -0.1272, 51.5042, 0.78, 1.35, 2.25, stone, 0.12);
   addCylLL(group, -0.1281, 51.508, 0.18, 0.26, 5.1, stone, 10);
   addCylLL(group, -0.1281, 51.508, 0.36, 0.36, 0.24, gold, 10).position.y = LAND_Y + 5.25;
-  for (const [dx, dz] of [
-    [-0.0012, -0.0008],
-    [0.0012, -0.0008],
-    [-0.0012, 0.0008],
-    [0.0012, 0.0008],
-  ] as const) {
-    addBoxLL(group, -0.1281 + dx, 51.508 + dz, 0.62, 0.42, 0.62, stone, 0);
-  }
 
-  // --- Bloomsbury fabric between Soho and King's Cross: British Museum court ---
+  // --- British Museum court ---
   addBoxLL(group, -0.1269, 51.5199, 4.4, 1.45, 0.9, stone, 0);
   addBoxLL(group, -0.1285, 51.5188, 0.9, 1.35, 2.65, stone, 0);
   addBoxLL(group, -0.1253, 51.5188, 0.9, 1.35, 2.65, stone, 0);
@@ -832,12 +851,10 @@ function addNeighbourhoods(
     addCylLL(group, -0.0761 + dx, 51.5081 + dz, 0.34, 0.4, 2.85, stone, 8);
   }
 
-  // --- South Bank / London Bridge fabric: Waterloo sheds ---
   addBarrelShed(group, -0.1142, 51.5034, 7.4, 2.05, 1.95, 0.22, stone);
   addBarrelShed(group, -0.1128, 51.5028, 6.8, 1.85, 1.75, 0.22, stone);
   addBarrelShed(group, -0.1116, 51.5022, 6.2, 1.65, 1.55, 0.22, cream);
 
-  // --- Thames spine between Battersea and Westminster: MI6 ziggurat ---
   addBoxLL(group, -0.1245, 51.4872, 3.35, 1.65, 2.65, cream, 0.35);
   addBoxLL(group, -0.1245, 51.4872, 2.65, 1.25, 2.15, cream, 0.35).position.y = LAND_Y + 2.25;
   addBoxLL(group, -0.1245, 51.4872, 1.85, 1.05, 1.55, cream, 0.35).position.y = LAND_Y + 3.35;
@@ -911,9 +928,9 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
 
   const toneMat: Record<CityBlock['tone'], THREE.MeshStandardMaterial> = {
     glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
-    stone: clayMat(0xf0e6d4),
-    brick: clayMat(0xd8a48c),
-    fill: clayMat(0xe9e0d0),
+    stone: clayMat(0xe3cbb0),
+    brick: clayMat(0xc98b6a),
+    fill: clayMat(0xd4b089),
   };
   const geos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
     glass: [],
@@ -992,13 +1009,13 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   }
 
   addNeighbourhoods(group, reduced, {
-    brick: clayMat(0xd8a48c),
-    stone: clayMat(0xf0e6d4),
+    brick: clayMat(0xc98b6a),
+    stone: clayMat(0xe3cbb0),
     glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
     asphalt: asphaltMat,
     park: parkMat,
     dark: clayMat(0x5a616c),
-    cream: clayMat(0xf7f1e4),
+    cream: clayMat(0xeddbc4),
   });
 
   const craneMat = clayMat(0xf5c518, { roughness: 0.45 });

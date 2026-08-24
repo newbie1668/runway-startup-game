@@ -67,6 +67,12 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
     rendererRef.current = renderer;
     renderer.resize();
     renderer.fitAll();
+    const w = window as unknown as {
+      __runwayFocus?: (id: string) => void;
+      __runwayFit?: () => void;
+    };
+    w.__runwayFocus = (id) => renderer.focusHub(id as never);
+    w.__runwayFit = () => renderer.fitAll();
 
     const buttons = new Map<string, HTMLButtonElement>();
 
@@ -97,7 +103,9 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
 
     const paintPins = () => {
       const selected = renderer.getSelection();
-      const pins = renderer.pinLabels().sort((a, b) => pinRank(a.hit, selected) - pinRank(b.hit, selected));
+      const pins = renderer
+        .pinLabels()
+        .sort((a, b) => pinRank(a.hit, selected) - pinRank(b.hit, selected));
       const seen = new Set<string>();
       const placed: { x: number; y: number; w: number; h: number }[] = [];
 
@@ -134,9 +142,13 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
         const h = btn.offsetHeight || 30;
         const box = { x: scr.x - w / 2, y: scr.y - h - 6, w, h };
         const overlap = placed.some(
-          (p) => box.x < p.x + p.w - 8 && box.x + box.w > p.x + 8 && box.y < p.y + p.h - 6 && box.y + box.h > p.y + 6,
+          (p) =>
+            box.x < p.x + p.w - 8 &&
+            box.x + box.w > p.x + 8 &&
+            box.y < p.y + p.h - 6 &&
+            box.y + box.h > p.y + 6,
         );
-        const hide = !scr.visible || (overlap && !on);
+        const hide = !renderer.captions || !scr.visible || (overlap && !on);
         if (!hide) placed.push(box);
         btn.style.left = `${scr.x}px`;
         btn.style.top = `${scr.y}px`;
@@ -240,7 +252,10 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
         className={className ?? 'block h-full w-full touch-none select-none'}
         aria-label="3D London startup neighbourhood map; use the neighbourhood selector to choose an HQ"
       />
-      <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-[6] overflow-hidden" />
+      <div
+        ref={overlayRef}
+        className="pointer-events-none absolute inset-0 z-[6] overflow-hidden"
+      />
     </>
   );
 }

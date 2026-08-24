@@ -17,6 +17,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { HUBS } from './content';
 import { LAND_Y, buildLondonBoard, hubPosition, type LondonBoard } from './board';
+import { centerWorld, project } from './geo';
 import { stageBandFromName } from './stageBand';
 import type { HubId, SectorId } from './types';
 
@@ -88,6 +89,35 @@ const HUB_POS = Object.fromEntries(HUBS.map((h) => [h.id, hubPosition(h.id)])) a
   THREE.Vector3
 >;
 
+/** Look-at is the silhouette, not the content.ts pin. Theta is Orbit spherical azimuth. */
+type HubShot = { lng: number; lat: number; dist: number; theta: number; y: number };
+const HUB_SHOTS: Record<HubId, HubShot> = {
+  shoreditch: { lng: -0.0874, lat: 51.5256, dist: 26, theta: -0.52, y: 1.1 },
+  kingscross: { lng: -0.1252, lat: 51.5322, dist: 30, theta: 0.18, y: 1.4 },
+  soho: { lng: -0.1352, lat: 51.5134, dist: 26, theta: -0.38, y: 1.2 },
+  farringdon: { lng: -0.1018, lat: 51.5188, dist: 24, theta: -0.12, y: 1.15 },
+  canarywharf: { lng: -0.0194, lat: 51.5049, dist: 32, theta: 0.42, y: 2.4 },
+  londonbridge: { lng: -0.0888, lat: 51.5048, dist: 30, theta: 0.58, y: 1.6 },
+  camden: { lng: -0.1482, lat: 51.5422, dist: 26, theta: 0.22, y: 1.3 },
+  battersea: { lng: -0.1446, lat: 51.4818, dist: 28, theta: 0.12, y: 2.2 },
+};
+
+function ll3(lng: number, lat: number, y: number): THREE.Vector3 {
+  const c = centerWorld(project([lng, lat]));
+  return new THREE.Vector3(c.x, y, c.z);
+}
+
+function poseForShot(shot: HubShot): { pos: THREE.Vector3; target: THREE.Vector3 } {
+  const target = ll3(shot.lng, shot.lat, LAND_Y + shot.y);
+  const phi = 0.8;
+  const pos = new THREE.Vector3(
+    target.x + shot.dist * Math.sin(phi) * Math.sin(shot.theta),
+    target.y + shot.dist * Math.cos(phi),
+    target.z + shot.dist * Math.sin(phi) * Math.cos(shot.theta),
+  );
+  return { pos, target };
+}
+
 export type PinLabel = {
   hit: HitTarget;
   title: string;
@@ -116,14 +146,11 @@ function shade(mesh: THREE.Mesh) {
 type TokenKind = 'hub' | 'hq' | 'rival' | 'event';
 
 /** Board-game clay tokens — silhouettes stolen from the Blender art branch, rebuilt as live meshes. */
-function makeBadge(
-  kind: TokenKind,
-  title: string,
-  tag: string,
-  accent: string,
-): THREE.Group {
+function makeBadge(kind: TokenKind, title: string, tag: string, accent: string): THREE.Group {
   const g = new THREE.Group();
-  const ring = shade(new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.07, 16), clay(0xe7ddd0)));
+  const ring = shade(
+    new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.07, 16), clay(0xe7ddd0)),
+  );
   ring.position.y = 0.035;
   g.add(ring);
 
@@ -150,7 +177,9 @@ function makeBadge(
     tent.rotation.y = Math.PI / 4;
     g.add(base, tent);
   } else {
-    const puck = shade(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.2, 10), clay(accent)));
+    const puck = shade(
+      new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.2, 10), clay(accent)),
+    );
     puck.position.y = 0.16;
     g.add(puck);
   }
@@ -167,8 +196,6 @@ function makeBadge(
 
 const CITY_TARGET = new THREE.Vector3(2, 0, -5);
 const CITY_EYE = new THREE.Vector3(-72, 108, 72);
-const CITY_OFFSET = CITY_EYE.clone().sub(CITY_TARGET);
-
 function makeLabel(text: string, fill = '#1d2430'): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
@@ -210,6 +237,7 @@ export class MapRenderer {
   private particles: Particle[] = [];
   private flight: Flight | null = null;
   private reduced: boolean;
+  captions = false;
   private pinKey = '';
   private cssW = 1;
   private cssH = 1;
@@ -242,6 +270,7 @@ export class MapRenderer {
     this.threeScene.background = this.board.sky;
     this.threeScene.fog = new THREE.FogExp2(0xf0eadc, 0.0022);
     this.threeScene.add(this.board.group);
+    this.setCaptionsVisible(false);
     this.threeScene.add(this.pinRoot);
     this.beam = this.makeBeam();
     this.threeScene.add(this.beam);
@@ -265,10 +294,10 @@ export class MapRenderer {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.07;
-    this.controls.minDistance = 22;
-    this.controls.maxDistance = 200;
-    this.controls.maxPolarAngle = Math.PI * 0.34;
-    this.controls.minPolarAngle = Math.PI * 0.22;
+    this.controls.minDistance = 12;
+    this.controls.maxDistance = 220;
+    this.controls.maxPolarAngle = Math.PI * 0.42;
+    this.controls.minPolarAngle = Math.PI * 0.16;
     this.controls.screenSpacePanning = false;
     this.controls.target.copy(CITY_TARGET);
     this.controls.update();
@@ -310,11 +339,17 @@ export class MapRenderer {
   }
 
   focusHub(hubId: HubId) {
-    const target = HUB_POS[hubId].clone();
-    target.y = LAND_Y + 0.45;
-    const pos = target.clone().add(CITY_OFFSET.clone().setLength(28));
-    this.startFlight(pos, target, 1.35, true);
+    const { pos, target } = poseForShot(HUB_SHOTS[hubId]);
+    this.startFlight(pos, target, 1.15, true);
     this.select({ type: 'hub', hubId });
+  }
+
+  /** Hide HTML pills + 3D caption sprites so the miniature has to read on its own. */
+  setCaptionsVisible(visible: boolean) {
+    this.captions = visible;
+    this.board.group.traverse((obj) => {
+      if (obj instanceof THREE.Sprite) obj.visible = visible;
+    });
   }
 
   select(hit: HitTarget | null) {
@@ -330,7 +365,8 @@ export class MapRenderer {
     const out: PinLabel[] = [];
     for (const child of this.pinRoot.children) {
       const hit = child.userData.hit as HitTarget | undefined;
-      const label = child.userData.label as { title: string; tag: string; color: string } | undefined;
+      const label = child.userData.label as
+        { title: string; tag: string; color: string } | undefined;
       if (!hit || !label) continue;
       out.push({
         hit,
@@ -473,7 +509,7 @@ export class MapRenderer {
     this.stepFlight(dt);
     this.stepParticles(dt);
     this.controls.enabled = !this.flight;
-    this.controls.update();
+    if (!this.flight) this.controls.update();
     if (this.beam.visible) {
       this.beam.rotation.y = t * 0.0004;
       const pulse = 0.42 + Math.sin(t * 0.0021) * 0.1;
@@ -501,7 +537,12 @@ export class MapRenderer {
     return this.controls.target.clone();
   }
 
-  private startFlight(toPos: THREE.Vector3, toTarget: THREE.Vector3, dur: number, cinematic = false) {
+  private startFlight(
+    toPos: THREE.Vector3,
+    toTarget: THREE.Vector3,
+    dur: number,
+    cinematic = false,
+  ) {
     const fromPos = this.camera.position.clone();
     const mid = fromPos.clone().lerp(toPos, 0.45);
     mid.y += cinematic ? 5 : 0;
@@ -528,7 +569,12 @@ export class MapRenderer {
       this.camera.position.lerpVectors(this.flight.fromPos, this.flight.toPos, e);
     }
     this.controls.target.lerpVectors(this.flight.fromTarget, this.flight.toTarget, e);
-    if (k >= 1) this.flight = null;
+    if (k >= 1) {
+      this.camera.position.copy(this.flight.toPos);
+      this.controls.target.copy(this.flight.toTarget);
+      this.flight = null;
+      this.controls.update();
+    }
   }
 
   private makeBeam(): THREE.Group {
@@ -560,8 +606,10 @@ export class MapRenderer {
       const pin = this.pinRoot.children.find((c) => {
         const hit = c.userData.hit as HitTarget | undefined;
         if (!hit || hit.type !== this.selected?.type) return false;
-        if (hit.type === 'rival' && this.selected.type === 'rival') return hit.rivalId === this.selected.rivalId;
-        if (hit.type === 'event' && this.selected.type === 'event') return hit.eventId === this.selected.eventId;
+        if (hit.type === 'rival' && this.selected.type === 'rival')
+          return hit.rivalId === this.selected.rivalId;
+        if (hit.type === 'event' && this.selected.type === 'event')
+          return hit.eventId === this.selected.eventId;
         return false;
       });
       if (pin) pos = pin.position.clone();
@@ -646,7 +694,12 @@ export class MapRenderer {
 
     for (const ev of this.scene.events) {
       const i = slot(ev.hubId);
-      const g = makeBadge('event', ev.name.replace(/^★ /, ''), ev.attended ? 'Done' : 'Event', ev.attended ? '#64748b' : EVENT_COLOR);
+      const g = makeBadge(
+        'event',
+        ev.name.replace(/^★ /, ''),
+        ev.attended ? 'Done' : 'Event',
+        ev.attended ? '#64748b' : EVENT_COLOR,
+      );
       const base = HUB_POS[ev.hubId];
       const ang = Math.PI / 2 + i * 1.9;
       const dist = i === 0 ? 0 : 2;

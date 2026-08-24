@@ -784,7 +784,7 @@ function pushGrid(out: CityBlock[], district: District) {
       if (distToPolyline(project([lngC, latC]), THAMES_PROJECTED) < 2.5) continue;
       if (distToPolyline(project([lngC, latC]), CANAL_PROJECTED) < 1.05) continue;
       const n = hash01(col, row, district.name.length);
-      if (fill && n > 0.58) continue;
+      if (fill && n > 0.34) continue;
       const inset = g.inset + n * 0.08;
       const w = g.stepLng * (1 - inset);
       const d = g.stepLat * (1 - inset * 0.9);
@@ -798,7 +798,8 @@ function pushGrid(out: CityBlock[], district: District) {
           : n > 0.86
             ? rectRing(lngC, latC, w * 1.55, d * 0.72)
             : rectRing(lngC, latC, w, d);
-      out.push({ ring, h, tone: district.tone });
+      const tone = fill ? (n < 0.12 ? 'brick' : n < 0.24 ? 'stone' : 'fill') : district.tone;
+      out.push({ ring, h, tone });
     }
   }
 }
