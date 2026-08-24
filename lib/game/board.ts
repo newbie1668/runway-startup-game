@@ -766,62 +766,57 @@ function addNeighbourhoods(
   }
 
   // --- Farringdon: Smithfield halls ---
-  for (let i = 0; i < 9; i++) {
-    const lng = -0.1064 + i * 0.00108;
-    addBoxLL(group, lng, 51.51875, 1.42, 2.75, 3.35, brick, 0);
-    const hall = addBoxLL(group, lng, 51.51875, 1.22, 1.05, 3.05, dark, 0);
-    hall.rotation.z = 0.62;
-    hall.position.y = LAND_Y + 2.88;
-    addBoxLL(group, lng, 51.51785, 1.32, 2.35, 2.85, brick, 0);
-    const hall2 = addBoxLL(group, lng, 51.51785, 1.12, 0.88, 2.55, dark, 0);
-    hall2.rotation.z = 0.62;
-    hall2.position.y = LAND_Y + 2.42;
+  for (let i = 0; i < 11; i++) {
+    const lng = -0.1072 + i * 0.00098;
+    addBoxLL(group, lng, 51.5188, 1.28, 2.95, 3.85, brick, 0);
+    const hall = addBoxLL(group, lng, 51.5188, 1.12, 1.25, 3.45, dark, 0);
+    hall.rotation.z = 0.72;
+    hall.position.y = LAND_Y + 3.15;
+    addBoxLL(group, lng, 51.5177, 1.18, 2.45, 3.25, brick, 0);
+    const hall2 = addBoxLL(group, lng, 51.5177, 1.02, 1.05, 2.95, dark, 0);
+    hall2.rotation.z = 0.72;
+    hall2.position.y = LAND_Y + 2.62;
   }
-  addBoxLL(group, -0.1022, 51.5183, 1.15, 3.15, 6.4, cream, 0);
-  for (const z of [-0.0011, 0, 0.0011]) {
-    addBoxLL(group, -0.1022, 51.5183 + z, 0.22, 2.05, 0.55, dark, 0).position.y = LAND_Y + 1.35;
-  }
-  addCylLL(group, -0.1022, 51.5184, 1.35, 1.55, 1.25, cream, 8).position.y = LAND_Y + 3.55;
-  addCylLL(group, -0.1022, 51.5184, 0.28, 0.38, 1.85, dark, 8).position.y = LAND_Y + 4.55;
-  addBoxLL(group, -0.1022, 51.5184, 0.55, 0.45, 0.55, cream, 0).position.y = LAND_Y + 5.55;
+  addBoxLL(group, -0.1024, 51.51825, 0.85, 2.15, 7.8, dark, 0);
+  addBoxLL(group, -0.1024, 51.51825, 0.55, 0.22, 7.9, roof, 0).position.y = LAND_Y + 2.28;
+  addBoxLL(group, -0.1024, 51.5189, 0.72, 1.85, 0.72, brick, 0);
+  addBoxLL(group, -0.1024, 51.5189, 0.22, 1.15, 0.22, dark, 0).position.y = LAND_Y + 2.55;
 
   // --- Canary Wharf: 1 Canada Square pyramid sitting in the dock basins ---
   const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x2f9ec6,
-    roughness: 0.26,
-    metalness: 0.05,
+    color: 0x1f8eb8,
+    roughness: 0.24,
+    metalness: 0.06,
   });
   const addBasin = (lng: number, lat: number, w: number, d: number) => {
     const p = ll3(lng, lat);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.2, d), waterMat);
-    mesh.position.set(p.x, LAND_Y + 0.12, p.z);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.28, d), waterMat);
+    mesh.position.set(p.x, LAND_Y + 0.16, p.z);
     mesh.receiveShadow = true;
     group.add(mesh);
-    addBoxLL(group, lng, lat + d * 0.0005, w + 0.45, 0.28, 0.28, dark, 0);
-    addBoxLL(group, lng, lat - d * 0.0005, w + 0.45, 0.28, 0.28, dark, 0);
-    addBoxLL(group, lng + w * 0.00042, lat, 0.28, 0.28, d + 0.35, dark, 0);
-    addBoxLL(group, lng - w * 0.00042, lat, 0.28, 0.28, d + 0.35, dark, 0);
+    addBoxLL(group, lng, lat + d * 0.00052, w + 0.55, 0.32, 0.32, dark, 0);
+    addBoxLL(group, lng, lat - d * 0.00052, w + 0.55, 0.32, 0.32, dark, 0);
+    addBoxLL(group, lng + w * 0.00044, lat, 0.32, 0.32, d + 0.45, dark, 0);
+    addBoxLL(group, lng - w * 0.00044, lat, 0.32, 0.32, d + 0.45, dark, 0);
   };
-  addBasin(-0.0196, 51.5071, 11.4, 2.85);
-  addBasin(-0.019, 51.5036, 10.8, 2.65);
-  addBasin(-0.0182, 51.5008, 9.6, 2.35);
-  addBasin(-0.0114, 51.5042, 2.8, 5.4);
-  addBasin(-0.0272, 51.504, 2.7, 5.2);
-  addBasin(-0.018, 51.4948, 18.5, 8.4);
-  addBoxLL(group, -0.0194, 51.5055, 10.4, 0.16, 1.35, cream, 0.05);
-  addBoxLL(group, -0.019, 51.5024, 9.6, 0.16, 1.25, cream, 0.05);
+  addBasin(-0.0194, 51.5074, 13.2, 3.4);
+  addBasin(-0.0194, 51.5034, 12.6, 3.2);
+  addBasin(-0.0188, 51.5006, 11.2, 2.8);
+  addBasin(-0.0118, 51.5048, 3.6, 6.4);
+  addBasin(-0.027, 51.5046, 3.5, 6.2);
+  addBasin(-0.018, 51.4946, 20.0, 9.2);
   const canada = ll3(-0.0194, 51.5049);
-  addBoxLL(group, -0.0194, 51.5049, 2.45, 12.8, 2.45, glass, 0.2);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.25, 4.6, 4), cream);
-  cap.position.set(canada.x, LAND_Y + 15.1, canada.z);
+  addBoxLL(group, -0.0194, 51.5049, 2.55, 13.2, 2.55, glass, 0.2);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.35, 5.0, 4), cream);
+  cap.position.set(canada.x, LAND_Y + 15.7, canada.z);
   cap.rotation.y = 0.2;
   cap.castShadow = true;
   group.add(cap);
-  addBoxLL(group, -0.0238, 51.5056, 1.45, 8.6, 1.45, glass, 0.08);
-  addBoxLL(group, -0.0154, 51.5052, 1.55, 7.6, 1.25, glass, 0.35);
-  addBoxLL(group, -0.0214, 51.5026, 1.25, 6.8, 1.25, glass, -0.1);
-  addBoxLL(group, -0.0168, 51.5022, 1.65, 5.6, 1.05, cream, 0.15);
-  addBoxLL(group, -0.0256, 51.5028, 1.1, 5.1, 1.1, glass, 0.4);
+  addBoxLL(group, -0.0236, 51.5058, 1.35, 8.2, 1.35, glass, 0.08);
+  addBoxLL(group, -0.0152, 51.5054, 1.45, 7.2, 1.15, glass, 0.35);
+  addBoxLL(group, -0.0216, 51.5022, 1.2, 6.4, 1.2, glass, -0.1);
+  addBoxLL(group, -0.0166, 51.5018, 1.45, 5.2, 1.0, glass, 0.15);
+  addBoxLL(group, -0.0254, 51.5024, 1.05, 4.8, 1.05, glass, 0.4);
 
   // --- London Bridge: Borough Market peaks under the Shard ---
   for (let i = 0; i < 12; i++) {

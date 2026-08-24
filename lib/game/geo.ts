@@ -634,11 +634,11 @@ function grainFor(name: string) {
 }
 
 export const DOCKS: readonly { name: string; ring: LngLat[] }[] = [
-  { name: 'North Dock', ring: rectRing(-0.0198, 51.5069, 0.0168, 0.0024) },
-  { name: 'Middle Dock', ring: rectRing(-0.0188, 51.5034, 0.0158, 0.0022) },
-  { name: 'South Dock', ring: rectRing(-0.0178, 51.5012, 0.0142, 0.002) },
-  { name: 'Inner Dock East', ring: rectRing(-0.012, 51.5044, 0.0038, 0.0046) },
-  { name: 'Inner Dock West', ring: rectRing(-0.0268, 51.5042, 0.0036, 0.0044) },
+  { name: 'North Dock', ring: rectRing(-0.0194, 51.5074, 0.0185, 0.0032) },
+  { name: 'Middle Dock', ring: rectRing(-0.0194, 51.5034, 0.0178, 0.003) },
+  { name: 'South Dock', ring: rectRing(-0.0188, 51.5006, 0.0162, 0.0026) },
+  { name: 'Inner Dock East', ring: rectRing(-0.0118, 51.5048, 0.0046, 0.0058) },
+  { name: 'Inner Dock West', ring: rectRing(-0.027, 51.5046, 0.0044, 0.0056) },
   { name: 'Limehouse Basin', ring: rectRing(-0.0322, 51.5112, 0.0056, 0.0024) },
   { name: 'Camden Lock', ring: rectRing(-0.1464, 51.5406, 0.0038, 0.0026) },
 ];
