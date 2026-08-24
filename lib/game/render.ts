@@ -81,55 +81,35 @@ const HUB_POS = Object.fromEntries(HUBS.map((h) => [h.id, hubPosition(h.id)])) a
   THREE.Vector3
 >;
 
+export type PinLabel = {
+  hit: HitTarget;
+  title: string;
+  tag: string;
+  color: string;
+  x: number;
+  y: number;
+  z: number;
+};
+
 function makeBadge(title: string, tag: string, accent: string): THREE.Group {
   const g = new THREE.Group();
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, 512, 128);
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.roundRect(8, 16, 496, 96, 24);
-  ctx.fill();
-  ctx.fillStyle = accent;
-  ctx.beginPath();
-  ctx.roundRect(24, 32, 64, 64, 14);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '700 34px ui-sans-serif, system-ui';
-  ctx.textAlign = 'center';
-  ctx.fillText(title.slice(0, 1).toUpperCase(), 56, 76);
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '700 36px ui-sans-serif, system-ui';
-  ctx.textAlign = 'left';
-  ctx.fillText(title.slice(0, 18), 104, 58);
-  const tw = Math.min(180, ctx.measureText(tag).width + 28);
-  ctx.fillStyle = `${accent}22`;
-  ctx.beginPath();
-  ctx.roundRect(104, 70, tw, 32, 10);
-  ctx.fill();
-  ctx.fillStyle = accent;
-  ctx.font = '700 22px ui-sans-serif, system-ui';
-  ctx.fillText(tag, 118, 93);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
-  );
-  sprite.scale.set(5.8, 1.45, 1);
-  sprite.position.y = 2.35;
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.05, 0.07, 1.7, 8),
-    new THREE.MeshStandardMaterial({ color: 0xf4f4f5, roughness: 0.45 }),
+    new THREE.CylinderGeometry(0.04, 0.055, 2.35, 8),
+    new THREE.MeshStandardMaterial({ color: 0xdbe7f0, roughness: 0.38, metalness: 0.08 }),
   );
-  stem.position.y = 0.85;
+  stem.position.y = 1.18;
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 14, 12),
+    new THREE.MeshStandardMaterial({ color: accent, roughness: 0.32, metalness: 0.12 }),
+  );
+  head.position.y = 2.42;
   const hit = new THREE.Mesh(
-    new THREE.SphereGeometry(0.9, 8, 8),
+    new THREE.SphereGeometry(0.95, 8, 8),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
   );
-  hit.position.y = 2.1;
-  g.add(stem, sprite, hit);
+  hit.position.y = 2.2;
+  g.add(stem, head, hit);
+  g.userData.label = { title, tag, color: accent };
   return g;
 }
 
@@ -165,6 +145,7 @@ export class MapRenderer {
   private controls: OrbitControls;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
+  private ndc = new THREE.Vector3();
   private board: LondonBoard;
   private pinRoot = new THREE.Group();
   private pickables: THREE.Object3D[] = [];
@@ -266,6 +247,38 @@ export class MapRenderer {
   select(hit: HitTarget | null) {
     this.selected = hit;
     this.placeBeam();
+  }
+
+  getSelection(): HitTarget | null {
+    return this.selected;
+  }
+
+  pinLabels(): PinLabel[] {
+    const out: PinLabel[] = [];
+    for (const child of this.pinRoot.children) {
+      const hit = child.userData.hit as HitTarget | undefined;
+      const label = child.userData.label as { title: string; tag: string; color: string } | undefined;
+      if (!hit || !label) continue;
+      out.push({
+        hit,
+        title: label.title,
+        tag: label.tag,
+        color: label.color,
+        x: child.position.x,
+        y: child.position.y + 2.55,
+        z: child.position.z,
+      });
+    }
+    return out;
+  }
+
+  projectWorld(x: number, y: number, z: number): { x: number; y: number; visible: boolean } {
+    this.ndc.set(x, y, z).project(this.camera);
+    return {
+      x: (this.ndc.x * 0.5 + 0.5) * this.cssW,
+      y: (-this.ndc.y * 0.5 + 0.5) * this.cssH,
+      visible: this.ndc.z > -1 && this.ndc.z < 1,
+    };
   }
 
   pan(dxPx: number, dyPx: number) {
