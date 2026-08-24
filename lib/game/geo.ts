@@ -531,7 +531,7 @@ export const DOCKS: readonly { name: string; ring: LngLat[] }[] = [
 ];
 
 const CLEARINGS: readonly { at: LngLat; r: number }[] = [
-  { at: [-0.0876, 51.5256], r: 0.0023 }, // Old Street roundabout
+  { at: [-0.0842, 51.5258], r: 0.0023 }, // Old Street roundabout
   { at: [-0.1494, 51.5431], r: 0.0017 }, // Roundhouse
   { at: [-0.1258, 51.5316], r: 0.0034 }, // King's Cross sheds
   { at: [-0.1018, 51.5185], r: 0.0022 }, // Smithfield
@@ -552,7 +552,7 @@ function inClearing(lng: number, lat: number): boolean {
 
 const AUTHORED: CityBlock[] = [
   // Canary Wharf cluster — 1 Canada Square and neighbours, real-ish pads.
-  { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 9.6, tone: 'glass' },
+  { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 12.2, tone: 'glass' },
   { ring: rectRing(-0.0174, 51.5055, 0.00135, 0.00105), h: 8.4, tone: 'glass' },
   { ring: rectRing(-0.0216, 51.5045, 0.0017, 0.00095), h: 7.2, tone: 'glass' },
   { ring: rectRing(-0.0144, 51.5052, 0.0021, 0.001), h: 6.6, tone: 'glass' },

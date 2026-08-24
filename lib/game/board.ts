@@ -631,8 +631,8 @@ function addNeighbourhoods(
   const { brick, stone, glass, asphalt, park, dark, cream } = mats;
 
   // --- King's Cross: two train sheds, St Pancras towers, gasholder, granary plaza ---
-  addBarrelShed(group, -0.1256, 51.5319, 7.4, 2.15, 1.55, 0.04, stone);
-  addBarrelShed(group, -0.1232, 51.5305, 6.6, 1.95, 1.35, 0.04, cream);
+  addBarrelShed(group, -0.1256, 51.5319, 7.4, 2.15, 1.55, 0.04, brick);
+  addBarrelShed(group, -0.1232, 51.5305, 6.6, 1.95, 1.35, 0.04, brick);
   addBoxLL(group, -0.1288, 51.5316, 1.15, 2.35, 1.35, brick, 0.04);
   addBoxLL(group, -0.1294, 51.5324, 0.55, 3.1, 0.55, brick, 0.04);
   addBoxLL(group, -0.1282, 51.5324, 0.55, 3.1, 0.55, brick, 0.04);
@@ -647,7 +647,7 @@ function addNeighbourhoods(
   addBoxLL(group, -0.1206, 51.5332, 4.2, 1.7, 0.95, glass, 0.08);
 
   // --- Shoreditch: Old Street roundabout + Boxpark containers ---
-  const round = ll3(-0.0876, 51.5256);
+  const round = ll3(-0.0842, 51.5258);
   const island = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.07, 20), park);
   island.position.set(round.x, LAND_Y + 0.04, round.z);
   const curb = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.26, 8, 28), asphalt);
@@ -658,8 +658,8 @@ function addNeighbourhoods(
     const a = (i / 8) * Math.PI * 2;
     addBoxLL(
       group,
-      -0.0876 + Math.cos(a) * 0.00255,
-      51.5256 + Math.sin(a) * 0.0016,
+      -0.0842 + Math.cos(a) * 0.00255,
+      51.5258 + Math.sin(a) * 0.0016,
       1.15,
       0.85 + (i % 3) * 0.18,
       0.72,
@@ -702,7 +702,7 @@ function addNeighbourhoods(
   // --- Canary Wharf: pyramid cap on 1 Canada Square ---
   const canada = ll3(-0.0194, 51.5049);
   const cap = new THREE.Mesh(new THREE.ConeGeometry(0.82, 1.55, 4), cream);
-  cap.position.set(canada.x, LAND_Y + 10.35, canada.z);
+  cap.position.set(canada.x, LAND_Y + 12.95, canada.z);
   cap.rotation.y = 0.2;
   cap.castShadow = true;
   group.add(cap);
@@ -839,7 +839,7 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   }
 
   const toneMat: Record<CityBlock['tone'], THREE.MeshStandardMaterial> = {
-    glass: clayMat(0xd2e0e8, { roughness: 0.52, metalness: 0.08 }),
+    glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
     stone: clayMat(0xf0e6d4),
     brick: clayMat(0xd8a48c),
     fill: clayMat(0xe9e0d0),
@@ -923,7 +923,7 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   addNeighbourhoods(group, reduced, {
     brick: clayMat(0xd8a48c),
     stone: clayMat(0xf0e6d4),
-    glass: clayMat(0xd2e0e8, { roughness: 0.52, metalness: 0.08 }),
+    glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
     asphalt: asphaltMat,
     park: parkMat,
     dark: clayMat(0x5a616c),
