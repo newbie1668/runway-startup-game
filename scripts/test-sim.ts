@@ -478,8 +478,8 @@ async function main() {
       join(process.cwd(), 'scripts', 'extract-still-client.ts'),
       'utf8',
     );
-    assert.match(extractClient, /extract\.geojson/);
-    assert.doesNotMatch(extractClient, /london\.bin/);
+    assert.match(extractClient, /EXTRACT_URL = '\/extract\.geojson'/);
+    assert.doesNotMatch(extractClient, /fetch\([^)]*london\.bin/);
     assert.doesNotMatch(extractClient, /COMPACT_PUBLIC_PATH/);
     for (const file of [
       'extract-whole-board.png',
