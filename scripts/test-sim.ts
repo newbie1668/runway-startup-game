@@ -226,6 +226,28 @@ async function main() {
       let maxY = 0;
       for (let i = 1; i < chunk.positions.length; i += 3) maxY = Math.max(maxY, chunk.positions[i]);
       assert.ok(maxY > 190, `tower roof should be ~200m, got ${maxY}`);
+      const pos = chunk.positions;
+      const idx = chunk.indices;
+      let roofUp = 0;
+      let roofDown = 0;
+      for (let i = 0; i < idx.length; i += 3) {
+        const ia = idx[i] * 3;
+        const ib = idx[i + 1] * 3;
+        const ic = idx[i + 2] * 3;
+        if (Math.min(pos[ia + 1], pos[ib + 1], pos[ic + 1]) < maxY - 0.5) continue;
+        const ax = pos[ib] - pos[ia];
+        const az = pos[ib + 2] - pos[ia + 2];
+        const bx = pos[ic] - pos[ia];
+        const bz = pos[ic + 2] - pos[ia + 2];
+        const crossY = az * bx - ax * bz;
+        if (crossY > 0) roofUp += 1;
+        else if (crossY < 0) roofDown += 1;
+      }
+      assert.ok(roofUp >= 2, `expected roof triangles, got ${roofUp} up / ${roofDown} down`);
+      assert.ok(
+        roofUp > roofDown,
+        'roof caps must face +Y so towers are not hollow cages from above',
+      );
     },
   );
 
@@ -479,6 +501,9 @@ async function main() {
       'utf8',
     );
     assert.match(extractClient, /EXTRACT_URL = '\/extract\.geojson'/);
+    assert.match(extractClient, /solidClay: true/);
+    assert.match(extractClient, /DoubleSide/);
+    assert.doesNotMatch(extractClient, /createBuildingMaterial/);
     assert.doesNotMatch(extractClient, /fetch\([^)]*london\.bin/);
     assert.doesNotMatch(extractClient, /COMPACT_PUBLIC_PATH/);
     for (const file of [

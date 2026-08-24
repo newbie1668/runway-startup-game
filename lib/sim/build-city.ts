@@ -266,59 +266,43 @@ function extrudePolygon(
   minH: number,
   height: number,
   palette: BuildingPalette,
+  preview?: CityPreviewOptions,
 ) {
   const outerCcw = ensureWinding(outer, true);
-  const holeCw = holes.map((h) => ensureWinding(h, false));
   if (outerCcw.length < 3) return;
+
+  const solid = Boolean(preview?.solidClay);
+  const holeCw = solid ? [] : holes.map((h) => ensureWinding(h, false));
+  const roof: [number, number, number] = solid
+    ? [
+        clamp01(palette.roof[0] * 0.35 + 0.58),
+        clamp01(palette.roof[1] * 0.35 + 0.5),
+        clamp01(palette.roof[2] * 0.3 + 0.4),
+      ]
+    : palette.roof;
 
   const roofY = height;
   const tris = triangulate(outerCcw, holeCw);
   for (let i = 0; i < tris.length; i += 6) {
-    const a = addVertex(
-      w,
-      tris[i],
-      roofY,
-      tris[i + 1],
-      0,
-      1,
-      0,
-      palette.roof[0],
-      palette.roof[1],
-      palette.roof[2],
-    );
-    const b = addVertex(
-      w,
-      tris[i + 2],
-      roofY,
-      tris[i + 3],
-      0,
-      1,
-      0,
-      palette.roof[0],
-      palette.roof[1],
-      palette.roof[2],
-    );
-    const c = addVertex(
-      w,
-      tris[i + 4],
-      roofY,
-      tris[i + 5],
-      0,
-      1,
-      0,
-      palette.roof[0],
-      palette.roof[1],
-      palette.roof[2],
-    );
-    addTri(w, a, b, c);
+    const a = addVertex(w, tris[i], roofY, tris[i + 1], 0, 1, 0, roof[0], roof[1], roof[2]);
+    const b = addVertex(w, tris[i + 2], roofY, tris[i + 3], 0, 1, 0, roof[0], roof[1], roof[2]);
+    const c = addVertex(w, tris[i + 4], roofY, tris[i + 5], 0, 1, 0, roof[0], roof[1], roof[2]);
+    // CCW in XZ produces −Y; reverse so the cap faces +Y (visible from above).
+    addTri(w, a, c, b);
   }
 
   const glassMix = palette.glass;
-  const wr: [number, number, number] = [
-    mix(palette.wall[0], palette.wall[0] * 0.35, glassMix * 0.35),
-    mix(palette.wall[1], palette.wall[1] * 0.4, glassMix * 0.35),
-    mix(palette.wall[2], palette.wall[2] * 0.55, glassMix * 0.35),
-  ];
+  const wr: [number, number, number] = solid
+    ? [
+        mix(palette.wall[0], 0.62, glassMix * 0.4),
+        mix(palette.wall[1], 0.64, glassMix * 0.4),
+        mix(palette.wall[2], 0.66, glassMix * 0.4),
+      ]
+    : [
+        mix(palette.wall[0], palette.wall[0] * 0.35, glassMix * 0.35),
+        mix(palette.wall[1], palette.wall[1] * 0.4, glassMix * 0.35),
+        mix(palette.wall[2], palette.wall[2] * 0.55, glassMix * 0.35),
+      ];
 
   const rings = [outerCcw, ...holeCw];
   for (const ring of rings) {
@@ -468,6 +452,8 @@ export interface CityPreviewOptions {
   waterY?: number;
   parkY?: number;
   roadWidthScale?: number;
+  /** Opaque walls + lighter roof caps so landmarks read as solid clay, not cages. */
+  solidClay?: boolean;
 }
 
 export function worldExtentMeters(): { width: number; depth: number } {
@@ -518,6 +504,7 @@ export async function buildCity(input: {
         props.minHeight ?? 0,
         props.height,
         palette,
+        input.preview,
       );
       any = true;
       if (props.name || props.height >= 70) {

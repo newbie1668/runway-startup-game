@@ -10,7 +10,7 @@ import { buildCity } from '../lib/sim/build-city';
 import { hubTarget, overviewPose, type CameraPose } from '../lib/sim/camera';
 import { SIM_HUBS, type SimHubId } from '../lib/sim/constants';
 import { projectLngLat } from '../lib/sim/projection';
-import { createBuildingMaterial, setupScene } from '../lib/sim/scene-setup';
+import { setupScene } from '../lib/sim/scene-setup';
 import type {
   BuildingProperties,
   LandcoverProperties,
@@ -188,11 +188,15 @@ async function main() {
       parkColor: [0.42, 0.58, 0.36],
       waterY: 0.4,
       parkY: 0.5,
+      solidClay: true,
     },
   });
   mesh.stats.roads = parts.roads.features.length;
 
-  const buildingMat = createBuildingMaterial();
+  const buildingMat = new THREE.MeshLambertMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+  });
   const parkMat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const waterMat = new THREE.MeshBasicMaterial({ vertexColors: true });
 
@@ -223,14 +227,14 @@ async function main() {
       };
     },
     streets: () => hubLookDown('city', 1480, 220),
-    canary: () => hubLookDown('canarywharf', 860, 580),
+    canary: () => hubLookDown('canarywharf', 980, 480),
     westminster: () =>
       framePickables(
         mesh.pickables,
         /palace of westminster|london eye/i,
-        hubLookDown('westminster', 780, 620),
-        620,
-        780,
+        hubLookDown('westminster', 820, 580),
+        560,
+        820,
       ),
     farringdon: () => hubLookDown('farringdon', 780, 520),
   };
