@@ -813,7 +813,9 @@ function inOsmBoard(lng: number, lat: number): boolean {
 }
 
 function osmBlocks(): CityBlock[] {
-  const raw = osmCentral as { buildings: { r: LngLat[]; h: number; t: CityBlock['tone'] }[] };
+  const raw = osmCentral as unknown as {
+    buildings: { r: LngLat[]; h: number; t: CityBlock['tone'] }[];
+  };
   const out: CityBlock[] = [];
   for (const b of raw.buildings) {
     if (!b.r || b.r.length < 3) continue;
