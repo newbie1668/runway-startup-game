@@ -1,0 +1,2 @@
+# 4MB one-line GeoJSON — never pretty-print
+data/*.geojson

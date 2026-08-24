@@ -2,7 +2,8 @@
  * Static 3D London miniature — land, river, parks, buildings, landmarks.
  *
  * Look: yU+co Silicon Valley titles (dense low-poly daylight diorama).
- * Geography: hand-authored polygons from geo.ts, not Mapbox.
+ * Geography: scored OSM extract footprints painted as yU+co clay;
+ * Thames / parks / hub heroes stay authored. Not Mapbox, not /sim.
  */
 
 import * as THREE from 'three';
@@ -26,6 +27,7 @@ import {
   type LngLat,
   type WorldPoint,
 } from './geo';
+import { parseOsmClay, type OsmClay } from './osmClay';
 import type { HubId } from './types';
 
 export const LAND_Y = 0.32;
@@ -975,7 +977,103 @@ function addNeighbourhoods(
   addBoxLL(group, -0.1245, 51.4872, 1.85, 1.05, 1.55, cream, 0.35).position.y = LAND_Y + 3.35;
 }
 
-export function buildLondonBoard(reduced: boolean): LondonBoard {
+
+function mergeChunks(geos: THREE.BufferGeometry[], chunk = 420): THREE.BufferGeometry | null {
+  if (!geos.length) return null;
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < geos.length; i += chunk) {
+    const slice = geos.slice(i, i + chunk);
+    const merged = mergeGeometries(slice, false);
+    slice.forEach((g) => g.dispose());
+    if (merged) parts.push(merged);
+  }
+  if (!parts.length) return null;
+  if (parts.length === 1) return parts[0];
+  const all = mergeGeometries(parts, false);
+  parts.forEach((g) => g.dispose());
+  return all;
+}
+
+function addOsmFabric(
+  group: THREE.Group,
+  clay: OsmClay,
+  reduced: boolean,
+  toneMat: Record<CityBlock['tone'], THREE.Material>,
+  asphalt: THREE.Material,
+  paint: THREE.Material,
+  water: THREE.Material,
+  waterDeep: THREE.Material,
+): WorldPoint[][] {
+  const geos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
+    glass: [],
+    stone: [],
+    brick: [],
+    fill: [],
+  };
+  for (const b of clay.buildings) {
+    try {
+      const geo = new THREE.ExtrudeGeometry(shapeFromRing(b.ring), {
+        depth: b.h,
+        bevelEnabled: false,
+        curveSegments: 1,
+        steps: 1,
+      });
+      geo.rotateX(-Math.PI / 2);
+      geo.translate(0, LAND_Y + 0.02, 0);
+      geos[b.tone].push(geo);
+    } catch {
+      /* degenerate footprint */
+    }
+  }
+  (Object.keys(geos) as CityBlock['tone'][]).forEach((tone) => {
+    const merged = mergeChunks(geos[tone]);
+    if (!merged) return;
+    const mesh = new THREE.Mesh(merged, toneMat[tone]);
+    mesh.castShadow = !reduced;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  });
+
+  const roadGeos: THREE.BufferGeometry[] = [];
+  const paintGeos: THREE.BufferGeometry[] = [];
+  const carLines: WorldPoint[][] = [];
+  for (const road of clay.roads) {
+    const line: WorldPoint[] = road.line.map(([lng, lat]) => project([lng, lat]));
+    carLines.push(line);
+    try {
+      roadGeos.push(ribbonGeometry(line, road.halfW, LAND_Y + 0.03));
+      if (road.painted) paintGeos.push(ribbonGeometry(line, 0.028, LAND_Y + 0.04));
+    } catch {
+      /* skip */
+    }
+  }
+  const roadMesh = mergeChunks(roadGeos);
+  if (roadMesh) {
+    const mesh = new THREE.Mesh(roadMesh, asphalt);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  const paintMesh = mergeChunks(paintGeos);
+  if (paintMesh) group.add(new THREE.Mesh(paintMesh, paint));
+
+  for (const w of clay.waters) {
+    try {
+      const bed = extrudeRing(w.ring, 0.16, waterDeep);
+      bed.position.y = LAND_Y + 0.05;
+      bed.castShadow = false;
+      group.add(bed);
+      const pond = extrudeRing(w.ring, 0.11, water);
+      pond.position.y = LAND_Y + 0.09;
+      pond.castShadow = false;
+      group.add(pond);
+    } catch {
+      /* skip */
+    }
+  }
+  return carLines;
+}
+
+export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonBoard {
   const group = new THREE.Group();
   const rnd = seeded(20260824);
 
@@ -1053,10 +1151,10 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
   }
 
   const toneMat: Record<CityBlock['tone'], THREE.MeshStandardMaterial> = {
-    glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
-    stone: clayMat(0xe3cbb0),
-    brick: clayMat(0xc98b6a),
-    fill: clayMat(0xd4b089),
+    glass: clayMat(0xefe6d6, { roughness: 0.72, metalness: 0.03 }),
+    stone: clayMat(0xf0e3cc),
+    brick: clayMat(0xdbbf9c),
+    fill: clayMat(0xf6ead8),
   };
   const geos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
     glass: [],
@@ -1064,6 +1162,10 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
     brick: [],
     fill: [],
   };
+  const osmClay = parseOsmClay(osm, reduced);
+  if (osmClay) {
+    /* OSM footprints replace the authored grid so inner fabric is real. */
+  } else {
   const skip = reduced ? 2 : 1;
   CITY_BLOCKS.forEach((block, i) => {
     if (i % skip !== 0) return;
@@ -1091,6 +1193,7 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
     mesh.receiveShadow = true;
     group.add(mesh);
   });
+  }
 
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
@@ -1107,15 +1210,23 @@ export function buildLondonBoard(reduced: boolean): LondonBoard {
     ['soho', 'battersea'],
     ['kingscross', 'farringdon'],
   ];
-  const roads: WorldPoint[][] = [northBank, southBank];
-  for (const [aId, bId] of hubLinks) {
-    const a = HUBS.find((h) => h.id === aId)!;
-    const b = HUBS.find((h) => h.id === bId)!;
-    roads.push(lerpWorld(project([a.lng, a.lat]), project([b.lng, b.lat]), 8));
+  let roads: WorldPoint[][] = [northBank, southBank];
+  if (osmClay && osmClay.roads.length) {
+    roads = addOsmFabric(group, osmClay, reduced, toneMat, asphaltMat, paintMat, riverMat, riverDeepMat);
+  } else {
+    for (const [aId, bId] of hubLinks) {
+      const a = HUBS.find((h) => h.id === aId)!;
+      const b = HUBS.find((h) => h.id === bId)!;
+      roads.push(lerpWorld(project([a.lng, a.lat]), project([b.lng, b.lat]), 8));
+    }
+    for (const road of roads) addRoad(group, road, 0.62, asphaltMat, paintMat);
   }
-  for (const road of roads) addRoad(group, road, 0.62, asphaltMat, paintMat);
 
-  const carPts = roads.flatMap((road) => sampleRibbon(road, reduced ? 7.5 : 4.2));
+  let carPts = roads.flatMap((road) => sampleRibbon(road, reduced ? 8.5 : 5.6));
+  if (carPts.length > 960) {
+    const step = Math.ceil(carPts.length / 960);
+    carPts = carPts.filter((_, i) => i % step === 0);
+  }
   const carGeo = new THREE.BoxGeometry(0.42, 0.16, 0.22);
   const cars = new THREE.InstancedMesh(carGeo, clayMat(0xe11d48), Math.max(1, carPts.length));
   cars.castShadow = !reduced;

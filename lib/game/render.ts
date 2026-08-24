@@ -254,7 +254,7 @@ export class MapRenderer {
   };
   hover: HitTarget | null = null;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, osm: unknown = null) {
     this.canvas = canvas;
     this.reduced = window.matchMedia('(max-width: 54rem)').matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.reduced, alpha: false });
@@ -266,7 +266,7 @@ export class MapRenderer {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.threeScene = new THREE.Scene();
-    this.board = buildLondonBoard(this.reduced);
+    this.board = buildLondonBoard(this.reduced, osm);
     this.threeScene.background = this.board.sky;
     this.threeScene.fog = new THREE.FogExp2(0xf0eadc, 0.0022);
     this.threeScene.add(this.board.group);

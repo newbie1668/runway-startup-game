@@ -62,30 +62,59 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
     const canvas = canvasRef.current;
     const overlay = overlayRef.current;
     if (!canvas || !overlay) return;
-    const renderer = new MapRenderer(canvas);
-    renderer.scene = sceneRef.current;
-    rendererRef.current = renderer;
-    renderer.resize();
-    renderer.fitAll();
-    const w = window as unknown as {
-      __runwayFocus?: (id: string) => void;
-      __runwayFit?: () => void;
-    };
-    w.__runwayFocus = (id) => renderer.snapHub(id as never);
-    w.__runwayFit = () => renderer.snapAll();
-    (w as unknown as { __runwayPose?: () => unknown }).__runwayPose = () => {
-      const cam = (renderer as unknown as { camera: { position: { x: number; y: number; z: number } } }).camera;
-      const tgt = (renderer as unknown as { controls: { target: { x: number; y: number; z: number } } }).controls;
-      return {
-        cam: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
-        target: { x: tgt.target.x, y: tgt.target.y, z: tgt.target.z },
-      };
+
+    let cancelled = false;
+    let map: MapRenderer | null = null;
+    let raf = 0;
+    const buttons = new Map<string, HTMLButtonElement>();
+    const ro = new ResizeObserver(() => map?.resize());
+
+    const pos = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
-    const buttons = new Map<string, HTMLButtonElement>();
+    let dragging = false;
+    let moved = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragging = true;
+      moved = 0;
+      canvas.setPointerCapture(e.pointerId);
+      void pos(e);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      const p = pos(e);
+      if (dragging) {
+        moved += Math.abs(e.movementX) + Math.abs(e.movementY);
+        canvas.style.cursor = 'grabbing';
+        return;
+      }
+      if (!map) return;
+      const hit = map.hitTest(p.x, p.y);
+      map.hover = hit;
+      canvas.style.cursor = hit ? 'pointer' : 'grab';
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      const p = pos(e);
+      dragging = false;
+      canvas.style.cursor = 'grab';
+      if (!map || moved >= 6) return;
+      const hit = map.hitTest(p.x, p.y);
+      map.select(hit);
+      onSelectRef.current?.(hit);
+      if (hit) onHitRef.current?.(hit);
+    };
+
+    const onLeave = () => {
+      if (map) map.hover = null;
+      canvas.style.cursor = 'grab';
+    };
 
     const pick = (hit: HitTarget) => {
-      renderer.select(hit);
+      map?.select(hit);
       onSelectRef.current?.(hit);
       onHitRef.current?.(hit);
     };
@@ -109,7 +138,7 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
       return btn;
     };
 
-    const paintPins = () => {
+    const paintPins = (renderer: MapRenderer) => {
       const selected = renderer.getSelection();
       const pins = renderer
         .pinLabels()
@@ -171,70 +200,60 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
       }
     };
 
-    let raf = 0;
-    let last = performance.now();
-    const loop = (t: number) => {
-      renderer.frame(t, Math.min(0.05, (t - last) / 1000));
-      paintPins();
-      last = t;
+    const boot = async () => {
+      let osm: unknown = null;
+      try {
+        const res = await fetch('/api/osm-clay');
+        if (res.ok) osm = await res.json();
+      } catch {
+        osm = null;
+      }
+      if (cancelled) return;
+      const renderer = new MapRenderer(canvas, osm);
+      map = renderer;
+      renderer.scene = sceneRef.current;
+      rendererRef.current = renderer;
+      renderer.resize();
+      renderer.fitAll();
+
+      const w = window as unknown as {
+        __runwayFocus?: (id: string) => void;
+        __runwayFit?: () => void;
+        __runwayPose?: () => unknown;
+      };
+      w.__runwayFocus = (id) => renderer.snapHub(id as never);
+      w.__runwayFit = () => renderer.snapAll();
+      w.__runwayPose = () => {
+        const cam = (renderer as unknown as { camera: { position: { x: number; y: number; z: number } } })
+          .camera;
+        const tgt = (renderer as unknown as { controls: { target: { x: number; y: number; z: number } } })
+          .controls;
+        return {
+          cam: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+          target: { x: tgt.target.x, y: tgt.target.y, z: tgt.target.z },
+        };
+      };
+
+      let last = performance.now();
+      const loop = (t: number) => {
+        renderer.frame(t, Math.min(0.05, (t - last) / 1000));
+        paintPins(renderer);
+        last = t;
+        raf = requestAnimationFrame(loop);
+      };
       raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-
-    const ro = new ResizeObserver(() => renderer.resize());
-    ro.observe(canvas.parentElement ?? canvas);
-
-    let dragging = false;
-    let moved = 0;
-
-    const pos = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      ro.observe(canvas.parentElement ?? canvas);
+      canvas.addEventListener('pointerdown', onPointerDown);
+      canvas.addEventListener('pointermove', onPointerMove);
+      canvas.addEventListener('pointerup', onPointerUp);
+      canvas.addEventListener('pointercancel', onPointerUp);
+      canvas.addEventListener('pointerleave', onLeave);
     };
 
-    const onPointerDown = (e: PointerEvent) => {
-      dragging = true;
-      moved = 0;
-      canvas.setPointerCapture(e.pointerId);
-      void pos(e);
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      const p = pos(e);
-      if (dragging) {
-        moved += Math.abs(e.movementX) + Math.abs(e.movementY);
-        canvas.style.cursor = 'grabbing';
-        return;
-      }
-      const hit = renderer.hitTest(p.x, p.y);
-      renderer.hover = hit;
-      canvas.style.cursor = hit ? 'pointer' : 'grab';
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      const p = pos(e);
-      dragging = false;
-      canvas.style.cursor = 'grab';
-      if (moved < 6) {
-        const hit = renderer.hitTest(p.x, p.y);
-        renderer.select(hit);
-        onSelectRef.current?.(hit);
-        if (hit) onHitRef.current?.(hit);
-      }
-    };
-
-    const onLeave = () => {
-      renderer.hover = null;
-      canvas.style.cursor = 'grab';
-    };
-
-    canvas.addEventListener('pointerdown', onPointerDown);
-    canvas.addEventListener('pointermove', onPointerMove);
-    canvas.addEventListener('pointerup', onPointerUp);
-    canvas.addEventListener('pointercancel', onPointerUp);
-    canvas.addEventListener('pointerleave', onLeave);
+    void boot();
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
       canvas.removeEventListener('pointerdown', onPointerDown);
@@ -243,8 +262,16 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
       canvas.removeEventListener('pointercancel', onPointerUp);
       canvas.removeEventListener('pointerleave', onLeave);
       overlay.replaceChildren();
-      renderer.dispose();
+      map?.dispose();
       rendererRef.current = null;
+      const w = window as unknown as {
+        __runwayFocus?: (id: string) => void;
+        __runwayFit?: () => void;
+        __runwayPose?: () => unknown;
+      };
+      delete w.__runwayFocus;
+      delete w.__runwayFit;
+      delete w.__runwayPose;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
