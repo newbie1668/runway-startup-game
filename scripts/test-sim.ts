@@ -351,21 +351,74 @@ async function main() {
     assert.match(fc.attribution, /OpenStreetMap/);
     assert.match(fc.meta.source, /clay board|PR #22/i);
     const buildings = fc.features.filter((f) => f.properties.layer === 'building');
+    const roads = fc.features.filter((f) => f.properties.layer === 'road');
+    const parks = fc.features.filter((f) => f.properties.layer === 'park');
     assert.ok(
-      buildings.length > 1500 && buildings.length < 20_000,
+      buildings.length > 3000 && buildings.length < 25_000,
       `got ${buildings.length} buildings`,
     );
+    assert.ok(roads.length > 800, `expected simplified streets, got ${roads.length}`);
     assert.ok(
       fc.features.some((f) => f.properties.layer === 'water' || f.properties.kind === 'water'),
       'Thames / water should be in the clay subset',
     );
+    assert.ok(
+      parks.every((f) => !/olympic park|victoria park/i.test(f.properties.name ?? '')),
+      'Olympic Park / Victoria Park should be clipped off the central board',
+    );
     const blob = readFileSync(simplifiedPath, 'utf8');
+    assert.doesNotMatch(blob, /Olympic Park|Victoria Park/);
     assert.match(
       blob,
       /The Shard|One Canada Square|St Paul|Battersea Power|Palace of Westminster/i,
     );
+    const ringLen = (feature: (typeof buildings)[number]) =>
+      feature.geometry.coordinates[0]?.length ?? 0;
+    const named = (re: RegExp) => buildings.find((f) => re.test(f.properties.name ?? ''));
+    const stPaul = named(/st paul.?s cathedral/i);
+    const battersea = named(/battersea power station$/i);
+    const palace = named(/palace of westminster/i);
+    assert.ok(stPaul && ringLen(stPaul) > 20, 'St Paul’s should keep a detailed footprint');
+    assert.ok(
+      battersea && ringLen(battersea) > 16,
+      'Battersea Power Station should not be a 10-vert cap',
+    );
+    assert.ok(
+      palace && ringLen(palace) > 20,
+      'Palace of Westminster should keep a detailed footprint',
+    );
     const packSrc = readFileSync(join(process.cwd(), 'scripts', 'pack-sim-mesh.ts'), 'utf8');
     assert.match(packSrc, /osm-central-london-simplified\.geojson/);
+    const midpoints: Array<[(typeof SIM_HUBS)[number]['id'], (typeof SIM_HUBS)[number]['id']]> = [
+      ['city', 'shoreditch'],
+      ['soho', 'westminster'],
+      ['londonbridge', 'canarywharf'],
+    ];
+    for (const [a, b] of midpoints) {
+      const ha = SIM_HUBS.find((h) => h.id === a)!;
+      const hb = SIM_HUBS.find((h) => h.id === b)!;
+      const mid = { lng: (ha.lng + hb.lng) / 2, lat: (ha.lat + hb.lat) / 2 };
+      let nearby = 0;
+      for (const feature of buildings) {
+        const ring = feature.geometry.coordinates[0];
+        if (!ring?.length) continue;
+        const n = ring.length > 1 ? ring.length - 1 : ring.length;
+        let lng = 0;
+        let lat = 0;
+        for (let i = 0; i < n; i++) {
+          lng += ring[i][0];
+          lat += ring[i][1];
+        }
+        lng /= n;
+        lat /= n;
+        const dist = Math.hypot(
+          (lng - mid.lng) * METERS_PER_DEGREE_LNG,
+          (lat - mid.lat) * METERS_PER_DEGREE_LAT,
+        );
+        if (dist < 500) nearby += 1;
+      }
+      assert.ok(nearby >= 20, `fabric gap ${a}–${b}: only ${nearby} buildings near the midpoint`);
+    }
     for (const hub of SIM_HUBS) {
       let nearby = 0;
       for (const feature of buildings) {
@@ -387,6 +440,19 @@ async function main() {
         if (dist < 650) nearby += 1;
       }
       assert.ok(nearby >= 80, `${hub.name} should have clustered footprints, got ${nearby}`);
+    }
+  });
+
+  await checkAsync('sim stills are in-repo for GitHub pixel-score', async () => {
+    const { existsSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    for (const file of ['whole-board.png', 'thames.png', 'canary-wharf.png', 'westminster.png']) {
+      const shot = join(process.cwd(), 'docs', 'sim-london', file);
+      assert.ok(existsSync(shot), `missing ${file}`);
+      assert.ok(
+        statSync(shot).size > 200_000,
+        `${file} looks empty (${statSync(shot).size} bytes)`,
+      );
     }
   });
 

@@ -27,8 +27,10 @@ async function main() {
     args: [
       '--no-sandbox',
       '--disable-gpu-sandbox',
+      '--disable-dev-shm-usage',
       '--use-gl=angle',
       '--use-angle=swiftshader',
+      '--enable-unsafe-swiftshader',
       '--enable-webgl',
       '--ignore-gpu-blocklist',
       '--window-size=1600,1000',
@@ -37,9 +39,14 @@ async function main() {
   });
   const page = await browser.newPage();
   page.setDefaultTimeout(180_000);
+  page.on('pageerror', (err) => console.error('pageerror', err.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.error('browser', msg.text());
+  });
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => document.body.innerText.includes('buildings') && document.body.innerText.includes('streets'),
+    () =>
+      document.body.innerText.includes('buildings') && document.body.innerText.includes('streets'),
     { timeout: 180_000 },
   );
   await new Promise((r) => setTimeout(r, 1500));
