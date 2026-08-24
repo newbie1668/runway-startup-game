@@ -56,17 +56,18 @@ function clayGrain(): THREE.CanvasTexture {
   return tex;
 }
 
-const CLAY_GRAIN = clayGrain();
+let CLAY_GRAIN: THREE.CanvasTexture | null = null;
 
 function clayMat(color: number, extras: Record<string, number> = {}) {
+  if (typeof document !== 'undefined' && !CLAY_GRAIN) CLAY_GRAIN = clayGrain();
   return new THREE.MeshStandardMaterial({
     color,
     ...CLAY,
     ...extras,
     flatShading: true,
-    bumpMap: extras.bumpMap ? undefined : CLAY_GRAIN,
-    bumpScale: extras.bumpScale ?? 0.045,
-    roughnessMap: extras.roughnessMap ? undefined : CLAY_GRAIN,
+    ...(CLAY_GRAIN
+      ? { bumpMap: CLAY_GRAIN, bumpScale: extras.bumpScale ?? 0.045, roughnessMap: CLAY_GRAIN }
+      : {}),
   });
 }
 
