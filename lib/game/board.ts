@@ -1079,11 +1079,15 @@ function addOsmFabric(
   }
   const roadMesh = mergeChunks(roadGeos);
   if (roadMesh) {
-    const streetMat = asphalt.clone();
-    streetMat.depthTest = false;
-    streetMat.depthWrite = false;
+    const streetMat = new THREE.MeshBasicMaterial({
+      color: 0x3b3f45,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
     const mesh = new THREE.Mesh(roadMesh, streetMat);
     mesh.receiveShadow = false;
+    mesh.frustumCulled = false;
     mesh.renderOrder = 3;
     group.add(mesh);
   }
