@@ -7,8 +7,9 @@
  * 3D board extrudes. Tube lines are intentionally absent — this is a
  * tabletop city, not a TfL diagram.
  *
- * World bounds stay the central slice (Hyde Park to Docklands). Boroughs
- * inside that box must read from footprint and silhouette, not from a caption.
+ * World bounds stay the central slice (Hyde Park to Docklands) — not Greater
+ * London. The eight hubs plus City / Westminster fabric must read from
+ * footprint and silhouette, not from a caption.
  *
  * This is deliberately NOT Mapbox / Google Earth / a store mesh: the game
  * map is self-contained and extruded from these polygons.
@@ -332,13 +333,6 @@ export const AREA_LABELS: readonly AreaLabel[] = [
   { text: 'WESTMINSTER', at: [-0.133, 51.4985] },
   { text: 'MAYFAIR', at: [-0.148, 51.5098] },
   { text: 'THE CITY', at: [-0.0925, 51.5158] },
-  { text: 'GREENWICH', at: [-0.006, 51.4785] },
-  { text: 'BRIXTON', at: [-0.115, 51.4605] },
-  { text: 'ISLINGTON', at: [-0.103, 51.5385] },
-  { text: 'KENSINGTON', at: [-0.193, 51.4985] },
-  { text: 'HACKNEY', at: [-0.058, 51.5435] },
-  { text: 'WHITECHAPEL', at: [-0.062, 51.5148] },
-  { text: 'STRATFORD', at: [0.0, 51.5435] },
 ] as const;
 
 export type LandmarkKind =
@@ -486,62 +480,6 @@ export const DISTRICTS: readonly District[] = [
   },
 
   {
-    name: 'Kensington',
-    bbox: [-0.21, -0.152, 51.49, 51.504],
-    count: 70,
-    h: [0.45, 1.7],
-    tall: 0.05,
-    tone: 'brick',
-  },
-  {
-    name: 'Bloomsbury',
-    bbox: [-0.132, -0.114, 51.5185, 51.527],
-    count: 45,
-    h: [0.4, 1.45],
-    tall: 0.04,
-    tone: 'stone',
-  },
-  {
-    name: 'Islington',
-    bbox: [-0.11, -0.093, 51.531, 51.546],
-    count: 50,
-    h: [0.35, 1.15],
-    tall: 0.03,
-    tone: 'brick',
-  },
-  {
-    name: 'Hackney',
-    bbox: [-0.068, -0.046, 51.533, 51.548],
-    count: 40,
-    h: [0.32, 1.05],
-    tall: 0.03,
-    tone: 'brick',
-  },
-  {
-    name: 'Whitechapel',
-    bbox: [-0.074, -0.048, 51.511, 51.5195],
-    count: 55,
-    h: [0.38, 1.35],
-    tall: 0.04,
-    tone: 'brick',
-  },
-  {
-    name: 'Limehouse',
-    bbox: [-0.042, -0.0305, 51.509, 51.516],
-    count: 28,
-    h: [0.4, 1.5],
-    tall: 0.06,
-    tone: 'brick',
-  },
-  {
-    name: 'Elephant',
-    bbox: [-0.108, -0.088, 51.488, 51.498],
-    count: 40,
-    h: [0.4, 1.5],
-    tall: 0.05,
-    tone: 'brick',
-  },
-  {
     name: 'Vauxhall',
     bbox: [-0.128, -0.112, 51.484, 51.494],
     count: 32,
@@ -550,36 +488,12 @@ export const DISTRICTS: readonly District[] = [
     tone: 'brick',
   },
   {
-    name: 'Greenwich',
-    bbox: [-0.014, 0.018, 51.474, 51.488],
-    count: 35,
-    h: [0.35, 1.2],
-    tall: 0.04,
-    tone: 'stone',
-  },
-  {
     name: 'North Greenwich',
     bbox: [-0.007, 0.018, 51.498, 51.507],
     count: 30,
     h: [0.5, 2.2],
     tall: 0.1,
     tone: 'glass',
-  },
-  {
-    name: 'Stratford',
-    bbox: [-0.024, 0.012, 51.536, 51.548],
-    count: 28,
-    h: [0.45, 1.8],
-    tall: 0.08,
-    tone: 'glass',
-  },
-  {
-    name: 'Brixton',
-    bbox: [-0.122, -0.105, 51.455, 51.468],
-    count: 32,
-    h: [0.32, 1.05],
-    tall: 0.03,
-    tone: 'brick',
   },
   {
     name: 'Fill North',
@@ -710,30 +624,10 @@ function grainFor(name: string) {
       return { stepLng: 0.0015, stepLat: 0.001, streetCol: 4, streetRow: 3, inset: 0.18 };
     case 'Clerkenwell':
       return { stepLng: 0.00138, stepLat: 0.00095, streetCol: 4, streetRow: 3, inset: 0.15 };
-    case 'Kensington':
-      return { stepLng: 0.00185, stepLat: 0.0012, streetCol: 4, streetRow: 3, inset: 0.18 };
-    case 'Bloomsbury':
-      return { stepLng: 0.00145, stepLat: 0.001, streetCol: 3, streetRow: 3, inset: 0.16 };
-    case 'Islington':
-      return { stepLng: 0.00135, stepLat: 0.00115, streetCol: 3, streetRow: 4, inset: 0.14 };
-    case 'Hackney':
-      return { stepLng: 0.0021, stepLat: 0.0013, streetCol: 4, streetRow: 3, inset: 0.18 };
-    case 'Whitechapel':
-      return { stepLng: 0.00175, stepLat: 0.00112, streetCol: 4, streetRow: 3, inset: 0.15 };
-    case 'Limehouse':
-      return { stepLng: 0.0019, stepLat: 0.0012, streetCol: 3, streetRow: 3, inset: 0.16 };
-    case 'Elephant':
-      return { stepLng: 0.002, stepLat: 0.00128, streetCol: 4, streetRow: 3, inset: 0.17 };
     case 'Vauxhall':
       return { stepLng: 0.0019, stepLat: 0.00122, streetCol: 3, streetRow: 3, inset: 0.16 };
-    case 'Greenwich':
-      return { stepLng: 0.00215, stepLat: 0.00135, streetCol: 4, streetRow: 3, inset: 0.2 };
     case 'North Greenwich':
       return { stepLng: 0.0018, stepLat: 0.00115, streetCol: 3, streetRow: 3, inset: 0.18 };
-    case 'Stratford':
-      return { stepLng: 0.00235, stepLat: 0.00145, streetCol: 3, streetRow: 3, inset: 0.2 };
-    case 'Brixton':
-      return { stepLng: 0.00195, stepLat: 0.00128, streetCol: 4, streetRow: 3, inset: 0.17 };
     default:
       return { stepLng: 0.0054, stepLat: 0.0036, streetCol: 4, streetRow: 3, inset: 0.24 };
   }
@@ -754,25 +648,14 @@ const CLEARINGS: readonly { at: LngLat; r: number }[] = [
   { at: [-0.0906, 51.5055], r: 0.0016 }, // Borough Market
   { at: [-0.1462, 51.5408], r: 0.0015 }, // Camden Lock
   { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square pad
-  { at: [-0.1774, 51.5009], r: 0.0022 }, // Albert Hall
-  { at: [-0.1761, 51.4962], r: 0.002 }, // Natural History Museum
-  { at: [-0.1722, 51.4966], r: 0.0016 }, // V&A
-  { at: [-0.1632, 51.4994], r: 0.0016 }, // Harrods
   { at: [-0.1269, 51.5194], r: 0.0024 }, // British Museum
   { at: [-0.0837, 51.5115], r: 0.0014 }, // Walkie Talkie
   { at: [-0.0821, 51.5139], r: 0.0012 }, // Cheesegrater
   { at: [-0.0761, 51.5081], r: 0.002 }, // Tower of London
-  { at: [-0.0653, 51.5175], r: 0.0016 }, // East London Mosque
   { at: [-0.1278, 51.508], r: 0.0018 }, // Trafalgar
   { at: [-0.1272, 51.5038], r: 0.0015 }, // Whitehall
   { at: [-0.1134, 51.5031], r: 0.0024 }, // Waterloo
   { at: [-0.1245, 51.4872], r: 0.0018 }, // MI6
-  { at: [-0.1, 51.4948], r: 0.002 }, // Elephant & Castle
-  { at: [-0.0086, 51.483], r: 0.0028 }, // Naval College
-  { at: [-0.0166, 51.5386], r: 0.0024 }, // Olympic Stadium
-  { at: [-0.1057, 51.5322], r: 0.0015 }, // Angel
-  { at: [-0.0618, 51.5368], r: 0.0013 }, // Broadway Market
-  { at: [-0.1145, 51.4615], r: 0.0016 }, // Brixton market
 ];
 
 const CANAL_PROJECTED: readonly WorldPoint[] = CANAL.map(project);
@@ -862,35 +745,14 @@ const AUTHORED: CityBlock[] = [
   // Battersea riverside glass + park-edge brick.
   { ring: rectRing(-0.1385, 51.4842, 0.0032, 0.0009), h: 2.1, tone: 'glass' },
   { ring: rectRing(-0.1495, 51.4834, 0.0024, 0.00085), h: 1.8, tone: 'glass' },
-  // Kensington — Exhibition Rd museums + Knightsbridge palace block.
-  { ring: rectRing(-0.1762, 51.4962, 0.0036, 0.00135), h: 1.45, tone: 'brick' },
-  { ring: rectRing(-0.1724, 51.4966, 0.003, 0.00115), h: 1.25, tone: 'brick' },
-  { ring: rectRing(-0.1634, 51.4994, 0.0026, 0.0017), h: 1.85, tone: 'brick' },
-  // Bloomsbury — museum wings.
-  { ring: rectRing(-0.1269, 51.5198, 0.0034, 0.0007), h: 1.15, tone: 'stone' },
-  { ring: rectRing(-0.1284, 51.5188, 0.0007, 0.0022), h: 1.05, tone: 'stone' },
-  { ring: rectRing(-0.1254, 51.5188, 0.0007, 0.0022), h: 1.05, tone: 'stone' },
-  // Islington — Upper Street terrace bar.
-  { ring: rectRing(-0.1038, 51.5368, 0.00055, 0.0062), h: 0.92, tone: 'brick' },
-  { ring: rectRing(-0.1052, 51.5354, 0.0005, 0.0044), h: 0.85, tone: 'brick' },
-  // Hackney — Broadway Market bar.
-  { ring: rectRing(-0.0618, 51.5374, 0.00045, 0.0036), h: 0.72, tone: 'brick' },
-  // Whitechapel Road long high-street.
-  { ring: rotRing(-0.0625, 51.5152, 0.0085, 0.0007, 0.08), h: 0.88, tone: 'brick' },
   // City — Walkie Talkie / Cheesegrater pads.
   { ring: rectRing(-0.0837, 51.5115, 0.00115, 0.00115), h: 7.4, tone: 'glass' },
   { ring: rotRing(-0.0821, 51.5139, 0.0007, 0.0024, 0.55), h: 8.2, tone: 'glass' },
   // Tower of London mass.
   { ring: rectRing(-0.0761, 51.5081, 0.0024, 0.0018), h: 1.65, tone: 'stone' },
-  // Waterloo station bars.
+  // Waterloo station bars (South Bank / London Bridge fabric).
   { ring: rotRing(-0.1138, 51.5032, 0.0046, 0.00085, 0.22), h: 1.35, tone: 'stone' },
   { ring: rotRing(-0.1126, 51.5026, 0.0042, 0.00075, 0.22), h: 1.15, tone: 'stone' },
-  // Greenwich — Naval College courts.
-  { ring: rectRing(-0.0056, 51.4832, 0.0028, 0.00115), h: 1.05, tone: 'stone' },
-  { ring: rectRing(-0.0114, 51.4832, 0.0028, 0.00115), h: 1.05, tone: 'stone' },
-  // Stratford slabs.
-  { ring: rectRing(-0.0088, 51.5424, 0.0032, 0.0014), h: 2.2, tone: 'glass' },
-  { ring: rectRing(-0.0042, 51.5412, 0.0024, 0.0011), h: 1.7, tone: 'glass' },
 ];
 
 function namedBboxContains(lng: number, lat: number): boolean {
