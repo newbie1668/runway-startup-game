@@ -250,6 +250,33 @@ function ribbonGeometry(
   return geo;
 }
 
+
+/** Per-segment street quads — no miter spikes, readable at board scale. */
+function streetRibbon(line: readonly WorldPoint[], halfW: number, y: number): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  let v = 0;
+  for (let i = 1; i < line.length; i++) {
+    const a = centerWorld(line[i - 1]);
+    const b = centerWorld(line[i]);
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.05) continue;
+    const nx = (-dz / len) * halfW;
+    const nz = (dx / len) * halfW;
+    positions.push(a.x + nx, y, a.z + nz, a.x - nx, y, a.z - nz, b.x + nx, y, b.z + nz, b.x - nx, y, b.z - nz);
+    indices.push(v, v + 1, v + 2, v + 2, v + 1, v + 3);
+    v += 4;
+  }
+  if (v < 4) return new THREE.BufferGeometry();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function makeSkyTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 8;
@@ -1040,7 +1067,12 @@ function addOsmFabric(
     const line: WorldPoint[] = road.line.map(([lng, lat]) => project([lng, lat]));
     carLines.push(line);
     try {
-      roadGeos.push(ribbonGeometry(line, road.halfW, LAND_Y + 0.12));
+      const street = streetRibbon(line, road.halfW, LAND_Y + 0.12);
+      if (street.getAttribute('position') && street.getAttribute('position')!.count >= 4) {
+        roadGeos.push(street);
+      } else {
+        street.dispose();
+      }
     } catch {
       /* skip */
     }
