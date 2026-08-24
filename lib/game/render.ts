@@ -178,7 +178,7 @@ export class MapRenderer {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = !this.reduced;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.threeScene = new THREE.Scene();
     this.board = buildLondonBoard(this.reduced);
@@ -235,7 +235,7 @@ export class MapRenderer {
     this.startFlight(new THREE.Vector3(-72, 58, 86), new THREE.Vector3(4, 0, -6), 1.05);
   }
 
-  focusHub(hubId: HubId, _zoom = 9) {
+  focusHub(hubId: HubId) {
     const p = HUB_POS[hubId].clone();
     const target = new THREE.Vector3(p.x, LAND_Y + 0.6, p.z);
     const pos = new THREE.Vector3(p.x - 16, LAND_Y + 12, p.z + 18);

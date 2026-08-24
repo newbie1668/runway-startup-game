@@ -428,14 +428,14 @@ export function GameApp() {
         {/* Title screen */}
         {screen === 'title' && (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-5 md:p-8">
-            <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/15 bg-[#0b1226]/72 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur-xl md:p-8">
+            <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/15 bg-[#0b1226]/72 p-5 text-center shadow-2xl shadow-black/30 backdrop-blur-xl md:p-6">
               <p className="text-xs font-black tracking-[0.5em] text-sky-300">
                 LONDON STARTUP MAP PRESENTS
               </p>
-              <h1 className="mt-3 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-7xl font-black tracking-tight text-transparent drop-shadow-sm md:text-8xl">
+              <h1 className="mt-2 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-6xl font-black tracking-tight text-transparent drop-shadow-sm md:text-7xl">
                 RUNWAY
               </h1>
-              <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
+              <p className="mx-auto mt-3 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
                 Found a startup on a living map of London. Spend your focus, work the events scene,
                 out-raise your rivals — and reach a{' '}
                 <span className="font-bold text-amber-300">
@@ -443,7 +443,7 @@ export function GameApp() {
                 </span>{' '}
                 before the money runs out.
               </p>
-              <div className="mt-8 flex flex-col items-center gap-2.5">
+              <div className="mt-5 flex flex-col items-center gap-2.5">
                 <button
                   onClick={() => startSetup()}
                   className="w-64 rounded-2xl bg-amber-400 px-6 py-3.5 text-lg font-black text-[#161003] shadow-lg shadow-amber-500/20 transition hover:bg-amber-300 hover:shadow-amber-400/30 active:scale-[0.98]"
@@ -459,7 +459,7 @@ export function GameApp() {
                   </button>
                 )}
               </div>
-              <p className="mt-8 text-xs text-slate-500">
+              <p className="mt-5 text-xs text-slate-500">
                 Best with sound on 🔊 · built end-to-end by{' '}
                 <span className="font-bold text-slate-400">Fable</span>
                 {' as a what-if: the startup map, but you\u2019re on it.'}
