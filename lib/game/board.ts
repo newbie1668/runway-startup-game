@@ -276,7 +276,7 @@ function streetRibbon(line: readonly WorldPoint[], halfW: number, y: number): TH
     const nx = (-dz / len) * halfW;
     const nz = (dx / len) * halfW;
     positions.push(a.x + nx, y, a.z + nz, a.x - nx, y, a.z - nz, b.x + nx, y, b.z + nz, b.x - nx, y, b.z - nz);
-    indices.push(v, v + 1, v + 2, v + 2, v + 1, v + 3);
+    indices.push(v, v + 2, v + 1, v + 2, v + 3, v + 1);
     v += 4;
   }
   if (v < 4) return new THREE.BufferGeometry();
@@ -1044,6 +1044,7 @@ function addOsmFabric(
   const streetMat = new THREE.MeshBasicMaterial({
     color: 0x3b3f45,
     toneMapped: false,
+    side: THREE.DoubleSide,
     polygonOffset: true,
     polygonOffsetFactor: -8,
     polygonOffsetUnits: -8,
@@ -1051,6 +1052,7 @@ function addOsmFabric(
   const laneMat = new THREE.MeshBasicMaterial({
     color: 0xf5f1e8,
     toneMapped: false,
+    side: THREE.DoubleSide,
     polygonOffset: true,
     polygonOffsetFactor: -12,
     polygonOffsetUnits: -12,
