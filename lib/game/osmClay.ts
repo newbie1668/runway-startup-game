@@ -75,13 +75,13 @@ function toneFor(building: string, h: number, lng: number, lat: number): CityBlo
   if (h >= 6.4) return 'glass';
   const m = mix01(lng, lat);
   const house = /(apartments|residential|house|terrace)/.test(building);
-  if (house && h < 3.0) return m < 0.58 ? 'brick' : 'fill';
+  if (house && h < 3.0) return m < 0.7 ? 'brick' : 'fill';
   if (h >= 2.15) {
-    if (m < 0.32) return 'brick';
-    if (m < 0.64) return 'stone';
+    if (m < 0.4) return 'brick';
+    if (m < 0.7) return 'stone';
     return 'fill';
   }
-  return m < 0.5 ? 'brick' : 'fill';
+  return m < 0.62 ? 'brick' : 'fill';
 }
 
 export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
