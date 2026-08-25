@@ -869,8 +869,6 @@ function addNeighbourhoods(
   addBoxLL(group, -0.1296, 51.5326, 0.72, 5.4, 0.72, brick, 0.04);
   addBoxLL(group, -0.128, 51.5326, 0.72, 5.4, 0.72, brick, 0.04);
   addBoxLL(group, -0.1288, 51.5328, 1.85, 1.15, 0.7, roof, 0.04);
-  const plaza = addBoxLL(group, -0.1255, 51.5348, 4.2, 0.08, 3.0, cream, 0.1);
-  plaza.castShadow = false;
   const holder = ll3(-0.1182, 51.5356);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.16, 10, 36), terracotta);
   ring.rotation.x = Math.PI / 2;
@@ -878,7 +876,11 @@ function addNeighbourhoods(
   ring.castShadow = true;
   group.add(ring);
   addCylLL(group, -0.1182, 51.5356, 1.85, 1.85, 0.18, brick, 28).position.y = LAND_Y + 0.12;
-  addBoxLL(group, -0.1206, 51.5332, 5.4, 2.35, 1.25, glass, 0.08);
+  if (!osmFabric) {
+    const plaza = addBoxLL(group, -0.1255, 51.5348, 4.2, 0.08, 3.0, cream, 0.1);
+    plaza.castShadow = false;
+    addBoxLL(group, -0.1206, 51.5332, 5.4, 2.35, 1.25, glass, 0.08);
+  }
 
   // --- Shoreditch: Old Street circus + Boxpark ---
   const round = ll3(-0.0874, 51.5256);
@@ -1047,7 +1049,7 @@ function addNeighbourhoods(
       group.add(peak);
     }
   }
-  addBarrelShed(group, -0.0864, 51.5038, 6.2, 2.05, 1.85, 1.12, stone);
+  if (!osmFabric) addBarrelShed(group, -0.0864, 51.5038, 6.2, 2.05, 1.85, 1.12, stone);
 
   // --- Camden: Roundhouse drum + lock horseshoe ---
   const rh = ll3(-0.1494, 51.5431);
@@ -1074,7 +1076,7 @@ function addNeighbourhoods(
       -a,
     ).position.y = LAND_Y + 1.15;
   }
-  addBoxLL(group, -0.1528, 51.5436, 1.65, 1.15, 0.85, brick, -0.2);
+  if (!osmFabric) addBoxLL(group, -0.1528, 51.5436, 1.65, 1.15, 0.85, brick, -0.2);
   const lockMat = new THREE.MeshStandardMaterial({
     color: 0x2f9ec6,
     roughness: 0.26,
@@ -1115,20 +1117,22 @@ function addNeighbourhoods(
   addBoxLL(group, -0.1418, 51.5412, 0.34, 1.45, 0.34, stone, 0);
   addBoxLL(group, -0.1394, 51.5412, 0.34, 1.45, 0.34, stone, 0);
   addBoxLL(group, -0.1406, 51.5412, 1.7, 0.95, 0.14, dark, 0);
-  for (let i = 0; i < (reduced ? 10 : 16); i++) {
-    const t = i / 15;
-    const lng = t < 0.45 ? -0.1358 : -0.1388 + (t - 0.45) * 0.006;
-    const lat = t < 0.45 ? 51.5452 - t * 0.0065 : 51.5402;
-    addBoxLL(
-      group,
-      lng,
-      lat,
-      0.52,
-      0.48,
-      0.4,
-      clayMat(candy[i % candy.length]),
-      t < 0.45 ? 1.4 : 0.1,
-    );
+  if (!osmFabric) {
+    for (let i = 0; i < (reduced ? 10 : 16); i++) {
+      const t = i / 15;
+      const lng = t < 0.45 ? -0.1358 : -0.1388 + (t - 0.45) * 0.006;
+      const lat = t < 0.45 ? 51.5452 - t * 0.0065 : 51.5402;
+      addBoxLL(
+        group,
+        lng,
+        lat,
+        0.52,
+        0.48,
+        0.4,
+        clayMat(candy[i % candy.length]),
+        t < 0.45 ? 1.4 : 0.1,
+      );
+    }
   }
   const lockCut = (
     [
@@ -1181,13 +1185,13 @@ function addNeighbourhoods(
     addBoxLL(group, -0.1284, 51.5046, 2.65, 1.25, 1.05, stone, 0.12);
     addCylLL(group, -0.1281, 51.508, 0.18, 0.26, 5.1, stone, 10);
     addCylLL(group, -0.1281, 51.508, 0.36, 0.36, 0.24, gold, 10).position.y = LAND_Y + 5.25;
-  }
 
-  // --- British Museum court ---
-  addBoxLL(group, -0.1269, 51.5199, 4.4, 1.45, 0.9, stone, 0);
-  addBoxLL(group, -0.1285, 51.5188, 0.9, 1.35, 2.65, stone, 0);
-  addBoxLL(group, -0.1253, 51.5188, 0.9, 1.35, 2.65, stone, 0);
-  addBoxLL(group, -0.1269, 51.5178, 4.4, 1.65, 1.05, stone, 0);
+    // --- British Museum court ---
+    addBoxLL(group, -0.1269, 51.5199, 4.4, 1.45, 0.9, stone, 0);
+    addBoxLL(group, -0.1285, 51.5188, 0.9, 1.35, 2.65, stone, 0);
+    addBoxLL(group, -0.1253, 51.5188, 0.9, 1.35, 2.65, stone, 0);
+    addBoxLL(group, -0.1269, 51.5178, 4.4, 1.65, 1.05, stone, 0);
+  }
 
   // --- City: Walkie Talkie, Cheesegrater; Tower of London stays OSM-clipped when fabric is on ---
   addCylLL(group, -0.0837, 51.5115, 1.45, 0.68, 8.8, glass, 10);
