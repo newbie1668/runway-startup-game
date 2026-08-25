@@ -1347,6 +1347,41 @@ function addOsmFabric(
     group.add(mesh);
   }
 
+  // London Bridge — one clean deck above the clay ribbon. OSM fragments z-fought.
+  const lbDeck = (
+    [
+      [-0.0879, 51.50535],
+      [-0.08772, 51.50655],
+      [-0.08758, 51.5075],
+      [-0.08768, 51.50875],
+    ] as const
+  ).map(([lng, lat]) => project([lng, lat]));
+  try {
+    const deck = streetRibbon(lbDeck, 1.18, LAND_Y + 0.26);
+    if (deck.getAttribute('position') && deck.getAttribute('position')!.count >= 4) {
+      const mesh = new THREE.Mesh(deck, streetMat);
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 4;
+      group.add(mesh);
+      const paintW = 0.12;
+      const lane = streetRibbon(lbDeck, paintW, LAND_Y + 0.275);
+      if (lane.getAttribute('position') && lane.getAttribute('position')!.count >= 4) {
+        const paint = new THREE.Mesh(lane, laneMat);
+        paint.receiveShadow = false;
+        paint.frustumCulled = false;
+        paint.renderOrder = 5;
+        group.add(paint);
+      } else {
+        lane.dispose();
+      }
+    } else {
+      deck.dispose();
+    }
+  } catch {
+    /* skip */
+  }
+
   for (const w of clay.waters) {
     try {
       const bed = extrudeRing(w.ring, 0.16, waterDeep);

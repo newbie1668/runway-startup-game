@@ -7,9 +7,18 @@
  * are translated onto the bank so the clay-blue ribbon stays clean and OSM
  * rings are not re-boxed. Terraces mix London stock (yellow / grey / dirty).
  * London Bridge hub drops 4–8-gon caps so only irregular OSM rings extrude.
+ * Bank rings at that crossing stay site-true — the fat clay ribbon must not
+ * vacuum them inland into a prism pile. Mid-channel fragments are dropped.
  */
 
-import { clipRingOffThames, degDist, type CityBlock, type LngLat } from './geo';
+import {
+  clipRingOffThames,
+  degDist,
+  distToThamesCenter,
+  inThamesMidChannel,
+  type CityBlock,
+  type LngLat,
+} from './geo';
 
 /** London stock mix — not one brick-red wash. */
 export type BrickStock = 'yellow' | 'grey' | 'dirty' | 'red';
@@ -52,6 +61,30 @@ const HERO_PADS: readonly { at: LngLat; r: number }[] = [
 /** London Bridge / Shard / Tower Bridge still-view. Boxy 4–8-gons read as a prism grid. */
 function inLondonBridgeHub(lng: number, lat: number): boolean {
   return lng > -0.098 && lng < -0.068 && lat > 51.499 && lat < 51.512;
+}
+
+/** Pool of London stretch — London Bridge / Tower Bridge water, not Canary. */
+function inPoolOfLondon(lng: number, lat: number): boolean {
+  return lng > -0.1 && lng < -0.065 && lat > 51.502 && lat < 51.512;
+}
+
+/** Contiguous land runs; mid-channel verts are the OSM bridge-fragment pile. */
+function landRunsOffChannel(line: LngLat[]): LngLat[][] {
+  const runs: LngLat[][] = [];
+  let cur: LngLat[] = [];
+  const flush = () => {
+    if (cur.length >= 2) runs.push(cur);
+    cur = [];
+  };
+  for (const pt of line) {
+    if (inPoolOfLondon(pt[0], pt[1]) && distToThamesCenter(pt[0], pt[1]) < 1.05) {
+      flush();
+      continue;
+    }
+    cur.push(pt);
+  }
+  flush();
+  return runs;
 }
 
 function ringVertCount(ring: LngLat[]): number {
@@ -222,7 +255,10 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       if (nearAuthoredHero(clng, clat, name)) continue;
       // Keep L-shapes / courtyards / station sheds; drop rectangle caps at this hub.
       if (inLondonBridgeHub(clng, clat) && ringVertCount(ring) <= 8) continue;
-      const clipped = clipRingOffThames(ring);
+      const atCrossing = inLondonBridgeHub(clng, clat);
+      if (atCrossing && inThamesMidChannel(clng, clat)) continue;
+      // Site-true rings at the crossing. Fat-ribbon translate stacked them into a pile.
+      const clipped = atCrossing ? ring : clipRingOffThames(ring);
       if (!clipped) continue;
       const meters = typeof props.height === 'number' ? props.height : 10;
       const h = clamp(meters * M_TO_CLAY, 0.42, 17.2);
@@ -248,11 +284,12 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       // Hairlines (≤0.22) read as gaps between blocks and fail the whole-board camera.
       let halfW = clamp(widthM * 0.1, 1.05, 2.4);
       if (highway === 'pedestrian') halfW = Math.min(halfW, 0.88);
-      roads.push({
-        line,
-        halfW,
-        painted: highway === 'primary' || highway === 'trunk' || highway === 'secondary',
-      });
+      const painted = highway === 'primary' || highway === 'trunk' || highway === 'secondary';
+      const crossesPool = line.some(([lng, lat]) => inPoolOfLondon(lng, lat));
+      const runs = crossesPool ? landRunsOffChannel(line) : [line];
+      for (const run of runs) {
+        roads.push({ line: run, halfW, painted });
+      }
       continue;
     }
 

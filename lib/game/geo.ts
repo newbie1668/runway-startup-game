@@ -143,6 +143,16 @@ export function lngLatInThamesWater(lng: number, lat: number): boolean {
   return inThamesWater(project([lng, lat]));
 }
 
+/** World-units from the authored Thames centreline. 1 wu ≈ 111 m. */
+export function distToThamesCenter(lng: number, lat: number): number {
+  return distToPolyline(project([lng, lat]), THAMES_PROJECTED);
+}
+
+/** Mid-channel only — not the fat clay ribbon that swallows the banks. */
+export function inThamesMidChannel(lng: number, lat: number): boolean {
+  return distToThamesCenter(lng, lat) < 0.5;
+}
+
 function lerpWorldPt(a: WorldPoint, b: WorldPoint, t: number): WorldPoint {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
