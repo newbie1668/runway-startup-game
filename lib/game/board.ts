@@ -1263,11 +1263,37 @@ function addOsmFabric(
     dirty: [],
     red: [],
   };
+  const crossingGeos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
+    glass: [],
+    stone: [],
+    brick: [],
+    fill: [],
+  };
+  const crossingBrickGeos: Record<BrickStock, THREE.BufferGeometry[]> = {
+    yellow: [],
+    grey: [],
+    dirty: [],
+    red: [],
+  };
   const brickMat: Record<BrickStock, THREE.Material> = {
     yellow: clayMat(0xc9a36a, { roughness: 0.8 }),
     grey: clayMat(0x8e8a84, { roughness: 0.82 }),
     dirty: clayMat(0x6e4a40, { roughness: 0.86 }),
     red: clayMat(0xa66a58, { roughness: 0.8 }),
+  };
+  const crossingOf = (ring: readonly LngLat[]) => {
+    const n =
+      ring.length -
+      (ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1] ? 1 : 0);
+    let lng = 0;
+    let lat = 0;
+    for (let i = 0; i < n; i++) {
+      lng += ring[i][0];
+      lat += ring[i][1];
+    }
+    lng /= n;
+    lat /= n;
+    return lng > -0.098 && lng < -0.068 && lat > 51.499 && lat < 51.512;
   };
   for (const b of clay.buildings) {
     try {
@@ -1279,28 +1305,49 @@ function addOsmFabric(
       });
       geo.rotateX(-Math.PI / 2);
       geo.translate(0, LAND_Y + 0.02, 0);
-      if (b.tone === 'brick') brickGeos[b.brickStock ?? 'yellow'].push(geo);
-      else geos[b.tone].push(geo);
+      const atCrossing = crossingOf(b.ring);
+      const destTone = atCrossing ? crossingGeos : geos;
+      const destBrick = atCrossing ? crossingBrickGeos : brickGeos;
+      if (b.tone === 'brick') destBrick[b.brickStock ?? 'yellow'].push(geo);
+      else destTone[b.tone].push(geo);
     } catch {
       /* degenerate footprint */
     }
   }
-  (Object.keys(geos) as CityBlock['tone'][]).forEach((tone) => {
-    const merged = mergeChunks(geos[tone]);
-    if (!merged) return;
-    const mesh = new THREE.Mesh(merged, toneMat[tone]);
-    mesh.castShadow = !reduced;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  });
-  (Object.keys(brickGeos) as BrickStock[]).forEach((stock) => {
-    const merged = mergeChunks(brickGeos[stock]);
-    if (!merged) return;
-    const mesh = new THREE.Mesh(merged, brickMat[stock]);
-    mesh.castShadow = !reduced;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  });
+  const addToneMeshes = (
+    buckets: Record<CityBlock['tone'], THREE.BufferGeometry[]>,
+    mats: Record<CityBlock['tone'], THREE.Material>,
+    order?: number,
+  ) => {
+    (Object.keys(buckets) as CityBlock['tone'][]).forEach((tone) => {
+      const merged = mergeChunks(buckets[tone]);
+      if (!merged) return;
+      const mesh = new THREE.Mesh(merged, mats[tone]);
+      mesh.castShadow = !reduced;
+      mesh.receiveShadow = true;
+      if (order !== undefined) mesh.renderOrder = order;
+      group.add(mesh);
+    });
+  };
+  const addBrickMeshes = (
+    buckets: Record<BrickStock, THREE.BufferGeometry[]>,
+    order?: number,
+  ) => {
+    (Object.keys(buckets) as BrickStock[]).forEach((stock) => {
+      const merged = mergeChunks(buckets[stock]);
+      if (!merged) return;
+      const mesh = new THREE.Mesh(merged, brickMat[stock]);
+      mesh.castShadow = !reduced;
+      mesh.receiveShadow = true;
+      if (order !== undefined) mesh.renderOrder = order;
+      group.add(mesh);
+    });
+  };
+  addToneMeshes(geos, toneMat);
+  addBrickMeshes(brickGeos);
+  // Crossing fabric draws above the fat ribbon so OSM is not sliced into a jagged pile.
+  addToneMeshes(crossingGeos, toneMat, 6);
+  addBrickMeshes(crossingBrickGeos, 6);
 
   const roadGeos: THREE.BufferGeometry[] = [];
   const paintGeos: THREE.BufferGeometry[] = [];
@@ -1356,31 +1403,17 @@ function addOsmFabric(
       [-0.08768, 51.50875],
     ] as const
   ).map(([lng, lat]) => project([lng, lat]));
-  try {
-    const deck = streetRibbon(lbDeck, 1.18, LAND_Y + 0.26);
-    if (deck.getAttribute('position') && deck.getAttribute('position')!.count >= 4) {
-      const mesh = new THREE.Mesh(deck, streetMat);
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
-      mesh.renderOrder = 4;
-      group.add(mesh);
-      const paintW = 0.12;
-      const lane = streetRibbon(lbDeck, paintW, LAND_Y + 0.275);
-      if (lane.getAttribute('position') && lane.getAttribute('position')!.count >= 4) {
-        const paint = new THREE.Mesh(lane, laneMat);
-        paint.receiveShadow = false;
-        paint.frustumCulled = false;
-        paint.renderOrder = 5;
-        group.add(paint);
-      } else {
-        lane.dispose();
-      }
-    } else {
-      deck.dispose();
-    }
-  } catch {
-    /* skip */
-  }
+  const deckGeo = ribbonGeometry(lbDeck, 1.05, LAND_Y + 0.3);
+  const deckMesh = new THREE.Mesh(deckGeo, streetMat);
+  deckMesh.receiveShadow = true;
+  deckMesh.frustumCulled = false;
+  deckMesh.renderOrder = 7;
+  group.add(deckMesh);
+  const deckLane = new THREE.Mesh(ribbonGeometry(lbDeck, 0.1, LAND_Y + 0.31), laneMat);
+  deckLane.receiveShadow = false;
+  deckLane.frustumCulled = false;
+  deckLane.renderOrder = 8;
+  group.add(deckLane);
 
   for (const w of clay.waters) {
     try {
