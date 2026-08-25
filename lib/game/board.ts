@@ -293,10 +293,10 @@ function makeSkyTexture(): THREE.CanvasTexture {
   c.height = 256;
   const ctx = c.getContext('2d')!;
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, '#f0d4a8');
-  g.addColorStop(0.42, '#f2d7b0');
-  g.addColorStop(0.78, '#e8cba0');
-  g.addColorStop(1, '#d9b888');
+  g.addColorStop(0, '#eee4d4');
+  g.addColorStop(0.42, '#eadcc8');
+  g.addColorStop(0.78, '#e0d0b4');
+  g.addColorStop(1, '#d4c4a4');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 8, 256);
   const tex = new THREE.CanvasTexture(c);
@@ -367,8 +367,8 @@ function addPart(
 
 function addLandmark(group: THREE.Group, lm: Landmark, at: THREE.Vector3) {
   const stone = clayMat(0xe2c49a, { roughness: 0.68 });
-  const cream = clayMat(0xe8d0a8, { roughness: 0.7 });
-  const brick = clayMat(0xc45c3e, { roughness: 0.74 });
+  const cream = clayMat(0xf0e4c8, { roughness: 0.7 });
+  const brick = clayMat(0xc47854, { roughness: 0.74 });
   const dark = clayMat(0x5a616c, { roughness: 0.55, metalness: 0.12 });
   const glass = clayMat(0xb7c9d4, { roughness: 0.42, metalness: 0.08 });
   const gold = clayMat(0xe8c872, { roughness: 0.5, metalness: 0.22 });
@@ -830,7 +830,7 @@ function addNeighbourhoods(
   const addBasin = (lng: number, lat: number, w: number, d: number) => {
     const p = ll3(lng, lat);
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.28, d), waterMat);
-    mesh.position.set(p.x, LAND_Y + 0.16, p.z);
+    mesh.position.set(p.x, LAND_Y + 0.26, p.z);
     mesh.receiveShadow = true;
     group.add(mesh);
     addBoxLL(group, lng, lat + d * 0.00052, w + 0.55, 0.32, 0.32, dark, 0);
@@ -1154,17 +1154,20 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   const group = new THREE.Group();
   const rnd = seeded(20260824);
 
-  const groundMat = clayMat(0xd2b48c);
+  const groundMat = clayMat(0xcbb48a);
   const bankMat = clayMat(0xc4a06e, { roughness: 0.85 });
+  bankMat.side = THREE.DoubleSide;
   const riverMat = new THREE.MeshStandardMaterial({
-    color: 0x2f96b4,
-    roughness: 0.58,
+    color: 0x3aadc8,
+    roughness: 0.55,
     metalness: 0.03,
+    side: THREE.DoubleSide,
   });
   const riverDeepMat = new THREE.MeshStandardMaterial({
-    color: 0x217a98,
-    roughness: 0.62,
+    color: 0x2a8eaa,
+    roughness: 0.58,
     metalness: 0.03,
+    side: THREE.DoubleSide,
   });
   const parkMat = clayMat(0x3d9a38);
   const leafMat = clayMat(0x2f8a32);
@@ -1218,10 +1221,10 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   }
 
   const toneMat: Record<CityBlock['tone'], THREE.MeshStandardMaterial> = {
-    glass: clayMat(0xd6cfc4, { roughness: 0.62, metalness: 0.04 }),
-    stone: clayMat(0xd4a05a),
-    brick: clayMat(0xc45c3e),
-    fill: clayMat(0xe0b888),
+    glass: clayMat(0xd8d0c4, { roughness: 0.62, metalness: 0.04 }),
+    stone: clayMat(0xd4a66a),
+    brick: clayMat(0xc47854),
+    fill: clayMat(0xe0c49a),
   };
   const geos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
     glass: [],
@@ -1289,17 +1292,17 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     for (const road of roads) addRoad(group, road, 0.62, asphaltMat, paintMat);
   }
 
-  const banks = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 3.9, LAND_Y + 0.05), bankMat);
+  const banks = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 3.9, LAND_Y + 0.06), bankMat);
   banks.receiveShadow = true;
-  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.9, LAND_Y + 0.08), riverMat);
+  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.9, LAND_Y + 0.19), riverMat);
   river.receiveShadow = true;
-  const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.3, LAND_Y + 0.1), riverDeepMat);
+  const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.35, LAND_Y + 0.21), riverDeepMat);
   group.add(banks, river, channel);
   const dogs = THAMES.filter((ll) => ll[0] > -0.042);
   if (dogs.length > 1) {
     const dogsWorld = dogs.map(project);
-    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 3.2, LAND_Y + 0.09), riverMat));
-    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 1.4, LAND_Y + 0.11), riverDeepMat));
+    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 3.2, LAND_Y + 0.2), riverMat));
+    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 1.45, LAND_Y + 0.22), riverDeepMat));
   }
 
   let carPts = roads.flatMap((road) => sampleRibbon(road, reduced ? 8.5 : 5.6));
@@ -1326,13 +1329,13 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   }
 
   addNeighbourhoods(group, reduced, {
-    brick: clayMat(0xc45c3e),
-    stone: clayMat(0xd4a05a),
+    brick: clayMat(0xc47854),
+    stone: clayMat(0xd4a66a),
     glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
     asphalt: asphaltMat,
     park: parkMat,
     dark: clayMat(0x5a616c),
-    cream: clayMat(0xe8d0a8),
+    cream: clayMat(0xf0e4c8),
   });
 
   const craneMat = clayMat(0xffc400, { roughness: 0.42 });
