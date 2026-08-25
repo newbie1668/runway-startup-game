@@ -352,6 +352,7 @@ export class MapRenderer {
     this.controls.target.copy(target);
     this.camera.lookAt(target);
     this.controls.update();
+    this.syncCrossingLod();
   }
 
   snapAll() {
@@ -360,6 +361,13 @@ export class MapRenderer {
     this.controls.target.copy(CITY_TARGET);
     this.camera.lookAt(CITY_TARGET);
     this.controls.update();
+    this.syncCrossingLod();
+  }
+
+  /** City-eye hides the London Bridge OSM pile; hub close-ups keep it. */
+  private syncCrossingLod() {
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    this.board.showCrossingClose(dist < 40);
   }
 
   /** Hide HTML pills + 3D caption sprites so the miniature has to read on its own. */
@@ -524,6 +532,7 @@ export class MapRenderer {
   frame(t: number, dt: number) {
     this.syncPins();
     this.board.update(t);
+    this.syncCrossingLod();
     this.stepFlight(dt);
     this.stepParticles(dt);
     this.controls.enabled = !this.flight;

@@ -18,8 +18,10 @@ import {
   LANDMARKS,
   PARKS,
   THAMES,
+  THAMES_RIBBON_HALF,
   centerWorld,
   distToSegment,
+  distToThamesCenter,
   isInPark,
   lngLatInThamesWater,
   project,
@@ -760,6 +762,8 @@ function addLandmark(group: THREE.Group, lm: Landmark, at: THREE.Vector3) {
 export interface LondonBoard {
   group: THREE.Group;
   sky: THREE.Texture;
+  /** Close-up OSM at London Bridge. Hidden at city-eye so it does not read as a prism pile. */
+  showCrossingClose: (visible: boolean) => void;
   update: (t: number) => void;
   dispose: () => void;
 }
@@ -1293,7 +1297,14 @@ function addOsmFabric(
     }
     lng /= n;
     lat /= n;
-    return lng > -0.098 && lng < -0.068 && lat > 51.499 && lat < 51.512;
+    // Only the rings that sit on the clay ribbon — inland Borough / City stay at city-eye.
+    return (
+      lng > -0.098 &&
+      lng < -0.068 &&
+      lat > 51.499 &&
+      lat < 51.512 &&
+      distToThamesCenter(lng, lat) < THAMES_RIBBON_HALF + 0.35
+    );
   };
   for (const b of clay.buildings) {
     try {
@@ -1317,6 +1328,7 @@ function addOsmFabric(
   const addToneMeshes = (
     buckets: Record<CityBlock['tone'], THREE.BufferGeometry[]>,
     mats: Record<CityBlock['tone'], THREE.Material>,
+    parent: THREE.Group,
     order?: number,
   ) => {
     (Object.keys(buckets) as CityBlock['tone'][]).forEach((tone) => {
@@ -1326,11 +1338,12 @@ function addOsmFabric(
       mesh.castShadow = !reduced;
       mesh.receiveShadow = true;
       if (order !== undefined) mesh.renderOrder = order;
-      group.add(mesh);
+      parent.add(mesh);
     });
   };
   const addBrickMeshes = (
     buckets: Record<BrickStock, THREE.BufferGeometry[]>,
+    parent: THREE.Group,
     order?: number,
   ) => {
     (Object.keys(buckets) as BrickStock[]).forEach((stock) => {
@@ -1340,14 +1353,18 @@ function addOsmFabric(
       mesh.castShadow = !reduced;
       mesh.receiveShadow = true;
       if (order !== undefined) mesh.renderOrder = order;
-      group.add(mesh);
+      parent.add(mesh);
     });
   };
-  addToneMeshes(geos, toneMat);
-  addBrickMeshes(brickGeos);
-  // Crossing fabric draws above the fat ribbon so OSM is not sliced into a jagged pile.
-  addToneMeshes(crossingGeos, toneMat, 6);
-  addBrickMeshes(crossingBrickGeos, 6);
+  addToneMeshes(geos, toneMat, group);
+  addBrickMeshes(brickGeos, group);
+  const crossingClose = new THREE.Group();
+  crossingClose.name = 'lb-crossing-close';
+  crossingClose.visible = false;
+  group.add(crossingClose);
+  // Close-up only — at city-eye these rings read as a prism pile on the crossing.
+  addToneMeshes(crossingGeos, toneMat, crossingClose, 6);
+  addBrickMeshes(crossingBrickGeos, crossingClose, 6);
 
   const roadGeos: THREE.BufferGeometry[] = [];
   const paintGeos: THREE.BufferGeometry[] = [];
@@ -1732,6 +1749,10 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   return {
     group,
     sky,
+    showCrossingClose: (visible: boolean) => {
+      const lod = group.getObjectByName('lb-crossing-close');
+      if (lod) lod.visible = visible;
+    },
     update: (t: number) => {
       void t;
     },
