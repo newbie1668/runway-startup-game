@@ -1,13 +1,18 @@
 /**
  * RUNWAY — hand-drawn London geometry.
  *
- * A stylised vector map of central London: the Thames (with its famous
- * S-bend around the Isle of Dogs), simplified tube lines in their real TfL
- * colours, the big parks, and a few landmark glyphs. Coordinates are real
- * lng/lat, projected into a small "world unit" space the renderer draws in.
+ * A stylised vector map of central London: the Thames (the S-bend around the
+ * Isle of Dogs is the spine), parks, landmarks, and OSM-style city-block
+ * footprints. Coordinates are real lng/lat, projected into world units the
+ * 3D board extrudes. Tube lines are intentionally absent — this is a
+ * tabletop city, not a TfL diagram.
  *
- * This is deliberately NOT Mapbox: the game map is self-contained, needs no
- * token, and is drawn from scratch on a <canvas>.
+ * World bounds stay the central slice (Hyde Park to Docklands) — not Greater
+ * London. The eight hubs plus City / Westminster fabric must read from
+ * footprint and silhouette, not from a caption.
+ *
+ * This is deliberately NOT Mapbox / Google Earth / a store mesh: the game
+ * map is self-contained and extruded from these polygons.
  */
 
 export type LngLat = readonly [number, number]; // [lng, lat]
@@ -33,6 +38,44 @@ export function project([lng, lat]: LngLat): WorldPoint {
     x: (lng - LON_MIN) * 1000 * LAT_COS,
     y: (LAT_MAX - lat) * 1000,
   };
+}
+
+export function unproject(p: WorldPoint): LngLat {
+  return [p.x / (1000 * LAT_COS) + LON_MIN, LAT_MAX - p.y / 1000];
+}
+
+/** Centre the 2D world on the origin so the 3D camera can orbit the board. */
+export function centerWorld(p: WorldPoint): { x: number; z: number } {
+  return { x: p.x - WORLD.width / 2, z: p.y - WORLD.height / 2 };
+}
+
+export function pointInRing(lng: number, lat: number, ring: readonly LngLat[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const hit = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi + 1e-12) + xi;
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+export function distToSegment(p: WorldPoint, a: WorldPoint, b: WorldPoint): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  const x = a.x + dx * t;
+  const y = a.y + dy * t;
+  return Math.hypot(p.x - x, p.y - y);
+}
+
+export function distToPolyline(p: WorldPoint, line: readonly WorldPoint[]): number {
+  let min = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    min = Math.min(min, distToSegment(p, line[i - 1], line[i]));
+  }
+  return min;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +118,187 @@ export const THAMES: readonly LngLat[] = [
   [0.03, 51.4945],
   [0.043, 51.4975],
   [0.055, 51.505],
+] as const;
+
+/** Clay-blue ribbon half-widths — must match board.ts river meshes. */
+export const THAMES_RIBBON_HALF = 2.9;
+export const THAMES_DOGS_RIBBON_HALF = 3.2;
+
+export const THAMES_PROJECTED: readonly WorldPoint[] = THAMES.map(project);
+const THAMES_DOGS_PROJECTED: readonly WorldPoint[] = THAMES.filter((ll) => ll[0] > -0.042).map(
+  project,
+);
+
+export function thamesWaterDepth(p: WorldPoint): number {
+  const main = distToPolyline(p, THAMES_PROJECTED) - (THAMES_RIBBON_HALF + 0.04);
+  const dogs = distToPolyline(p, THAMES_DOGS_PROJECTED) - (THAMES_DOGS_RIBBON_HALF + 0.04);
+  return Math.min(main, dogs);
+}
+
+export function inThamesWater(p: WorldPoint): boolean {
+  return thamesWaterDepth(p) < 0.16;
+}
+
+export function lngLatInThamesWater(lng: number, lat: number): boolean {
+  return inThamesWater(project([lng, lat]));
+}
+
+/** World-units from the authored Thames centreline. 1 wu ≈ 111 m. */
+export function distToThamesCenter(lng: number, lat: number): number {
+  return distToPolyline(project([lng, lat]), THAMES_PROJECTED);
+}
+
+/** Mid-channel only — not the fat clay ribbon that swallows the banks. */
+export function inThamesMidChannel(lng: number, lat: number): boolean {
+  return distToThamesCenter(lng, lat) < 0.5;
+}
+
+function lerpWorldPt(a: WorldPoint, b: WorldPoint, t: number): WorldPoint {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+function openLngLatRing(ring: readonly LngLat[]): LngLat[] {
+  const pts = ring.map((ll) => [ll[0], ll[1]] as LngLat);
+  if (pts.length >= 2) {
+    const a = pts[0];
+    const b = pts[pts.length - 1];
+    if (a[0] === b[0] && a[1] === b[1]) pts.pop();
+  }
+  return pts;
+}
+
+function segmentDipsInWater(a: WorldPoint, b: WorldPoint): boolean {
+  return [0.25, 0.5, 0.75].some((t) => inThamesWater(lerpWorldPt(a, b, t)));
+}
+
+function closestOnPolyline(p: WorldPoint, line: readonly WorldPoint[]): WorldPoint {
+  let best: WorldPoint = line[0];
+  let bestD = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1];
+    const b = line[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    const q = { x: a.x + dx * t, y: a.y + dy * t };
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (d < bestD) {
+      bestD = d;
+      best = q;
+    }
+  }
+  return best;
+}
+
+/** Uphill of `thamesWaterDepth` — away from the clay-blue ribbon. */
+function bankDir(p: WorldPoint): WorldPoint {
+  const eps = 0.4;
+  const gx = thamesWaterDepth({ x: p.x + eps, y: p.y }) - thamesWaterDepth({ x: p.x - eps, y: p.y });
+  const gy = thamesWaterDepth({ x: p.x, y: p.y + eps }) - thamesWaterDepth({ x: p.x, y: p.y - eps });
+  const len = Math.hypot(gx, gy);
+  if (len > 1e-6) return { x: gx / len, y: gy / len };
+  const river = closestOnPolyline(p, THAMES_PROJECTED);
+  const dx = p.x - river.x;
+  const dy = p.y - river.y;
+  const n = Math.hypot(dx, dy) || 1;
+  return { x: dx / n, y: dy / n };
+}
+
+const BANK_CLEAR = 0.18;
+
+function allOnBank(pts: readonly WorldPoint[]): boolean {
+  return pts.every((p) => thamesWaterDepth(p) >= BANK_CLEAR);
+}
+
+function shiftPts(pts: readonly WorldPoint[], dir: WorldPoint, t: number): WorldPoint[] {
+  return pts.map((p) => ({ x: p.x + dir.x * t, y: p.y + dir.y * t }));
+}
+
+function ringTouchesWater(pts: readonly WorldPoint[]): boolean {
+  if (pts.some((p) => inThamesWater(p))) return true;
+  for (let i = 0; i < pts.length; i++) {
+    if (segmentDipsInWater(pts[i], pts[(i + 1) % pts.length])) return true;
+  }
+  return false;
+}
+
+/** Slide a whole ring onto the bank. Vertex count and shape stay intact. */
+function translateRingToBank(pts: readonly WorldPoint[]): WorldPoint[] | null {
+  if (allOnBank(pts)) return pts.map((p) => ({ x: p.x, y: p.y }));
+  let cx = 0;
+  let cy = 0;
+  for (const p of pts) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= pts.length;
+  cy /= pts.length;
+  const dir = bankDir({ x: cx, y: cy });
+  const tryDir = (d: WorldPoint): WorldPoint[] | null => {
+    const hiMax = 10;
+    if (!allOnBank(shiftPts(pts, d, hiMax))) return null;
+    let lo = 0;
+    let hi = hiMax;
+    for (let i = 0; i < 20; i++) {
+      const mid = (lo + hi) / 2;
+      if (allOnBank(shiftPts(pts, d, mid))) hi = mid;
+      else lo = mid;
+    }
+    return shiftPts(pts, d, hi + 0.06);
+  };
+  return tryDir(dir) ?? tryDir({ x: -dir.x, y: -dir.y });
+}
+
+/**
+ * Keep OSM rings off the clay Thames without re-boxing.
+ * Fully-wet mid-channel rings are dropped; bank rings (including those the
+ * fat ribbon swallows) are translated onto the bank so vertex count stays.
+ */
+export function clipRingOffThames(ring: readonly LngLat[]): LngLat[] | null {
+  const ll = openLngLatRing(ring);
+  if (ll.length < 3) return null;
+  const pts = ll.map((p) => project(p));
+  let cx = 0;
+  let cy = 0;
+  for (const p of pts) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= pts.length;
+  cy /= pts.length;
+
+  if (!ringTouchesWater(pts) && !inThamesWater({ x: cx, y: cy })) {
+    return ring.map((p) => [p[0], p[1]] as LngLat);
+  }
+
+  const moved = translateRingToBank(pts);
+  if (!moved) return null;
+  const clipped: LngLat[] = moved.map((p) => unproject(p));
+  clipped.push([clipped[0][0], clipped[0][1]]);
+  return clipped;
+}
+
+// ---------------------------------------------------------------------------
+// Regent's Canal — Camden Lock to the King's Cross basin, then east.
+// A second water spine so north-of-the-river hubs are not a beige smear.
+// ---------------------------------------------------------------------------
+
+export const CANAL: readonly LngLat[] = [
+  [-0.158, 51.5418],
+  [-0.1502, 51.5416],
+  [-0.1464, 51.5418],
+  [-0.1406, 51.5428],
+  [-0.1355, 51.5416],
+  [-0.1295, 51.5358],
+  [-0.125, 51.5352],
+  [-0.1195, 51.5346],
+  [-0.108, 51.5334],
+  [-0.096, 51.5324],
+  [-0.082, 51.5316],
+  [-0.068, 51.531],
+  [-0.052, 51.5304],
+  [-0.038, 51.5296],
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -139,118 +363,125 @@ export const PARKS: readonly Park[] = [
       [-0.033, 51.5315],
     ],
   },
-] as const;
-
-// ---------------------------------------------------------------------------
-// Tube lines (real TfL colours, simplified routes)
-// ---------------------------------------------------------------------------
-
-export interface TubeLine {
-  name: string;
-  color: string;
-  points: readonly LngLat[];
-}
-
-export const TUBE_LINES: readonly TubeLine[] = [
   {
-    name: 'Central',
-    color: '#E32017',
+    name: 'Soho Square',
     points: [
-      [-0.224, 51.5045],
-      [-0.196, 51.509],
-      [-0.158, 51.5135],
-      [-0.141, 51.515],
-      [-0.12, 51.5172],
-      [-0.097, 51.515],
-      [-0.089, 51.5133],
-      [-0.083, 51.5178],
-      [-0.055, 51.527],
-      [-0.033, 51.525],
-      [0.0, 51.541],
+      [-0.1336, 51.5148],
+      [-0.1318, 51.5148],
+      [-0.1318, 51.5158],
+      [-0.1336, 51.5158],
     ],
   },
   {
-    name: 'Victoria',
-    color: '#0098D4',
+    name: 'Golden Square',
     points: [
-      [-0.115, 51.462],
-      [-0.124, 51.486],
-      [-0.134, 51.489],
-      [-0.144, 51.4965],
-      [-0.143, 51.507],
-      [-0.141, 51.515],
-      [-0.138, 51.5245],
-      [-0.133, 51.528],
-      [-0.124, 51.53],
-      [-0.104, 51.546],
+      [-0.1378, 51.5112],
+      [-0.1364, 51.5112],
+      [-0.1364, 51.5122],
+      [-0.1378, 51.5122],
     ],
   },
   {
-    name: 'Jubilee',
-    color: '#A0A5A9',
+    name: 'Hoxton Square',
     points: [
-      [-0.157, 51.5225],
-      [-0.149, 51.514],
-      [-0.143, 51.507],
-      [-0.125, 51.501],
-      [-0.113, 51.5035],
-      [-0.105, 51.504],
-      [-0.086, 51.505],
-      [-0.064, 51.498],
-      [-0.05, 51.498],
-      [-0.019, 51.5035],
-      [0.004, 51.5],
-      [0.008, 51.514],
+      [-0.0832, 51.5272],
+      [-0.0816, 51.5272],
+      [-0.0816, 51.5284],
+      [-0.0832, 51.5284],
     ],
   },
   {
-    name: 'Northern',
-    color: '#3d3d46',
+    name: 'Green Park',
     points: [
-      [-0.138, 51.462],
-      [-0.123, 51.472],
-      [-0.113, 51.482],
-      [-0.1, 51.494],
-      [-0.094, 51.501],
-      [-0.088, 51.505],
-      [-0.089, 51.5133],
-      [-0.089, 51.518],
-      [-0.088, 51.526],
-      [-0.106, 51.532],
-      [-0.124, 51.53],
-      [-0.143, 51.539],
+      [-0.155, 51.502],
+      [-0.148, 51.5065],
+      [-0.142, 51.504],
+      [-0.148, 51.5005],
     ],
   },
   {
-    name: 'Elizabeth',
-    color: '#6950A1',
+    name: 'Grosvenor Square',
     points: [
-      [-0.176, 51.5163],
-      [-0.149, 51.514],
-      [-0.13, 51.516],
-      [-0.105, 51.52],
-      [-0.083, 51.5178],
-      [-0.06, 51.5192],
-      [-0.015, 51.5055],
+      [-0.1528, 51.5108],
+      [-0.1502, 51.5108],
+      [-0.1502, 51.5126],
+      [-0.1528, 51.5126],
     ],
   },
   {
-    name: 'Piccadilly',
-    color: '#003688',
+    name: 'Russell Square',
     points: [
-      [-0.174, 51.494],
-      [-0.16, 51.5005],
-      [-0.153, 51.5028],
-      [-0.143, 51.507],
-      [-0.134, 51.51],
-      [-0.128, 51.5113],
-      [-0.124, 51.513],
-      [-0.12, 51.5172],
-      [-0.1245, 51.523],
-      [-0.124, 51.53],
+      [-0.1276, 51.521],
+      [-0.1248, 51.521],
+      [-0.1248, 51.5226],
+      [-0.1276, 51.5226],
     ],
   },
-] as const;
+  {
+    name: "Lincoln's Inn Fields",
+    points: [
+      [-0.1184, 51.5154],
+      [-0.1148, 51.5154],
+      [-0.1148, 51.517],
+      [-0.1184, 51.517],
+    ],
+  },
+  {
+    name: 'Horse Guards Parade',
+    points: [
+      [-0.1312, 51.5034],
+      [-0.127, 51.5048],
+      [-0.1262, 51.5026],
+      [-0.1302, 51.5014],
+    ],
+  },
+  {
+    name: 'London Fields',
+    points: [
+      [-0.0638, 51.5404],
+      [-0.0584, 51.5416],
+      [-0.0576, 51.5444],
+      [-0.0628, 51.5432],
+    ],
+  },
+  {
+    name: 'Greenwich Park',
+    points: [
+      [-0.0045, 51.4732],
+      [0.012, 51.4735],
+      [0.0115, 51.4818],
+      [-0.001, 51.4832],
+      [-0.0082, 51.478],
+    ],
+  },
+  {
+    name: 'Kennington Park',
+    points: [
+      [-0.1122, 51.4802],
+      [-0.104, 51.4802],
+      [-0.104, 51.4852],
+      [-0.1122, 51.4852],
+    ],
+  },
+  {
+    name: 'Holland Park',
+    points: [
+      [-0.214, 51.5022],
+      [-0.201, 51.5022],
+      [-0.201, 51.5084],
+      [-0.214, 51.5084],
+    ],
+  },
+  {
+    name: 'Olympic Park',
+    points: [
+      [-0.0225, 51.5378],
+      [-0.0095, 51.5378],
+      [-0.0095, 51.5452],
+      [-0.0225, 51.5452],
+    ],
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Area labels + landmarks
@@ -265,16 +496,10 @@ export const AREA_LABELS: readonly AreaLabel[] = [
   { text: 'WESTMINSTER', at: [-0.133, 51.4985] },
   { text: 'MAYFAIR', at: [-0.148, 51.5098] },
   { text: 'THE CITY', at: [-0.0925, 51.5158] },
-  { text: 'GREENWICH', at: [-0.006, 51.4785] },
-  { text: 'BRIXTON', at: [-0.115, 51.4605] },
-  { text: 'ISLINGTON', at: [-0.103, 51.5385] },
-  { text: 'KENSINGTON', at: [-0.193, 51.4985] },
-  { text: 'HACKNEY', at: [-0.058, 51.5435] },
-  { text: 'WHITECHAPEL', at: [-0.062, 51.5148] },
-  { text: 'STRATFORD', at: [0.0, 51.5435] },
 ] as const;
 
-export type LandmarkKind = 'eye' | 'shard' | 'bigben' | 'bttower' | 'stpauls' | 'o2';
+export type LandmarkKind =
+  'eye' | 'shard' | 'bigben' | 'bttower' | 'stpauls' | 'o2' | 'towerbridge' | 'powerstation';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -289,4 +514,471 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215] },
   { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138] },
   { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029] },
+  { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0755, 51.5055] },
+  { kind: 'powerstation', name: 'Battersea Power Station', at: [-0.1446, 51.4818] },
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Land masses — Thames is the shared shoreline so the S-bend reads as a cut
+// ---------------------------------------------------------------------------
+
+const THAMES_LAST = THAMES[THAMES.length - 1];
+const THAMES_FIRST = THAMES[0];
+
+export const LAND_NORTH: readonly LngLat[] = [
+  ...THAMES,
+  [LON_MAX, THAMES_LAST[1]],
+  [LON_MAX, LAT_MAX],
+  [LON_MIN, LAT_MAX],
+  [LON_MIN, THAMES_FIRST[1]],
+];
+
+export const LAND_SOUTH: readonly LngLat[] = [
+  ...[...THAMES].reverse(),
+  [LON_MIN, THAMES_FIRST[1]],
+  [LON_MIN, LAT_MIN],
+  [LON_MAX, LAT_MIN],
+  [LON_MAX, THAMES_LAST[1]],
+];
+
+export function isOnLand(lng: number, lat: number): boolean {
+  return pointInRing(lng, lat, LAND_NORTH) || pointInRing(lng, lat, LAND_SOUTH);
+}
+
+export function isInPark(lng: number, lat: number): boolean {
+  return PARKS.some((park) => pointInRing(lng, lat, park.points));
+}
+
+export interface District {
+  name: string;
+  /** [lngMin, lngMax, latMin, latMax] */
+  bbox: readonly [number, number, number, number];
+  count: number;
+  h: readonly [number, number];
+  tall: number;
+  tone: 'glass' | 'stone' | 'brick' | 'fill';
+}
+
+/** Building scatter — denser and taller around the eight startup hubs. */
+export const DISTRICTS: readonly District[] = [
+  {
+    name: 'Canary Wharf',
+    bbox: [-0.03, -0.008, 51.5, 51.508],
+    count: 90,
+    h: [1.6, 6.2],
+    tall: 0.42,
+    tone: 'glass',
+  },
+  {
+    name: 'The City',
+    bbox: [-0.1, -0.075, 51.51, 51.52],
+    count: 110,
+    h: [0.9, 3.6],
+    tall: 0.22,
+    tone: 'stone',
+  },
+  {
+    name: 'South Bank',
+    bbox: [-0.12, -0.08, 51.5, 51.508],
+    count: 55,
+    h: [0.6, 2.6],
+    tall: 0.12,
+    tone: 'stone',
+  },
+  {
+    name: 'West End',
+    bbox: [-0.15, -0.125, 51.508, 51.518],
+    count: 90,
+    h: [0.5, 1.9],
+    tall: 0.08,
+    tone: 'stone',
+  },
+  {
+    name: 'Shoreditch',
+    bbox: [-0.09, -0.065, 51.52, 51.532],
+    count: 85,
+    h: [0.4, 1.6],
+    tall: 0.06,
+    tone: 'brick',
+  },
+  {
+    name: "King's Cross",
+    bbox: [-0.135, -0.112, 51.528, 51.538],
+    count: 55,
+    h: [0.5, 1.8],
+    tall: 0.08,
+    tone: 'stone',
+  },
+  {
+    name: 'Camden',
+    bbox: [-0.155, -0.13, 51.535, 51.545],
+    count: 45,
+    h: [0.35, 1.2],
+    tall: 0.04,
+    tone: 'brick',
+  },
+  {
+    name: 'Battersea',
+    bbox: [-0.155, -0.13, 51.474, 51.486],
+    count: 40,
+    h: [0.4, 1.7],
+    tall: 0.08,
+    tone: 'brick',
+  },
+  {
+    name: 'Westminster',
+    bbox: [-0.14, -0.118, 51.496, 51.506],
+    count: 45,
+    h: [0.45, 1.8],
+    tall: 0.06,
+    tone: 'stone',
+  },
+  {
+    name: 'Clerkenwell',
+    bbox: [-0.112, -0.096, 51.518, 51.526],
+    count: 55,
+    h: [0.45, 1.7],
+    tall: 0.05,
+    tone: 'brick',
+  },
+
+  {
+    name: 'Vauxhall',
+    bbox: [-0.128, -0.112, 51.484, 51.494],
+    count: 32,
+    h: [0.45, 1.7],
+    tall: 0.07,
+    tone: 'brick',
+  },
+  {
+    name: 'North Greenwich',
+    bbox: [-0.007, 0.018, 51.498, 51.507],
+    count: 30,
+    h: [0.5, 2.2],
+    tall: 0.1,
+    tone: 'glass',
+  },
+  {
+    name: 'Fill North',
+    bbox: [-0.26, 0.05, 51.49, 51.548],
+    count: 420,
+    h: [0.22, 0.9],
+    tall: 0.02,
+    tone: 'fill',
+  },
+  {
+    name: 'Fill South',
+    bbox: [-0.26, 0.05, 51.455, 51.505],
+    count: 280,
+    h: [0.2, 0.75],
+    tall: 0.015,
+    tone: 'fill',
+  },
+];
+
+export const LAND_SLAB: readonly LngLat[] = [
+  [LON_MIN, LAT_MIN],
+  [LON_MAX, LAT_MIN],
+  [LON_MAX, LAT_MAX],
+  [LON_MIN, LAT_MAX],
+];
+
+export interface CityBlock {
+  ring: LngLat[];
+  h: number;
+  tone: District['tone'];
+}
+
+function rectRing(lng: number, lat: number, wLng: number, hLat: number): LngLat[] {
+  const hw = wLng / 2;
+  const hd = hLat / 2;
+  return [
+    [lng - hw, lat - hd],
+    [lng + hw, lat - hd],
+    [lng + hw, lat + hd],
+    [lng - hw, lat + hd],
+  ];
+}
+
+function lRing(
+  lng: number,
+  lat: number,
+  w: number,
+  d: number,
+  cutW: number,
+  cutD: number,
+): LngLat[] {
+  const x0 = lng - w / 2;
+  const x1 = lng + w / 2;
+  const y0 = lat - d / 2;
+  const y1 = lat + d / 2;
+  const cx = x1 - cutW;
+  const cy = y1 - cutD;
+  return [
+    [x0, y0],
+    [x1, y0],
+    [x1, cy],
+    [cx, cy],
+    [cx, y1],
+    [x0, y1],
+  ];
+}
+
+function rotRing(lng: number, lat: number, w: number, d: number, rad: number): LngLat[] {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  const pts: LngLat[] = [
+    [-w / 2, -d / 2],
+    [w / 2, -d / 2],
+    [w / 2, d / 2],
+    [-w / 2, d / 2],
+  ];
+  return pts.map(([dx, dy]) => [lng + dx * c - dy * s, lat + dx * s + dy * c]);
+}
+
+function hash01(i: number, j: number, salt = 1): number {
+  let n = (i * 374761393 + j * 668265263 + salt * 1274126177) >>> 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n >>> 0) % 10000) / 10000;
+}
+
+export function degDist(a: LngLat, b: LngLat): number {
+  const dx = (a[0] - b[0]) * LAT_COS;
+  const dy = a[1] - b[1];
+  return Math.hypot(dx, dy);
+}
+
+function nearLandmark(lng: number, lat: number): boolean {
+  for (const lm of LANDMARKS) {
+    const clear =
+      lm.kind === 'shard' ||
+      lm.kind === 'eye' ||
+      lm.kind === 'bigben' ||
+      lm.kind === 'stpauls' ||
+      lm.kind === 'towerbridge'
+        ? 0.0042
+        : 0.0026;
+    if (degDist([lng, lat], lm.at) < clear) return true;
+  }
+  return false;
+}
+
+function grainFor(name: string) {
+  switch (name) {
+    case 'Canary Wharf':
+      return { stepLng: 0.00155, stepLat: 0.001, streetCol: 3, streetRow: 3, inset: 0.2 };
+    case 'The City':
+      return { stepLng: 0.00142, stepLat: 0.00095, streetCol: 4, streetRow: 3, inset: 0.16 };
+    case 'South Bank':
+      return { stepLng: 0.0017, stepLat: 0.0011, streetCol: 4, streetRow: 3, inset: 0.2 };
+    case 'West End':
+      return { stepLng: 0.00112, stepLat: 0.0008, streetCol: 3, streetRow: 3, inset: 0.14 };
+    case 'Shoreditch':
+      return { stepLng: 0.0019, stepLat: 0.00122, streetCol: 4, streetRow: 3, inset: 0.12 };
+    case "King's Cross":
+      return { stepLng: 0.00215, stepLat: 0.00112, streetCol: 3, streetRow: 4, inset: 0.15 };
+    case 'Camden':
+      return { stepLng: 0.0017, stepLat: 0.00115, streetCol: 4, streetRow: 3, inset: 0.18 };
+    case 'Battersea':
+      return { stepLng: 0.002, stepLat: 0.0013, streetCol: 3, streetRow: 3, inset: 0.16 };
+    case 'Westminster':
+      return { stepLng: 0.0015, stepLat: 0.001, streetCol: 4, streetRow: 3, inset: 0.18 };
+    case 'Clerkenwell':
+      return { stepLng: 0.00138, stepLat: 0.00095, streetCol: 4, streetRow: 3, inset: 0.15 };
+    case 'Vauxhall':
+      return { stepLng: 0.0019, stepLat: 0.00122, streetCol: 3, streetRow: 3, inset: 0.16 };
+    case 'North Greenwich':
+      return { stepLng: 0.0018, stepLat: 0.00115, streetCol: 3, streetRow: 3, inset: 0.18 };
+    default:
+      return { stepLng: 0.0054, stepLat: 0.0036, streetCol: 4, streetRow: 3, inset: 0.24 };
+  }
+}
+
+export const DOCKS: readonly { name: string; ring: LngLat[] }[] = [
+  { name: 'North Dock', ring: rectRing(-0.0194, 51.5074, 0.0185, 0.0032) },
+  { name: 'Middle Dock', ring: rectRing(-0.0194, 51.5034, 0.0178, 0.003) },
+  { name: 'South Dock', ring: rectRing(-0.0188, 51.5006, 0.0162, 0.0026) },
+  { name: 'Inner Dock East', ring: rectRing(-0.0118, 51.5048, 0.0046, 0.0058) },
+  { name: 'Inner Dock West', ring: rectRing(-0.027, 51.5046, 0.0044, 0.0056) },
+  { name: 'Limehouse Basin', ring: rectRing(-0.0322, 51.5112, 0.0056, 0.0024) },
+  { name: 'Camden Lock', ring: rectRing(-0.1406, 51.5428, 0.0084, 0.0048) },
+];
+
+const CLEARINGS: readonly { at: LngLat; r: number }[] = [
+  { at: [-0.0842, 51.5258], r: 0.0023 }, // Old Street roundabout
+  { at: [-0.1494, 51.5431], r: 0.0024 }, // Roundhouse
+  { at: [-0.1258, 51.5316], r: 0.0034 }, // King's Cross sheds
+  { at: [-0.1018, 51.5185], r: 0.0022 }, // Smithfield
+  { at: [-0.0906, 51.5055], r: 0.0016 }, // Borough Market
+  { at: [-0.1406, 51.5428], r: 0.0034 }, // Camden Lock
+  { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square pad
+  { at: [-0.1269, 51.5194], r: 0.0024 }, // British Museum
+  { at: [-0.0837, 51.5115], r: 0.0014 }, // Walkie Talkie
+  { at: [-0.0821, 51.5139], r: 0.0012 }, // Cheesegrater
+  { at: [-0.0761, 51.5081], r: 0.002 }, // Tower of London
+  { at: [-0.1278, 51.508], r: 0.0018 }, // Trafalgar
+  { at: [-0.1272, 51.5038], r: 0.0015 }, // Whitehall
+  { at: [-0.1134, 51.5031], r: 0.0024 }, // Waterloo
+  { at: [-0.1245, 51.4872], r: 0.0018 }, // MI6
+];
+
+const CANAL_PROJECTED: readonly WorldPoint[] = CANAL.map(project);
+
+export function isInDock(lng: number, lat: number): boolean {
+  return DOCKS.some((d) => pointInRing(lng, lat, d.ring));
+}
+
+function inClearing(lng: number, lat: number): boolean {
+  return CLEARINGS.some((c) => degDist([lng, lat], c.at) < c.r);
+}
+
+const AUTHORED: CityBlock[] = [
+  // Canary Wharf cluster — 1 Canada Square and neighbours, real-ish pads.
+  { ring: rectRing(-0.0194, 51.5049, 0.00155, 0.00115), h: 0.42, tone: 'glass' },
+  { ring: rectRing(-0.0174, 51.5055, 0.00135, 0.00105), h: 8.4, tone: 'glass' },
+  { ring: rectRing(-0.0216, 51.5045, 0.0017, 0.00095), h: 7.2, tone: 'glass' },
+  { ring: rectRing(-0.0144, 51.5052, 0.0021, 0.001), h: 6.6, tone: 'glass' },
+  { ring: rectRing(-0.0238, 51.5061, 0.00115, 0.0019), h: 8.8, tone: 'glass' },
+  { ring: rectRing(-0.0262, 51.5035, 0.001, 0.00155), h: 7.5, tone: 'glass' },
+  { ring: rectRing(-0.0182, 51.5033, 0.00145, 0.0009), h: 5.4, tone: 'glass' },
+  { ring: rectRing(-0.0126, 51.5038, 0.0017, 0.00115), h: 5.0, tone: 'glass' },
+  { ring: rectRing(-0.0208, 51.5068, 0.0012, 0.001), h: 6.1, tone: 'glass' },
+  // City — Bank / Gherkin pad / Barbican grain.
+  { ring: rectRing(-0.0807, 51.5145, 0.0011, 0.0011), h: 6.4, tone: 'glass' },
+  { ring: rectRing(-0.088, 51.5155, 0.0023, 0.00135), h: 4.1, tone: 'stone' },
+  { ring: rectRing(-0.0832, 51.5136, 0.0016, 0.0017), h: 5.2, tone: 'glass' },
+  { ring: rectRing(-0.0935, 51.517, 0.0026, 0.0015), h: 2.7, tone: 'stone' },
+  { ring: rectRing(-0.0962, 51.5142, 0.0017, 0.0021), h: 3.3, tone: 'stone' },
+  { ring: lRing(-0.0864, 51.5178, 0.0024, 0.0018, 0.0011, 0.0008), h: 2.9, tone: 'stone' },
+  // King's Cross — train-shed bars.
+  { ring: rectRing(-0.1255, 51.5318, 0.0048, 0.00095), h: 1.45, tone: 'stone' },
+  { ring: rectRing(-0.123, 51.5304, 0.0042, 0.00085), h: 1.25, tone: 'stone' },
+  { ring: rectRing(-0.1276, 51.5342, 0.0025, 0.00135), h: 1.7, tone: 'brick' },
+  { ring: rectRing(-0.1212, 51.5336, 0.0022, 0.0016), h: 2.1, tone: 'glass' },
+  // Shoreditch warehouses.
+  { ring: rectRing(-0.0775, 51.5258, 0.0028, 0.0014), h: 1.15, tone: 'brick' },
+  { ring: rectRing(-0.0812, 51.5244, 0.0022, 0.0018), h: 1.05, tone: 'brick' },
+  { ring: lRing(-0.084, 51.5272, 0.0026, 0.0019, 0.0011, 0.0009), h: 0.95, tone: 'brick' },
+  { ring: rectRing(-0.0738, 51.5266, 0.0031, 0.0012), h: 1.35, tone: 'brick' },
+  // Soho terrace strips.
+  { ring: rectRing(-0.1342, 51.5132, 0.0007, 0.0024), h: 0.95, tone: 'stone' },
+  { ring: rectRing(-0.1356, 51.5134, 0.00065, 0.0022), h: 0.88, tone: 'brick' },
+  { ring: rectRing(-0.1328, 51.5126, 0.0007, 0.0026), h: 1.02, tone: 'stone' },
+  { ring: rectRing(-0.1368, 51.5118, 0.0018, 0.0007), h: 0.82, tone: 'brick' },
+  // Battersea industrial.
+  { ring: rectRing(-0.1478, 51.4794, 0.0034, 0.0016), h: 1.55, tone: 'brick' },
+  { ring: rectRing(-0.1412, 51.4788, 0.0026, 0.0018), h: 1.25, tone: 'brick' },
+  { ring: rectRing(-0.139, 51.4826, 0.0022, 0.0012), h: 2.4, tone: 'glass' },
+  // Camden market sheds — east quay, not in the basin.
+  { ring: rectRing(-0.1362, 51.5424, 0.0016, 0.002), h: 0.72, tone: 'brick' },
+  { ring: rectRing(-0.137, 51.5406, 0.002, 0.0012), h: 0.85, tone: 'brick' },
+
+  // Shoreditch — Brick Lane bar, Great Eastern St warehouses, Boxpark pad.
+  { ring: rectRing(-0.0718, 51.5224, 0.00055, 0.0048), h: 0.95, tone: 'brick' },
+  { ring: rotRing(-0.0765, 51.5248, 0.0032, 0.00115, 0.7), h: 1.2, tone: 'brick' },
+  { ring: rotRing(-0.0795, 51.5236, 0.0026, 0.00105, 0.7), h: 1.05, tone: 'brick' },
+  { ring: rectRing(-0.0778, 51.522, 0.0016, 0.0011), h: 0.7, tone: 'brick' },
+  { ring: rectRing(-0.0855, 51.5268, 0.0024, 0.0016), h: 1.35, tone: 'brick' },
+  // Farringdon — Smithfield long halls + Exmouth warehouse.
+  { ring: rectRing(-0.1016, 51.5186, 0.0038, 0.00115), h: 1.05, tone: 'brick' },
+  { ring: rectRing(-0.1016, 51.5175, 0.0036, 0.00085), h: 0.9, tone: 'brick' },
+  { ring: rectRing(-0.1088, 51.5228, 0.0028, 0.0007), h: 0.85, tone: 'brick' },
+  { ring: rectRing(-0.1042, 51.5212, 0.0018, 0.0014), h: 1.15, tone: 'brick' },
+  // London Bridge — Borough Market vaults + station shed.
+  { ring: rectRing(-0.0907, 51.5055, 0.0018, 0.0012), h: 0.7, tone: 'brick' },
+  { ring: rectRing(-0.0888, 51.5048, 0.0014, 0.0009), h: 0.62, tone: 'brick' },
+  { ring: rectRing(-0.0862, 51.5042, 0.0026, 0.00095), h: 1.15, tone: 'stone' },
+  { ring: rectRing(-0.0834, 51.5028, 0.0016, 0.0018), h: 2.4, tone: 'glass' },
+  // Canary — more tower pads around the docks.
+  { ring: rectRing(-0.0224, 51.5058, 0.0011, 0.0011), h: 8.1, tone: 'glass' },
+  { ring: rectRing(-0.0162, 51.5066, 0.00125, 0.0009), h: 7.0, tone: 'glass' },
+  { ring: rectRing(-0.015, 51.5036, 0.0018, 0.00085), h: 6.2, tone: 'glass' },
+  { ring: rectRing(-0.021, 51.5028, 0.0014, 0.001), h: 5.5, tone: 'glass' },
+  // King's Cross extra: Coal Drops + Google bar.
+  { ring: rectRing(-0.1268, 51.5348, 0.0022, 0.0008), h: 1.15, tone: 'brick' },
+  { ring: rectRing(-0.1252, 51.5356, 0.002, 0.00075), h: 1.05, tone: 'brick' },
+  { ring: rectRing(-0.1204, 51.5332, 0.0036, 0.0007), h: 1.85, tone: 'glass' },
+  // Soho — more tight terraces around the squares.
+  { ring: rectRing(-0.1332, 51.5138, 0.00055, 0.0018), h: 0.92, tone: 'brick' },
+  { ring: rectRing(-0.1344, 51.5142, 0.0005, 0.0016), h: 0.86, tone: 'stone' },
+  { ring: rectRing(-0.1362, 51.5124, 0.0005, 0.0019), h: 0.9, tone: 'brick' },
+  { ring: rectRing(-0.1316, 51.5122, 0.0014, 0.00055), h: 0.78, tone: 'stone' },
+  // Camden — lock-side sheds on the south/east quay.
+  { ring: rectRing(-0.1386, 51.5402, 0.0015, 0.0008), h: 0.65, tone: 'brick' },
+  { ring: rectRing(-0.1354, 51.5438, 0.0012, 0.0014), h: 0.58, tone: 'brick' },
+  // Battersea riverside glass + park-edge brick.
+  { ring: rectRing(-0.1385, 51.4842, 0.0032, 0.0009), h: 2.1, tone: 'glass' },
+  { ring: rectRing(-0.1495, 51.4834, 0.0024, 0.00085), h: 1.8, tone: 'glass' },
+  // City — Walkie Talkie / Cheesegrater pads.
+  { ring: rectRing(-0.0837, 51.5115, 0.00115, 0.00115), h: 7.4, tone: 'glass' },
+  { ring: rotRing(-0.0821, 51.5139, 0.0007, 0.0024, 0.55), h: 8.2, tone: 'glass' },
+  // Tower of London mass.
+  { ring: rectRing(-0.0761, 51.5081, 0.0024, 0.0018), h: 1.65, tone: 'stone' },
+  // Waterloo station bars (South Bank / London Bridge fabric).
+  { ring: rotRing(-0.1138, 51.5032, 0.0046, 0.00085, 0.22), h: 1.35, tone: 'stone' },
+  { ring: rotRing(-0.1126, 51.5026, 0.0042, 0.00075, 0.22), h: 1.15, tone: 'stone' },
+];
+
+function namedBboxContains(lng: number, lat: number): boolean {
+  for (const d of DISTRICTS) {
+    if (d.tone === 'fill') continue;
+    const [lng0, lng1, lat0, lat1] = d.bbox;
+    if (lng >= lng0 && lng <= lng1 && lat >= lat0 && lat <= lat1) return true;
+  }
+  return false;
+}
+
+function pushGrid(out: CityBlock[], district: District) {
+  const [lng0, lng1, lat0, lat1] = district.bbox;
+  const g = grainFor(district.name);
+  const fill = district.tone === 'fill';
+  let col = 0;
+  for (let lng = lng0; lng < lng1 - g.stepLng * 0.35; lng += g.stepLng) {
+    col += 1;
+    let row = 0;
+    for (let lat = lat0; lat < lat1 - g.stepLat * 0.35; lat += g.stepLat) {
+      row += 1;
+      if (col % g.streetCol === 0 || row % g.streetRow === 0) continue;
+      const lngC = lng + g.stepLng * 0.5;
+      const latC = lat + g.stepLat * 0.5;
+      if (fill && namedBboxContains(lngC, latC)) continue;
+      if (!isOnLand(lngC, latC) || isInPark(lngC, latC)) continue;
+      if (isInDock(lngC, latC) || inClearing(lngC, latC)) continue;
+      if (nearLandmark(lngC, latC)) continue;
+      if (distToPolyline(project([lngC, latC]), THAMES_PROJECTED) < THAMES_RIBBON_HALF) continue;
+      if (distToPolyline(project([lngC, latC]), CANAL_PROJECTED) < 1.05) continue;
+      const n = hash01(col, row, district.name.length);
+      if (fill && n > 0.34) continue;
+      const inset = g.inset + n * 0.08;
+      const w = g.stepLng * (1 - inset);
+      const d = g.stepLat * (1 - inset * 0.9);
+      const h0 = district.h[0];
+      const span = district.h[1] - district.h[0];
+      const tall = n < district.tall;
+      const h = tall ? h0 + (0.55 + n * 0.45) * span : h0 + Math.pow(n, 1.45) * span * 0.72;
+      const ring =
+        n > 0.72 && n < 0.86
+          ? lRing(lngC, latC, w * 1.15, d * 1.1, w * 0.45, d * 0.42)
+          : n > 0.86
+            ? rectRing(lngC, latC, w * 1.55, d * 0.72)
+            : rectRing(lngC, latC, w, d);
+      const tone = fill ? (n < 0.12 ? 'brick' : n < 0.24 ? 'stone' : 'fill') : district.tone;
+      out.push({ ring, h, tone });
+    }
+  }
+}
+
+function buildCityBlocks(): CityBlock[] {
+  const out: CityBlock[] = [...AUTHORED];
+  for (const d of DISTRICTS) {
+    if (d.tone === 'fill') continue;
+    pushGrid(out, d);
+  }
+  for (const d of DISTRICTS) {
+    if (d.tone !== 'fill') continue;
+    pushGrid(out, d);
+  }
+  return out;
+}
+
+export const CITY_BLOCKS: readonly CityBlock[] = buildCityBlocks();

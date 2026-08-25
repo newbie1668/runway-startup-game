@@ -1,0 +1,3 @@
+# 4MB one-line GeoJSON — never pretty-print
+public/clay/*.geojson
+data/*.geojson

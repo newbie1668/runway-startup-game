@@ -133,4 +133,15 @@ check('the mobile hero keeps its copy readable and sound control named', () => {
   assert.match(html, /aria-label="Mute sound"/);
 });
 
+check('the title screen is the miniature first — no Atlas glass HUD over the map', () => {
+  const html = renderToStaticMarkup(<GameApp />);
+  const mapCanvas = html.indexOf('<canvas');
+  assert.ok(mapCanvas > 0, 'title screen should render the London map canvas');
+  assert.doesNotMatch(html, /The Whole Board/);
+  assert.doesNotMatch(html, /aria-label="Neighbourhoods"/);
+  assert.doesNotMatch(html, />Search</);
+  const miniCanvas = html.indexOf('<canvas', mapCanvas + 1);
+  assert.equal(miniCanvas, -1, 'minimap belongs to Atlas chrome, not the first look');
+});
+
 console.log(`\nAll ${passed} UI checks passed.`);

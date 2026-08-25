@@ -31,7 +31,7 @@ import {
 import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
-import type { MapRenderer, Scene } from '@/lib/game/render';
+import type { HitTarget, MapRenderer, Scene } from '@/lib/game/render';
 import type {
   ActionId,
   DilemmaEffectId,
@@ -40,6 +40,7 @@ import type {
   HubId,
   SectorId,
 } from '@/lib/game/types';
+import { AtlasHud, CLUSTER_ORDER, type ClusterId } from './AtlasHud';
 import { MapCanvas } from './MapCanvas';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
 import { Sidebar } from './Sidebar';
@@ -106,6 +107,9 @@ export function GameApp() {
   const [hubChoice, setHubChoice] = useState<HubId | null>(null);
 
   const [moveOpen, setMoveOpen] = useState(false);
+  const [cluster, setCluster] = useState<ClusterId>('all');
+  const [selected, setSelected] = useState<HitTarget | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
@@ -121,6 +125,10 @@ export function GameApp() {
   useEffect(() => {
     sfx.muted = muted;
   }, [muted]);
+
+  useEffect(() => {
+    rendererRef.current?.setCaptionsVisible(screen === 'play');
+  }, [screen]);
 
   // Persist the run after every committed change (external-system sync only).
   useEffect(() => {
@@ -299,12 +307,53 @@ export function GameApp() {
     };
   }, [screen, game, setupStep, hubChoice, draftSector, draftName]);
 
+  const flyCluster = useCallback((id: ClusterId) => {
+    setCluster(id);
+    setSearchOpen(false);
+    const r = rendererRef.current;
+    if (id === 'all') {
+      r?.fitAll();
+      r?.select(null);
+      setSelected(null);
+      return;
+    }
+    r?.focusHub(id);
+    setSelected({ type: 'hub', hubId: id });
+  }, []);
+
+  const onSelect = useCallback((hit: HitTarget | null) => {
+    setSelected(hit);
+    if (hit?.type === 'hub') setCluster(hit.hubId);
+  }, []);
+
+  const pickFromSearch = useCallback(
+    (hit: HitTarget) => {
+      setSearchOpen(false);
+      setSelected(hit);
+      const hubId =
+        hit.type === 'hub'
+          ? hit.hubId
+          : hit.type === 'rival'
+            ? scene.rivals.find((r) => r.id === hit.rivalId)?.hubId
+            : scene.events.find((e) => e.id === hit.eventId)?.hubId;
+      if (hubId) {
+        setCluster(hubId);
+        rendererRef.current?.focusHub(hubId);
+      }
+      rendererRef.current?.select(hit);
+    },
+    [scene],
+  );
+
   const onHit = useCallback(
     (target: { type: string; hubId?: HubId; eventId?: string; rivalId?: string }) => {
       const g = gameRef.current;
       if (screen === 'setup' && setupStep === 'hq' && target.type === 'hub' && target.hubId) {
         setHubChoice(target.hubId);
+        setCluster(target.hubId);
+        setSelected({ type: 'hub', hubId: target.hubId });
         sfx.play('click');
+        rendererRef.current?.focusHub(target.hubId);
         return;
       }
       if (screen !== 'play' || !g) return;
@@ -330,8 +379,40 @@ export function GameApp() {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector('dialog[open]')) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key.toLowerCase() === 'm') {
+      if (e.key.toLowerCase() === 'm' && !e.metaKey && !e.ctrlKey) {
         toggleMute();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setSelected(null);
+        rendererRef.current?.select(null);
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCluster((current) => {
+          const i = CLUSTER_ORDER.indexOf(current);
+          const next =
+            e.key === 'ArrowDown'
+              ? CLUSTER_ORDER[(i + 1) % CLUSTER_ORDER.length]
+              : CLUSTER_ORDER[(i - 1 + CLUSTER_ORDER.length) % CLUSTER_ORDER.length];
+          const r = rendererRef.current;
+          if (next === 'all') {
+            r?.fitAll();
+            r?.select(null);
+            setSelected(null);
+          } else {
+            r?.focusHub(next);
+            setSelected({ type: 'hub', hubId: next });
+          }
+          return next;
+        });
         return;
       }
       const g = gameRef.current;
@@ -372,7 +453,23 @@ export function GameApp() {
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
+        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onSelect={onSelect} />
+
+        <AtlasHud
+          screen={screen}
+          scene={scene}
+          game={game}
+          cluster={cluster}
+          selected={selected}
+          searchOpen={searchOpen}
+          onCluster={flyCluster}
+          onSearchOpen={setSearchOpen}
+          onPick={pickFromSearch}
+          onClear={() => {
+            setSelected(null);
+            rendererRef.current?.select(null);
+          }}
+        />
 
         {/* Map chrome */}
         {screen === 'play' && game && (
@@ -393,6 +490,7 @@ export function GameApp() {
         )}
 
         <button
+          data-chrome="sound"
           onClick={toggleMute}
           title="Toggle sound (M)"
           aria-label={muted ? 'Turn sound on' : 'Mute sound'}
@@ -403,21 +501,25 @@ export function GameApp() {
 
         {screen === 'play' && (
           <div className="pointer-events-none absolute bottom-2 left-3 hidden rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
-            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
+            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to orbit, scroll to
+            zoom
           </div>
         )}
 
         {/* Title screen */}
         {screen === 'title' && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-gradient-to-b from-[#070c1a]/78 via-[#070c1a]/55 to-[#070c1a]/85 p-6">
-            <div className="w-full max-w-xl text-center">
+          <div
+            data-chrome="title"
+            className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center p-5 md:p-8"
+          >
+            <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/15 bg-[#0b1226]/72 p-5 text-center shadow-2xl shadow-black/30 backdrop-blur-xl md:p-6">
               <p className="text-xs font-black tracking-[0.5em] text-sky-300">
                 LONDON STARTUP MAP PRESENTS
               </p>
-              <h1 className="mt-3 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-7xl font-black tracking-tight text-transparent drop-shadow-sm md:text-8xl">
+              <h1 className="mt-2 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-6xl font-black tracking-tight text-transparent drop-shadow-sm md:text-7xl">
                 RUNWAY
               </h1>
-              <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
+              <p className="mx-auto mt-3 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
                 Found a startup on a living map of London. Spend your focus, work the events scene,
                 out-raise your rivals — and reach a{' '}
                 <span className="font-bold text-amber-300">
@@ -425,7 +527,7 @@ export function GameApp() {
                 </span>{' '}
                 before the money runs out.
               </p>
-              <div className="mt-8 flex flex-col items-center gap-2.5">
+              <div className="mt-5 flex flex-col items-center gap-2.5">
                 <button
                   onClick={() => startSetup()}
                   className="w-64 rounded-2xl bg-amber-400 px-6 py-3.5 text-lg font-black text-[#161003] shadow-lg shadow-amber-500/20 transition hover:bg-amber-300 hover:shadow-amber-400/30 active:scale-[0.98]"
@@ -441,7 +543,7 @@ export function GameApp() {
                   </button>
                 )}
               </div>
-              <p className="mt-8 text-xs text-slate-500">
+              <p className="mt-5 text-xs text-slate-500">
                 Best with sound on 🔊 · built end-to-end by{' '}
                 <span className="font-bold text-slate-400">Fable</span>
                 {' as a what-if: the startup map, but you\u2019re on it.'}
@@ -452,32 +554,35 @@ export function GameApp() {
 
         {/* Setup overlay */}
         {screen === 'setup' && (
-          <SetupOverlay
-            step={setupStep}
-            name={draftName}
-            sectorId={draftSector}
-            hubChoice={hubChoice}
-            onName={setDraftName}
-            onSector={(s) => {
-              setDraftSector(s);
-              sfx.play('click');
-            }}
-            onHub={(hubId) => {
-              setHubChoice(hubId);
-              sfx.play('click');
-            }}
-            onRollName={rollName}
-            onToHq={() => {
-              setSetupStep('hq');
-              sfx.play('confirm');
-              rendererRef.current?.fitAll();
-            }}
-            onBack={() => {
-              if (setupStep === 'hq') setSetupStep('identity');
-              else setScreen('title');
-            }}
-            onConfirm={foundCompany}
-          />
+          <div data-chrome="setup">
+            <SetupOverlay
+              step={setupStep}
+              name={draftName}
+              sectorId={draftSector}
+              hubChoice={hubChoice}
+              onName={setDraftName}
+              onSector={(s) => {
+                setDraftSector(s);
+                sfx.play('click');
+              }}
+              onHub={(hubId) => {
+                setHubChoice(hubId);
+                sfx.play('click');
+                flyCluster(hubId);
+              }}
+              onRollName={rollName}
+              onToHq={() => {
+                setSetupStep('hq');
+                sfx.play('confirm');
+                rendererRef.current?.fitAll();
+              }}
+              onBack={() => {
+                if (setupStep === 'hq') setSetupStep('identity');
+                else setScreen('title');
+              }}
+              onConfirm={foundCompany}
+            />
+          </div>
         )}
 
         {/* Toast */}
