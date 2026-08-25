@@ -31,7 +31,7 @@ import {
 import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
-import type { MapRenderer, Scene } from '@/lib/game/render';
+import type { IMapRenderer, Scene } from '@/lib/game/scene';
 import type {
   ActionId,
   DilemmaEffectId,
@@ -108,7 +108,7 @@ export function GameApp() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rendererRef = useRef<MapRenderer | null>(null);
+  const rendererRef = useRef<IMapRenderer | null>(null);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).

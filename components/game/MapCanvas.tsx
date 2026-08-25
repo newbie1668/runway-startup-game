@@ -1,23 +1,31 @@
 'use client';
 
 /**
- * Canvas host for the RUNWAY map renderer. Owns the requestAnimationFrame
+ * Canvas host for the RUNWAY map renderer. Two stacked canvases — a city
+ * layer (background/3D scene) and an overlay layer (game chrome, drawn by
+ * MapOverlay) — sit inside a shell div that owns the requestAnimationFrame
  * loop and translates pointer input into camera moves (drag pan, wheel zoom,
  * two-finger pinch) and hit-tested clicks/hovers.
+ *
+ * Every loop tick and input handler reads `rendererRef.current` fresh (never
+ * a closed-over renderer) so the renderer instance can be swapped at runtime
+ * — e.g. the 3D→2D fallback swap — without tearing this effect down.
  */
 
 import { useEffect, useRef, type RefObject } from 'react';
-import { MapRenderer, type HitTarget, type Scene } from '@/lib/game/render';
+import { MapRenderer, type HitTarget, type IMapRenderer, type Scene } from '@/lib/game/render';
 
 interface Props {
   scene: Scene;
-  rendererRef: RefObject<MapRenderer | null>;
+  rendererRef: RefObject<IMapRenderer | null>;
   onHit?: (target: HitTarget) => void;
   className?: string;
 }
 
 export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const cityRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const onHitRef = useRef(onHit);
   const sceneRef = useRef(scene);
 
@@ -27,9 +35,13 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
   }, [onHit, scene]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const renderer = new MapRenderer(canvas);
+    const shell = shellRef.current;
+    const overlayCanvas = overlayRef.current;
+    if (!shell || !overlayCanvas) return;
+
+    // Phase A: 2D renderer only. Phase C swaps this for createMapRenderer(),
+    // which picks 3D-with-fallback and assigns rendererRef asynchronously.
+    const renderer = new MapRenderer(overlayCanvas);
     renderer.scene = sceneRef.current;
     rendererRef.current = renderer;
     renderer.resize();
@@ -38,14 +50,25 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     let raf = 0;
     let last = performance.now();
     const loop = (t: number) => {
-      renderer.frame(t, Math.min(0.05, (t - last) / 1000));
+      const r = rendererRef.current;
+      if (r) r.frame(t, Math.min(0.05, (t - last) / 1000));
       last = t;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
 
-    const ro = new ResizeObserver(() => renderer.resize());
-    ro.observe(canvas);
+    const ro = new ResizeObserver(() => rendererRef.current?.resize());
+    ro.observe(shell);
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(raf);
+      } else {
+        last = performance.now();
+        raf = requestAnimationFrame(loop);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     // --- Pointer input --------------------------------------------------
     const pointers = new Map<number, { x: number; y: number }>();
@@ -54,12 +77,12 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     let pinchDist = 0;
 
     const pos = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = shell.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
     const onPointerDown = (e: PointerEvent) => {
-      canvas.setPointerCapture(e.pointerId);
+      shell.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, pos(e));
       if (pointers.size === 1) {
         dragging = true;
@@ -72,6 +95,7 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
 
     const onPointerMove = (e: PointerEvent) => {
       const p = pos(e);
+      const r = rendererRef.current;
       if (pointers.has(e.pointerId)) {
         const prev = pointers.get(e.pointerId)!;
         pointers.set(e.pointerId, p);
@@ -79,18 +103,18 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
           const [a, b] = [...pointers.values()];
           const d = Math.hypot(a.x - b.x, a.y - b.y);
           if (pinchDist > 0) {
-            renderer.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinchDist);
+            r?.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinchDist);
           }
           pinchDist = d;
         } else if (dragging) {
-          renderer.pan(p.x - prev.x, p.y - prev.y);
+          r?.pan(p.x - prev.x, p.y - prev.y);
           moved += Math.abs(p.x - prev.x) + Math.abs(p.y - prev.y);
         }
-      } else {
+      } else if (r) {
         // Pure hover.
-        const hit = renderer.hitTest(p.x, p.y);
-        renderer.hover = hit;
-        canvas.style.cursor = hit ? 'pointer' : 'grab';
+        const hit = r.hitTest(p.x, p.y);
+        r.hover = hit;
+        shell.style.cursor = hit ? 'pointer' : 'grab';
       }
     };
 
@@ -101,7 +125,7 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
       if (pointers.size === 0) {
         dragging = false;
         if (moved < 6) {
-          const hit = renderer.hitTest(p.x, p.y);
+          const hit = rendererRef.current?.hitTest(p.x, p.y);
           if (hit) onHitRef.current?.(hit);
         }
       }
@@ -109,31 +133,34 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
+      const rect = shell.getBoundingClientRect();
       const factor = Math.exp(-e.deltaY * 0.0016);
-      renderer.zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
+      rendererRef.current?.zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
     };
 
     const onLeave = () => {
-      renderer.hover = null;
+      const r = rendererRef.current;
+      if (r) r.hover = null;
     };
 
-    canvas.addEventListener('pointerdown', onPointerDown);
-    canvas.addEventListener('pointermove', onPointerMove);
-    canvas.addEventListener('pointerup', onPointerUp);
-    canvas.addEventListener('pointercancel', onPointerUp);
-    canvas.addEventListener('pointerleave', onLeave);
-    canvas.addEventListener('wheel', onWheel, { passive: false });
+    shell.addEventListener('pointerdown', onPointerDown);
+    shell.addEventListener('pointermove', onPointerMove);
+    shell.addEventListener('pointerup', onPointerUp);
+    shell.addEventListener('pointercancel', onPointerUp);
+    shell.addEventListener('pointerleave', onLeave);
+    shell.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('pointermove', onPointerMove);
-      canvas.removeEventListener('pointerup', onPointerUp);
-      canvas.removeEventListener('pointercancel', onPointerUp);
-      canvas.removeEventListener('pointerleave', onLeave);
-      canvas.removeEventListener('wheel', onWheel);
+      document.removeEventListener('visibilitychange', onVisibility);
+      shell.removeEventListener('pointerdown', onPointerDown);
+      shell.removeEventListener('pointermove', onPointerMove);
+      shell.removeEventListener('pointerup', onPointerUp);
+      shell.removeEventListener('pointercancel', onPointerUp);
+      shell.removeEventListener('pointerleave', onLeave);
+      shell.removeEventListener('wheel', onWheel);
+      rendererRef.current?.dispose();
       rendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,10 +171,15 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
   }, [scene, rendererRef]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={className ?? 'h-full w-full touch-none select-none'}
+    <div
+      data-map-shell=""
+      ref={shellRef}
+      role="img"
       aria-label="Illustrated London startup neighbourhood map; use the neighbourhood selector to choose an HQ"
-    />
+      className={className ?? 'relative h-full w-full touch-none select-none'}
+    >
+      <canvas ref={cityRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
+      <canvas ref={overlayRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
+    </div>
   );
 }
