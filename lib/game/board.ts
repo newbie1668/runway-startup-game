@@ -303,10 +303,10 @@ function makeSkyTexture(): THREE.CanvasTexture {
   c.height = 256;
   const ctx = c.getContext('2d')!;
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, '#efe8dc');
-  g.addColorStop(0.42, '#e4ddd2');
-  g.addColorStop(0.78, '#d5cec2');
-  g.addColorStop(1, '#c8c0b4');
+  g.addColorStop(0, '#f0ebe3');
+  g.addColorStop(0.42, '#e6e0d6');
+  g.addColorStop(0.78, '#d9d3c8');
+  g.addColorStop(1, '#cfc8bc');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 8, 256);
   const tex = new THREE.CanvasTexture(c);
@@ -1164,17 +1164,17 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   const group = new THREE.Group();
   const rnd = seeded(20260824);
 
-  const groundMat = clayMat(0xb9ab8c);
-  const bankMat = clayMat(0xb49672, { roughness: 0.85 });
+  const groundMat = new THREE.MeshBasicMaterial({ color: 0xd4cdc0, toneMapped: false });
+  const bankMat = clayMat(0xc4b496, { roughness: 0.88 });
   bankMat.side = THREE.DoubleSide;
   const riverMat = new THREE.MeshStandardMaterial({
-    color: 0x4aa3b6,
+    color: 0x3d9aaf,
     roughness: 0.58,
     metalness: 0.02,
     side: THREE.DoubleSide,
   });
   const riverDeepMat = new THREE.MeshStandardMaterial({
-    color: 0x347e94,
+    color: 0x2c7388,
     roughness: 0.6,
     metalness: 0.02,
     side: THREE.DoubleSide,

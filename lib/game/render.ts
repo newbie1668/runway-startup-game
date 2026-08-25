@@ -268,16 +268,16 @@ export class MapRenderer {
     this.threeScene = new THREE.Scene();
     this.board = buildLondonBoard(this.reduced, osm);
     this.threeScene.background = this.board.sky;
-    this.threeScene.fog = new THREE.FogExp2(0xe6e0d4, 0.00115);
+    this.threeScene.fog = new THREE.FogExp2(0xd8d2c6, 0.0009);
     this.threeScene.add(this.board.group);
     this.setCaptionsVisible(false);
     this.threeScene.add(this.pinRoot);
     this.beam = this.makeBeam();
     this.threeScene.add(this.beam);
 
-    const hemi = new THREE.HemisphereLight(0xfff2e8, 0x6a5e52, 1.9);
+    const hemi = new THREE.HemisphereLight(0xfff6ee, 0x8a8478, 1.65);
     this.threeScene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff0dc, 2.28);
+    const sun = new THREE.DirectionalLight(0xfff4e8, 1.95);
     sun.position.set(-36, 88, 28);
     sun.castShadow = !this.reduced;
     sun.shadow.mapSize.set(this.reduced ? 512 : 1024, this.reduced ? 512 : 1024);
