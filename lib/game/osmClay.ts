@@ -9,6 +9,9 @@
  * London Bridge hub drops 4–8-gon caps so only irregular OSM rings extrude.
  * Bank rings at that crossing stay site-true — the fat clay ribbon must not
  * vacuum them inland into a prism pile. Mid-channel fragments are dropped.
+ * Docklands (Canary / Poplar / Blackwall / Greenwich peninsula) keep site-true
+ * rings too so the east of the board reads as a neighbourhood, not a tower
+ * cluster on empty khaki. Millwall is empty in this extract — do not invent.
  */
 
 import {
@@ -66,6 +69,11 @@ function inLondonBridgeHub(lng: number, lat: number): boolean {
 /** Pool of London stretch — London Bridge / Tower Bridge water, not Canary. */
 function inPoolOfLondon(lng: number, lat: number): boolean {
   return lng > -0.1 && lng < -0.065 && lat > 51.502 && lat < 51.512;
+}
+
+/** Isle of Dogs + Poplar / Blackwall / Greenwich peninsula inside the extract. */
+function inDocklands(lng: number, lat: number): boolean {
+  return lng > -0.04 && lng < 0.012 && lat > 51.488 && lat < 51.518;
 }
 
 /** Contiguous land runs; mid-channel verts are the OSM bridge-fragment pile. */
@@ -183,24 +191,30 @@ export function toneFor(
   const retail = /retail|supermarket/.test(b);
   const station = /train_station|station/.test(b);
 
-  const canary = lng > -0.032 && lng < -0.005 && lat > 51.498 && lat < 51.51;
+  const docklands = inDocklands(lng, lat);
   const city = lng > -0.102 && lng < -0.07 && lat > 51.509 && lat < 51.521;
   const shoreditch = lng > -0.09 && lng < -0.068 && lat > 51.52 && lat < 51.532;
 
   if (station) return 'stone';
-  if (canary && meters >= 22) return 'glass';
+  if (docklands && meters >= 22) return 'glass';
   if (office && meters >= 16) return 'glass';
   if (meters >= 45) return 'glass';
-  if ((city || canary) && meters >= 28) return 'glass';
+  if ((city || docklands) && meters >= 28) return 'glass';
 
   if (warehouse || house) return 'brick';
   if (retail && meters < 22) return 'brick';
   if (apt) {
     if (meters >= 40) return 'glass';
     const m = mix01(lng, lat);
+    // Khaki fill on khaki ground disappears at city-eye on the Isle of Dogs.
+    if (docklands) return m < 0.55 ? 'brick' : 'stone';
     return m < 0.3 ? 'brick' : 'fill';
   }
   if (shoreditch && meters < 22) return 'brick';
+  if (docklands) {
+    const m = mix01(lng, lat);
+    return m < 0.55 ? 'brick' : 'stone';
+  }
 
   const m = mix01(lng, lat);
   if (meters >= 22) return m < 0.12 ? 'brick' : m < 0.4 ? 'stone' : 'glass';
@@ -256,12 +270,14 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       // Keep L-shapes / courtyards / station sheds; drop rectangle caps at this hub.
       if (inLondonBridgeHub(clng, clat) && ringVertCount(ring) <= 8) continue;
       const atCrossing = inLondonBridgeHub(clng, clat);
-      if (atCrossing && inThamesMidChannel(clng, clat)) continue;
-      // Site-true rings at the crossing. Fat-ribbon translate stacked them into a pile.
-      const clipped = atCrossing ? ring : clipRingOffThames(ring);
+      const atDocklands = inDocklands(clng, clat);
+      if ((atCrossing || atDocklands) && inThamesMidChannel(clng, clat)) continue;
+      // Site-true on the Isle of Dogs — fat-ribbon translate emptied the peninsula.
+      const clipped = atCrossing || atDocklands ? ring : clipRingOffThames(ring);
       if (!clipped) continue;
       const meters = typeof props.height === 'number' ? props.height : 10;
-      const h = clamp(meters * M_TO_CLAY, 0.42, 17.2);
+      const minH = atDocklands ? 0.92 : 0.42;
+      const h = clamp(meters * M_TO_CLAY, minH, 17.2);
       const building = String(props.building ?? 'yes');
       const tone = toneFor(building, meters, clng, clat, name);
       const warehouse = /warehouse|industrial|manufacture|factory|shed/.test(building.toLowerCase());
