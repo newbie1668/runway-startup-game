@@ -1,9 +1,13 @@
 /**
  * Scored central-London OSM extract (PR #23 simplified GeoJSON) → clay-board
  * footprints. This is fabric for the miniature, not /sim and not the 50MB dump.
+ *
+ * Colour follows the real site, not a terracotta wash: brick warehouses brick,
+ * glass towers glass, stone landmarks stone. Footprints that hit the Thames
+ * are clipped to the bank so the clay-blue ribbon stays clean.
  */
 
-import type { CityBlock, LngLat } from './geo';
+import { clipRingOffThames, degDist, type CityBlock, type LngLat } from './geo';
 
 export interface OsmBuilding {
   ring: LngLat[];
@@ -29,7 +33,14 @@ export interface OsmClay {
 
 const M_TO_CLAY = 0.058;
 const SKIP_HERO =
-  /shard|canada square|gherkin|st mary axe|30 st mary|st paul|st\. paul|walkie|20 fenchurch|cheesegrater|leadenhall building|battersea power/i;
+  /shard|canada square|gherkin|st mary axe|30 st mary|st paul|st\. paul|walkie|20 fenchurch|cheesegrater|leadenhall building|battersea power|tower bridge|hms belfast/i;
+
+/** Authored silhouettes that must not sit under a second OSM stack. */
+const HERO_PADS: readonly { at: LngLat; r: number }[] = [
+  { at: [-0.0194, 51.5049], r: 0.00105 }, // 1 Canada Square
+  { at: [-0.0755, 51.5055], r: 0.0017 }, // Tower Bridge
+  { at: [-0.0803, 51.5145], r: 0.0007 }, // Gherkin
+];
 
 type Props = Record<string, unknown>;
 
@@ -71,17 +82,77 @@ function mix01(lng: number, lat: number) {
   return s - Math.floor(s);
 }
 
-function toneFor(building: string, h: number, lng: number, lat: number): CityBlock['tone'] {
-  if (h >= 6.4) return 'glass';
-  const m = mix01(lng, lat);
-  const house = /(apartments|residential|house|terrace)/.test(building);
-  if (house && h < 3.0) return m < 0.7 ? 'brick' : 'fill';
-  if (h >= 2.15) {
-    if (m < 0.4) return 'brick';
-    if (m < 0.7) return 'stone';
-    return 'fill';
+function ringCentroid(ring: LngLat[]): LngLat {
+  const n =
+    ring.length -
+    (ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1] ? 1 : 0);
+  let lng = 0;
+  let lat = 0;
+  for (let i = 0; i < n; i++) {
+    lng += ring[i][0];
+    lat += ring[i][1];
   }
-  return m < 0.62 ? 'brick' : 'fill';
+  return [lng / n, lat / n];
+}
+
+function nearAuthoredHero(lng: number, lat: number, name: string): boolean {
+  if (name && SKIP_HERO.test(name)) return true;
+  return HERO_PADS.some((pad) => degDist([lng, lat], pad.at) < pad.r);
+}
+
+/**
+ * Site-true clay tone from OSM tags + real height. Not a random terracotta wash:
+ * warehouses/terraces brick, towers glass-grey, civic/churches stone.
+ * `meters` is the OSM height, not the clay extrusion.
+ */
+export function toneFor(
+  building: string,
+  meters: number,
+  lng: number,
+  lat: number,
+  name = '',
+): CityBlock['tone'] {
+  const b = building.toLowerCase();
+  const n = name.toLowerCase();
+  const civic =
+    /cathedral|church|chapel|mosque|synagogue|palace|abbey|castle|monument|museum|civic|public|courthouse|townhall|university|college|hospital|ruins/.test(
+      b,
+    ) ||
+    /cathedral|church|palace|abbey|westminster|tower of london|british museum|national theatre|tate|guildhall|mansion house|bank of england|st paul/.test(
+      n,
+    );
+  if (civic) return 'stone';
+
+  const office = /office|commercial|skyscraper|tower|hotel/.test(b);
+  const warehouse = /warehouse|industrial|manufacture|factory|shed/.test(b);
+  const house = /house|terrace|semidetached|detached|garage/.test(b);
+  const apt = /apartments|residential|dormitory/.test(b);
+  const retail = /retail|supermarket/.test(b);
+  const station = /train_station|station/.test(b);
+
+  const canary = lng > -0.032 && lng < -0.005 && lat > 51.498 && lat < 51.51;
+  const city = lng > -0.102 && lng < -0.07 && lat > 51.509 && lat < 51.521;
+  const shoreditch = lng > -0.09 && lng < -0.068 && lat > 51.52 && lat < 51.532;
+
+  if (station) return 'stone';
+  if (canary && meters >= 22) return 'glass';
+  if (office && meters >= 16) return 'glass';
+  if (meters >= 45) return 'glass';
+  if ((city || canary) && meters >= 28) return 'glass';
+
+  if (warehouse || house) return 'brick';
+  if (retail && meters < 22) return 'brick';
+  if (apt) {
+    if (meters >= 40) return 'glass';
+    const m = mix01(lng, lat);
+    return m < 0.48 ? 'brick' : 'fill';
+  }
+  if (shoreditch && meters < 22) return 'brick';
+
+  const m = mix01(lng, lat);
+  if (meters >= 22) return m < 0.12 ? 'brick' : m < 0.4 ? 'stone' : 'glass';
+  if (meters >= 12) return m < 0.22 ? 'brick' : m < 0.62 ? 'stone' : 'fill';
+  return m < 0.28 ? 'brick' : m < 0.55 ? 'stone' : 'fill';
 }
 
 export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
@@ -108,15 +179,22 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
     if (layer === 'building' && geom.type === 'Polygon') {
       if (bi++ % bSkip !== 0) continue;
       const name = String(props.name ?? '');
-      if (name && SKIP_HERO.test(name)) continue;
       const coords = geom.coordinates;
       const outer = Array.isArray(coords) ? coords[0] : null;
       const ring = asRing(outer);
       if (!ring) continue;
+      const [clng, clat] = ringCentroid(ring);
+      if (nearAuthoredHero(clng, clat, name)) continue;
+      const clipped = clipRingOffThames(ring);
+      if (!clipped) continue;
       const meters = typeof props.height === 'number' ? props.height : 10;
       const h = clamp(meters * M_TO_CLAY, 0.42, 17.2);
       const building = String(props.building ?? 'yes');
-      buildings.push({ ring, h, tone: toneFor(building, h, ring[0][0], ring[0][1]) });
+      buildings.push({
+        ring: clipped,
+        h,
+        tone: toneFor(building, meters, clng, clat, name),
+      });
       continue;
     }
 
@@ -144,7 +222,9 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       const coords = geom.coordinates;
       const outer = Array.isArray(coords) ? coords[0] : null;
       const ring = asRing(outer);
-      if (ring) waters.push({ ring });
+      if (!ring) continue;
+      const clipped = clipRingOffThames(ring);
+      if (clipped) waters.push({ ring: clipped });
     }
   }
 
