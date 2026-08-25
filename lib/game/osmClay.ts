@@ -4,15 +4,20 @@
  *
  * Colour follows the real site, not a terracotta wash: brick warehouses brick,
  * glass towers glass, stone landmarks stone. Footprints that hit the Thames
- * are clipped to the bank so the clay-blue ribbon stays clean.
+ * are translated onto the bank so the clay-blue ribbon stays clean and OSM
+ * rings are not re-boxed. Terraces mix London stock (yellow / grey / dirty).
  */
 
 import { clipRingOffThames, degDist, type CityBlock, type LngLat } from './geo';
+
+/** London stock mix — not one brick-red wash. */
+export type BrickStock = 'yellow' | 'grey' | 'dirty' | 'red';
 
 export interface OsmBuilding {
   ring: LngLat[];
   h: number;
   tone: CityBlock['tone'];
+  brickStock?: BrickStock;
 }
 
 export interface OsmRoad {
@@ -155,6 +160,21 @@ export function toneFor(
   return m < 0.28 ? 'brick' : m < 0.55 ? 'stone' : 'fill';
 }
 
+/** Adjacent terraces vary; warehouses bias dirty stock. */
+function brickStockFor(lng: number, lat: number, warehouse: boolean): BrickStock {
+  const m = mix01(lng + 0.017, lat - 0.009);
+  if (warehouse) {
+    if (m < 0.52) return 'dirty';
+    if (m < 0.78) return 'grey';
+    if (m < 0.93) return 'yellow';
+    return 'red';
+  }
+  if (m < 0.4) return 'yellow';
+  if (m < 0.66) return 'grey';
+  if (m < 0.88) return 'dirty';
+  return 'red';
+}
+
 export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
   if (!input || typeof input !== 'object') return null;
   const features = (input as { features?: unknown }).features;
@@ -190,10 +210,13 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       const meters = typeof props.height === 'number' ? props.height : 10;
       const h = clamp(meters * M_TO_CLAY, 0.42, 17.2);
       const building = String(props.building ?? 'yes');
+      const tone = toneFor(building, meters, clng, clat, name);
+      const warehouse = /warehouse|industrial|manufacture|factory|shed/.test(building.toLowerCase());
       buildings.push({
         ring: clipped,
         h,
-        tone: toneFor(building, meters, clng, clat, name),
+        tone,
+        brickStock: tone === 'brick' ? brickStockFor(clng, clat, warehouse) : undefined,
       });
       continue;
     }

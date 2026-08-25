@@ -147,21 +147,6 @@ function lerpWorldPt(a: WorldPoint, b: WorldPoint, t: number): WorldPoint {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-function riverBankCrossing(a: WorldPoint, b: WorldPoint): WorldPoint {
-  let lo = 0;
-  let hi = 1;
-  const aWet = inThamesWater(a);
-  for (let i = 0; i < 22; i++) {
-    const mid = (lo + hi) / 2;
-    const p = lerpWorldPt(a, b, mid);
-    if (inThamesWater(p) === aWet) lo = mid;
-    else hi = mid;
-  }
-  const loP = lerpWorldPt(a, b, lo);
-  const hiP = lerpWorldPt(a, b, hi);
-  return inThamesWater(loP) ? hiP : loP;
-}
-
 function openLngLatRing(ring: readonly LngLat[]): LngLat[] {
   const pts = ring.map((ll) => [ll[0], ll[1]] as LngLat);
   if (pts.length >= 2) {
@@ -172,21 +157,93 @@ function openLngLatRing(ring: readonly LngLat[]): LngLat[] {
   return pts;
 }
 
-function worldRingArea(pts: WorldPoint[]): number {
-  let a = 0;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    a += pts[j].x * pts[i].y - pts[i].x * pts[j].y;
-  }
-  return Math.abs(a) * 0.5;
-}
-
 function segmentDipsInWater(a: WorldPoint, b: WorldPoint): boolean {
   return [0.25, 0.5, 0.75].some((t) => inThamesWater(lerpWorldPt(a, b, t)));
 }
 
+function closestOnPolyline(p: WorldPoint, line: readonly WorldPoint[]): WorldPoint {
+  let best: WorldPoint = line[0];
+  let bestD = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1];
+    const b = line[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    const q = { x: a.x + dx * t, y: a.y + dy * t };
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (d < bestD) {
+      bestD = d;
+      best = q;
+    }
+  }
+  return best;
+}
+
+/** Uphill of `thamesWaterDepth` — away from the clay-blue ribbon. */
+function bankDir(p: WorldPoint): WorldPoint {
+  const eps = 0.4;
+  const gx = thamesWaterDepth({ x: p.x + eps, y: p.y }) - thamesWaterDepth({ x: p.x - eps, y: p.y });
+  const gy = thamesWaterDepth({ x: p.x, y: p.y + eps }) - thamesWaterDepth({ x: p.x, y: p.y - eps });
+  const len = Math.hypot(gx, gy);
+  if (len > 1e-6) return { x: gx / len, y: gy / len };
+  const river = closestOnPolyline(p, THAMES_PROJECTED);
+  const dx = p.x - river.x;
+  const dy = p.y - river.y;
+  const n = Math.hypot(dx, dy) || 1;
+  return { x: dx / n, y: dy / n };
+}
+
+const BANK_CLEAR = 0.18;
+
+function allOnBank(pts: readonly WorldPoint[]): boolean {
+  return pts.every((p) => thamesWaterDepth(p) >= BANK_CLEAR);
+}
+
+function shiftPts(pts: readonly WorldPoint[], dir: WorldPoint, t: number): WorldPoint[] {
+  return pts.map((p) => ({ x: p.x + dir.x * t, y: p.y + dir.y * t }));
+}
+
+function ringTouchesWater(pts: readonly WorldPoint[]): boolean {
+  if (pts.some((p) => inThamesWater(p))) return true;
+  for (let i = 0; i < pts.length; i++) {
+    if (segmentDipsInWater(pts[i], pts[(i + 1) % pts.length])) return true;
+  }
+  return false;
+}
+
+/** Slide a whole ring onto the bank. Vertex count and shape stay intact. */
+function translateRingToBank(pts: readonly WorldPoint[]): WorldPoint[] | null {
+  if (allOnBank(pts)) return pts.map((p) => ({ x: p.x, y: p.y }));
+  let cx = 0;
+  let cy = 0;
+  for (const p of pts) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= pts.length;
+  cy /= pts.length;
+  const dir = bankDir({ x: cx, y: cy });
+  const tryDir = (d: WorldPoint): WorldPoint[] | null => {
+    const hiMax = 10;
+    if (!allOnBank(shiftPts(pts, d, hiMax))) return null;
+    let lo = 0;
+    let hi = hiMax;
+    for (let i = 0; i < 20; i++) {
+      const mid = (lo + hi) / 2;
+      if (allOnBank(shiftPts(pts, d, mid))) hi = mid;
+      else lo = mid;
+    }
+    return shiftPts(pts, d, hi + 0.06);
+  };
+  return tryDir(dir) ?? tryDir({ x: -dir.x, y: -dir.y });
+}
+
 /**
- * Clip an OSM (or boxed) footprint so it does not occupy the clay Thames.
- * Fully-wet rings are dropped; mixed rings keep the landward remainder.
+ * Keep OSM rings off the clay Thames without re-boxing.
+ * Fully-wet rings are dropped; mixed rings are translated onto the bank
+ * so vertex count and silhouette stay intact.
  */
 export function clipRingOffThames(ring: readonly LngLat[]): LngLat[] | null {
   const ll = openLngLatRing(ring);
@@ -204,41 +261,13 @@ export function clipRingOffThames(ring: readonly LngLat[]): LngLat[] | null {
   if (wet === pts.length) return null;
   if (inThamesWater({ x: cx, y: cy }) && wet >= pts.length * 0.55) return null;
 
-  if (wet === 0) {
-    for (let i = 0; i < pts.length; i++) {
-      if (segmentDipsInWater(pts[i], pts[(i + 1) % pts.length])) return null;
-    }
+  if (!ringTouchesWater(pts)) {
     return ring.map((p) => [p[0], p[1]] as LngLat);
   }
 
-  const out: WorldPoint[] = [];
-  for (let i = 0; i < pts.length; i++) {
-    const A = pts[i];
-    const B = pts[(i + 1) % pts.length];
-    const aIn = inThamesWater(A);
-    const bIn = inThamesWater(B);
-    if (!aIn && !bIn) out.push(B);
-    else if (!aIn && bIn) out.push(riverBankCrossing(A, B));
-    else if (aIn && !bIn) {
-      out.push(riverBankCrossing(A, B));
-      out.push(B);
-    }
-  }
-  const dedup: WorldPoint[] = [];
-  for (const p of out) {
-    const prev = dedup[dedup.length - 1];
-    if (prev && Math.hypot(prev.x - p.x, prev.y - p.y) < 1e-4) continue;
-    dedup.push(p);
-  }
-  if (dedup.length >= 2) {
-    const a = dedup[0];
-    const b = dedup[dedup.length - 1];
-    if (Math.hypot(a.x - b.x, a.y - b.y) < 1e-4) dedup.pop();
-  }
-  if (dedup.length < 3 || worldRingArea(dedup) < 0.045) return null;
-  const land = dedup.filter((p) => !inThamesWater(p));
-  if (land.length < 3 || worldRingArea(land) < 0.045) return null;
-  const clipped: LngLat[] = land.map((p) => unproject(p));
+  const moved = translateRingToBank(pts);
+  if (!moved) return null;
+  const clipped: LngLat[] = moved.map((p) => unproject(p));
   clipped.push([clipped[0][0], clipped[0][1]]);
   return clipped;
 }

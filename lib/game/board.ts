@@ -28,7 +28,7 @@ import {
   type LngLat,
   type WorldPoint,
 } from './geo';
-import { parseOsmClay, type OsmClay } from './osmClay';
+import { parseOsmClay, type BrickStock, type OsmClay } from './osmClay';
 import type { HubId } from './types';
 
 export const LAND_Y = 0.32;
@@ -891,33 +891,35 @@ function addNeighbourhoods(
   inner.rotation.x = Math.PI / 2;
   inner.position.set(round.x, LAND_Y + 0.08, round.z);
   group.add(island, curb, inner);
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2;
-    addBoxLL(
-      group,
-      -0.0874 + Math.cos(a) * 0.0036,
-      51.5256 + Math.sin(a) * 0.0022,
-      1.45,
-      1.05 + (i % 3) * 0.28,
-      0.92,
-      brick,
-      -a,
-    );
-  }
-  for (let i = 0; i < (reduced ? 8 : 12); i++) {
-    const col = i % 6;
-    const row = Math.floor(i / 6);
-    const box = addBoxLL(
-      group,
-      -0.0818 + col * 0.00062,
-      51.5224 + row * 0.00055,
-      0.55,
-      0.34,
-      0.28,
-      clayMat(candy[i % candy.length]),
-      0.18,
-    );
-    box.position.y = LAND_Y + 0.18 + row * 0.36;
+  if (!osmFabric) {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      addBoxLL(
+        group,
+        -0.0874 + Math.cos(a) * 0.0036,
+        51.5256 + Math.sin(a) * 0.0022,
+        1.45,
+        1.05 + (i % 3) * 0.28,
+        0.92,
+        brick,
+        -a,
+      );
+    }
+    for (let i = 0; i < (reduced ? 8 : 12); i++) {
+      const col = i % 6;
+      const row = Math.floor(i / 6);
+      const box = addBoxLL(
+        group,
+        -0.0818 + col * 0.00062,
+        51.5224 + row * 0.00055,
+        0.55,
+        0.34,
+        0.28,
+        clayMat(candy[i % candy.length]),
+        0.18,
+      );
+      box.position.y = LAND_Y + 0.18 + row * 0.36;
+    }
   }
 
   // --- Soho: terrace square + Centre Point ---
@@ -926,54 +928,58 @@ function addNeighbourhoods(
   addBoxLL(group, -0.1298, 51.5166, 1.05, 0.55, 1.05, cream, 0.12).position.y = LAND_Y + 8.55;
   const sohoSq = addBoxLL(group, -0.1355, 51.5132, 4.2, 0.08, 3.6, park, 0);
   sohoSq.castShadow = false;
-  for (const [lng, lat, yaw] of [
-    [-0.1382, 51.5132, 0.02],
-    [-0.1328, 51.5132, 0.02],
-    [-0.1355, 51.5152, 1.57],
-    [-0.1355, 51.5112, 1.57],
-  ] as const) {
-    addBoxLL(group, lng, lat, 0.62, 1.65, 3.55, brick, yaw);
-    addBoxLL(group, lng, lat, 0.72, 0.26, 3.65, roof, yaw).position.y = LAND_Y + 1.76;
-  }
-  for (let i = 0; i < 6; i++) {
-    addBoxLL(
-      group,
-      -0.1338 + (i % 3) * 0.00115,
-      51.5142 + Math.floor(i / 3) * 0.0007,
-      0.42,
-      1.15,
-      0.95,
-      brick,
-      0.08,
-    );
-    addBoxLL(
-      group,
-      -0.1372 + (i % 3) * 0.00105,
-      51.5122 + Math.floor(i / 3) * 0.00065,
-      0.38,
-      1.05,
-      0.88,
-      brick,
-      -0.06,
-    );
+  if (!osmFabric) {
+    for (const [lng, lat, yaw] of [
+      [-0.1382, 51.5132, 0.02],
+      [-0.1328, 51.5132, 0.02],
+      [-0.1355, 51.5152, 1.57],
+      [-0.1355, 51.5112, 1.57],
+    ] as const) {
+      addBoxLL(group, lng, lat, 0.62, 1.65, 3.55, brick, yaw);
+      addBoxLL(group, lng, lat, 0.72, 0.26, 3.65, roof, yaw).position.y = LAND_Y + 1.76;
+    }
+    for (let i = 0; i < 6; i++) {
+      addBoxLL(
+        group,
+        -0.1338 + (i % 3) * 0.00115,
+        51.5142 + Math.floor(i / 3) * 0.0007,
+        0.42,
+        1.15,
+        0.95,
+        brick,
+        0.08,
+      );
+      addBoxLL(
+        group,
+        -0.1372 + (i % 3) * 0.00105,
+        51.5122 + Math.floor(i / 3) * 0.00065,
+        0.38,
+        1.05,
+        0.88,
+        brick,
+        -0.06,
+      );
+    }
   }
 
   // --- Farringdon: Smithfield halls ---
-  for (let i = 0; i < 11; i++) {
-    const lng = -0.1072 + i * 0.00098;
-    addBoxLL(group, lng, 51.5188, 1.28, 2.95, 3.85, brick, 0);
-    const hall = addBoxLL(group, lng, 51.5188, 1.12, 1.25, 3.45, dark, 0);
-    hall.rotation.z = 0.72;
-    hall.position.y = LAND_Y + 3.15;
-    addBoxLL(group, lng, 51.5177, 1.18, 2.45, 3.25, brick, 0);
-    const hall2 = addBoxLL(group, lng, 51.5177, 1.02, 1.05, 2.95, dark, 0);
-    hall2.rotation.z = 0.72;
-    hall2.position.y = LAND_Y + 2.62;
+  if (!osmFabric) {
+    for (let i = 0; i < 11; i++) {
+      const lng = -0.1072 + i * 0.00098;
+      addBoxLL(group, lng, 51.5188, 1.28, 2.95, 3.85, brick, 0);
+      const hall = addBoxLL(group, lng, 51.5188, 1.12, 1.25, 3.45, dark, 0);
+      hall.rotation.z = 0.72;
+      hall.position.y = LAND_Y + 3.15;
+      addBoxLL(group, lng, 51.5177, 1.18, 2.45, 3.25, brick, 0);
+      const hall2 = addBoxLL(group, lng, 51.5177, 1.02, 1.05, 2.95, dark, 0);
+      hall2.rotation.z = 0.72;
+      hall2.position.y = LAND_Y + 2.62;
+    }
+    addBoxLL(group, -0.1024, 51.51825, 0.85, 2.15, 7.8, dark, 0);
+    addBoxLL(group, -0.1024, 51.51825, 0.55, 0.22, 7.9, roof, 0).position.y = LAND_Y + 2.28;
+    addBoxLL(group, -0.1024, 51.5189, 0.72, 1.85, 0.72, brick, 0);
+    addBoxLL(group, -0.1024, 51.5189, 0.22, 1.15, 0.22, dark, 0).position.y = LAND_Y + 2.55;
   }
-  addBoxLL(group, -0.1024, 51.51825, 0.85, 2.15, 7.8, dark, 0);
-  addBoxLL(group, -0.1024, 51.51825, 0.55, 0.22, 7.9, roof, 0).position.y = LAND_Y + 2.28;
-  addBoxLL(group, -0.1024, 51.5189, 0.72, 1.85, 0.72, brick, 0);
-  addBoxLL(group, -0.1024, 51.5189, 0.22, 1.15, 0.22, dark, 0).position.y = LAND_Y + 2.55;
 
   // --- Canary Wharf: 1 Canada Square pyramid sitting in the dock basins ---
   const waterMat = new THREE.MeshStandardMaterial({
@@ -1256,6 +1262,18 @@ function addOsmFabric(
     brick: [],
     fill: [],
   };
+  const brickGeos: Record<BrickStock, THREE.BufferGeometry[]> = {
+    yellow: [],
+    grey: [],
+    dirty: [],
+    red: [],
+  };
+  const brickMat: Record<BrickStock, THREE.Material> = {
+    yellow: clayMat(0xc9a36a, { roughness: 0.8 }),
+    grey: clayMat(0x8e8a84, { roughness: 0.82 }),
+    dirty: clayMat(0x6e4a40, { roughness: 0.86 }),
+    red: clayMat(0xa66a58, { roughness: 0.8 }),
+  };
   for (const b of clay.buildings) {
     try {
       const geo = new THREE.ExtrudeGeometry(shapeFromPts(ringToShapePts(b.ring)), {
@@ -1266,7 +1284,8 @@ function addOsmFabric(
       });
       geo.rotateX(-Math.PI / 2);
       geo.translate(0, LAND_Y + 0.02, 0);
-      geos[b.tone].push(geo);
+      if (b.tone === 'brick') brickGeos[b.brickStock ?? 'yellow'].push(geo);
+      else geos[b.tone].push(geo);
     } catch {
       /* degenerate footprint */
     }
@@ -1275,6 +1294,14 @@ function addOsmFabric(
     const merged = mergeChunks(geos[tone]);
     if (!merged) return;
     const mesh = new THREE.Mesh(merged, toneMat[tone]);
+    mesh.castShadow = !reduced;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  });
+  (Object.keys(brickGeos) as BrickStock[]).forEach((stock) => {
+    const merged = mergeChunks(brickGeos[stock]);
+    if (!merged) return;
+    const mesh = new THREE.Mesh(merged, brickMat[stock]);
     mesh.castShadow = !reduced;
     mesh.receiveShadow = true;
     group.add(mesh);
