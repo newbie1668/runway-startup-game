@@ -186,21 +186,21 @@ function makeBus(body: THREE.Material, band: THREE.Material): THREE.Group {
 function addRoofJunk(group: THREE.Group, at: THREE.Vector3, kind: 'ac' | 'tank' | 'chimney') {
   if (kind === 'ac') {
     const box = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5, 1.1, 1.8),
+      new THREE.BoxGeometry(4.6, 1.85, 3.2),
       new THREE.MeshBasicMaterial({ color: 0xf3efe6, toneMapped: false }),
     );
     box.position.copy(at);
     const fan = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 0.38, 1.15),
+      new THREE.BoxGeometry(2.05, 0.62, 2.05),
       new THREE.MeshBasicMaterial({ color: 0x7a828c, toneMapped: false }),
     );
-    fan.position.set(at.x, at.y + 0.7, at.z);
+    fan.position.set(at.x, at.y + 1.15, at.z);
     group.add(box, fan);
     return;
   }
   if (kind === 'tank') {
     const tank = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.9, 0.9, 2.2, 10),
+      new THREE.CylinderGeometry(1.55, 1.55, 3.4, 10),
       new THREE.MeshBasicMaterial({ color: 0x3aa0b8, toneMapped: false }),
     );
     tank.position.copy(at);
@@ -208,7 +208,7 @@ function addRoofJunk(group: THREE.Group, at: THREE.Vector3, kind: 'ac' | 'tank' 
     return;
   }
   const stack = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.4, 0.5, 3.6, 8),
+    new THREE.CylinderGeometry(0.62, 0.78, 6.2, 8),
     new THREE.MeshBasicMaterial({ color: 0x6b5348, toneMapped: false }),
   );
   stack.position.copy(at);
@@ -1454,7 +1454,6 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     .map((line) => sampleRibbon(line, 1.05))
     .filter((pts) => pts.length >= 6);
   const allRoadPts = busRoutes.flat();
-  const buses: { mesh: THREE.Group; pts: { x: number; z: number; rot: number }[]; phase: number }[] = [];
   const busStops: LngLat[] = [
     [-0.0874, 51.5256],
     [-0.0194, 51.5044],
@@ -1484,14 +1483,6 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
       mesh.position.set(origin.x, busY, origin.z);
       mesh.rotation.y = origin.rot;
       group.add(mesh);
-      const home = worldTo3(project([lng, lat]), 0);
-      const pts = busRoutes
-        .map((line) => {
-          const d = line.reduce((m, p) => Math.min(m, (p.x - home.x) ** 2 + (p.z - home.z) ** 2), Infinity);
-          return { line, d };
-        })
-        .sort((a, b) => a.d - b.d)[0]?.line ?? [origin];
-      buses.push({ mesh, pts, phase: i * 0.19 });
     }
   }
 
@@ -1502,7 +1493,7 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
       project([hub.lng + (rnd() - 0.5) * 0.0048, hub.lat + (rnd() - 0.5) * 0.0034]),
       LAND_Y,
     );
-    const roofY = LAND_Y + (hub.id === 'canarywharf' ? 9.4 : 4.2) + (i % 4) * 1.15;
+    const roofY = LAND_Y + (hub.id === 'canarywharf' ? 10.6 : 5.4) + (i % 4) * 1.6;
     addRoofJunk(group, new THREE.Vector3(p.x, roofY, p.z), roofKinds[i % 3]);
   }
 
@@ -1515,15 +1506,8 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   return {
     group,
     sky,
-    update: (t: number) => {
-      for (const b of buses) {
-        if (!b.pts.length) continue;
-        const i = Math.floor((t * 0.00009 + b.phase) * b.pts.length) % b.pts.length;
-        const p = b.pts[i];
-        b.mesh.position.x = p.x;
-        b.mesh.position.z = p.z;
-        b.mesh.rotation.y = p.rot;
-      }
+    update: (_t: number) => {
+      /* buses stay parked on asphalt so they still read in stills */
     },
     dispose: () => {
       group.traverse((obj) => {
