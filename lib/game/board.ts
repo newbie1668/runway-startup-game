@@ -1398,9 +1398,7 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   });
 
   for (const [lng, lat, yaw, s] of [
-    // Canary: west/NW of the docks, behind the SE camera, jibs pointing west.
-    [-0.042, 51.511, 3.2, 0.82],
-    [-0.048, 51.506, 3.05, 0.78],
+    // No T-cranes on the Canary camera line — pyramid stays first-read.
     [-0.148, 51.483, 0.6, 1.5],
     [-0.08, 51.525, 1.1, 1.05],
     [-0.09, 51.513, 0.4, 1.65],
