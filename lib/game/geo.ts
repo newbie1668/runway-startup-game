@@ -136,7 +136,7 @@ export function thamesWaterDepth(p: WorldPoint): number {
 }
 
 export function inThamesWater(p: WorldPoint): boolean {
-  return thamesWaterDepth(p) < 0.08;
+  return thamesWaterDepth(p) < 0.16;
 }
 
 export function lngLatInThamesWater(lng: number, lat: number): boolean {

@@ -37,7 +37,7 @@ const SKIP_HERO =
 
 /** Authored silhouettes that must not sit under a second OSM stack. */
 const HERO_PADS: readonly { at: LngLat; r: number }[] = [
-  { at: [-0.0194, 51.5049], r: 0.00105 }, // 1 Canada Square
+  { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square
   { at: [-0.0755, 51.5055], r: 0.0017 }, // Tower Bridge
   { at: [-0.0803, 51.5145], r: 0.0007 }, // Gherkin
 ];
@@ -145,7 +145,7 @@ export function toneFor(
   if (apt) {
     if (meters >= 40) return 'glass';
     const m = mix01(lng, lat);
-    return m < 0.48 ? 'brick' : 'fill';
+    return m < 0.3 ? 'brick' : 'fill';
   }
   if (shoreditch && meters < 22) return 'brick';
 

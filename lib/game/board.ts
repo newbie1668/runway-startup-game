@@ -699,17 +699,17 @@ function addLandmark(group: THREE.Group, lm: Landmark, at: THREE.Vector3) {
     gothicTower(half);
     box(0, 1.18, 0, 14.4, 0.22, 1.58, asphalt);
     box(0, 1.36, 0, 13.7, 0.1, 1.38, stone);
-    box(-1.18, 1.5, 0, 3.1, 0.16, 1.3, cream);
-    box(1.18, 1.5, 0, 3.1, 0.16, 1.3, cream);
-    box(0, 1.6, 0, 0.2, 0.12, 1.24, dark);
-    box(-half + 1.18, 2.18, 0, 1.08, 1.18, 1.72, stone);
-    box(half - 1.18, 2.18, 0, 1.08, 1.18, 1.72, stone);
-    const walkW = half * 2 - 1.72;
-    box(0, 7.18, -0.5, walkW, 0.64, 0.44, cream);
-    box(0, 7.18, 0.5, walkW, 0.64, 0.44, cream);
-    box(0, 7.56, 0, walkW + 0.12, 0.16, 1.32, stone);
-    box(0, 7.18, -0.7, walkW - 0.35, 0.34, 0.08, windowMat);
-    box(0, 7.18, 0.7, walkW - 0.35, 0.34, 0.08, windowMat);
+    box(-1.18, 1.52, 0, 3.15, 0.22, 1.32, cream);
+    box(1.18, 1.52, 0, 3.15, 0.22, 1.32, cream);
+    box(0, 1.68, 0, 0.22, 0.14, 1.28, dark);
+    box(-half + 1.18, 2.22, 0, 1.12, 1.28, 1.78, stone);
+    box(half - 1.18, 2.22, 0, 1.12, 1.28, 1.78, stone);
+    const walkW = half * 2 - 1.55;
+    box(0, 7.28, -0.54, walkW, 0.95, 0.55, cream);
+    box(0, 7.28, 0.54, walkW, 0.95, 0.55, cream);
+    box(0, 7.86, 0, walkW + 0.18, 0.22, 1.48, stone);
+    box(0, 7.28, -0.8, walkW - 0.25, 0.42, 0.1, windowMat);
+    box(0, 7.28, 0.8, walkW - 0.25, 0.42, 0.1, windowMat);
     const chain = (x0: number, y0: number, z: number, x1: number, y1: number) => {
       const dx = x1 - x0;
       const dy = y1 - y0;
@@ -1622,6 +1622,7 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   const roofKinds = ['ac', 'tank', 'chimney'] as const;
   for (let i = 0; i < (reduced ? 6 : 14); i++) {
     const hub = HUBS[i % HUBS.length];
+    if (hub.id === 'canarywharf') continue;
     const p = worldTo3(
       project([hub.lng + (rnd() - 0.5) * 0.0048, hub.lat + (rnd() - 0.5) * 0.0034]),
       LAND_Y,
