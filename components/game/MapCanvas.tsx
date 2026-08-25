@@ -203,7 +203,7 @@ export function MapCanvas({ scene, rendererRef, onHit, onSelect, className }: Pr
     const boot = async () => {
       let osm: unknown = null;
       try {
-        const res = await fetch('/api/osm-clay');
+        const res = await fetch('/clay/osm-central-london.geojson');
         if (res.ok) osm = await res.json();
       } catch {
         osm = null;

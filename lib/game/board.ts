@@ -1627,7 +1627,7 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
       project([hub.lng + (rnd() - 0.5) * 0.0048, hub.lat + (rnd() - 0.5) * 0.0034]),
       LAND_Y,
     );
-    const roofY = LAND_Y + (hub.id === 'canarywharf' ? 10.6 : 5.4) + (i % 4) * 1.6;
+    const roofY = LAND_Y + 5.4 + (i % 4) * 1.6;
     addRoofJunk(group, new THREE.Vector3(p.x, roofY, p.z), roofKinds[i % 3]);
   }
 

@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     // Generated work artifacts are not part of the app source.
     'brag-output*/**',
     'data/**/*.geojson',
+    'public/**/*.geojson',
     '.claude/**',
     '.vercel/**',
   ]),
