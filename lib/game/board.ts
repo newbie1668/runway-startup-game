@@ -144,26 +144,75 @@ function addLollipop(
   group.add(trunk, leaf);
 }
 
-function addCrane(group: THREE.Group, at: THREE.Vector3, yaw: number, mat: THREE.Material, s = 1) {
-  const mastH = 5.4 * s;
-  const mast = new THREE.Mesh(new THREE.BoxGeometry(0.18 * s, mastH, 0.18 * s), mat);
+function addCrane(group: THREE.Group, at: THREE.Vector3, yaw: number, s = 1) {
+  const yellow = new THREE.MeshBasicMaterial({ color: 0xffee33, toneMapped: false });
+  const cabMat = new THREE.MeshBasicMaterial({ color: 0x3b3f45, toneMapped: false });
+  const hookMat = new THREE.MeshBasicMaterial({ color: 0xda291c, toneMapped: false });
+  const mastH = 9.2 * s;
+  const thick = 0.55 * s;
+  const cx = Math.cos(yaw);
+  const sz = Math.sin(yaw);
+  const mast = new THREE.Mesh(new THREE.BoxGeometry(thick, mastH, thick), yellow);
   mast.position.set(at.x, LAND_Y + mastH / 2, at.z);
-  const armLen = 6.2 * s;
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(armLen, 0.16 * s, 0.16 * s), mat);
-  arm.position.set(
-    at.x + Math.cos(yaw) * armLen * 0.38,
-    LAND_Y + mastH - 0.12 * s,
-    at.z + Math.sin(yaw) * armLen * 0.38,
+  const mastB = new THREE.Mesh(new THREE.BoxGeometry(thick * 0.42, mastH, thick * 1.15), yellow);
+  mastB.position.copy(mast.position);
+  const jibLen = 7.4 * s;
+  const jib = new THREE.Mesh(new THREE.BoxGeometry(jibLen, thick * 0.72, thick * 0.72), yellow);
+  jib.position.set(at.x + cx * jibLen * 0.38, LAND_Y + mastH + thick * 0.1, at.z + sz * jibLen * 0.38);
+  jib.rotation.y = yaw;
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(2.6 * s, thick * 0.85, thick * 0.85), yellow);
+  counter.position.set(at.x - cx * 1.5 * s, LAND_Y + mastH + thick * 0.1, at.z - sz * 1.5 * s);
+  counter.rotation.y = yaw;
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.05 * s, 0.85 * s, 1.15 * s), cabMat);
+  cab.position.set(at.x + cx * 0.55 * s, LAND_Y + mastH - 0.7 * s, at.z + sz * 0.55 * s);
+  cab.rotation.y = yaw;
+  const hook = new THREE.Mesh(new THREE.BoxGeometry(0.38 * s, 1.35 * s, 0.38 * s), hookMat);
+  hook.position.set(at.x + cx * jibLen * 0.68, LAND_Y + mastH - 1.4 * s, at.z + sz * jibLen * 0.68);
+  mast.castShadow = jib.castShadow = true;
+  group.add(mast, mastB, jib, counter, cab, hook);
+}
+
+function makeBus(body: THREE.Material, band: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.15, 1.2), body);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.62, 0.32, 1.24), band);
+  stripe.position.y = 0.16;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.14, 1.08), band);
+  roof.position.y = 0.62;
+  g.add(hull, stripe, roof);
+  return g;
+}
+
+function addRoofJunk(group: THREE.Group, at: THREE.Vector3, kind: 'ac' | 'tank' | 'chimney') {
+  if (kind === 'ac') {
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 1.1, 1.8),
+      new THREE.MeshBasicMaterial({ color: 0xf3efe6, toneMapped: false }),
+    );
+    box.position.copy(at);
+    const fan = new THREE.Mesh(
+      new THREE.BoxGeometry(1.15, 0.38, 1.15),
+      new THREE.MeshBasicMaterial({ color: 0x7a828c, toneMapped: false }),
+    );
+    fan.position.set(at.x, at.y + 0.7, at.z);
+    group.add(box, fan);
+    return;
+  }
+  if (kind === 'tank') {
+    const tank = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, 2.2, 10),
+      new THREE.MeshBasicMaterial({ color: 0x3aa0b8, toneMapped: false }),
+    );
+    tank.position.copy(at);
+    group.add(tank);
+    return;
+  }
+  const stack = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.4, 0.5, 3.6, 8),
+    new THREE.MeshBasicMaterial({ color: 0x6b5348, toneMapped: false }),
   );
-  arm.rotation.y = yaw;
-  const hook = new THREE.Mesh(new THREE.BoxGeometry(0.12 * s, 1.1 * s, 0.12 * s), mat);
-  hook.position.set(
-    at.x + Math.cos(yaw) * armLen * 0.72,
-    LAND_Y + mastH - 0.7 * s,
-    at.z + Math.sin(yaw) * armLen * 0.72,
-  );
-  mast.castShadow = arm.castShadow = true;
-  group.add(mast, arm, hook);
+  stack.position.copy(at);
+  group.add(stack);
 }
 
 function addTotem(group: THREE.Group, at: THREE.Vector3, color: number, label: string, h = 1.15) {
@@ -1348,17 +1397,16 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     cream: clayMat(0xf0e4c8),
   });
 
-  const craneMat = new THREE.MeshBasicMaterial({ color: 0xffc400, toneMapped: false });
   for (const [lng, lat, yaw, s] of [
-    [-0.02, 51.504, 0.2, 2.8],
-    [-0.016, 51.506, 0.9, 2.4],
-    [-0.026, 51.503, -0.4, 2.2],
-    [-0.148, 51.483, 0.6, 2.3],
-    [-0.08, 51.525, 1.1, 1.45],
-    [-0.09, 51.513, 0.4, 2.5],
-    [-0.12, 51.518, -0.7, 2.0],
+    [-0.02, 51.504, 0.2, 1.85],
+    [-0.016, 51.506, 0.9, 1.55],
+    [-0.026, 51.503, -0.4, 1.45],
+    [-0.148, 51.483, 0.6, 1.5],
+    [-0.08, 51.525, 1.1, 1.05],
+    [-0.09, 51.513, 0.4, 1.65],
+    [-0.12, 51.518, -0.7, 1.35],
   ] as const) {
-    addCrane(group, worldTo3(project([lng, lat]), LAND_Y), yaw, craneMat, s);
+    addCrane(group, worldTo3(project([lng, lat]), LAND_Y), yaw, s);
   }
 
   const gags: { id: HubId; color: number; label: string }[] = [
@@ -1400,37 +1448,62 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   }
 
   const busMat = new THREE.MeshBasicMaterial({ color: 0xda291c, toneMapped: false });
-  const buses: { mesh: THREE.Mesh; origin: THREE.Vector3; phase: number }[] = [
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.95, 0.9), busMat), origin: worldTo3(project([-0.11, 51.503]), LAND_Y + 0.62), phase: 0 },
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.88, 0.82), busMat), origin: worldTo3(project([-0.085, 51.515]), LAND_Y + 0.58), phase: 1.7 },
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.82, 0.78), busMat), origin: worldTo3(project([-0.02, 51.503]), LAND_Y + 0.56), phase: 2.4 },
+  const busBand = new THREE.MeshBasicMaterial({ color: 0xf5f1e8, toneMapped: false });
+  const busY = LAND_Y + 0.16 + 0.58;
+  const busRoutes = roads
+    .map((line) => sampleRibbon(line, 1.05))
+    .filter((pts) => pts.length >= 6);
+  const allRoadPts = busRoutes.flat();
+  const buses: { mesh: THREE.Group; pts: { x: number; z: number; rot: number }[]; phase: number }[] = [];
+  const busStops: LngLat[] = [
+    [-0.0874, 51.5256],
+    [-0.0194, 51.5044],
+    [-0.11, 51.503],
+    [-0.09, 51.513],
+    [-0.1326, 51.515],
   ];
-  for (const b of buses) {
-    b.mesh.position.copy(b.origin);
-    b.mesh.castShadow = true;
-    group.add(b.mesh);
+  const nearestRoad = (lng: number, lat: number) => {
+    const c = worldTo3(project([lng, lat]), 0);
+    let best = allRoadPts[0];
+    let bestD = Infinity;
+    for (const p of allRoadPts) {
+      const d = (p.x - c.x) ** 2 + (p.z - c.z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    return best;
+  };
+  if (allRoadPts.length) {
+    const count = reduced ? 3 : busStops.length;
+    for (let i = 0; i < count; i++) {
+      const [lng, lat] = busStops[i];
+      const origin = nearestRoad(lng, lat);
+      const mesh = makeBus(busMat, busBand);
+      mesh.position.set(origin.x, busY, origin.z);
+      mesh.rotation.y = origin.rot;
+      group.add(mesh);
+      const home = worldTo3(project([lng, lat]), 0);
+      const pts = busRoutes
+        .map((line) => {
+          const d = line.reduce((m, p) => Math.min(m, (p.x - home.x) ** 2 + (p.z - home.z) ** 2), Infinity);
+          return { line, d };
+        })
+        .sort((a, b) => a.d - b.d)[0]?.line ?? [origin];
+      buses.push({ mesh, pts, phase: i * 0.19 });
+    }
   }
 
-  const junkMat = clayMat(0xc45c3e);
-  const ventMat = clayMat(0x8a9098);
-  const tankMat = clayMat(0x3a96aa);
-  const sheds: THREE.Mesh[] = [];
-  for (let i = 0; i < (reduced ? 4 : 10); i++) {
+  const roofKinds = ['ac', 'tank', 'chimney'] as const;
+  for (let i = 0; i < (reduced ? 6 : 14); i++) {
     const hub = HUBS[i % HUBS.length];
     const p = worldTo3(
-      project([hub.lng + (rnd() - 0.5) * 0.006, hub.lat + (rnd() - 0.5) * 0.004]),
+      project([hub.lng + (rnd() - 0.5) * 0.0048, hub.lat + (rnd() - 0.5) * 0.0034]),
       LAND_Y,
     );
-    const roofY = LAND_Y + 1.55 + (i % 3) * 0.45;
-    const shed = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 0.32, 0.42),
-      i % 3 === 0 ? tankMat : i % 2 === 0 ? ventMat : junkMat,
-    );
-    shed.position.set(p.x, roofY, p.z);
-    shed.userData.phase = rnd() * Math.PI * 2;
-    shed.userData.roofY = roofY;
-    sheds.push(shed);
-    group.add(shed);
+    const roofY = LAND_Y + (hub.id === 'canarywharf' ? 9.4 : 4.2) + (i % 4) * 1.15;
+    addRoofJunk(group, new THREE.Vector3(p.x, roofY, p.z), roofKinds[i % 3]);
   }
 
   for (const label of AREA_LABELS) {
@@ -1444,13 +1517,12 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     sky,
     update: (t: number) => {
       for (const b of buses) {
-        b.mesh.position.x = b.origin.x + Math.sin(t * 0.00025 + b.phase) * 6;
-        b.mesh.position.z = b.origin.z + Math.cos(t * 0.00025 + b.phase) * 1.5;
-      }
-      for (const shed of sheds) {
-        const pulse = 0.94 + 0.06 * Math.sin(t * 0.002 + shed.userData.phase);
-        shed.scale.set(1, pulse, 1);
-        shed.position.y = shed.userData.roofY as number;
+        if (!b.pts.length) continue;
+        const i = Math.floor((t * 0.00009 + b.phase) * b.pts.length) % b.pts.length;
+        const p = b.pts[i];
+        b.mesh.position.x = p.x;
+        b.mesh.position.z = p.z;
+        b.mesh.rotation.y = p.rot;
       }
     },
     dispose: () => {

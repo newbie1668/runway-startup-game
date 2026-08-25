@@ -21,3 +21,12 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* Hide the Next.js 16 circular N badge on first look and stills. */
+nextjs-portal,
+[data-next-badge],
+[data-next-badge-root],
+[data-nextjs-dev-indicator] {
+  display: none !important;
+}
