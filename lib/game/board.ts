@@ -1398,9 +1398,9 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   });
 
   for (const [lng, lat, yaw, s] of [
-    [-0.02, 51.504, 0.2, 1.85],
-    [-0.016, 51.506, 0.9, 1.55],
-    [-0.026, 51.503, -0.4, 1.45],
+    // Canary: west/NW and SW of the docks so the pyramid stays first-read.
+    [-0.035, 51.510, 2.7, 1.0],
+    [-0.033, 51.498, -0.85, 0.92],
     [-0.148, 51.483, 0.6, 1.5],
     [-0.08, 51.525, 1.1, 1.05],
     [-0.09, 51.513, 0.4, 1.65],
