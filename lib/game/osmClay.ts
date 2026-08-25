@@ -38,12 +38,12 @@ export interface OsmClay {
 
 const M_TO_CLAY = 0.058;
 const SKIP_HERO =
-  /shard|canada square|gherkin|st mary axe|30 st mary|st paul|st\. paul|walkie|20 fenchurch|cheesegrater|leadenhall building|battersea power|tower bridge|hms belfast/i;
+  /^(the )?shard$|^hms belfast$|canada square|st mary axe|30 st mary|^gherkin$|walkie|20 fenchurch|cheesegrater|leadenhall building|battersea power|^tower bridge( (north|south) tower)?$|st paul.?s?( cathedral)?$/i;
 
 /** Authored silhouettes that must not sit under a second OSM stack. */
 const HERO_PADS: readonly { at: LngLat; r: number }[] = [
   { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square
-  { at: [-0.0755, 51.5055], r: 0.0017 }, // Tower Bridge
+  { at: [-0.0755, 51.5055], r: 0.0007 }, // Tower Bridge towers only, not the wharf
   { at: [-0.0803, 51.5145], r: 0.0007 }, // Gherkin
 ];
 

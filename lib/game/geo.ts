@@ -242,8 +242,8 @@ function translateRingToBank(pts: readonly WorldPoint[]): WorldPoint[] | null {
 
 /**
  * Keep OSM rings off the clay Thames without re-boxing.
- * Fully-wet rings are dropped; mixed rings are translated onto the bank
- * so vertex count and silhouette stay intact.
+ * Fully-wet mid-channel rings are dropped; bank rings (including those the
+ * fat ribbon swallows) are translated onto the bank so vertex count stays.
  */
 export function clipRingOffThames(ring: readonly LngLat[]): LngLat[] | null {
   const ll = openLngLatRing(ring);
@@ -257,11 +257,8 @@ export function clipRingOffThames(ring: readonly LngLat[]): LngLat[] | null {
   }
   cx /= pts.length;
   cy /= pts.length;
-  const wet = pts.reduce((n, p) => n + (inThamesWater(p) ? 1 : 0), 0);
-  if (wet === pts.length) return null;
-  if (inThamesWater({ x: cx, y: cy }) && wet >= pts.length * 0.55) return null;
 
-  if (!ringTouchesWater(pts)) {
+  if (!ringTouchesWater(pts) && !inThamesWater({ x: cx, y: cy })) {
     return ring.map((p) => [p[0], p[1]] as LngLat);
   }
 
