@@ -1506,8 +1506,8 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   return {
     group,
     sky,
-    update: (_t: number) => {
-      /* buses stay parked on asphalt so they still read in stills */
+    update: (t: number) => {
+      void t;
     },
     dispose: () => {
       group.traverse((obj) => {
