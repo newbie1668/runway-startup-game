@@ -66,11 +66,22 @@ function asLine(coords: unknown): LngLat[] | null {
   return line.length >= 2 ? line : null;
 }
 
-function toneFor(building: string, h: number): CityBlock['tone'] {
+function mix01(lng: number, lat: number) {
+  const s = Math.sin(lng * 1741.3 + lat * 931.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function toneFor(building: string, h: number, lng: number, lat: number): CityBlock['tone'] {
   if (h >= 6.4) return 'glass';
-  if (/(apartments|residential|house|terrace|yes)/.test(building) && h < 2.4) return 'brick';
-  if (h >= 2.15) return 'stone';
-  return 'fill';
+  const m = mix01(lng, lat);
+  const house = /(apartments|residential|house|terrace)/.test(building);
+  if (house && h < 3.0) return m < 0.58 ? 'brick' : 'fill';
+  if (h >= 2.15) {
+    if (m < 0.32) return 'brick';
+    if (m < 0.64) return 'stone';
+    return 'fill';
+  }
+  return m < 0.5 ? 'brick' : 'fill';
 }
 
 export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
@@ -105,7 +116,7 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       const meters = typeof props.height === 'number' ? props.height : 10;
       const h = clamp(meters * M_TO_CLAY, 0.42, 17.2);
       const building = String(props.building ?? 'yes');
-      buildings.push({ ring, h, tone: toneFor(building, h) });
+      buildings.push({ ring, h, tone: toneFor(building, h, ring[0][0], ring[0][1]) });
       continue;
     }
 

@@ -261,23 +261,23 @@ export class MapRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.reduced ? 1.25 : 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.22;
+    this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = !this.reduced;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.threeScene = new THREE.Scene();
     this.board = buildLondonBoard(this.reduced, osm);
     this.threeScene.background = this.board.sky;
-    this.threeScene.fog = new THREE.FogExp2(0xf0eadc, 0.0022);
+    this.threeScene.fog = new THREE.FogExp2(0xe4c9a2, 0.0016);
     this.threeScene.add(this.board.group);
     this.setCaptionsVisible(false);
     this.threeScene.add(this.pinRoot);
     this.beam = this.makeBeam();
     this.threeScene.add(this.beam);
 
-    const hemi = new THREE.HemisphereLight(0xfff4e6, 0xb7a894, 2.9);
+    const hemi = new THREE.HemisphereLight(0xffe4c4, 0x8a6248, 2.35);
     this.threeScene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff0d2, 3.55);
+    const sun = new THREE.DirectionalLight(0xffd9a8, 2.7);
     sun.position.set(-36, 88, 28);
     sun.castShadow = !this.reduced;
     sun.shadow.mapSize.set(this.reduced ? 512 : 1024, this.reduced ? 512 : 1024);

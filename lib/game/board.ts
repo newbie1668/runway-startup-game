@@ -293,10 +293,10 @@ function makeSkyTexture(): THREE.CanvasTexture {
   c.height = 256;
   const ctx = c.getContext('2d')!;
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, '#efe4d2');
-  g.addColorStop(0.45, '#f3eadc');
-  g.addColorStop(0.78, '#f6efe4');
-  g.addColorStop(1, '#f0eadc');
+  g.addColorStop(0, '#f0d4a8');
+  g.addColorStop(0.42, '#f2d7b0');
+  g.addColorStop(0.78, '#e8cba0');
+  g.addColorStop(1, '#d9b888');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 8, 256);
   const tex = new THREE.CanvasTexture(c);
@@ -366,9 +366,9 @@ function addPart(
 }
 
 function addLandmark(group: THREE.Group, lm: Landmark, at: THREE.Vector3) {
-  const stone = clayMat(0xf2ebdc, { roughness: 0.68 });
-  const cream = clayMat(0xf7f1e4, { roughness: 0.7 });
-  const brick = clayMat(0xc4a090, { roughness: 0.74 });
+  const stone = clayMat(0xe2c49a, { roughness: 0.68 });
+  const cream = clayMat(0xe8d0a8, { roughness: 0.7 });
+  const brick = clayMat(0xc45c3e, { roughness: 0.74 });
   const dark = clayMat(0x5a616c, { roughness: 0.55, metalness: 0.12 });
   const glass = clayMat(0xb7c9d4, { roughness: 0.42, metalness: 0.08 });
   const gold = clayMat(0xe8c872, { roughness: 0.5, metalness: 0.22 });
@@ -1050,7 +1050,7 @@ function addOsmFabric(
     polygonOffsetUnits: -8,
   });
   const laneMat = new THREE.MeshBasicMaterial({
-    color: 0xf5f1e8,
+    color: 0xf7f4ee,
     toneMapped: false,
     side: THREE.DoubleSide,
     polygonOffset: true,
@@ -1154,20 +1154,20 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   const group = new THREE.Group();
   const rnd = seeded(20260824);
 
-  const groundMat = clayMat(0xf0eadc);
-  const bankMat = clayMat(0xcbb89a, { roughness: 0.85 });
+  const groundMat = clayMat(0xd2b48c);
+  const bankMat = clayMat(0xc4a06e, { roughness: 0.85 });
   const riverMat = new THREE.MeshStandardMaterial({
-    color: 0x3aa8cc,
-    roughness: 0.28,
-    metalness: 0.04,
+    color: 0x2f96b4,
+    roughness: 0.58,
+    metalness: 0.03,
   });
   const riverDeepMat = new THREE.MeshStandardMaterial({
-    color: 0x247aa3,
-    roughness: 0.32,
-    metalness: 0.05,
+    color: 0x217a98,
+    roughness: 0.62,
+    metalness: 0.03,
   });
-  const parkMat = clayMat(0x4f9a46);
-  const leafMat = clayMat(0x3f8f3a);
+  const parkMat = clayMat(0x3d9a38);
+  const leafMat = clayMat(0x2f8a32);
   const trunkMat = clayMat(0x7a5533);
   const asphaltMat = new THREE.MeshStandardMaterial({
     color: 0x3b3f45,
@@ -1178,7 +1178,7 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     polygonOffsetUnits: -2,
   });
   const paintMat = new THREE.MeshStandardMaterial({
-    color: 0xf5f1e8,
+    color: 0xf7f4ee,
     roughness: 0.55,
     metalness: 0,
   });
@@ -1189,16 +1189,9 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   ground.receiveShadow = true;
   group.add(ground);
 
-  const banks = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 3.7, LAND_Y - 0.02), bankMat);
-  banks.receiveShadow = true;
-  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.7, LAND_Y - 0.06), riverMat);
-  river.receiveShadow = true;
-  const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.15, LAND_Y - 0.08), riverDeepMat);
-  group.add(banks, river, channel);
-
   const canalWorld = CANAL.map(project);
-  group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.62, LAND_Y - 0.03), riverMat));
-  group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.28, LAND_Y - 0.05), riverDeepMat));
+  group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.62, LAND_Y + 0.05), riverMat));
+  group.add(new THREE.Mesh(ribbonGeometry(canalWorld, 0.28, LAND_Y + 0.07), riverDeepMat));
   for (const dock of DOCKS) {
     const camden = dock.name === 'Camden Lock';
     const bed = extrudeRing(dock.ring, camden ? 0.28 : 0.16, riverDeepMat);
@@ -1210,16 +1203,10 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     water.castShadow = false;
     group.add(water);
   }
-  const dogs = THAMES.filter((ll) => ll[0] > -0.042);
-  if (dogs.length > 1) {
-    const dogsWorld = dogs.map(project);
-    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 3.15, LAND_Y + 0.06), riverMat));
-    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 1.35, LAND_Y + 0.07), riverDeepMat));
-  }
 
   for (const park of PARKS) {
     const mesh = extrudeRing(park.points, 0.08, parkMat);
-    mesh.position.y = LAND_Y - 0.02;
+    mesh.position.y = LAND_Y + 0.02;
     group.add(mesh);
     const trees = reduced ? 8 : 22;
     for (let i = 0; i < trees; i++) {
@@ -1231,10 +1218,10 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   }
 
   const toneMat: Record<CityBlock['tone'], THREE.MeshStandardMaterial> = {
-    glass: clayMat(0xefe6d6, { roughness: 0.72, metalness: 0.03 }),
-    stone: clayMat(0xf0e3cc),
-    brick: clayMat(0xdbbf9c),
-    fill: clayMat(0xf6ead8),
+    glass: clayMat(0xd6cfc4, { roughness: 0.62, metalness: 0.04 }),
+    stone: clayMat(0xd4a05a),
+    brick: clayMat(0xc45c3e),
+    fill: clayMat(0xe0b888),
   };
   const geos: Record<CityBlock['tone'], THREE.BufferGeometry[]> = {
     glass: [],
@@ -1302,6 +1289,19 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     for (const road of roads) addRoad(group, road, 0.62, asphaltMat, paintMat);
   }
 
+  const banks = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 3.9, LAND_Y + 0.05), bankMat);
+  banks.receiveShadow = true;
+  const river = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 2.9, LAND_Y + 0.08), riverMat);
+  river.receiveShadow = true;
+  const channel = new THREE.Mesh(ribbonGeometry(THAMES_WORLD, 1.3, LAND_Y + 0.1), riverDeepMat);
+  group.add(banks, river, channel);
+  const dogs = THAMES.filter((ll) => ll[0] > -0.042);
+  if (dogs.length > 1) {
+    const dogsWorld = dogs.map(project);
+    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 3.2, LAND_Y + 0.09), riverMat));
+    group.add(new THREE.Mesh(ribbonGeometry(dogsWorld, 1.4, LAND_Y + 0.11), riverDeepMat));
+  }
+
   let carPts = roads.flatMap((road) => sampleRibbon(road, reduced ? 8.5 : 5.6));
   if (carPts.length > 960) {
     const step = Math.ceil(carPts.length / 960);
@@ -1326,22 +1326,24 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
   }
 
   addNeighbourhoods(group, reduced, {
-    brick: clayMat(0xc98b6a),
-    stone: clayMat(0xe3cbb0),
+    brick: clayMat(0xc45c3e),
+    stone: clayMat(0xd4a05a),
     glass: clayMat(0x8fb4c4, { roughness: 0.48, metalness: 0.1 }),
     asphalt: asphaltMat,
     park: parkMat,
     dark: clayMat(0x5a616c),
-    cream: clayMat(0xeddbc4),
+    cream: clayMat(0xe8d0a8),
   });
 
-  const craneMat = clayMat(0xf5c518, { roughness: 0.45 });
+  const craneMat = clayMat(0xffc400, { roughness: 0.42 });
   for (const [lng, lat, yaw] of [
     [-0.02, 51.504, 0.2],
     [-0.016, 51.506, 0.9],
     [-0.026, 51.503, -0.4],
     [-0.148, 51.483, 0.6],
     [-0.08, 51.525, 1.1],
+    [-0.09, 51.513, 0.4],
+    [-0.12, 51.518, -0.7],
   ] as const) {
     addCrane(group, worldTo3(project([lng, lat]), LAND_Y), yaw, craneMat);
   }
@@ -1384,25 +1386,34 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     }
   }
 
-  const bus = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.32, 0.3), clayMat(0xda291c));
-  const busOrigin = worldTo3(project([-0.11, 51.503]), LAND_Y + 0.22);
-  bus.position.copy(busOrigin);
-  bus.castShadow = true;
-  group.add(bus);
+  const busMat = clayMat(0xda291c);
+  const buses: { mesh: THREE.Mesh; origin: THREE.Vector3; phase: number }[] = [
+    { mesh: new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.52, 0.55), busMat), origin: worldTo3(project([-0.11, 51.503]), LAND_Y + 0.42), phase: 0 },
+    { mesh: new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.48, 0.5), busMat), origin: worldTo3(project([-0.085, 51.515]), LAND_Y + 0.42), phase: 1.7 },
+  ];
+  for (const b of buses) {
+    b.mesh.position.copy(b.origin);
+    b.mesh.castShadow = true;
+    group.add(b.mesh);
+  }
 
+  const junkMat = clayMat(0xc9b48a);
+  const ventMat = clayMat(0x8a9098);
   const sheds: THREE.Mesh[] = [];
-  for (let i = 0; i < (reduced ? 4 : 8); i++) {
+  for (let i = 0; i < (reduced ? 4 : 10); i++) {
     const hub = HUBS[i % HUBS.length];
     const p = worldTo3(
       project([hub.lng + (rnd() - 0.5) * 0.006, hub.lat + (rnd() - 0.5) * 0.004]),
       LAND_Y,
     );
+    const roofY = LAND_Y + 1.55 + (i % 3) * 0.45;
     const shed = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.35, 0.4),
-      new THREE.MeshStandardMaterial({ color: 0xf2d36b, roughness: 0.55 }),
+      new THREE.BoxGeometry(0.38, 0.22, 0.3),
+      i % 2 === 0 ? ventMat : junkMat,
     );
-    shed.position.set(p.x, LAND_Y + 0.18, p.z);
+    shed.position.set(p.x, roofY, p.z);
     shed.userData.phase = rnd() * Math.PI * 2;
+    shed.userData.roofY = roofY;
     sheds.push(shed);
     group.add(shed);
   }
@@ -1417,12 +1428,14 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
     group,
     sky,
     update: (t: number) => {
-      bus.position.x = busOrigin.x + Math.sin(t * 0.00025) * 6;
-      bus.position.z = busOrigin.z + Math.cos(t * 0.00025) * 1.5;
+      for (const b of buses) {
+        b.mesh.position.x = b.origin.x + Math.sin(t * 0.00025 + b.phase) * 6;
+        b.mesh.position.z = b.origin.z + Math.cos(t * 0.00025 + b.phase) * 1.5;
+      }
       for (const shed of sheds) {
-        const pulse = 0.85 + 0.2 * Math.sin(t * 0.002 + shed.userData.phase);
+        const pulse = 0.94 + 0.06 * Math.sin(t * 0.002 + shed.userData.phase);
         shed.scale.set(1, pulse, 1);
-        shed.position.y = LAND_Y + 0.18 * pulse;
+        shed.position.y = shed.userData.roofY as number;
       }
     },
     dispose: () => {
