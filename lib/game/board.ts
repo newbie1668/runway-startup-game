@@ -190,13 +190,16 @@ function addCrane(group: THREE.Group, at: THREE.Vector3, yaw: number, s = 1) {
   group.add(mast, mastB, jib, counter, cab, hook);
 }
 
+/** Lane-scale Routemaster. Local Z follows sampleRibbon heading (along the street). */
+const BUS = { w: 0.22, h: 0.28, l: 0.72, lane: 0.32 } as const;
+
 function makeBus(body: THREE.Material, band: THREE.Material): THREE.Group {
   const g = new THREE.Group();
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.15, 1.2), body);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.62, 0.32, 1.24), band);
-  stripe.position.y = 0.16;
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.14, 1.08), band);
-  roof.position.y = 0.62;
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(BUS.w, BUS.h, BUS.l), body);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(BUS.w + 0.01, 0.07, BUS.l + 0.01), band);
+  stripe.position.y = 0.02;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(BUS.w - 0.02, 0.04, BUS.l - 0.08), band);
+  roof.position.y = BUS.h / 2 - 0.01;
   g.add(hull, stripe, roof);
   return g;
 }
@@ -1691,7 +1694,7 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
 
   const busMat = new THREE.MeshBasicMaterial({ color: 0xda291c, toneMapped: false });
   const busBand = new THREE.MeshBasicMaterial({ color: 0xf5f1e8, toneMapped: false });
-  const busY = LAND_Y + 0.16 + 0.58;
+  const busY = LAND_Y + 0.16 + BUS.h / 2 + 0.02;
   const busRoutes = roads.map((line) => sampleRibbon(line, 1.05)).filter((pts) => pts.length >= 6);
   const allRoadPts = busRoutes.flat();
   const busStops: LngLat[] = [
@@ -1720,7 +1723,12 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
       const [lng, lat] = busStops[i];
       const origin = nearestRoad(lng, lat);
       const mesh = makeBus(busMat, busBand);
-      mesh.position.set(origin.x, busY, origin.z);
+      // Off the centre paint, into one lane. Heading already matches the ribbon.
+      mesh.position.set(
+        origin.x + Math.cos(origin.rot) * BUS.lane,
+        busY,
+        origin.z - Math.sin(origin.rot) * BUS.lane,
+      );
       mesh.rotation.y = origin.rot;
       group.add(mesh);
     }
