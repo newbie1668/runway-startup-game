@@ -465,15 +465,6 @@ function addLandmark(group: THREE.Group, lm: Landmark, at: THREE.Vector3) {
   const y0 = LAND_Y;
 
   if (kind === 'shard') {
-    const podium = addPart(
-      group,
-      new THREE.BoxGeometry(1.7, 0.7, 1.5),
-      cream,
-      at.x,
-      y0 + 0.35,
-      at.z,
-    );
-    podium.rotation.y = 0.38;
     const shaft = addPart(
       group,
       new THREE.ConeGeometry(1.15, 18.4, 4),
@@ -1577,9 +1568,9 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
 
   for (const [lng, lat, yaw, s] of [
     // No T-cranes on the Canary camera line — pyramid stays first-read.
+    // No T-crane on the London Bridge crossing — the yellow mast scored as overlay prisms.
     [-0.148, 51.483, 0.6, 1.5],
     [-0.08, 51.525, 1.1, 1.05],
-    [-0.09, 51.513, 0.4, 1.65],
     [-0.12, 51.518, -0.7, 1.35],
   ] as const) {
     addCrane(group, worldTo3(project([lng, lat]), LAND_Y), yaw, s);
@@ -1658,6 +1649,8 @@ export function buildLondonBoard(reduced: boolean, osm: unknown = null): LondonB
       project([hub.lng + (rnd() - 0.5) * 0.0048, hub.lat + (rnd() - 0.5) * 0.0034]),
       LAND_Y,
     );
+    // Consume the same rng as before so Camden / Shoreditch junk does not move.
+    if (hub.id === 'londonbridge') continue;
     const roofY = LAND_Y + 5.4 + (i % 4) * 1.6;
     addRoofJunk(group, new THREE.Vector3(p.x, roofY, p.z), roofKinds[i % 3]);
   }

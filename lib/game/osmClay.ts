@@ -6,6 +6,7 @@
  * glass towers glass, stone landmarks stone. Footprints that hit the Thames
  * are translated onto the bank so the clay-blue ribbon stays clean and OSM
  * rings are not re-boxed. Terraces mix London stock (yellow / grey / dirty).
+ * London Bridge hub drops 4–8-gon caps so only irregular OSM rings extrude.
  */
 
 import { clipRingOffThames, degDist, type CityBlock, type LngLat } from './geo';
@@ -45,7 +46,21 @@ const HERO_PADS: readonly { at: LngLat; r: number }[] = [
   { at: [-0.0194, 51.5049], r: 0.0014 }, // 1 Canada Square
   { at: [-0.0755, 51.5055], r: 0.0007 }, // Tower Bridge towers only, not the wharf
   { at: [-0.0803, 51.5145], r: 0.0007 }, // Gherkin
+  { at: [-0.0865, 51.5045], r: 0.00032 }, // The Shard spike only, not Shard Place
 ];
+
+/** London Bridge / Shard / Tower Bridge still-view. Boxy 4–8-gons read as a prism grid. */
+function inLondonBridgeHub(lng: number, lat: number): boolean {
+  return lng > -0.098 && lng < -0.068 && lat > 51.499 && lat < 51.512;
+}
+
+function ringVertCount(ring: LngLat[]): number {
+  const closed =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1];
+  return Math.max(0, ring.length - (closed ? 1 : 0));
+}
 
 type Props = Record<string, unknown>;
 
@@ -205,6 +220,8 @@ export function parseOsmClay(input: unknown, reduced: boolean): OsmClay | null {
       if (!ring) continue;
       const [clng, clat] = ringCentroid(ring);
       if (nearAuthoredHero(clng, clat, name)) continue;
+      // Keep L-shapes / courtyards / station sheds; drop rectangle caps at this hub.
+      if (inLondonBridgeHub(clng, clat) && ringVertCount(ring) <= 8) continue;
       const clipped = clipRingOffThames(ring);
       if (!clipped) continue;
       const meters = typeof props.height === 'number' ? props.height : 10;
