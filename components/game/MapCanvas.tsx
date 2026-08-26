@@ -14,6 +14,12 @@
 
 import { useEffect, useRef, type RefObject } from 'react';
 import { MapRenderer, type HitTarget, type IMapRenderer, type Scene } from '@/lib/game/render';
+import { createMapRenderer } from '@/lib/game/render3d/factory';
+
+// Matches render.ts's 2D sky gradient exactly. The 2D canvas paints over this
+// every frame; the 3D canvas is alpha-transparent, so this shows through as
+// the sky behind the WebGL city (blended into the horizon by THREE.Fog).
+const SKY_BACKGROUND = 'linear-gradient(180deg, #070c1a 0%, #0a1124 55%, #0d142b 100%)';
 
 interface Props {
   scene: Scene;
@@ -36,16 +42,34 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
 
   useEffect(() => {
     const shell = shellRef.current;
+    const cityCanvas = cityRef.current;
     const overlayCanvas = overlayRef.current;
-    if (!shell || !overlayCanvas) return;
+    if (!shell || !cityCanvas || !overlayCanvas) return;
 
-    // Phase A: 2D renderer only. Phase C swaps this for createMapRenderer(),
-    // which picks 3D-with-fallback and assigns rendererRef asynchronously.
-    const renderer = new MapRenderer(overlayCanvas);
-    renderer.scene = sceneRef.current;
-    rendererRef.current = renderer;
-    renderer.resize();
-    renderer.fitAll();
+    let cancelled = false;
+
+    // 3D→2D fallback: carry the camera over so the swap is invisible.
+    const onFatal = () => {
+      const old = rendererRef.current;
+      const cam = old?.getCamera();
+      old?.dispose();
+      const fallback = new MapRenderer(overlayCanvas);
+      fallback.scene = sceneRef.current;
+      if (cam) fallback.setCamera(cam);
+      fallback.resize();
+      rendererRef.current = fallback; // loop picks it up next frame — it's ref-driven
+    };
+
+    createMapRenderer(cityCanvas, overlayCanvas, onFatal).then(({ renderer }) => {
+      if (cancelled) {
+        renderer.dispose();
+        return;
+      }
+      renderer.scene = sceneRef.current;
+      renderer.resize();
+      renderer.fitAll();
+      rendererRef.current = renderer;
+    });
 
     let raf = 0;
     let last = performance.now();
@@ -151,6 +175,7 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     shell.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
@@ -177,6 +202,7 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
       role="img"
       aria-label="Illustrated London startup neighbourhood map; use the neighbourhood selector to choose an HQ"
       className={className ?? 'relative h-full w-full touch-none select-none'}
+      style={{ background: SKY_BACKGROUND }}
     >
       <canvas ref={cityRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
       <canvas ref={overlayRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
