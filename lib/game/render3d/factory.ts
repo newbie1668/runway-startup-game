@@ -21,7 +21,7 @@ function make2d(overlayCanvas: HTMLCanvasElement): { renderer: IMapRenderer; mod
 export async function createMapRenderer(
   cityCanvas: HTMLCanvasElement,
   overlayCanvas: HTMLCanvasElement,
-  onFatal: () => void,
+  opts: { onFatal: () => void; onReady?: () => void },
 ): Promise<{ renderer: IMapRenderer; mode: RendererMode }> {
   const mapParam = new URLSearchParams(window.location.search).get('map');
 
@@ -43,7 +43,7 @@ export async function createMapRenderer(
 
   try {
     const { CityRenderer3D } = await import('./CityRenderer3D');
-    const renderer = new CityRenderer3D(cityCanvas, overlayCanvas, { onFatal });
+    const renderer = new CityRenderer3D(cityCanvas, overlayCanvas, opts);
     return { renderer, mode: '3d' };
   } catch {
     return make2d(overlayCanvas);

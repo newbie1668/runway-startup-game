@@ -63,6 +63,8 @@ export interface IMapRenderer {
   hover: HitTarget | null;
   resize(): void;
   fitAll(): void;
+  /** Whole-map framing — used when picking an HQ so every neighbourhood is on screen. */
+  fitOverview(): void;
   focusHub(hubId: HubId, zoom?: number): void;
   frame(t: number, dt: number): void;
   pan(dxPx: number, dyPx: number): void;

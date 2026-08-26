@@ -10,12 +10,19 @@ import * as THREE from 'three';
 import type { CameraState } from '../scene';
 
 export const FOV_DEG = 45;
-const NEAR = 1;
+/** Near plane in world units (~111 m each). Must stay well below street-level camera distance. */
+const NEAR = 0.02;
 const FAR = 4000;
 const PITCH_FAR_DEG = 64; // top-down-ish, used when fully zoomed out
-const PITCH_NEAR_DEG = 38; // cinematic, used when zoomed in
-const PITCH_NEAR_ZOOM = 18;
+const PITCH_MID_DEG = 38; // cinematic, reached around zoom 18
+const PITCH_CLOSE_DEG = 22; // neighbourhood, façades read
+const PITCH_STREET_DEG = 16; // looking down a block without clipping into roofs
+const PITCH_MID_ZOOM = 18;
+const PITCH_CLOSE_ZOOM = 80;
+const PITCH_STREET_ZOOM = 260;
 const DEG2RAD = Math.PI / 180;
+/** ~36 m — stay above terraces when fully zoomed in (1 wu ≈ 111 m). */
+const MIN_CAM_HEIGHT = 0.32;
 
 /** sin(64°) — the "far" pitch used to approximate fitAll's vertical foreshortening. */
 export const FIT_PITCH_SIN = Math.sin(PITCH_FAR_DEG * DEG2RAD);
@@ -51,8 +58,14 @@ export class CameraRig {
 
   /** Current pitch in degrees for a given zoom/minZoom pair — exposed for fog/animation. */
   static pitchDeg(zoom: number, minZoom: number): number {
-    const t = clamp01((zoom - minZoom) / (PITCH_NEAR_ZOOM - minZoom));
-    return lerp(PITCH_FAR_DEG, PITCH_NEAR_DEG, t);
+    const midSpan = Math.max(1e-6, PITCH_MID_ZOOM - minZoom);
+    const mid = lerp(PITCH_FAR_DEG, PITCH_MID_DEG, clamp01((zoom - minZoom) / midSpan));
+    const close = lerp(mid, PITCH_CLOSE_DEG, clamp01((zoom - PITCH_MID_ZOOM) / (PITCH_CLOSE_ZOOM - PITCH_MID_ZOOM)));
+    return lerp(
+      close,
+      PITCH_STREET_DEG,
+      clamp01((zoom - PITCH_CLOSE_ZOOM) / (PITCH_STREET_ZOOM - PITCH_CLOSE_ZOOM)),
+    );
   }
 
   setViewport(cssW: number, cssH: number): void {
@@ -64,12 +77,17 @@ export class CameraRig {
   /** Position/orient the camera for the given logical camera state. */
   update(cam: CameraState, minZoom: number): void {
     const pitch = CameraRig.pitchDeg(cam.zoom, minZoom) * DEG2RAD;
-    const dist = this.cssH / (2 * cam.zoom * Math.tan((FOV_DEG * DEG2RAD) / 2));
+    let dist = this.cssH / (2 * cam.zoom * Math.tan((FOV_DEG * DEG2RAD) / 2));
+    let height = dist * Math.sin(pitch);
+    if (height < MIN_CAM_HEIGHT && Math.sin(pitch) > 1e-6) {
+      dist *= MIN_CAM_HEIGHT / height;
+      height = MIN_CAM_HEIGHT;
+    }
     this.lastDist = dist;
     this.target.set(cam.x, 0, cam.y);
     this.camera.position.set(
       this.target.x,
-      dist * Math.sin(pitch),
+      height,
       this.target.z + dist * Math.cos(pitch),
     );
     this.camera.lookAt(this.target);

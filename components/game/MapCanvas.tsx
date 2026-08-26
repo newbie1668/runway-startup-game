@@ -25,20 +25,23 @@ interface Props {
   scene: Scene;
   rendererRef: RefObject<IMapRenderer | null>;
   onHit?: (target: HitTarget) => void;
+  onReady?: () => void;
   className?: string;
 }
 
-export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
+export function MapCanvas({ scene, rendererRef, onHit, onReady, className }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const cityRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const onHitRef = useRef(onHit);
+  const onReadyRef = useRef(onReady);
   const sceneRef = useRef(scene);
 
   useEffect(() => {
     onHitRef.current = onHit;
+    onReadyRef.current = onReady;
     sceneRef.current = scene;
-  }, [onHit, scene]);
+  }, [onHit, onReady, scene]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -47,6 +50,12 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
     if (!shell || !cityCanvas || !overlayCanvas) return;
 
     let cancelled = false;
+    let readyFired = false;
+    const fireReady = () => {
+      if (cancelled || readyFired) return;
+      readyFired = true;
+      onReadyRef.current?.();
+    };
 
     // 3D→2D fallback: carry the camera over so the swap is invisible.
     const onFatal = () => {
@@ -58,18 +67,22 @@ export function MapCanvas({ scene, rendererRef, onHit, className }: Props) {
       if (cam) fallback.setCamera(cam);
       fallback.resize();
       rendererRef.current = fallback; // loop picks it up next frame — it's ref-driven
+      fireReady();
     };
 
-    createMapRenderer(cityCanvas, overlayCanvas, onFatal).then(({ renderer }) => {
-      if (cancelled) {
-        renderer.dispose();
-        return;
-      }
-      renderer.scene = sceneRef.current;
-      renderer.resize();
-      renderer.fitAll();
-      rendererRef.current = renderer;
-    });
+    createMapRenderer(cityCanvas, overlayCanvas, { onFatal, onReady: fireReady }).then(
+      ({ renderer, mode }) => {
+        if (cancelled) {
+          renderer.dispose();
+          return;
+        }
+        renderer.scene = sceneRef.current;
+        renderer.resize();
+        renderer.fitAll();
+        rendererRef.current = renderer;
+        if (mode === '2d') fireReady();
+      },
+    );
 
     let raf = 0;
     let last = performance.now();

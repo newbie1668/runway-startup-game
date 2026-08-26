@@ -65,6 +65,8 @@ check('title and setup use the full mobile viewport when no sidebar exists', () 
     2,
     'map shell should render exactly two stacked canvases',
   );
+  assert.match(html, /Laying out London/);
+  assert.match(html, /aria-busy="true"/);
   assert.match(
     html,
     /aria-label="Illustrated London startup neighbourhood map; use the neighbourhood selector to choose an HQ"/,

@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:game": "tsx scripts/test-game.ts",
-    "test:ui": "tsx scripts/test-ui.tsx"
+    "test:ui": "tsx scripts/test-ui.tsx",
+    "bake:landmarks": "tsx scripts/bake-landmarks.ts"
   },
   "dependencies": {
     "next": "16.2.6",

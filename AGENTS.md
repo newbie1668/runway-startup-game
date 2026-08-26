@@ -21,7 +21,9 @@ The map is a procedural 3D city built from OpenStreetMap data
 (`lib/game/render.ts`) kept as the automatic fallback. `public/map/london-city.bin`
 is generated but committed — regenerate it with
 `pnpm tsx scripts/fetch-geodata.ts` (`--verify` decodes the committed file
-with no network) after changing the pipeline or the `geo.ts` bbox. Debug
+with no network) after changing the pipeline or the `geo.ts` bbox. Landmark
+GLBs in `public/map/landmarks/` are generated with `pnpm bake:landmarks`
+after changing `lib/game/render3d/landmarks.ts`. Debug
 params on `/game`: `?map=2d`, `?map=3d`, `?map=debug` (exposes
 `window.__runwayForceContextLoss()`). three.js is only ever reached via a
 dynamic `import()` inside `lib/game/render3d/factory.ts` — never add a

@@ -327,9 +327,9 @@ export class MapOverlay {
     ctx.textAlign = 'center';
   }
 
-  /** Area labels — only legible once zoomed in past street level. */
+  /** Area labels — hide when fully zoomed out (illegible) or at street scale (they sit on façades). */
   drawAreaLabels(ctx: CanvasRenderingContext2D, zoom: number) {
-    if (zoom <= 3.2) return;
+    if (zoom <= 3.2 || zoom >= 55) return;
     ctx.font = `600 ${Math.min(12, 8 + zoom * 0.3)}px ui-sans-serif, system-ui`;
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(148,163,184,0.34)';
