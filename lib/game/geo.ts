@@ -28,6 +28,9 @@ export const WORLD = {
   height: (LAT_MAX - LAT_MIN) * 1000,
 };
 
+// 1 world unit ≈ 111.32 m (see WORLD comment above); world units per metre.
+export const METERS_TO_WORLD = 1000 / 111320;
+
 export function project([lng, lat]: LngLat): WorldPoint {
   return {
     x: (lng - LON_MIN) * 1000 * LAT_COS,

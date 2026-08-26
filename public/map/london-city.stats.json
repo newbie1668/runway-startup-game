@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-08-26T09:09:41.042Z",
+  "bbox": {
+    "s": 51.452,
+    "w": -0.265,
+    "n": 51.552,
+    "e": 0.065
+  },
+  "endpoints": [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
+  ],
+  "thresholds": {
+    "adaptiveAreaFloors": [
+      30,
+      40,
+      50,
+      65,
+      90,
+      120,
+      160,
+      220
+    ],
+    "adaptiveAreaFloorUsed": 90,
+    "maxBuildings": 130000,
+    "minParkAreaM2": 8000,
+    "minWaterAreaM2": 10000
+  },
+  "counts": {
+    "buildings": 113569,
+    "buildingsMajor": 18406,
+    "buildingsMinor": 95163,
+    "roads": 56793,
+    "roadsTier0": 14917,
+    "roadsTier1": 6992,
+    "roadsTier2": 34884,
+    "parks": 769,
+    "water": 62
+  },
+  "byteSize": 6244314
+}

@@ -58,3 +58,6 @@ next-env.d.ts
 outputs/
 brag-output*/
 .env.local
+
+# raw Overpass responses cached by scripts/fetch-geodata.ts (regenerable)
+scripts/.geocache/
