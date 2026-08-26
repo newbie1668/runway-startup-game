@@ -10,7 +10,7 @@
  */
 
 import * as THREE from 'three';
-import { WORLD } from '../geo';
+import { LANDMARKS, WORLD, project } from '../geo';
 import { HUB_POS, MapOverlay } from '../overlay';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
@@ -28,6 +28,7 @@ import {
   HUB_GLOW_PLAYER_COLOR,
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
+import { build as buildLandmark, EYE_WHEEL_NAME } from './landmarks';
 import { createGlowSpriteTexture, createWindowsTexture } from './textures';
 
 const CITY_BIN_URL = '/map/london-city.bin';
@@ -61,8 +62,12 @@ export class CityRenderer3D implements IMapRenderer {
   private buildQueue: BuildJob[] = [];
   private hubGlowSprites: Map<HubId, THREE.Sprite> = new Map();
   private lastPlayerHubId: HubId | null = null;
-  /** Wired up in Phase D once landmarks.ts builds the London Eye group. */
   eyeWheel: THREE.Object3D | null = null;
+  /** LOD: minor buildings hide below a zoom threshold (coarser on touch); tier-2 roads hide below 4.5. */
+  private readonly minorMeshes: THREE.Mesh[] = [];
+  private tier2RoadMesh: THREE.Mesh | null = null;
+  private lastMinorVisible: boolean | null = null;
+  private lastTier2Visible: boolean | null = null;
 
   private disposed = false;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
@@ -121,6 +126,12 @@ export class CityRenderer3D implements IMapRenderer {
       })
       .then((buf) => this.onCityData(decodeCity(buf)))
       .catch(() => this.onFatal());
+
+    if (new URLSearchParams(window.location.search).get('map') === 'debug') {
+      (window as unknown as { __runwayForceContextLoss?: () => void }).__runwayForceContextLoss = () => {
+        this.renderer.getContext().getExtension('WEBGL_lose_context')?.loseContext();
+      };
+    }
   }
 
   private handleContextLost = (e: Event): void => {
@@ -138,21 +149,28 @@ export class CityRenderer3D implements IMapRenderer {
 
   private onCityData(data: CityData): void {
     if (this.disposed) return;
+    const landmarkAnchors = LANDMARKS.map((l) => project(l.at));
     const jobs: BuildJob[] = [];
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       for (const major of [true, false]) {
         jobs.push(() => {
-          const mesh = buildChunkTier(data, chunkId, major);
+          const mesh = buildChunkTier(data, chunkId, major, landmarkAnchors);
           if (mesh) {
             mesh.material = this.buildingMaterial;
             this.cityGroup.add(mesh);
+            if (!major) this.minorMeshes.push(mesh);
           }
         });
       }
     }
     jobs.push(() => {
-      const mesh = buildRoads(data);
-      if (mesh) this.cityGroup.add(mesh);
+      const roadGroup = buildRoads(data);
+      if (roadGroup) {
+        this.cityGroup.add(roadGroup);
+        for (const child of roadGroup.children) {
+          if (child instanceof THREE.Mesh && child.userData.roadTier === 2) this.tier2RoadMesh = child;
+        }
+      }
     });
     jobs.push(() => {
       const mesh = buildParks(data);
@@ -162,6 +180,18 @@ export class CityRenderer3D implements IMapRenderer {
       const mesh = buildWater(data);
       if (mesh) this.cityGroup.add(mesh);
     });
+    for (let i = 0; i < LANDMARKS.length; i++) {
+      jobs.push(() => {
+        const landmark = LANDMARKS[i];
+        const anchor = landmarkAnchors[i];
+        const group = buildLandmark(landmark.kind);
+        group.position.set(anchor.x, 0, anchor.y);
+        this.cityGroup.add(group);
+        if (landmark.kind === 'eye') {
+          this.eyeWheel = group.getObjectByName(EYE_WHEEL_NAME) ?? null;
+        }
+      });
+    }
     this.buildQueue = jobs;
   }
 
@@ -293,6 +323,18 @@ export class CityRenderer3D implements IMapRenderer {
     this.buildingMaterial.emissiveIntensity = Math.min(1.1, Math.max(0.55, 0.55 + this.cam.zoom * 0.02));
 
     if (this.eyeWheel) this.eyeWheel.rotation.y = t * ((Math.PI * 2) / 60000);
+
+    const minorThreshold = this.isCoarsePointer ? 5.5 : 4.8;
+    const minorVisible = this.cam.zoom >= minorThreshold;
+    if (minorVisible !== this.lastMinorVisible) {
+      for (let i = 0; i < this.minorMeshes.length; i++) this.minorMeshes[i].visible = minorVisible;
+      this.lastMinorVisible = minorVisible;
+    }
+    const tier2Visible = this.cam.zoom >= 4.5;
+    if (tier2Visible !== this.lastTier2Visible) {
+      if (this.tier2RoadMesh) this.tier2RoadMesh.visible = tier2Visible;
+      this.lastTier2Visible = tier2Visible;
+    }
 
     const playerHubId = this.overlay.scene.playerHubId;
     if (playerHubId !== this.lastPlayerHubId) {

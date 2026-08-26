@@ -54,6 +54,36 @@ export function createWindowsTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+/** Diagonal ±45° line sets — the Gherkin's diagrid, used as an emissiveMap. */
+export function createDiagridTexture(): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#0a1a1a';
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = 'rgba(180,220,210,0.9)';
+  ctx.lineWidth = 3;
+  const step = 32;
+  ctx.beginPath();
+  for (let x = -size; x <= size * 2; x += step) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + size, size);
+  }
+  for (let x = -size; x <= size * 2; x += step) {
+    ctx.moveTo(x, size);
+    ctx.lineTo(x + size, 0);
+  }
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 4);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 /** White radial-gradient sprite; tint via SpriteMaterial.color per use (hub glow, accents). */
 export function createGlowSpriteTexture(): THREE.CanvasTexture {
   const size = 128;

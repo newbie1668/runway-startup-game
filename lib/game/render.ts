@@ -364,6 +364,21 @@ export class MapRenderer implements IMapRenderer {
           }
           break;
         }
+        case 'gherkin':
+          ctx.beginPath();
+          ctx.ellipse(0, -11, 5, 11, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case 'towerbridge':
+          ctx.strokeRect(-8, -16, 4, 16);
+          ctx.strokeRect(4, -16, 4, 16);
+          ctx.beginPath();
+          ctx.moveTo(-8, -10);
+          ctx.lineTo(8, -10);
+          ctx.moveTo(-10, 0);
+          ctx.lineTo(10, 0);
+          ctx.stroke();
+          break;
       }
       ctx.restore();
     }

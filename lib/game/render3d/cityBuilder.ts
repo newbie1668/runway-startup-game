@@ -67,7 +67,14 @@ export function createBuildingMaterial(windowsTexture: THREE.Texture): THREE.Mes
 }
 
 /** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
-export function buildChunkTier(cityData: CityData, chunkId: number, major: boolean): THREE.Mesh | null {
+const LANDMARK_EXCLUSION_WORLD = 80 * METERS_TO_WORLD;
+
+export function buildChunkTier(
+  cityData: CityData,
+  chunkId: number,
+  major: boolean,
+  landmarkAnchors: readonly { x: number; y: number }[] = [],
+): THREE.Mesh | null {
   const positions: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
@@ -109,6 +116,8 @@ export function buildChunkTier(cityData: CityData, chunkId: number, major: boole
     }
     cx /= n;
     cz /= n;
+
+    if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < LANDMARK_EXCLUSION_WORLD)) continue;
 
     const heightWorld = b.heightM * METERS_TO_WORLD * HEIGHT_SCALE;
     const base = SLATES[hashBuildingIndex(b.heightM, b.chunkId, b.verts, SLATES.length)];
@@ -261,35 +270,35 @@ function buildRibbonGeometry(
   return { positions, indices };
 }
 
-export function buildRoads(cityData: CityData): THREE.Mesh | null {
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
-
-  for (const road of cityData.roads as CityRoad[]) {
-    const n = road.pts.length / 2;
-    if (n < 2) continue;
-    const pts = new Array<{ x: number; z: number }>(n);
-    for (let i = 0; i < n; i++) pts[i] = { x: dequantizeX(road.pts[i * 2]), z: dequantizeY(road.pts[i * 2 + 1]) };
-    const halfW = (ROAD_WIDTHS_M[road.tier] * METERS_TO_WORLD) / 2;
-    const color = ROAD_COLORS[road.tier];
-    const { positions: segPositions, indices: segIndices } = buildRibbonGeometry(pts, halfW, ROAD_Y);
-    const vertBase = positions.length / 3;
-    for (const v of segPositions) positions.push(v);
-    for (let i = 0; i < segIndices.length; i++) indices.push(segIndices[i] + vertBase);
-    for (let i = 0; i < segPositions.length / 3; i++) colors.push(color.r, color.g, color.b);
+/** One merged mesh per tier (not one merged mesh overall) so tier 2 can be hidden independently at low zoom. */
+export function buildRoads(cityData: CityData): THREE.Group | null {
+  const group = new THREE.Group();
+  for (let tier = 0; tier <= 2; tier++) {
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const halfW = (ROAD_WIDTHS_M[tier] * METERS_TO_WORLD) / 2;
+    for (const road of cityData.roads as CityRoad[]) {
+      if (road.tier !== tier) continue;
+      const n = road.pts.length / 2;
+      if (n < 2) continue;
+      const pts = new Array<{ x: number; z: number }>(n);
+      for (let i = 0; i < n; i++) pts[i] = { x: dequantizeX(road.pts[i * 2]), z: dequantizeY(road.pts[i * 2 + 1]) };
+      const { positions: segPositions, indices: segIndices } = buildRibbonGeometry(pts, halfW, ROAD_Y);
+      const vertBase = positions.length / 3;
+      for (const v of segPositions) positions.push(v);
+      for (let i = 0; i < segIndices.length; i++) indices.push(segIndices[i] + vertBase);
+    }
+    if (positions.length === 0) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeBoundingSphere();
+    const material = new THREE.MeshBasicMaterial({ color: ROAD_COLORS[tier], side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData.roadTier = tier;
+    group.add(mesh);
   }
-
-  if (positions.length === 0) return null;
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices);
-  geometry.computeBoundingSphere();
-  const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.userData.roadTiers = new Set(cityData.roads.map((r) => r.tier));
-  return mesh;
+  return group.children.length > 0 ? group : null;
 }
 
 export function buildTubeLines(): THREE.Group {
