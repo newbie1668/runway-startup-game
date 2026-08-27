@@ -14,9 +14,9 @@ export const FOV_DEG = 45;
 const NEAR = 0.02;
 const FAR = 4000;
 const PITCH_FAR_DEG = 64; // top-down-ish, used when fully zoomed out
-const PITCH_MID_DEG = 38; // cinematic, reached around zoom 18
-const PITCH_CLOSE_DEG = 22; // neighbourhood, façades read
-const PITCH_STREET_DEG = 16; // looking down a block without clipping into roofs
+const PITCH_MID_DEG = 42; // cinematic, reached around zoom 18
+const PITCH_CLOSE_DEG = 32; // isometric neighbourhood with a strip of sky
+const PITCH_STREET_DEG = 22; // street corner; top of the 45° FOV hits the horizon
 const PITCH_MID_ZOOM = 18;
 const PITCH_CLOSE_ZOOM = 80;
 const PITCH_STREET_ZOOM = 260;
@@ -74,8 +74,9 @@ export class CameraRig {
     this.camera.aspect = this.cssW / this.cssH;
   }
 
-  /** Position/orient the camera for the given logical camera state. */
-  update(cam: CameraState, minZoom: number): void {
+  /** Position/orient the camera for the given logical camera state.
+   *  `azimuthRad` 0 = from the south (default); π/2 = from the east. */
+  update(cam: CameraState, minZoom: number, azimuthRad = 0): void {
     const pitch = CameraRig.pitchDeg(cam.zoom, minZoom) * DEG2RAD;
     let dist = this.cssH / (2 * cam.zoom * Math.tan((FOV_DEG * DEG2RAD) / 2));
     let height = dist * Math.sin(pitch);
@@ -85,10 +86,11 @@ export class CameraRig {
     }
     this.lastDist = dist;
     this.target.set(cam.x, 0, cam.y);
+    const ground = dist * Math.cos(pitch);
     this.camera.position.set(
-      this.target.x,
+      this.target.x + Math.sin(azimuthRad) * ground,
       height,
-      this.target.z + dist * Math.cos(pitch),
+      this.target.z + Math.cos(azimuthRad) * ground,
     );
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();

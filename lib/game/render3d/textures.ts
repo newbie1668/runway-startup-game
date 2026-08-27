@@ -36,39 +36,42 @@ export function createFacadeAtlases(): { albedo: THREE.CanvasTexture; emissive: 
   };
 
   const windowHole = (x: number, y: number, w: number, h: number, lit: boolean) => {
-    albedo.fillStyle = '#1a2838';
+    albedo.fillStyle = '#2a2622';
     albedo.fillRect(x, y, w, h);
+    albedo.fillStyle = '#221e1c';
+    albedo.fillRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2));
     if (!lit) return;
     emit.fillStyle = rnd() < 0.72 ? '#ffd28a' : '#c8dcff';
     emit.fillRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2));
   };
 
-  // Band 0 — terrace / house: tall paired sashes.
+  // Band 0 — terrace / house: paired sashes with enough brick between them
+  // for vertex colours to read (the old 20×24 holes mipmapped to one mud).
   for (let gy = 0; gy < 4; gy++) {
     for (let gx = 0; gx < 8; gx++) {
       if (gx === 0 && gy === 0) continue;
-      const x = gx * 64 + 14;
-      const y = gy * 32 + 6;
-      const lit = rnd() > 0.45;
-      windowHole(x, y, 14, 20, lit);
-      windowHole(x + 22, y, 14, 20, lit && rnd() > 0.2);
+      const x = gx * 64 + 16;
+      const y = gy * 32 + 8;
+      const lit = rnd() > 0.78;
+      windowHole(x, y, 12, 16, lit);
+      windowHole(x + 20, y, 12, 16, lit && rnd() > 0.2);
     }
   }
 
   // Band 1 — apartments / retail: square punches.
   for (let gy = 0; gy < 4; gy++) {
     for (let gx = 0; gx < 8; gx++) {
-      const x = gx * 64 + 10;
-      const y = band + gy * 32 + 6;
-      windowHole(x, y, 18, 18, rnd() > 0.4);
-      windowHole(x + 28, y, 18, 18, rnd() > 0.4);
+      const x = gx * 64 + 6;
+      const y = band + gy * 32 + 4;
+      windowHole(x, y, 24, 22, rnd() > 0.78);
+      windowHole(x + 32, y, 24, 22, rnd() > 0.78);
     }
   }
 
-  // Band 2 — office / tower: grid of dark panes, not a full-width cream ribbon.
+  // Band 2 — office / tower: grid of dark panes with enough wall for glass tint to read.
   for (let gy = 0; gy < 8; gy++) {
     for (let gx = 0; gx < 16; gx++) {
-      windowHole(gx * 32 + 6, band * 2 + gy * 16 + 4, 20, 9, rnd() > 0.55);
+      windowHole(gx * 32 + 6, band * 2 + gy * 16 + 3, 18, 10, rnd() > 0.82);
     }
   }
 
@@ -76,7 +79,7 @@ export function createFacadeAtlases(): { albedo: THREE.CanvasTexture; emissive: 
   for (let gy = 0; gy < 2; gy++) {
     for (let gx = 0; gx < 4; gx++) {
       if (rnd() < 0.4) continue;
-      windowHole(gx * 128 + 24, band * 3 + gy * 64 + 16, 80, 32, rnd() > 0.35);
+      windowHole(gx * 128 + 16, band * 3 + gy * 64 + 12, 96, 40, rnd() > 0.7);
     }
   }
 
@@ -132,7 +135,7 @@ export function createRoadTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-/** @deprecated kept for call-sites; facade atlas is the SFSIM-style night look. */
+/** @deprecated kept for call-sites; facade atlas tints via vertex colours. */
 export function createWindowsTexture(): THREE.CanvasTexture {
   return createFacadeAtlas();
 }

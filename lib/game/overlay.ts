@@ -55,6 +55,8 @@ export class MapOverlay {
     events: [],
   };
   hover: HitTarget | null = null;
+  /** 3D city is daylight; 2D fallback stays the night schematic. */
+  atmosphere: 'night' | 'day' = 'night';
 
   private particles: Particle[] = [];
 
@@ -332,7 +334,7 @@ export class MapOverlay {
     if (zoom <= 3.2 || zoom >= 55) return;
     ctx.font = `600 ${Math.min(12, 8 + zoom * 0.3)}px ui-sans-serif, system-ui`;
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(148,163,184,0.34)';
+    ctx.fillStyle = this.atmosphere === 'day' ? 'rgba(51,65,85,0.45)' : 'rgba(148,163,184,0.34)';
     for (const label of LABEL_PTS) {
       const p = this.projector(label.at);
       if (!p) continue;
@@ -383,7 +385,7 @@ export class MapOverlay {
       const labelAlpha = setup || hovered ? 0.95 : 0.6;
       ctx.font = `700 ${setup ? 13 : 11.5}px ui-sans-serif, system-ui`;
       ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(226,232,240,${labelAlpha})`;
+      ctx.fillStyle = `rgba(${this.atmosphere === 'day' ? '15,23,42' : '226,232,240'},${labelAlpha})`;
       ctx.fillText(hub.name, p.x, p.y + (setup ? 40 : 20));
       if (setup && hovered) {
         ctx.font = '500 11px ui-sans-serif, system-ui';
@@ -458,18 +460,20 @@ export class MapOverlay {
     // --- Particles
     this.stepParticles(ctx, dt);
 
-    // --- Vignette
-    const vg = ctx.createRadialGradient(
-      w / 2,
-      h / 2,
-      Math.min(w, h) * 0.42,
-      w / 2,
-      h / 2,
-      Math.max(w, h) * 0.75,
-    );
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(2,4,12,0.55)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, w, h);
+    // --- Vignette (night schematic only — daylight 3D needs an open sky)
+    if (this.atmosphere === 'night') {
+      const vg = ctx.createRadialGradient(
+        w / 2,
+        h / 2,
+        Math.min(w, h) * 0.42,
+        w / 2,
+        h / 2,
+        Math.max(w, h) * 0.75,
+      );
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(2,4,12,0.55)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, w, h);
+    }
   }
 }

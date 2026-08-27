@@ -289,7 +289,23 @@ export type LandmarkKind =
   | 'walkie'
   | 'grater'
   | 'canadasq'
-  | 'battersea';
+  | 'battersea'
+  | 'bishop'
+  | 'heron'
+  | 'tower42'
+  | 'abbey'
+  | 'oldstreet'
+  | 'westminsterbr'
+  | 'lambethbr'
+  | 'waterloobr'
+  | 'blackfriarsbr'
+  | 'londonbr'
+  | 'millennium'
+  | 'albertbr'
+  | 'hungerford'
+  | 'towerlondon'
+  | 'buckingham'
+  | 'monument';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -297,12 +313,17 @@ export interface Landmark {
   at: LngLat;
   /** Skip generic OSM extrusions within this radius so the silhouette isn't doubled. */
   exclusionM?: number;
+  /**
+   * Extra Y rotation (radians) applied when instancing the baked mesh.
+   * Bridge decks are modelled along local +X; set this so +X crosses the Thames.
+   */
+  yaw?: number;
 }
 
 export const LANDMARKS: readonly Landmark[] = [
   { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90 },
   { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },
-  { kind: 'bigben', name: 'Big Ben', at: [-0.1246, 51.5007], exclusionM: 70 },
+  { kind: 'bigben', name: 'Palace of Westminster', at: [-0.1246, 51.5007], exclusionM: 160 },
   { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215], exclusionM: 70 },
   { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138], exclusionM: 110 },
   { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029], exclusionM: 220 },
@@ -312,4 +333,20 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 90 },
   { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 90 },
   { kind: 'battersea', name: 'Battersea Power Station', at: [-0.1446, 51.4819], exclusionM: 180 },
+  { kind: 'bishop', name: '22 Bishopsgate', at: [-0.083, 51.5144], exclusionM: 90 },
+  { kind: 'heron', name: 'Heron Tower', at: [-0.081, 51.5162], exclusionM: 80 },
+  { kind: 'tower42', name: 'Tower 42', at: [-0.0838, 51.5152], exclusionM: 70 },
+  { kind: 'abbey', name: 'Westminster Abbey', at: [-0.1273, 51.4994], exclusionM: 90 },
+  { kind: 'oldstreet', name: 'Old Street Roundabout', at: [-0.0877, 51.5256], exclusionM: 90 },
+  { kind: 'westminsterbr', name: 'Westminster Bridge', at: [-0.1218, 51.5008], exclusionM: 50, yaw: 0 },
+  { kind: 'lambethbr', name: 'Lambeth Bridge', at: [-0.123, 51.4945], exclusionM: 50, yaw: 0.08 },
+  { kind: 'waterloobr', name: 'Waterloo Bridge', at: [-0.1172, 51.5084], exclusionM: 50, yaw: 1.15 },
+  { kind: 'blackfriarsbr', name: 'Blackfriars Bridge', at: [-0.1044, 51.5096], exclusionM: 50, yaw: Math.PI / 2 },
+  { kind: 'londonbr', name: 'London Bridge', at: [-0.0877, 51.5079], exclusionM: 50, yaw: Math.PI / 2 },
+  { kind: 'millennium', name: 'Millennium Bridge', at: [-0.0985, 51.5104], exclusionM: 45, yaw: Math.PI / 2 },
+  { kind: 'albertbr', name: 'Albert Bridge', at: [-0.1668, 51.4824], exclusionM: 55, yaw: 0.85 },
+  { kind: 'hungerford', name: 'Hungerford Bridge', at: [-0.1201, 51.5062], exclusionM: 45, yaw: 0.45 },
+  { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 110 },
+  { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 140 },
+  { kind: 'monument', name: 'The Monument', at: [-0.0861, 51.5102], exclusionM: 40 },
 ] as const;

@@ -275,13 +275,13 @@ export class MapRenderer implements IMapRenderer {
     this.overlay.drawAreaLabels(ctx, z);
 
     // --- Landmarks
-    if (z > 4) this.drawLandmarks(t);
+    if (z > 4) this.drawLandmarks();
 
     // --- Game chrome: hubs, pins, player HQ, particles, vignette
     this.overlay.draw(ctx, t, dt, z);
   }
 
-  private drawLandmarks(t: number) {
+  private drawLandmarks() {
     const ctx = this.ctx;
     ctx.strokeStyle = 'rgba(160,178,205,0.55)';
     ctx.fillStyle = 'rgba(160,178,205,0.55)';
@@ -297,9 +297,8 @@ export class MapRenderer implements IMapRenderer {
           ctx.beginPath();
           ctx.arc(0, -12, 9, 0, Math.PI * 2);
           ctx.stroke();
-          const spin = t * 0.0004;
           for (let i = 0; i < 6; i++) {
-            const a = spin + (i * Math.PI) / 3;
+            const a = (i * Math.PI) / 3;
             ctx.beginPath();
             ctx.moveTo(0, -12);
             ctx.lineTo(Math.cos(a) * 9, -12 + Math.sin(a) * 9);
@@ -414,6 +413,99 @@ export class MapRenderer implements IMapRenderer {
           for (const x of [-7, -2, 2, 7]) {
             ctx.strokeRect(x - 1, -16, 2, 8);
           }
+          break;
+        case 'bishop':
+          ctx.beginPath();
+          ctx.moveTo(-4, 0);
+          ctx.lineTo(-3, -22);
+          ctx.lineTo(3, -22);
+          ctx.lineTo(4, 0);
+          ctx.stroke();
+          break;
+        case 'heron':
+          ctx.strokeRect(-3, -20, 6, 20);
+          ctx.strokeRect(-4, -20, 8, 2);
+          ctx.beginPath();
+          ctx.moveTo(0, -20);
+          ctx.lineTo(0, -24);
+          ctx.stroke();
+          break;
+        case 'tower42':
+          ctx.beginPath();
+          for (let i = 0; i < 8; i++) {
+            const a = (i * Math.PI) / 4 + Math.PI / 8;
+            const cmd = i === 0 ? ctx.moveTo.bind(ctx) : ctx.lineTo.bind(ctx);
+            cmd(Math.cos(a) * 5, -10 + Math.sin(a) * 5);
+          }
+          ctx.closePath();
+          ctx.stroke();
+          ctx.strokeRect(-2, -20, 4, 8);
+          break;
+        case 'abbey':
+          ctx.strokeRect(-10, -8, 20, 8);
+          ctx.strokeRect(-10, -16, 4, 8);
+          ctx.strokeRect(-4, -16, 4, 8);
+          break;
+        case 'oldstreet':
+          ctx.beginPath();
+          ctx.arc(0, -2, 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(0, -2, 3, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case 'westminsterbr':
+        case 'lambethbr':
+        case 'waterloobr':
+        case 'blackfriarsbr':
+        case 'londonbr':
+        case 'hungerford':
+          ctx.beginPath();
+          ctx.moveTo(-12, 0);
+          ctx.lineTo(12, 0);
+          ctx.moveTo(-8, 0);
+          ctx.lineTo(-8, -4);
+          ctx.moveTo(0, 0);
+          ctx.lineTo(0, -4);
+          ctx.moveTo(8, 0);
+          ctx.lineTo(8, -4);
+          ctx.stroke();
+          break;
+        case 'millennium':
+          ctx.beginPath();
+          ctx.moveTo(-12, -2);
+          ctx.quadraticCurveTo(0, -8, 12, -2);
+          ctx.stroke();
+          break;
+        case 'albertbr':
+          ctx.strokeRect(-6, -10, 3, 10);
+          ctx.strokeRect(3, -10, 3, 10);
+          ctx.beginPath();
+          ctx.moveTo(-12, 0);
+          ctx.lineTo(12, 0);
+          ctx.stroke();
+          break;
+        case 'towerlondon':
+          ctx.strokeRect(-6, -10, 12, 10);
+          ctx.strokeRect(-7, -14, 3, 4);
+          ctx.strokeRect(4, -14, 3, 4);
+          break;
+        case 'buckingham':
+          ctx.strokeRect(-12, -8, 24, 8);
+          ctx.beginPath();
+          ctx.moveTo(-4, -8);
+          ctx.lineTo(0, -12);
+          ctx.lineTo(4, -8);
+          ctx.stroke();
+          break;
+        case 'monument':
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(0, -18);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(0, -20, 2, 0, Math.PI * 2);
+          ctx.stroke();
           break;
       }
       ctx.restore();

@@ -15,7 +15,8 @@ import { WORLD } from '../geo';
 import { packFlags, unpackFlags } from './buildingStyle';
 
 const MAGIC = 0x4c444e31; // 'LDN1'
-const VERSION = 1;
+/** v2 adds per-building wall/roof RGB565 from OSM colour/material tags. */
+const VERSION = 2;
 const Q = 0xffff;
 
 export interface CityBuilding {
@@ -31,6 +32,10 @@ export interface CityBuilding {
   style: number;
   /** 0 flat, 1 gabled, 2 hipped. */
   roof: number;
+  /** OSM façade colour as RGB565, or 0 to use the style palette. */
+  wall565: number;
+  /** OSM roof colour as RGB565, or 0 to use the style roof tint. */
+  roof565: number;
   /** [x0,y0, x1,y1, ...] quantized over WORLD — the roof footprint. */
   verts: Uint16Array;
   /** Roof triangle indices into `verts`, 3 per triangle. */
@@ -163,6 +168,8 @@ export function encodeCity(data: CityData): ArrayBuffer {
     w.u8(packFlags(b.major, b.style, b.roof));
     w.u8(b.heightM);
     w.u8(b.chunkId);
+    w.u16(b.wall565);
+    w.u16(b.roof565);
     w.u8(vertCount);
     w.u8(triCount);
     for (let i = 0; i < b.verts.length; i++) w.u16(b.verts[i]);
@@ -208,6 +215,8 @@ export function decodeCity(buf: ArrayBuffer): CityData {
     const tierFlags = r.u8();
     const heightM = r.u8();
     const chunkId = r.u8();
+    const wall565 = r.u16();
+    const roof565 = r.u16();
     const vertCount = r.u8();
     const triCount = r.u8();
     const verts = new Uint16Array(vertCount * 2);
@@ -221,6 +230,8 @@ export function decodeCity(buf: ArrayBuffer): CityData {
       chunkId,
       style: flags.style,
       roof: flags.roof,
+      wall565,
+      roof565,
       verts,
       indices,
     };

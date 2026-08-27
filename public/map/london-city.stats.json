@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-27T07:05:18.114Z",
+  "generatedAt": "2026-08-27T18:38:50.189Z",
   "bbox": {
     "s": 51.452,
     "w": -0.265,
@@ -35,7 +35,8 @@
     "roadsTier1": 6992,
     "roadsTier2": 34884,
     "parks": 769,
-    "water": 62
+    "water": 62,
+    "osmPaintedFacades": 9119
   },
-  "byteSize": 6244314
+  "byteSize": 6698590
 }

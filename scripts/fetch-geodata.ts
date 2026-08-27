@@ -26,6 +26,7 @@ import {
   type CityRoad,
 } from '../lib/game/render3d/format';
 import { classifyBuilding } from '../lib/game/render3d/buildingStyle';
+import { resolveRoofColour, resolveWallColour, toRgb565 } from '../lib/game/render3d/osmColour';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -499,6 +500,8 @@ interface ProcessedBuilding {
   chunkId: number;
   style: number;
   roof: number;
+  wall565: number;
+  roof565: number;
 }
 
 function extractBuildings(elements: Map<string, OverpassElement>): ProcessedBuilding[] {
@@ -530,7 +533,17 @@ function extractBuildings(elements: Map<string, OverpassElement>): ProcessedBuil
       const major = heightM >= MAJOR_HEIGHT_M || areaM2 >= MAJOR_AREA_M2;
       const { style, roof } = classifyBuilding(tags, heightM, areaM2);
 
-      out.push({ ring: simplified, areaM2, heightM, major, chunkId: row * CHUNK_COLS + col, style, roof });
+      out.push({
+        ring: simplified,
+        areaM2,
+        heightM,
+        major,
+        chunkId: row * CHUNK_COLS + col,
+        style,
+        roof,
+        wall565: toRgb565(resolveWallColour(tags)),
+        roof565: toRgb565(resolveRoofColour(tags)),
+      });
     }
   }
   return out;
@@ -557,6 +570,8 @@ function toCityBuilding(b: ProcessedBuilding): CityBuilding {
     chunkId: b.chunkId,
     style: b.style,
     roof: b.roof,
+    wall565: b.wall565,
+    roof565: b.roof565,
     verts,
     indices: Uint8Array.from(triangulate(b.ring)),
   };
@@ -614,6 +629,7 @@ function printStats(data: CityData, byteLength: number): void {
   const major = data.buildings.filter((b) => b.major).length;
   const byStyle = new Map<number, number>();
   for (const b of data.buildings) byStyle.set(b.style, (byStyle.get(b.style) ?? 0) + 1);
+  const painted = data.buildings.filter((b) => b.wall565 !== 0).length;
   console.log(`  buildings: ${data.buildings.length} (${major} major, ${data.buildings.length - major} minor)`);
   console.log(
     `  styles: ${[...byStyle.entries()]
@@ -621,6 +637,7 @@ function printStats(data: CityData, byteLength: number): void {
       .map(([k, v]) => `${k}:${v}`)
       .join(' ')}`,
   );
+  console.log(`  osm-painted façades: ${painted}`);
   console.log(
     `  roads: ${data.roads.length} (tier0 ${data.roads.filter((r) => r.tier === 0).length}, ` +
       `tier1 ${data.roads.filter((r) => r.tier === 1).length}, tier2 ${data.roads.filter((r) => r.tier === 2).length})`,
@@ -729,6 +746,7 @@ async function main(): Promise<void> {
           roadsTier2: roads.filter((r) => r.tier === 2).length,
           parks: parks.length,
           water: water.length,
+          osmPaintedFacades: buildings.filter((b) => b.wall565 !== 0).length,
         },
         byteSize: encoded.byteLength,
       },

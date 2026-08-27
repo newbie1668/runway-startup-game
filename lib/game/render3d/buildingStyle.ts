@@ -32,27 +32,44 @@ export function unpackFlags(flags: number): { major: boolean; style: number; roo
 }
 
 /** Facade atlas slice (v range in 0..1 on a 4-band texture). */
-export function facadeSlice(style: number): { v0: number; vSpan: number; uPeriodM: number; floorM: number } {
+export function facadeSlice(style: number): {
+  v0: number;
+  vSpan: number;
+  uPeriodM: number;
+  floorM: number;
+  rows: number;
+} {
   switch (style) {
     case STYLE_OFFICE:
     case STYLE_TOWER:
-      return { v0: 0.51, vSpan: 0.23, uPeriodM: 5.2, floorM: 3.8 };
+      return { v0: 0.51, vSpan: 0.23, uPeriodM: 7.8, floorM: 3.8, rows: 8 };
     case STYLE_INDUSTRIAL:
-      return { v0: 0.76, vSpan: 0.23, uPeriodM: 9.0, floorM: 5.2 };
+      return { v0: 0.76, vSpan: 0.23, uPeriodM: 12.0, floorM: 5.2, rows: 2 };
     case STYLE_APARTMENTS:
     case STYLE_RETAIL:
-      return { v0: 0.26, vSpan: 0.23, uPeriodM: 4.2, floorM: 3.3 };
+      return { v0: 0.26, vSpan: 0.23, uPeriodM: 6.4, floorM: 3.3, rows: 4 };
     default:
-      return { v0: 0.01, vSpan: 0.23, uPeriodM: 3.1, floorM: 3.2 };
+      return { v0: 0.01, vSpan: 0.23, uPeriodM: 5.4, floorM: 3.2, rows: 4 };
   }
+}
+
+/**
+ * V range for a wall strip covering `floors` storeys. One floor = one atlas
+ * row; never squash 16 floors into a sliver (that stretched into cardboard).
+ */
+export function facadeVForFloors(style: number, floors: number): { v0: number; v1: number } {
+  const slice = facadeSlice(style);
+  const take = Math.min(slice.rows, Math.max(0.4, floors));
+  const rowV = slice.vSpan / slice.rows;
+  return { v0: slice.v0 + 0.006, v1: slice.v0 + take * rowV - 0.004 };
 }
 
 export function inferStyle(heightM: number, areaM2: number): number {
   if (heightM >= 40 || (heightM >= 26 && areaM2 < 900)) return STYLE_TOWER;
   if (areaM2 >= 1800 && heightM <= 16) return STYLE_INDUSTRIAL;
   if (heightM <= 11 && areaM2 <= 220) return STYLE_HOUSE;
-  if (heightM <= 16 && areaM2 <= 520) return STYLE_TERRACE;
-  if (heightM <= 22) return STYLE_APARTMENTS;
+  if (heightM <= 18 && areaM2 <= 900) return STYLE_TERRACE;
+  if (heightM <= 24) return STYLE_APARTMENTS;
   return STYLE_OFFICE;
 }
 

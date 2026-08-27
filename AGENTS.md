@@ -23,7 +23,9 @@ is generated but committed — regenerate it with
 `pnpm tsx scripts/fetch-geodata.ts` (`--verify` decodes the committed file
 with no network) after changing the pipeline or the `geo.ts` bbox. Landmark
 GLBs in `public/map/landmarks/` are generated with `pnpm bake:landmarks`
-after changing `lib/game/render3d/landmarks.ts`. Debug
+after changing `lib/game/render3d/landmarks.ts`. Noticed-tower GLBs in
+`public/map/noticed/` are generated with `pnpm bake:noticed` (Wikimedia
+thumbnails + Blender at bake time only — never at play time). Debug
 params on `/game`: `?map=2d`, `?map=3d`, `?map=debug` (exposes
 `window.__runwayForceContextLoss()`). three.js is only ever reached via a
 dynamic `import()` inside `lib/game/render3d/factory.ts` — never add a

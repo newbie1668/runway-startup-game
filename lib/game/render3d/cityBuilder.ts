@@ -13,16 +13,19 @@ import { METERS_TO_WORLD, TUBE_LINES, WORLD, project } from '../geo';
 import { HUB_POS } from '../overlay';
 import type { HubId } from '../types';
 import { dequantizeX, dequantizeY, type CityBuilding, type CityData, type CityPoly, type CityRoad } from './format';
+import { fromRgb565, isGenericWallPaint } from './osmColour';
 import {
   ROOF_FLAT,
   ROOF_GABLED,
   STYLE_HOUSE,
   STYLE_INDUSTRIAL,
   STYLE_OFFICE,
+  STYLE_APARTMENTS,
   STYLE_RETAIL,
   STYLE_TERRACE,
   STYLE_TOWER,
   facadeSlice,
+  facadeVForFloors,
   inferRoof,
   resolveStyle,
 } from './buildingStyle';
@@ -34,20 +37,32 @@ export const CHUNK_COLS = 8;
 export const CHUNK_ROWS = 6;
 export const CHUNK_COUNT = CHUNK_COLS * CHUNK_ROWS;
 
-const HOUSE_BRICK = [0xd4c4a8, 0xb85a40, 0xe8dcc8, 0x8a5040, 0xc4a060, 0x6a3830].map((c) => new THREE.Color(c));
-const TERRACE_BRICK = [0xd8b45c, 0xc04838, 0xe8d8b8, 0x8a3028, 0xc49048, 0xa06050].map((c) => new THREE.Color(c));
-const APARTMENT_SLATE = [0xd0c8bc, 0x4a4860, 0xb85048, 0x8a8880, 0x5a6858, 0xc4b49a].map((c) => new THREE.Color(c));
-const OFFICE_GLASS = [0x4a6080, 0xc8b090, 0x3a4858, 0x8a9098, 0x2a5060, 0xb8a878].map((c) => new THREE.Color(c));
-const INDUSTRIAL_DUN = [0x9a8a58, 0x6a5040, 0x4a5848, 0xb8a070, 0x5a4838].map((c) => new THREE.Color(c));
-const TOWER_GLASS = [0x2c3c58, 0x8a9098, 0x1a2838, 0x3a5468, 0x5a6878].map((c) => new THREE.Color(c));
-const RETAIL_WARM = [0xd06038, 0xe0c8a0, 0x8a4030, 0xc4a070].map((c) => new THREE.Color(c));
-const AO_DARK = new THREE.Color(0x2a2018);
+const HOUSE_BRICK = [
+  0xf0d48a, 0xc43a28, 0xf4eee0, 0x8e2418, 0xd47838, 0x6a3028, 0xc4a060, 0xb85040, 0xd8c4b0, 0x9aada8,
+  0xe8b0a8, 0xa8c0d0, 0xf2e6c8, 0x7a3a28, 0xc8d070, 0x5a4038,
+].map((c) => new THREE.Color(c));
+const TERRACE_BRICK = [
+  0xe2a848, 0xc02820, 0xf7f1e4, 0x8a1810, 0xd07030, 0xb84030, 0xd8b070, 0x9a3a28, 0xe8c8b8, 0x7a8a9a,
+  0xf0d090, 0x4a6a8a, 0xd4a090, 0x6e3a28, 0xc4b49a, 0xb86840,
+].map((c) => new THREE.Color(c));
+const APARTMENT_SLATE = [0xe0c8a4, 0xc44030, 0x8a9aaa, 0x7a5040, 0xb84830, 0xd2b896, 0x5a6a78, 0xc89060].map(
+  (c) => new THREE.Color(c),
+);
+const OFFICE_GLASS = [0x6a8aa0, 0xb8c8d4, 0x4a7088, 0xc4b090, 0x5a9aaa, 0x8a9aac, 0xd0c4b0, 0x3a5868].map(
+  (c) => new THREE.Color(c),
+);
+const INDUSTRIAL_DUN = [0xc4a85c, 0x8a5844, 0x5a7860, 0xd4b070, 0x7a4a38, 0x6a6860].map((c) => new THREE.Color(c));
+const TOWER_GLASS = [0x5a88a8, 0xc8d4dc, 0x3a6078, 0xa8b8c4, 0x7aa0b0, 0xd0c8b8].map((c) => new THREE.Color(c));
+const RETAIL_WARM = [0xe84828, 0xf2d8a8, 0xa02820, 0xd49040, 0x2a6ab4, 0xf0c030].map((c) => new THREE.Color(c));
+const AO_DARK = new THREE.Color(0x6a5848);
 const CORNICE = new THREE.Color(0xe8e0d4);
-const DOOR_PAINT = new THREE.Color(0x2a1814);
-const ROOF_SLATE = new THREE.Color(0x9aa0b0);
-const ROOF_TILE = new THREE.Color(0xc46848);
-const ROOF_METAL = new THREE.Color(0x7a7860);
-const ROOF_OFFICE = new THREE.Color(0xd8d0c4);
+const DOOR_PAINTS = [0xc41c1c, 0x1a3a6e, 0x1a1a1a, 0x2d5a3d, 0xd4a017, 0x0e6b6b, 0xf4f0e6, 0x6b2d5a].map(
+  (c) => new THREE.Color(c),
+);
+const ROOF_SLATE = new THREE.Color(0x5a6270);
+const ROOF_TILE = new THREE.Color(0xc45838);
+const ROOF_METAL = new THREE.Color(0x5a5850);
+const ROOF_OFFICE = new THREE.Color(0x5c616a);
 const SHOP_GLOW = new THREE.Color(0x8a6040);
 const HVAC_COLOR = new THREE.Color(0x3a4458);
 const CHIMNEY_COLOR = new THREE.Color(0x3a2420);
@@ -56,7 +71,7 @@ const ROAD_WIDTHS_M = [11, 8, 5.5];
 const SIDEWALK_M = [3.0, 2.4, 1.9];
 const ROAD_Y = 0.18;
 const SIDEWALK_Y = 0.1;
-const SIDEWALK_COLOR = 0x5c5864;
+const SIDEWALK_COLOR = 0xc9bba8;
 const ROAD_DASH_M = 8;
 
 const TUBE_WIDTH_M = 4;
@@ -67,11 +82,32 @@ export const HUB_GLOW_PLAYER_COLOR = 0xf8c33a;
 const HUB_GLOW_SIZE_M = 50;
 const HUB_GLOW_HEIGHT_M = 8;
 
-function hashBuildingIndex(heightM: number, chunkId: number, verts: Uint16Array, mod: number): number {
-  let h = (Math.imul(chunkId, 2654435761) ^ Math.imul(heightM, 40503)) | 0;
+function hashBuildingIndex(
+  heightM: number,
+  chunkId: number,
+  verts: Uint16Array,
+  mod: number,
+  cx = 0,
+  cz = 0,
+): number {
+  let h =
+    (Math.imul(chunkId, 2654435761) ^
+      Math.imul(heightM, 40503) ^
+      Math.imul(Math.round(cx * 400), 97) ^
+      Math.imul(Math.round(cz * 400), 193)) |
+    0;
   for (let i = 0; i < verts.length; i++) h = (Math.imul(h, 31) + verts[i]) | 0;
   h ^= h >>> 15;
   return Math.abs(h) % mod;
+}
+
+function jitterColor(c: THREE.Color, seed: number, hueSpread: number): THREE.Color {
+  const out = c.clone();
+  const u = ((seed >>> 8) & 255) / 255;
+  const v = ((seed >>> 16) & 255) / 255;
+  const w = ((seed >>> 24) & 255) / 255;
+  out.offsetHSL((u - 0.5) * hueSpread, (v - 0.5) * 0.28, (w - 0.5) * 0.1);
+  return out;
 }
 
 /** Perpendicular to edge a->b that points away from the footprint centroid. */
@@ -97,7 +133,7 @@ export function createBuildingMaterial(
     map: albedo,
     emissive: 0xffffff,
     emissiveMap,
-    emissiveIntensity: 0.35,
+    emissiveIntensity: 0,
   });
 }
 
@@ -246,9 +282,16 @@ export function buildChunkTier(
     const style = resolveStyle(b.style, b.heightM, areaM2);
     const roof = b.style === 0 ? inferRoof(style) : b.roof;
     const pal = paletteFor(style);
-    const base = pal[hashBuildingIndex(b.heightM, b.chunkId, b.verts, pal.length)];
-    const wallBottomColor = base.clone().lerp(AO_DARK, 0.12);
-    const roofColor = roofTint(style, roof);
+    const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
+    const palColor = pal[seed % pal.length];
+    const osmWall = fromRgb565(b.wall565);
+    const osmRoof = fromRgb565(b.roof565);
+    const base =
+      osmWall !== null && !isGenericWallPaint(osmWall)
+        ? jitterColor(new THREE.Color(osmWall), seed, 0.04)
+        : jitterColor(palColor, seed, 0.16);
+    const wallBottomColor = base.clone().lerp(AO_DARK, 0.08);
+    const roofColor = osmRoof ? new THREE.Color(osmRoof) : roofTint(style, roof);
     const slice = facadeSlice(style);
     const heightWorld = b.heightM * METERS_TO_WORLD * HEIGHT_SCALE;
     const shopM = style === STYLE_RETAIL ? Math.min(4.2, b.heightM * 0.38) : 0;
@@ -256,8 +299,9 @@ export function buildChunkTier(
     const plinthWorld =
       shopWorld > 0.02 ? 0 : Math.min(1.15 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.18);
     const corniceWorld = Math.min(0.75 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.12);
-    const vTop = slice.v0 + Math.min(slice.vSpan * 0.96, (b.heightM / slice.floorM / 16) * slice.vSpan);
-    const corniceColor = base.clone().lerp(CORNICE, 0.55);
+    const corniceMix = style === STYLE_HOUSE || style === STYLE_TERRACE ? 0.16 : 0.4;
+    const corniceColor = base.clone().lerp(CORNICE, corniceMix);
+    const floorWorld = slice.floorM * METERS_TO_WORLD * HEIGHT_SCALE;
 
     let longestI = 0;
     let longestM = 0;
@@ -307,16 +351,33 @@ export function buildChunkTier(
         else indices.push(iBottomA, iTopB, iBottomB, iBottomA, iTopA, iTopB);
       };
 
+      const emitStoreys = (y0: number, y1: number, c0: THREE.Color, c1: THREE.Color) => {
+        const span = y1 - y0;
+        if (span <= 1e-5) return;
+        let y = y0;
+        let remaining = span / floorWorld;
+        while (remaining > 0.05 && y < y1 - 1e-5) {
+          const take = Math.min(slice.rows, remaining);
+          const yNext = Math.min(y1, y + take * floorWorld);
+          const { v0, v1 } = facadeVForFloors(style, take);
+          const t0 = (y - y0) / span;
+          const t1 = (yNext - y0) / span;
+          emitQuad(y, yNext, v0, v1, c0.clone().lerp(c1, t0), c0.clone().lerp(c1, t1));
+          remaining -= take;
+          y = yNext;
+        }
+      };
+
       const wallTop = Math.max(plinthWorld, heightWorld - corniceWorld);
       if (shopWorld > 0.02 && shopWorld < heightWorld * 0.85) {
-        const vShop = slice.v0 + slice.vSpan * 0.12;
-        emitQuad(0, shopWorld, slice.v0, vShop, wallBottomColor.clone().lerp(SHOP_GLOW, 0.55), SHOP_GLOW);
-        emitQuad(shopWorld, wallTop, vShop, vTop, base, base);
+        const shopUv = facadeVForFloors(style, 1);
+        emitQuad(0, shopWorld, shopUv.v0, shopUv.v1, wallBottomColor.clone().lerp(SHOP_GLOW, 0.55), SHOP_GLOW);
+        emitStoreys(shopWorld, wallTop, base, base);
       } else if (plinthWorld > 0.01) {
         emitQuad(0, plinthWorld, 0, 0, wallBottomColor, wallBottomColor);
-        emitQuad(plinthWorld, wallTop, slice.v0, vTop, wallBottomColor, base);
+        emitStoreys(plinthWorld, wallTop, wallBottomColor, base);
       } else {
-        emitQuad(0, wallTop, slice.v0, vTop, wallBottomColor, base);
+        emitStoreys(0, wallTop, wallBottomColor, base);
       }
       if (corniceWorld > 0.008 && wallTop < heightWorld) {
         emitQuad(wallTop, heightWorld, 0, 0, corniceColor, corniceColor, 0.28 * METERS_TO_WORLD);
@@ -324,12 +385,11 @@ export function buildChunkTier(
 
       const wantDoor =
         i === longestI &&
-        longestM >= 5.5 &&
-        (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_RETAIL) &&
-        hashBuildingIndex(b.heightM, b.chunkId, b.verts, 10) > 2;
+        longestM >= 4.2 &&
+        (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_RETAIL);
       if (wantDoor) {
-        const doorW = Math.min(1.2 * METERS_TO_WORLD, Math.hypot(dx, dz) * 0.22);
-        const doorH = Math.min(2.3 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.55);
+        const doorW = Math.min(1.35 * METERS_TO_WORLD, Math.hypot(dx, dz) * 0.24);
+        const doorH = Math.min(2.4 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.58);
         const mx = (a.x + bp.x) / 2;
         const mz = (a.z + bp.z) / 2;
         const ox = nx * 0.04 * METERS_TO_WORLD;
@@ -338,10 +398,11 @@ export function buildChunkTier(
         const tz = dz / (Math.hypot(dx, dz) || 1);
         const hx = (tx * doorW) / 2;
         const hz = (tz * doorW) / 2;
-        const d0 = pushVertex(mx - hx + ox, 0, mz - hz + oz, nx, 0, nz, 0, 0, DOOR_PAINT);
-        const d1 = pushVertex(mx + hx + ox, 0, mz + hz + oz, nx, 0, nz, 0, 0, DOOR_PAINT);
-        const d2 = pushVertex(mx + hx + ox, doorH, mz + hz + oz, nx, 0, nz, 0, 0, DOOR_PAINT);
-        const d3 = pushVertex(mx - hx + ox, doorH, mz - hz + oz, nx, 0, nz, 0, 0, DOOR_PAINT);
+        const door = DOOR_PAINTS[seed % DOOR_PAINTS.length];
+        const d0 = pushVertex(mx - hx + ox, 0, mz - hz + oz, nx, 0, nz, 0, 0, door);
+        const d1 = pushVertex(mx + hx + ox, 0, mz + hz + oz, nx, 0, nz, 0, 0, door);
+        const d2 = pushVertex(mx + hx + ox, doorH, mz + hz + oz, nx, 0, nz, 0, 0, door);
+        const d3 = pushVertex(mx - hx + ox, doorH, mz - hz + oz, nx, 0, nz, 0, 0, door);
         if (!flip) indices.push(d0, d1, d2, d0, d2, d3);
         else indices.push(d0, d2, d1, d0, d3, d2);
       }
@@ -411,7 +472,7 @@ export function buildChunkTier(
 
     const ridgeY = eavesY + riseWorld;
     if (pitched && (style === STYLE_HOUSE || style === STYLE_TERRACE) && areaM2 < 480) {
-      const along = ((hashBuildingIndex(b.heightM, b.chunkId, b.verts, 97) - 48) / 97) * axis.maxPerp * 0.5;
+      const along = ((hashBuildingIndex(b.heightM, b.chunkId, b.verts, 97, cx, cz) - 48) / 97) * axis.maxPerp * 0.5;
       pushBox(
         cx + axis.ax * along,
         ridgeY - 0.5 * METERS_TO_WORLD,
@@ -423,9 +484,20 @@ export function buildChunkTier(
       );
     }
 
-    if ((style === STYLE_OFFICE || style === STYLE_TOWER) && b.heightM >= 22 && areaM2 > 400) {
-      const s = 3.5 * METERS_TO_WORLD;
-      pushBox(cx, eavesY, cz, s, 2.4 * METERS_TO_WORLD * HEIGHT_SCALE, s * 0.7, HVAC_COLOR);
+    if ((style === STYLE_OFFICE || style === STYLE_TOWER || style === STYLE_APARTMENTS) && b.heightM >= 12 && areaM2 > 160) {
+      const s = 3.2 * METERS_TO_WORLD;
+      pushBox(cx, eavesY, cz, s, 2.2 * METERS_TO_WORLD * HEIGHT_SCALE, s * 0.7, HVAC_COLOR);
+      if (areaM2 > 320) {
+        pushBox(
+          cx + axis.ax * s * 1.4,
+          eavesY,
+          cz + axis.az * s * 1.4,
+          s * 0.7,
+          1.6 * METERS_TO_WORLD * HEIGHT_SCALE,
+          s * 0.5,
+          HVAC_COLOR,
+        );
+      }
     }
   }
 
@@ -480,11 +552,74 @@ function buildMergedPolyMesh(polys: CityPoly[], color: number, y: number): THREE
 }
 
 export function buildWater(cityData: CityData): THREE.Mesh | null {
-  return buildMergedPolyMesh(cityData.water, 0x1d3a68, 0.05);
+  return buildMergedPolyMesh(cityData.water, 0x5a92b8, 0.05);
 }
 
 export function buildParks(cityData: CityData): THREE.Mesh | null {
-  return buildMergedPolyMesh(cityData.parks, 0x14261c, 0.1);
+  return buildMergedPolyMesh(cityData.parks, 0x4a9a52, 0.1);
+}
+
+/** Low-poly canopy blobs on parks — the X-post street clip's toy-city trees. */
+export function buildParkTrees(cityData: CityData): THREE.Group | null {
+  const dummy = new THREE.Object3D();
+  const spots: { x: number; z: number; scale: number }[] = [];
+  for (const park of cityData.parks) {
+    const n = park.verts.length / 2;
+    if (n < 3) continue;
+    const ring = new Array<{ x: number; z: number }>(n);
+    let cx = 0;
+    let cz = 0;
+    for (let i = 0; i < n; i++) {
+      const x = dequantizeX(park.verts[i * 2]);
+      const z = dequantizeY(park.verts[i * 2 + 1]);
+      ring[i] = { x, z };
+      cx += x;
+      cz += z;
+    }
+    cx /= n;
+    cz /= n;
+    let acc = 0;
+    for (let i = 0; i < n; i++) {
+      const a = ring[i];
+      const b = ring[(i + 1) % n];
+      acc += a.x * b.z - b.x * a.z;
+    }
+    const areaM2 = Math.abs(acc) * 0.5 / (METERS_TO_WORLD * METERS_TO_WORLD);
+    if (areaM2 < 90) continue;
+    const count = Math.min(10, Math.max(1, Math.round(areaM2 / 900)));
+    let h = Math.imul(n + 1, 2654435761) ^ park.verts[0];
+    for (let t = 0; t < count; t++) {
+      h = Math.imul(h, 1103515245) + 12345;
+      const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
+      const rad =
+        Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(areaM2) * METERS_TO_WORLD * 0.22;
+      spots.push({
+        x: cx + Math.cos(ang) * rad,
+        z: cz + Math.sin(ang) * rad,
+        scale: 4.5 + ((h >>> 16) & 7) * 0.55,
+      });
+    }
+  }
+  if (spots.length === 0) return null;
+  const canopyMat = new THREE.MeshLambertMaterial({ color: 0x3f9148, flatShading: true });
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a30 });
+  const canopies = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), canopyMat, spots.length);
+  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.2, 1, 5), trunkMat, spots.length);
+  for (let i = 0; i < spots.length; i++) {
+    const s = spots[i];
+    const r = s.scale * METERS_TO_WORLD;
+    dummy.position.set(s.x, r * 0.85, s.z);
+    dummy.scale.set(r, r * 0.72, r);
+    dummy.updateMatrix();
+    canopies.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(s.x, r * 0.28, s.z);
+    dummy.scale.set(r * 0.22, r * 0.55, r * 0.22);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(i, dummy.matrix);
+  }
+  const group = new THREE.Group();
+  group.add(trunks, canopies);
+  return group;
 }
 
 function buildRibbonGeometry(
@@ -540,7 +675,7 @@ function roadPts(road: CityRoad): { x: number; z: number }[] | null {
 /** One group per tier so minor streets can hide independently at low zoom. */
 export function buildRoads(cityData: CityData, roadTexture: THREE.Texture): THREE.Group | null {
   const group = new THREE.Group();
-  const sidewalkMat = new THREE.MeshLambertMaterial({
+  const sidewalkMat = new THREE.MeshBasicMaterial({
     color: SIDEWALK_COLOR,
     side: THREE.DoubleSide,
   });
@@ -692,7 +827,7 @@ export function buildGround(): THREE.Mesh {
   const marginY = WORLD.height * 0.3;
   const geometry = new THREE.PlaneGeometry(WORLD.width + marginX * 2, WORLD.height + marginY * 2);
   geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({ color: 0x0b1020 });
+  const material = new THREE.MeshBasicMaterial({ color: 0xbdb6a8 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(WORLD.width / 2, 0, WORLD.height / 2);
   return mesh;

@@ -142,8 +142,8 @@ check('the London game uses pounds consistently for its unicorn goal', () => {
 
 check('the mobile hero keeps its copy readable and sound control named', () => {
   const html = renderToStaticMarkup(<GameApp />);
-  assert.match(html, /bg-\[#070c1a\]\/80/);
-  assert.match(html, /md:bg-transparent/);
+  assert.match(html, /bg-white\/90/);
+  assert.match(html, /backdrop-blur-md/);
   assert.match(html, /aria-label="Mute sound"/);
 });
 
