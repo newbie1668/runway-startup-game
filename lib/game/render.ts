@@ -106,6 +106,10 @@ export class MapRenderer implements IMapRenderer {
     this.cam = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: fit * 1.02 };
   }
 
+  fitOverview() {
+    this.fitAll();
+  }
+
   focusHub(hubId: HubId, zoom = 9) {
     const p = HUB_POS[hubId];
     this.cam.x = p.x;
@@ -378,6 +382,38 @@ export class MapRenderer implements IMapRenderer {
           ctx.moveTo(-10, 0);
           ctx.lineTo(10, 0);
           ctx.stroke();
+          break;
+        case 'walkie':
+          ctx.beginPath();
+          ctx.moveTo(-3, 0);
+          ctx.lineTo(-3, -12);
+          ctx.lineTo(-7, -18);
+          ctx.lineTo(7, -18);
+          ctx.lineTo(3, -12);
+          ctx.lineTo(3, 0);
+          ctx.stroke();
+          break;
+        case 'grater':
+          ctx.beginPath();
+          ctx.moveTo(-6, 0);
+          ctx.lineTo(-6, -20);
+          ctx.lineTo(6, 0);
+          ctx.closePath();
+          ctx.stroke();
+          break;
+        case 'canadasq':
+          ctx.strokeRect(-5, -16, 10, 16);
+          ctx.beginPath();
+          ctx.moveTo(-5, -16);
+          ctx.lineTo(0, -22);
+          ctx.lineTo(5, -16);
+          ctx.stroke();
+          break;
+        case 'battersea':
+          ctx.strokeRect(-10, -8, 20, 8);
+          for (const x of [-7, -2, 2, 7]) {
+            ctx.strokeRect(x - 1, -16, 2, 8);
+          }
           break;
       }
       ctx.restore();

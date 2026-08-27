@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-08-27T07:05:25.134Z",
+  "files": [
+    {
+      "kind": "eye",
+      "file": "eye.glb",
+      "bytes": 164664
+    },
+    {
+      "kind": "shard",
+      "file": "shard.glb",
+      "bytes": 14696
+    },
+    {
+      "kind": "bigben",
+      "file": "bigben.glb",
+      "bytes": 8580
+    },
+    {
+      "kind": "bttower",
+      "file": "bttower.glb",
+      "bytes": 57744
+    },
+    {
+      "kind": "stpauls",
+      "file": "stpauls.glb",
+      "bytes": 23928
+    },
+    {
+      "kind": "o2",
+      "file": "o2.glb",
+      "bytes": 46616
+    },
+    {
+      "kind": "gherkin",
+      "file": "gherkin.glb",
+      "bytes": 19620
+    },
+    {
+      "kind": "towerbridge",
+      "file": "towerbridge.glb",
+      "bytes": 34064
+    },
+    {
+      "kind": "walkie",
+      "file": "walkie.glb",
+      "bytes": 45336
+    },
+    {
+      "kind": "grater",
+      "file": "grater.glb",
+      "bytes": 2208
+    },
+    {
+      "kind": "canadasq",
+      "file": "canadasq.glb",
+      "bytes": 4176
+    },
+    {
+      "kind": "battersea",
+      "file": "battersea.glb",
+      "bytes": 37804
+    }
+  ]
+}

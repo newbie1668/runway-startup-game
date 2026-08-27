@@ -12,6 +12,7 @@
  */
 
 import { WORLD } from '../geo';
+import { packFlags, unpackFlags } from './buildingStyle';
 
 const MAGIC = 0x4c444e31; // 'LDN1'
 const VERSION = 1;
@@ -23,6 +24,13 @@ export interface CityBuilding {
   heightM: number;
   /** 8×6 chunk grid over WORLD, 0..47. */
   chunkId: number;
+  /**
+   * Typology packed by the offline pipeline (0 = infer at runtime).
+   * See buildingStyle.ts: house/terrace/apartments/office/industrial/retail/tower.
+   */
+  style: number;
+  /** 0 flat, 1 gabled, 2 hipped. */
+  roof: number;
   /** [x0,y0, x1,y1, ...] quantized over WORLD — the roof footprint. */
   verts: Uint16Array;
   /** Roof triangle indices into `verts`, 3 per triangle. */
@@ -152,7 +160,7 @@ export function encodeCity(data: CityData): ArrayBuffer {
     const vertCount = b.verts.length / 2;
     const triCount = b.indices.length / 3;
     assertFits(vertCount, triCount, 'building');
-    w.u8(b.major ? 1 : 0);
+    w.u8(packFlags(b.major, b.style, b.roof));
     w.u8(b.heightM);
     w.u8(b.chunkId);
     w.u8(vertCount);
@@ -206,7 +214,16 @@ export function decodeCity(buf: ArrayBuffer): CityData {
     for (let i = 0; i < verts.length; i++) verts[i] = r.u16();
     const indices = new Uint8Array(triCount * 3);
     for (let i = 0; i < indices.length; i++) indices[i] = r.u8();
-    buildings[bi] = { major: (tierFlags & 1) === 1, heightM, chunkId, verts, indices };
+    const flags = unpackFlags(tierFlags);
+    buildings[bi] = {
+      major: flags.major,
+      heightM,
+      chunkId,
+      style: flags.style,
+      roof: flags.roof,
+      verts,
+      indices,
+    };
   }
 
   const roads: CityRoad[] = new Array(roadCount);

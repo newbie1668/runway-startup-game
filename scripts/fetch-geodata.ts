@@ -25,6 +25,7 @@ import {
   type CityPoly,
   type CityRoad,
 } from '../lib/game/render3d/format';
+import { classifyBuilding } from '../lib/game/render3d/buildingStyle';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -496,6 +497,8 @@ interface ProcessedBuilding {
   heightM: number;
   major: boolean;
   chunkId: number;
+  style: number;
+  roof: number;
 }
 
 function extractBuildings(elements: Map<string, OverpassElement>): ProcessedBuilding[] {
@@ -525,8 +528,9 @@ function extractBuildings(elements: Map<string, OverpassElement>): ProcessedBuil
       const col = Math.max(0, Math.min(CHUNK_COLS - 1, Math.floor((c.x / WORLD.width) * CHUNK_COLS)));
       const row = Math.max(0, Math.min(CHUNK_ROWS - 1, Math.floor((c.y / WORLD.height) * CHUNK_ROWS)));
       const major = heightM >= MAJOR_HEIGHT_M || areaM2 >= MAJOR_AREA_M2;
+      const { style, roof } = classifyBuilding(tags, heightM, areaM2);
 
-      out.push({ ring: simplified, areaM2, heightM, major, chunkId: row * CHUNK_COLS + col });
+      out.push({ ring: simplified, areaM2, heightM, major, chunkId: row * CHUNK_COLS + col, style, roof });
     }
   }
   return out;
@@ -551,6 +555,8 @@ function toCityBuilding(b: ProcessedBuilding): CityBuilding {
     major: b.major,
     heightM: b.heightM,
     chunkId: b.chunkId,
+    style: b.style,
+    roof: b.roof,
     verts,
     indices: Uint8Array.from(triangulate(b.ring)),
   };
@@ -606,7 +612,15 @@ function extractPolys(elements: Map<string, OverpassElement>, minAreaM2: number,
 
 function printStats(data: CityData, byteLength: number): void {
   const major = data.buildings.filter((b) => b.major).length;
+  const byStyle = new Map<number, number>();
+  for (const b of data.buildings) byStyle.set(b.style, (byStyle.get(b.style) ?? 0) + 1);
   console.log(`  buildings: ${data.buildings.length} (${major} major, ${data.buildings.length - major} minor)`);
+  console.log(
+    `  styles: ${[...byStyle.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([k, v]) => `${k}:${v}`)
+      .join(' ')}`,
+  );
   console.log(
     `  roads: ${data.roads.length} (tier0 ${data.roads.filter((r) => r.tier === 0).length}, ` +
       `tier1 ${data.roads.filter((r) => r.tier === 1).length}, tier2 ${data.roads.filter((r) => r.tier === 2).length})`,

@@ -6,11 +6,13 @@
  * pure WebGL with no text/pins/particles; all game-facing chrome is drawn by
  * the shared, camera-agnostic MapOverlay onto the 2D overlay canvas via
  * `rig.worldToScreen` as the projector. Streams the city in over multiple
- * frames once `public/map/london-city.bin` has loaded and decoded.
+ * frames once `public/map/london-city.bin` has loaded and decoded. Landmark
+ * silhouettes come from baked GLBs in `/map/landmarks/` with a procedural
+ * fallback if a file is missing.
  */
 
 import * as THREE from 'three';
-import { LANDMARKS, WORLD, project } from '../geo';
+import { LANDMARKS, METERS_TO_WORLD, WORLD, project, type LandmarkKind } from '../geo';
 import { HUB_POS, MapOverlay } from '../overlay';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
@@ -21,6 +23,7 @@ import {
   buildHubGlows,
   buildParks,
   buildRoads,
+  buildStreetLamps,
   buildTubeLines,
   buildWater,
   CHUNK_COUNT,
@@ -28,12 +31,24 @@ import {
   HUB_GLOW_PLAYER_COLOR,
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
-import { build as buildLandmark, EYE_WHEEL_NAME } from './landmarks';
-import { createGlowSpriteTexture, createWindowsTexture } from './textures';
+import { EYE_WHEEL_NAME } from './landmarks';
+import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
+import { createFacadeAtlases, createGlowSpriteTexture, createRoadTexture } from './textures';
 
 const CITY_BIN_URL = '/map/london-city.bin';
 const BUILD_JOBS_PER_FRAME = 2;
+/** Drain faster while the loading overlay is up — the player isn't watching a half-built city. */
+const BUILD_JOBS_WHILE_LOADING = 10;
 const HUB_GLOW_DEFAULT_COLOR = 0x7dd3fc;
+
+/** Gracechurch St / Bishopsgate, looking north at the Gherkin cluster. */
+const HERO_AT = [-0.0816, 51.5112] as const;
+/**
+ * World-units of ground to fill the viewport height (~500 m). fitAll used to
+ * frame the whole 23 km bbox, which made Three.js buildings read as specks.
+ * This is the SFSIM establishing shot: a neighbourhood you can actually see.
+ */
+const HERO_VIEW_HEIGHT = 4.5;
 
 type BuildJob = () => void;
 
@@ -42,6 +57,7 @@ export class CityRenderer3D implements IMapRenderer {
   private readonly overlayCanvas: HTMLCanvasElement;
   private readonly overlayCtx: CanvasRenderingContext2D;
   private readonly onFatal: () => void;
+  private readonly onReady: () => void;
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene3d = new THREE.Scene();
@@ -50,24 +66,41 @@ export class CityRenderer3D implements IMapRenderer {
   private readonly overlay: MapOverlay;
   private readonly isCoarsePointer: boolean;
 
-  private cam: CameraState = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 4 };
+  private cam: CameraState = (() => {
+    const p = project(HERO_AT);
+    return { x: p.x, y: p.y, zoom: 80 };
+  })();
   private minZoom = 2;
-  private maxZoom = 26;
+  /**
+   * 2D kept maxZoom=26 (px per world-unit) because that map is a schematic doodle.
+   * Street-scale in 3D is ~520: about 150 m of ground in a tall viewport, a
+   * block you can read without the camera clipping into extruded roofs.
+   */
+  private maxZoom = 520;
   private cssW = 0;
   private cssH = 0;
 
   private readonly cityGroup = new THREE.Group();
   private readonly buildingMaterial: THREE.MeshLambertMaterial;
   private readonly glowTexture: THREE.Texture;
+  private readonly roadTexture: THREE.Texture;
+  private readonly hemi: THREE.HemisphereLight;
+  private readonly streetFill: THREE.PointLight;
   private buildQueue: BuildJob[] = [];
   private hubGlowSprites: Map<HubId, THREE.Sprite> = new Map();
   private lastPlayerHubId: HubId | null = null;
   eyeWheel: THREE.Object3D | null = null;
   /** LOD: minor buildings hide below a zoom threshold (coarser on touch); tier-2 roads hide below 4.5. */
   private readonly minorMeshes: THREE.Mesh[] = [];
-  private tier2RoadMesh: THREE.Mesh | null = null;
+  private tier2RoadMesh: THREE.Object3D | null = null;
+  private lampGroup: THREE.Object3D | null = null;
   private lastMinorVisible: boolean | null = null;
   private lastTier2Visible: boolean | null = null;
+  private lastLampsVisible: boolean | null = null;
+  private landmarkPrefabs = new Map<LandmarkKind, THREE.Object3D>();
+  /** True once london-city.bin is decoded and jobs are queued (queue starts empty). */
+  private cityStreamed = false;
+  private readyNotified = false;
 
   private disposed = false;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
@@ -75,12 +108,13 @@ export class CityRenderer3D implements IMapRenderer {
   constructor(
     cityCanvas: HTMLCanvasElement,
     overlayCanvas: HTMLCanvasElement,
-    opts: { onFatal: () => void },
+    opts: { onFatal: () => void; onReady?: () => void },
   ) {
     this.cityCanvas = cityCanvas;
     this.overlayCanvas = overlayCanvas;
     this.overlayCtx = overlayCanvas.getContext('2d')!;
     this.onFatal = opts.onFatal;
+    this.onReady = opts.onReady ?? (() => undefined);
     this.isCoarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
     this.overlay = new MapOverlay(
@@ -99,10 +133,11 @@ export class CityRenderer3D implements IMapRenderer {
     this.fog = new THREE.Fog(0x0d142b, 200, 900);
     this.scene3d.fog = this.fog;
 
-    const hemi = new THREE.HemisphereLight(0x16204a, 0x05070f, 0.9);
-    const dir = new THREE.DirectionalLight(0x8fa8ff, 0.35);
+    this.hemi = new THREE.HemisphereLight(0x3a3858, 0x1a1410, 1.05);
+    const dir = new THREE.DirectionalLight(0xf0e6d4, 0.7);
     dir.position.set(-1, 1.5, -1); // NW, high
-    this.scene3d.add(hemi, dir);
+    this.streetFill = new THREE.PointLight(0xffc878, 0, 2.8, 1.6);
+    this.scene3d.add(this.hemi, dir, this.streetFill);
 
     this.scene3d.add(buildGround());
     this.scene3d.add(buildTubeLines());
@@ -114,18 +149,28 @@ export class CityRenderer3D implements IMapRenderer {
 
     this.scene3d.add(this.cityGroup);
 
-    const windowsTexture = createWindowsTexture();
-    this.buildingMaterial = createBuildingMaterial(windowsTexture);
+    const facades = createFacadeAtlases();
+    this.buildingMaterial = createBuildingMaterial(facades.albedo, facades.emissive);
+    this.roadTexture = createRoadTexture();
+    this.roadTexture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
 
     this.cityCanvas.addEventListener('webglcontextlost', this.handleContextLost);
 
-    fetch(CITY_BIN_URL)
+    const cityPromise = fetch(CITY_BIN_URL)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.arrayBuffer();
       })
-      .then((buf) => this.onCityData(decodeCity(buf)))
-      .catch(() => this.onFatal());
+      .then((buf) => decodeCity(buf));
+
+    void Promise.all([cityPromise, loadLandmarkPrefabs()])
+      .then(([data, prefabs]) => {
+        this.landmarkPrefabs = prefabs;
+        this.onCityData(data);
+      })
+      .catch(() => {
+        if (!this.disposed) this.onFatal();
+      });
 
     if (new URLSearchParams(window.location.search).get('map') === 'debug') {
       (window as unknown as { __runwayForceContextLoss?: () => void }).__runwayForceContextLoss = () => {
@@ -149,7 +194,10 @@ export class CityRenderer3D implements IMapRenderer {
 
   private onCityData(data: CityData): void {
     if (this.disposed) return;
-    const landmarkAnchors = LANDMARKS.map((l) => project(l.at));
+    const landmarkAnchors = LANDMARKS.map((l) => {
+      const p = project(l.at);
+      return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
+    });
     const jobs: BuildJob[] = [];
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       for (const major of [true, false]) {
@@ -164,12 +212,20 @@ export class CityRenderer3D implements IMapRenderer {
       }
     }
     jobs.push(() => {
-      const roadGroup = buildRoads(data);
+      const roadGroup = buildRoads(data, this.roadTexture);
       if (roadGroup) {
         this.cityGroup.add(roadGroup);
         for (const child of roadGroup.children) {
-          if (child instanceof THREE.Mesh && child.userData.roadTier === 2) this.tier2RoadMesh = child;
+          if (child.userData.roadTier === 2) this.tier2RoadMesh = child;
         }
+      }
+    });
+    jobs.push(() => {
+      const lamps = buildStreetLamps(data);
+      if (lamps) {
+        lamps.visible = false;
+        this.lampGroup = lamps;
+        this.cityGroup.add(lamps);
       }
     });
     jobs.push(() => {
@@ -184,7 +240,7 @@ export class CityRenderer3D implements IMapRenderer {
       jobs.push(() => {
         const landmark = LANDMARKS[i];
         const anchor = landmarkAnchors[i];
-        const group = buildLandmark(landmark.kind);
+        const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(anchor.x, 0, anchor.y);
         this.cityGroup.add(group);
         if (landmark.kind === 'eye') {
@@ -193,6 +249,21 @@ export class CityRenderer3D implements IMapRenderer {
       });
     }
     this.buildQueue = jobs;
+    this.cityStreamed = true;
+  }
+
+  private drainBuildQueue(): void {
+    const budget = this.readyNotified ? BUILD_JOBS_PER_FRAME : BUILD_JOBS_WHILE_LOADING;
+    for (let i = 0; i < budget && this.buildQueue.length > 0; i++) {
+      this.buildQueue.shift()!();
+    }
+    if (this.cityStreamed && this.buildQueue.length === 0) this.markReady();
+  }
+
+  private markReady(): void {
+    if (this.readyNotified || this.disposed) return;
+    this.readyNotified = true;
+    this.onReady();
   }
 
   // ---------------------------------------------------------------------
@@ -246,15 +317,27 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   fitAll(): void {
+    const hero = project(HERO_AT);
+    const zoom = this.cssH > 0 ? this.cssH / HERO_VIEW_HEIGHT : 80;
+    this.cam = {
+      x: hero.x,
+      y: hero.y,
+      zoom: Math.min(this.maxZoom, Math.max(this.minZoom, zoom)),
+    };
+    this.clampCamera();
+    this.syncRig();
+  }
+
+  fitOverview(): void {
     this.cam = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: this.computeFit() };
     this.syncRig();
   }
 
-  focusHub(hubId: HubId, zoom = 9): void {
+  focusHub(hubId: HubId, zoom = 80): void {
     const p = HUB_POS[hubId];
     this.cam.x = p.x;
     this.cam.y = p.y;
-    this.cam.zoom = Math.max(this.cam.zoom, zoom);
+    this.cam.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, Math.max(this.cam.zoom, zoom)));
     this.clampCamera();
     this.syncRig();
   }
@@ -310,17 +393,20 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   frame(t: number, dt: number): void {
-    if (this.disposed || this.cssW === 0 || this.cssH === 0) return;
+    if (this.disposed) return;
+    this.drainBuildQueue();
+    if (this.cssW === 0 || this.cssH === 0) return;
     this.syncRig();
-
-    for (let i = 0; i < BUILD_JOBS_PER_FRAME && this.buildQueue.length > 0; i++) {
-      this.buildQueue.shift()!();
-    }
 
     const dist = this.rig.getDistance();
     this.fog.near = dist * 0.8;
     this.fog.far = dist * 3.5;
-    this.buildingMaterial.emissiveIntensity = Math.min(1.1, Math.max(0.55, 0.55 + this.cam.zoom * 0.02));
+    const close = Math.max(0, Math.min(1, (this.cam.zoom - 24) / 220));
+    this.streetFill.position.set(this.cam.x, 16 * METERS_TO_WORLD, this.cam.y);
+    this.streetFill.intensity = close * 5.5;
+    this.streetFill.distance = 1.4 + close * 1.6;
+    this.hemi.intensity = 0.72 + close * 0.45;
+    this.buildingMaterial.emissiveIntensity = 0.22 + close * 0.28;
 
     if (this.eyeWheel) this.eyeWheel.rotation.y = t * ((Math.PI * 2) / 60000);
 
@@ -334,6 +420,11 @@ export class CityRenderer3D implements IMapRenderer {
     if (tier2Visible !== this.lastTier2Visible) {
       if (this.tier2RoadMesh) this.tier2RoadMesh.visible = tier2Visible;
       this.lastTier2Visible = tier2Visible;
+    }
+    const lampsVisible = this.cam.zoom >= 28;
+    if (lampsVisible !== this.lastLampsVisible) {
+      if (this.lampGroup) this.lampGroup.visible = lampsVisible;
+      this.lastLampsVisible = lampsVisible;
     }
 
     const playerHubId = this.overlay.scene.playerHubId;
@@ -364,9 +455,11 @@ export class CityRenderer3D implements IMapRenderer {
       if (Array.isArray(material)) material.forEach((m) => m.dispose());
       else material?.dispose();
     });
+    this.buildingMaterial.map?.dispose();
     this.buildingMaterial.emissiveMap?.dispose();
     this.buildingMaterial.dispose();
     this.glowTexture.dispose();
+    this.roadTexture.dispose();
     this.renderer.dispose();
   }
 }

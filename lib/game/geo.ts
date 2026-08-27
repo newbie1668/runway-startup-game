@@ -285,21 +285,31 @@ export type LandmarkKind =
   | 'stpauls'
   | 'o2'
   | 'gherkin'
-  | 'towerbridge';
+  | 'towerbridge'
+  | 'walkie'
+  | 'grater'
+  | 'canadasq'
+  | 'battersea';
 
 export interface Landmark {
   kind: LandmarkKind;
   name: string;
   at: LngLat;
+  /** Skip generic OSM extrusions within this radius so the silhouette isn't doubled. */
+  exclusionM?: number;
 }
 
 export const LANDMARKS: readonly Landmark[] = [
-  { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033] },
-  { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045] },
-  { kind: 'bigben', name: 'Big Ben', at: [-0.1246, 51.5007] },
-  { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215] },
-  { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138] },
-  { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029] },
-  { kind: 'gherkin', name: 'The Gherkin', at: [-0.0803, 51.5145] },
-  { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0754, 51.5055] },
+  { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90 },
+  { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },
+  { kind: 'bigben', name: 'Big Ben', at: [-0.1246, 51.5007], exclusionM: 70 },
+  { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215], exclusionM: 70 },
+  { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138], exclusionM: 110 },
+  { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029], exclusionM: 220 },
+  { kind: 'gherkin', name: 'The Gherkin', at: [-0.0803, 51.5145], exclusionM: 80 },
+  { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0754, 51.5055], exclusionM: 90 },
+  { kind: 'walkie', name: 'Walkie Talkie', at: [-0.0837, 51.5114], exclusionM: 80 },
+  { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 90 },
+  { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 90 },
+  { kind: 'battersea', name: 'Battersea Power Station', at: [-0.1446, 51.4819], exclusionM: 180 },
 ] as const;

@@ -50,14 +50,19 @@ function addEdges(mesh: THREE.Mesh, lineMaterial: THREE.LineBasicMaterial): void
 function buildShard(): THREE.Group {
   const group = new THREE.Group();
   const height = h(310);
-  const geometry = baseAtGround(new THREE.ConeGeometry(m(16), height, 4), height);
-  geometry.scale(1, 1, 0.7);
+  const profile: THREE.Vector2[] = [];
+  const segments = 18;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const r = m(22) * (1 - t) ** 1.15 + m(1.6);
+    profile.push(new THREE.Vector2(r, t * height));
+  }
+  const geometry = new THREE.LatheGeometry(profile, 6);
   const [material, edgeMaterial] = glassMaterial(0x16223d, 0x9fc4ff);
-  const cone = new THREE.Mesh(geometry, material);
-  addEdges(cone, edgeMaterial);
-  group.add(cone);
-
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(m(2.5), 8, 8), emissiveMaterial(0xffffff));
+  const mesh = new THREE.Mesh(geometry, material);
+  addEdges(mesh, edgeMaterial);
+  group.add(mesh);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(m(2.2), 8, 8), emissiveMaterial(0xffffff));
   tip.position.set(0, height, 0);
   group.add(tip);
   return group;
@@ -321,6 +326,110 @@ function buildO2(): THREE.Group {
   return group;
 }
 
+function buildWalkie(): THREE.Group {
+  const group = new THREE.Group();
+  const height = h(160);
+  const profile: THREE.Vector2[] = [];
+  const segments = 20;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    // Flared "walkie-talkie" top: slim shaft, swelling in the upper third.
+    const flare = t < 0.55 ? 0 : ((t - 0.55) / 0.45) ** 1.35;
+    const r = m(14) + flare * m(16);
+    profile.push(new THREE.Vector2(r, t * height));
+  }
+  const geometry = new THREE.LatheGeometry(profile, 24);
+  const [material, edgeMaterial] = glassMaterial(0x1a2438, 0x8eb4ff);
+  const mesh = new THREE.Mesh(geometry, material);
+  addEdges(mesh, edgeMaterial);
+  group.add(mesh);
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(m(18), m(22), m(4), 24), emissiveMaterial(0x7dd3fc));
+  crown.position.y = height - m(2);
+  group.add(crown);
+  return group;
+}
+
+function buildGrater(): THREE.Group {
+  const group = new THREE.Group();
+  const height = h(225);
+  const depth = m(48);
+  const width = m(52);
+  // Right-triangular prism: vertical south face, sloped north face — the Cheesegrater wedge.
+  const g = new THREE.BufferGeometry();
+  const hw = width / 2;
+  const hd = depth / 2;
+  const p = [
+    -hw, 0, -hd, hw, 0, -hd, hw, 0, hd, -hw, 0, hd, // 0-3 base
+    -hw, height, -hd, hw, height, -hd, // 4-5 top of vertical face
+  ];
+  const idx = [
+    0, 1, 5, 0, 5, 4, // vertical
+    1, 2, 5, 3, 0, 4, // sides (2=base front-right, sloped to 5; 3 to 4)
+    3, 4, 5, 3, 5, 2, // sloped
+    0, 3, 2, 0, 2, 1, // ground
+  ];
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const [material, edgeMaterial] = glassMaterial(0x1c283c, 0xa8c4ff);
+  const mesh = new THREE.Mesh(g, material);
+  addEdges(mesh, edgeMaterial);
+  group.add(mesh);
+  group.rotation.y = 0.55;
+  return group;
+}
+
+function buildCanadaSq(): THREE.Group {
+  const group = new THREE.Group();
+  const shaftHeight = h(200);
+  const shaft = new THREE.Mesh(
+    baseAtGround(new THREE.BoxGeometry(m(50), shaftHeight, m(50)), shaftHeight),
+    new THREE.MeshLambertMaterial({ color: 0x1a2436, emissive: 0x3a5080, emissiveIntensity: 0.25 }),
+  );
+  group.add(shaft);
+  const capHeight = h(28);
+  const cap = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(36), capHeight, 4), capHeight),
+    emissiveMaterial(0xdce7ff),
+  );
+  cap.position.y = shaftHeight;
+  cap.rotation.y = Math.PI / 4;
+  group.add(cap);
+  return group;
+}
+
+function buildBattersea(): THREE.Group {
+  const group = new THREE.Group();
+  const brick = new THREE.MeshLambertMaterial({ color: 0x4a2c2c });
+  const cream = new THREE.MeshLambertMaterial({ color: 0xd9cbb8 });
+  const hallH = h(42);
+  const hall = new THREE.Mesh(baseAtGround(new THREE.BoxGeometry(m(160), hallH, m(72)), hallH), brick);
+  group.add(hall);
+  const hall2 = new THREE.Mesh(baseAtGround(new THREE.BoxGeometry(m(70), hallH * 0.85, m(60)), hallH * 0.85), brick);
+  hall2.position.set(m(20), 0, 0);
+  group.add(hall2);
+  const chimneyH = h(50);
+  const spots: Array<[number, number]> = [
+    [-55, -22],
+    [55, -22],
+    [-55, 22],
+    [55, 22],
+  ];
+  for (const [x, z] of spots) {
+    const chimney = new THREE.Mesh(
+      baseAtGround(new THREE.CylinderGeometry(m(5.5), m(6.5), chimneyH, 14), chimneyH),
+      cream,
+    );
+    chimney.position.set(m(x), hallH, m(z));
+    group.add(chimney);
+    const lip = new THREE.Mesh(new THREE.CylinderGeometry(m(6.2), m(6.2), m(2), 14), cream);
+    lip.position.set(m(x), hallH + chimneyH, m(z));
+    group.add(lip);
+  }
+  group.rotation.y = 0.35;
+  return group;
+}
+
 const BUILDERS: Record<LandmarkKind, () => THREE.Group> = {
   shard: buildShard,
   gherkin: buildGherkin,
@@ -330,6 +439,10 @@ const BUILDERS: Record<LandmarkKind, () => THREE.Group> = {
   towerbridge: buildTowerBridge,
   bttower: buildBtTower,
   o2: buildO2,
+  walkie: buildWalkie,
+  grater: buildGrater,
+  canadasq: buildCanadaSq,
+  battersea: buildBattersea,
 };
 
 export function build(kind: LandmarkKind): THREE.Group {

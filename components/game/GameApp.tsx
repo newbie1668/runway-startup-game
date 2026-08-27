@@ -109,6 +109,8 @@ export function GameApp() {
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rendererRef = useRef<IMapRenderer | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const onMapReady = useCallback(() => setMapReady(true), []);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -372,7 +374,27 @@ export function GameApp() {
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
+        <MapCanvas
+          scene={scene}
+          rendererRef={rendererRef}
+          onHit={onHit}
+          onReady={onMapReady}
+        />
+
+        {!mapReady && (
+          <div
+            className="absolute inset-0 z-40 flex items-center justify-center bg-[#070c1a]/92 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div className="px-6 text-center">
+              <p className="text-xs font-black tracking-[0.5em] text-sky-300">RUNWAY</p>
+              <p className="mt-3 text-lg font-bold text-slate-200">Laying out London…</p>
+              <p className="mt-1 text-sm text-slate-500">Buildings, streets, landmarks</p>
+            </div>
+          </div>
+        )}
 
         {/* Map chrome */}
         {screen === 'play' && game && (
@@ -465,12 +487,13 @@ export function GameApp() {
             onHub={(hubId) => {
               setHubChoice(hubId);
               sfx.play('click');
+              rendererRef.current?.focusHub(hubId);
             }}
             onRollName={rollName}
             onToHq={() => {
               setSetupStep('hq');
               sfx.play('confirm');
-              rendererRef.current?.fitAll();
+              rendererRef.current?.fitOverview();
             }}
             onBack={() => {
               if (setupStep === 'hq') setSetupStep('identity');
