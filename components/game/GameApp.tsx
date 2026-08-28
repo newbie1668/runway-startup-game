@@ -75,6 +75,19 @@ const getMuted = () => {
   }
 };
 
+function subscribeChrome(onStoreChange: () => void) {
+  const t = window.setTimeout(onStoreChange, 0);
+  window.addEventListener('popstate', onStoreChange);
+  return () => {
+    window.clearTimeout(t);
+    window.removeEventListener('popstate', onStoreChange);
+  };
+}
+
+function getHideChrome() {
+  return new URLSearchParams(window.location.search).get('chrome') === '0';
+}
+
 function parseSave(raw: string | null): GameState | null {
   if (!raw) return null;
   try {
@@ -111,11 +124,7 @@ export function GameApp() {
   const rendererRef = useRef<IMapRenderer | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const onMapReady = useCallback(() => setMapReady(true), []);
-  const hideChrome = useSyncExternalStore(
-    () => () => undefined,
-    () => new URLSearchParams(window.location.search).get('chrome') === '0',
-    () => false,
-  );
+  const hideChrome = useSyncExternalStore(subscribeChrome, getHideChrome, () => false);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
