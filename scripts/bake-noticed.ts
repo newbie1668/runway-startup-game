@@ -22,6 +22,8 @@ import {
   isCircularShape,
   liftRgb,
   resolveShape,
+  roofFromWall,
+  tintForShape,
   type NoticedShape,
 } from './noticedFeatures';
 import { buildNoticedGroup, exportNoticedGlb } from './noticedMesh';
@@ -442,8 +444,8 @@ async function attachWiki(cands: Candidate[]): Promise<void> {
 function assignShapes(cands: Candidate[]): void {
   for (const c of cands) {
     c.shape = resolveShape(c.id, c.name, c.extract);
-    c.wall = liftRgb(c.wall);
-    c.roof = liftRgb(c.roof, 0.18);
+    c.wall = tintForShape(c.shape, liftRgb(c.wall));
+    c.roof = roofFromWall(c.wall);
   }
 }
 

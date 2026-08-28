@@ -53,11 +53,20 @@ const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 const HERO_AT = [-0.1358, 51.5196] as const;
 const HERO_VIEW_HEIGHT = 0.95;
 
+/** Close cameras on bake-time noticed towers (lng/lat from OSM rings). */
+const NOTICED_LOOK: Record<string, { at: readonly [number, number]; viewH: number; azimuth: number }> =
+  {
+    parkdrive: { at: [-0.0151, 51.5023], viewH: 2.55, azimuth: 0.95 },
+    newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
+    wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
+  };
+
 /** Warm afternoon sun from the south-west, ~30° elevation — long façade shadows. */
 const SUN_DIR = new THREE.Vector3(-0.84, 0.5, 0.78).normalize();
 
 function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: number } {
   const look = new URLSearchParams(window.location.search).get('look');
+  if (look && NOTICED_LOOK[look]) return NOTICED_LOOK[look]!;
   const hit = LANDMARKS.find((l) => l.kind === look);
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
   if (hit.kind === 'towerbridge') {
@@ -73,7 +82,7 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     return { at: hit.at, viewH: 2.6, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'canadasq') {
-    return { at: hit.at, viewH: 7.2, azimuth: Math.PI / 2 - 0.35 };
+    return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };
   }
   if (
     hit.kind === 'gherkin' ||

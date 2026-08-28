@@ -10,6 +10,8 @@ import {
   isCircularShape,
   liftRgb,
   resolveShape,
+  roofFromWall,
+  tintForShape,
 } from './noticedFeatures';
 import { buildNoticedGroup } from './noticedMesh';
 import {
@@ -81,6 +83,7 @@ check('named silhouettes win over a misleading extract', () => {
 check('twist bands yaw further up the shaft', () => {
   const bands = bandsForShape('twist');
   assert.ok(bands[0]!.yawDeg < bands[bands.length - 1]!.yawDeg);
+  assert.ok(bands[bands.length - 1]!.yawDeg >= 50);
   assert.equal(bands[bands.length - 1]!.t1, 1);
   assert.equal(isCircularShape('cylinder'), true);
   assert.equal(isCircularShape('twist'), false);
@@ -89,6 +92,14 @@ check('twist bands yaw further up the shaft', () => {
 check('liftRgb raises crushed photo samples', () => {
   const lifted = liftRgb([0.05, 0.06, 0.07]);
   assert.ok(lifted[0] > 0.25);
+});
+
+check('shape tints and roofs stay distinct from the wall', () => {
+  const wall: [number, number, number] = [0.45, 0.5, 0.55];
+  const twist = tintForShape('twist', wall);
+  const roof = roofFromWall(twist);
+  assert.ok(twist[1] > twist[0], 'twist should lean teal');
+  assert.ok((roof[0] + roof[1] + roof[2]) / 3 < (twist[0] + twist[1] + twist[2]) / 3);
 });
 
 check('makeMatteLambert keeps noticed albedo maps', () => {
@@ -145,7 +156,7 @@ check('taper baker shrinks the crown relative to the podium', () => {
   const top = new THREE.Box3().setFromObject(crown);
   const podW = pod.max.x - pod.min.x;
   const topW = top.max.x - top.min.x;
-  assert.ok(topW < podW * 0.75, `crown ${topW} should be narrower than podium ${podW}`);
+  assert.ok(topW < podW * 0.55, `crown ${topW} should be narrower than podium ${podW}`);
 });
 
 console.log(`\nAll ${passed} noticed-factory checks passed.`);

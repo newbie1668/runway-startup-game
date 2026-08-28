@@ -84,46 +84,46 @@ export function bandsForShape(shape: NoticedShape): NoticedBand[] {
   switch (shape) {
     case 'cylinder':
       return [
-        { t0: 0, t1: 0.08, scale: 1.04, yawDeg: 0 },
-        { t0: 0.08, t1: 0.34, scale: 0.96, yawDeg: 0 },
-        { t0: 0.34, t1: 0.62, scale: 0.9, yawDeg: 0 },
-        { t0: 0.62, t1: 0.86, scale: 0.84, yawDeg: 0 },
-        { t0: 0.86, t1: 1, scale: 0.7, yawDeg: 0 },
+        { t0: 0, t1: 0.07, scale: 1.08, yawDeg: 0 },
+        { t0: 0.07, t1: 0.3, scale: 0.94, yawDeg: 0 },
+        { t0: 0.3, t1: 0.54, scale: 0.82, yawDeg: 0 },
+        { t0: 0.54, t1: 0.78, scale: 0.7, yawDeg: 0 },
+        { t0: 0.78, t1: 1, scale: 0.52, yawDeg: 0 },
       ];
     case 'twist':
       return [
-        { t0: 0, t1: 0.12, scale: 1, yawDeg: 0 },
-        { t0: 0.12, t1: 0.34, scale: 0.94, yawDeg: 8 },
-        { t0: 0.34, t1: 0.56, scale: 0.88, yawDeg: 16 },
-        { t0: 0.56, t1: 0.78, scale: 0.82, yawDeg: 24 },
-        { t0: 0.78, t1: 1, scale: 0.72, yawDeg: 34 },
+        { t0: 0, t1: 0.1, scale: 1, yawDeg: 0 },
+        { t0: 0.1, t1: 0.32, scale: 0.92, yawDeg: 14 },
+        { t0: 0.32, t1: 0.54, scale: 0.84, yawDeg: 28 },
+        { t0: 0.54, t1: 0.76, scale: 0.74, yawDeg: 44 },
+        { t0: 0.76, t1: 1, scale: 0.62, yawDeg: 62 },
       ];
     case 'taper':
       return [
-        { t0: 0, t1: 0.12, scale: 1, yawDeg: 0 },
-        { t0: 0.12, t1: 0.4, scale: 0.88, yawDeg: 0 },
-        { t0: 0.4, t1: 0.72, scale: 0.72, yawDeg: 0 },
-        { t0: 0.72, t1: 1, scale: 0.54, yawDeg: 0 },
+        { t0: 0, t1: 0.1, scale: 1, yawDeg: 0 },
+        { t0: 0.1, t1: 0.38, scale: 0.8, yawDeg: 0 },
+        { t0: 0.38, t1: 0.7, scale: 0.58, yawDeg: 0 },
+        { t0: 0.7, t1: 1, scale: 0.36, yawDeg: 0 },
       ];
     case 'stepped':
       return [
-        { t0: 0, t1: 0.16, scale: 1, yawDeg: 0 },
-        { t0: 0.16, t1: 0.4, scale: 0.86, yawDeg: 0 },
-        { t0: 0.4, t1: 0.66, scale: 0.7, yawDeg: 0 },
-        { t0: 0.66, t1: 0.86, scale: 0.54, yawDeg: 0 },
-        { t0: 0.86, t1: 1, scale: 0.38, yawDeg: 0 },
+        { t0: 0, t1: 0.14, scale: 1, yawDeg: 0 },
+        { t0: 0.14, t1: 0.36, scale: 0.8, yawDeg: 0 },
+        { t0: 0.36, t1: 0.6, scale: 0.62, yawDeg: 0 },
+        { t0: 0.6, t1: 0.82, scale: 0.44, yawDeg: 0 },
+        { t0: 0.82, t1: 1, scale: 0.28, yawDeg: 0 },
       ];
     case 'brutalist':
       return [
-        { t0: 0, t1: 0.1, scale: 1.06, yawDeg: 0 },
-        { t0: 0.1, t1: 0.92, scale: 1, yawDeg: 0 },
-        { t0: 0.92, t1: 1, scale: 0.68, yawDeg: 0 },
+        { t0: 0, t1: 0.12, scale: 1.1, yawDeg: 0 },
+        { t0: 0.12, t1: 0.9, scale: 1, yawDeg: 0 },
+        { t0: 0.9, t1: 1, scale: 0.62, yawDeg: 0 },
       ];
     default:
       return [
-        { t0: 0, t1: 0.14, scale: 1, yawDeg: 0 },
-        { t0: 0.14, t1: 0.88, scale: 0.88, yawDeg: 0 },
-        { t0: 0.88, t1: 1, scale: 0.62, yawDeg: 0 },
+        { t0: 0, t1: 0.12, scale: 1.04, yawDeg: 0 },
+        { t0: 0.12, t1: 0.86, scale: 0.86, yawDeg: 0 },
+        { t0: 0.86, t1: 1, scale: 0.56, yawDeg: 0 },
       ];
   }
 }
@@ -143,4 +143,42 @@ export function liftRgb(
     Math.min(1, rgb[1] * scale),
     Math.min(1, rgb[2] * scale),
   ];
+}
+
+function mix(
+  a: [number, number, number],
+  b: [number, number, number],
+  t: number,
+): [number, number, number] {
+  return [
+    a[0] * (1 - t) + b[0] * t,
+    a[1] * (1 - t) + b[1] * t,
+    a[2] * (1 - t) + b[2] * t,
+  ];
+}
+
+/** Shape tints so glass towers don't all collapse to the same navy. */
+export function tintForShape(
+  shape: NoticedShape,
+  wall: [number, number, number],
+): [number, number, number] {
+  switch (shape) {
+    case 'brutalist':
+      return mix(wall, [0.66, 0.64, 0.6], 0.62);
+    case 'twist':
+      return mix(wall, [0.32, 0.62, 0.64], 0.48);
+    case 'cylinder':
+      return mix(wall, [0.78, 0.84, 0.88], 0.42);
+    case 'taper':
+      return mix(wall, [0.82, 0.86, 0.9], 0.45);
+    case 'stepped':
+      return mix(wall, [0.52, 0.68, 0.78], 0.35);
+    default:
+      return wall;
+  }
+}
+
+/** Setbacks only read if the ledge is darker than the wall. */
+export function roofFromWall(wall: [number, number, number]): [number, number, number] {
+  return liftRgb([wall[0] * 0.42, wall[1] * 0.42, wall[2] * 0.48], 0.14);
 }

@@ -37,3 +37,5 @@ pnpm tsx scripts/fetch-geodata.ts   # cache; no Overpass unless miss
 pnpm bake:landmarks
 pnpm bake:noticed                   # Wikimedia + Blender or three.js baker
 ```
+
+Debug cameras: `?look=parkdrive` (One Park Drive cylinder), `?look=newfoundland` (twist), `?look=wardian` (taper), `?look=canadasq` (cluster).
