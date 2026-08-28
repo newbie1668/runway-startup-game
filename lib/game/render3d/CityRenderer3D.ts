@@ -81,7 +81,6 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   const wide =
     hit.kind.endsWith('br') ||
     hit.kind === 'millennium' ||
-    hit.kind === 'hungerford' ||
     hit.kind === 'bigben' ||
     hit.kind === 'abbey' ||
     hit.kind === 'towerlondon' ||
