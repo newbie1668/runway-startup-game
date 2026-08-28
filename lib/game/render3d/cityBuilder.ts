@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { METERS_TO_WORLD, TUBE_LINES, WORLD, project } from '../geo';
+import { METERS_TO_WORLD, TUBE_LINES, WORLD, project, unproject } from '../geo';
 import { HUB_POS } from '../overlay';
 import type { HubId } from '../types';
 import { dequantizeX, dequantizeY, type CityBuilding, type CityData, type CityPoly, type CityRoad } from './format';
@@ -28,10 +28,14 @@ import {
   facadeVForFloors,
   inferRoof,
   resolveStyle,
+  restyleForDistrict,
+  districtAt,
+  extrusionScale,
+  wantPodium,
+  type DistrictId,
 } from './buildingStyle';
 
-/** Style exaggeration applied to every extruded height (buildings + landmarks). */
-export const HEIGHT_SCALE = 1.5;
+export { HEIGHT_SCALE, TOWER_HEIGHT_SCALE, NOTICED_BAKE_HEIGHT_SCALE } from './buildingStyle';
 
 export const CHUNK_COLS = 8;
 export const CHUNK_ROWS = 6;
@@ -54,6 +58,28 @@ const OFFICE_GLASS = [0x6a8aa0, 0xb8c8d4, 0x4a7088, 0xc4b090, 0x5a9aaa, 0x8a9aac
 const INDUSTRIAL_DUN = [0xc4a85c, 0x8a5844, 0x5a7860, 0xd4b070, 0x7a4a38, 0x6a6860].map((c) => new THREE.Color(c));
 const TOWER_GLASS = [0x5a88a8, 0xc8d4dc, 0x3a6078, 0xa8b8c4, 0x7aa0b0, 0xd0c8b8].map((c) => new THREE.Color(c));
 const RETAIL_WARM = [0xe84828, 0xf2d8a8, 0xa02820, 0xd49040, 0x2a6ab4, 0xf0c030].map((c) => new THREE.Color(c));
+const CANARY_GLASS = [0x6a8aa8, 0xc8d4dc, 0x3a5870, 0xa8c0d0, 0x5aa0b0, 0xd0d8e0, 0x2a4050, 0x8ab0c0].map(
+  (c) => new THREE.Color(c),
+);
+const CANARY_PODIUM = [0xc4c0b8, 0x9aa4ac, 0xd8d4cc, 0x6a7278].map((c) => new THREE.Color(c));
+const CITY_STONE = [0xc4b090, 0x5a88a8, 0xd0c4b0, 0x3a5868, 0xa8b8c4, 0x8a9aaa, 0xe0d8c8].map(
+  (c) => new THREE.Color(c),
+);
+const PORTLAND = [0xe8e2d4, 0xd4cbb8, 0xc8c0b0, 0xb0a898, 0xe0d8c8, 0x9a9488].map((c) => new THREE.Color(c));
+const STUCCO_CREAM = [0xf4eee4, 0xe8dcc8, 0xf7f1e4, 0xeee4d4, 0xd8c4b0, 0xc43a28, 0xf0d48a, 0xe2d2c0].map(
+  (c) => new THREE.Color(c),
+);
+const GEORGIAN = [0xc43a28, 0xe8d4b0, 0xb85040, 0xf0d48a, 0x8e2418, 0xd8c4b0, 0xf4eee0].map((c) => new THREE.Color(c));
+const STOCK_YELLOW = [0xd2b896, 0xc4a060, 0xb89870, 0xe2c8a0, 0x8a6a48, 0xc8b090].map((c) => new THREE.Color(c));
+const SHORE_WAREHOUSE = [0x8e5a3a, 0xc4a060, 0x6a4030, 0xe8b0a8, 0x5a7860, 0xd4b070, 0x3a3c42, 0xc02820].map(
+  (c) => new THREE.Color(c),
+);
+const EAST_SOOT = [0x6a4030, 0xa87850, 0x5a3028, 0x8a5844, 0xb89070, 0x4a3028].map((c) => new THREE.Color(c));
+const SOUTH_BANK = [0xb8b0a4, 0x8a3e36, 0x6a8aa0, 0xc4b49a, 0x5a6a78, 0xd0c8b8].map((c) => new THREE.Color(c));
+const BATTERSEA_BRICK = [0x8a3e36, 0x6a3028, 0xc4a060, 0x5a88a8, 0xb85040].map((c) => new THREE.Color(c));
+const GREENWICH_NAVY = [0xe8dcc8, 0xc4a060, 0x4a6a8a, 0xd4c4b0, 0x8a9aaa].map((c) => new THREE.Color(c));
+const BRIXTON_WARM = [0xc02820, 0xd47838, 0xe2a848, 0x8a1810, 0xf0d48a, 0xb84030].map((c) => new THREE.Color(c));
+const STRATFORD_NEW = [0xa8c0d0, 0xc8d4dc, 0xe8dcc8, 0x5a88a8, 0xd0c8b8, 0xb8c8d4].map((c) => new THREE.Color(c));
 const AO_DARK = new THREE.Color(0x6a5848);
 const CORNICE = new THREE.Color(0xe8e0d4);
 const DOOR_PAINTS = [0xc41c1c, 0x1a3a6e, 0x1a1a1a, 0x2d5a3d, 0xd4a017, 0x0e6b6b, 0xf4f0e6, 0x6b2d5a].map(
@@ -137,7 +163,44 @@ export function createBuildingMaterial(
   });
 }
 
-function paletteFor(style: number): THREE.Color[] {
+function paletteFor(style: number, district: DistrictId): THREE.Color[] {
+  switch (district) {
+    case 'canary':
+      return style === STYLE_TOWER || style === STYLE_OFFICE || style === STYLE_APARTMENTS
+        ? CANARY_GLASS
+        : CANARY_PODIUM;
+    case 'city':
+      return style === STYLE_TOWER ? TOWER_GLASS : CITY_STONE;
+    case 'westminster':
+      return style === STYLE_TOWER ? TOWER_GLASS : PORTLAND;
+    case 'westend':
+    case 'kensington':
+      return style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_OFFICE
+        ? STUCCO_CREAM
+        : style === STYLE_TOWER
+          ? TOWER_GLASS
+          : STUCCO_CREAM;
+    case 'islington':
+      return style === STYLE_TOWER ? TOWER_GLASS : GEORGIAN;
+    case 'camden':
+      return style === STYLE_TOWER ? TOWER_GLASS : STOCK_YELLOW;
+    case 'shoreditch':
+      return style === STYLE_TOWER ? TOWER_GLASS : SHORE_WAREHOUSE;
+    case 'eastend':
+      return style === STYLE_TOWER ? TOWER_GLASS : EAST_SOOT;
+    case 'southbank':
+      return SOUTH_BANK;
+    case 'battersea':
+      return style === STYLE_TOWER ? TOWER_GLASS : BATTERSEA_BRICK;
+    case 'greenwich':
+      return GREENWICH_NAVY;
+    case 'south':
+      return style === STYLE_TOWER ? TOWER_GLASS : BRIXTON_WARM;
+    case 'stratford':
+      return style === STYLE_TOWER || style === STYLE_OFFICE ? STRATFORD_NEW : STRATFORD_NEW;
+    default:
+      break;
+  }
   switch (style) {
     case STYLE_HOUSE:
       return HOUSE_BRICK;
@@ -161,6 +224,18 @@ function roofTint(style: number, roof: number): THREE.Color {
   if (style === STYLE_INDUSTRIAL) return ROOF_METAL;
   if (style === STYLE_OFFICE || style === STYLE_TOWER) return ROOF_OFFICE;
   return ROOF_SLATE;
+}
+
+function insetRing(
+  ring: { x: number; z: number }[],
+  cx: number,
+  cz: number,
+  scale: number,
+): { x: number; z: number }[] {
+  return ring.map((p) => ({
+    x: cx + (p.x - cx) * scale,
+    z: cz + (p.z - cz) * scale,
+  }));
 }
 
 function footprintAreaM2(ring: { x: number; z: number }[]): number {
@@ -279,9 +354,22 @@ export function buildChunkTier(
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
 
     const areaM2 = footprintAreaM2(ring);
-    const style = resolveStyle(b.style, b.heightM, areaM2);
-    const roof = b.style === 0 ? inferRoof(style) : b.roof;
-    const pal = paletteFor(style);
+    const [lng, lat] = unproject(cx, cz);
+    const district = districtAt(lng, lat);
+    const style = restyleForDistrict(resolveStyle(b.style, b.heightM, areaM2), b.heightM, areaM2, district);
+    const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
+    const forceFlat = district === 'canary' || (district === 'city' && b.heightM > 14);
+    const terraceDistrict =
+      district === 'islington' || district === 'kensington' || district === 'south' || district === 'westend';
+    const roof =
+      !forceFlat &&
+      terraceDistrict &&
+      (style === STYLE_TERRACE || style === STYLE_HOUSE) &&
+      b.heightM <= 16 &&
+      storedRoof === ROOF_FLAT
+        ? ROOF_GABLED
+        : storedRoof;
+    const pal = paletteFor(style, district);
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
     const palColor = pal[seed % pal.length];
     const osmWall = fromRgb565(b.wall565);
@@ -292,127 +380,170 @@ export function buildChunkTier(
         : jitterColor(palColor, seed, 0.16);
     const wallBottomColor = base.clone().lerp(AO_DARK, 0.08);
     const roofColor = osmRoof ? new THREE.Color(osmRoof) : roofTint(style, roof);
-    const slice = facadeSlice(style);
-    const heightWorld = b.heightM * METERS_TO_WORLD * HEIGHT_SCALE;
+    const slice = facadeSlice(style, district);
+    const vScale = extrusionScale(style, b.heightM, district);
+    const heightWorld = b.heightM * METERS_TO_WORLD * vScale;
     const shopM = style === STYLE_RETAIL ? Math.min(4.2, b.heightM * 0.38) : 0;
-    const shopWorld = shopM * METERS_TO_WORLD * HEIGHT_SCALE;
+    const shopWorld = shopM * METERS_TO_WORLD * vScale;
     const plinthWorld =
-      shopWorld > 0.02 ? 0 : Math.min(1.15 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.18);
-    const corniceWorld = Math.min(0.75 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.12);
-    const corniceMix = style === STYLE_HOUSE || style === STYLE_TERRACE ? 0.16 : 0.4;
+      shopWorld > 0.02 ? 0 : Math.min(1.15 * METERS_TO_WORLD * vScale, heightWorld * 0.18);
+    const corniceWorld = Math.min(0.75 * METERS_TO_WORLD * vScale, heightWorld * 0.12);
+    const corniceMix =
+      district === 'westminster' || district === 'westend'
+        ? 0.52
+        : district === 'kensington'
+          ? 0.4
+          : style === STYLE_HOUSE || style === STYLE_TERRACE
+            ? 0.16
+            : district === 'shoreditch' || district === 'eastend'
+              ? 0.1
+              : 0.4;
     const corniceColor = base.clone().lerp(CORNICE, corniceMix);
-    const floorWorld = slice.floorM * METERS_TO_WORLD * HEIGHT_SCALE;
+    const floorWorld = slice.floorM * METERS_TO_WORLD * vScale;
+    const podium = wantPodium(style, b.heightM, areaM2, district);
+    const podiumWorld = podium ? Math.min(15 * METERS_TO_WORLD * vScale, heightWorld * 0.14) : 0;
+    const shaftRing = podium ? insetRing(ring, cx, cz, district === 'canary' ? 0.42 : 0.58) : ring;
 
-    let longestI = 0;
-    let longestM = 0;
-    for (let i = 0; i < n; i++) {
-      const a = ring[i];
-      const bp = ring[(i + 1) % n];
-      const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
-      if (edgeM > longestM) {
-        longestM = edgeM;
-        longestI = i;
-      }
-    }
-
-    let cumMeters = 0;
-    for (let i = 0; i < n; i++) {
-      const a = ring[i];
-      const bp = ring[(i + 1) % n];
-      const edgeLenMeters = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
-      const uStart = cumMeters / slice.uPeriodM;
-      const uEnd = (cumMeters + edgeLenMeters) / slice.uPeriodM;
-      cumMeters += edgeLenMeters;
-      const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
-      const dx = bp.x - a.x;
-      const dz = bp.z - a.z;
-      const candX = -dz * heightWorld;
-      const candZ = dx * heightWorld;
-      const flip = candX * nx + candZ * nz < 0;
-
-      const emitQuad = (
-        y0: number,
-        y1: number,
-        v0: number,
-        v1: number,
-        c0: THREE.Color,
-        c1: THREE.Color,
-        inset = 0,
-      ) => {
-        const ax = a.x + nx * inset;
-        const az = a.z + nz * inset;
-        const bx = bp.x + nx * inset;
-        const bz = bp.z + nz * inset;
-        const iBottomA = pushVertex(ax, y0, az, nx, 0, nz, uStart, v0, c0);
-        const iBottomB = pushVertex(bx, y0, bz, nx, 0, nz, uEnd, v0, c0);
-        const iTopA = pushVertex(ax, y1, az, nx, 0, nz, uStart, v1, c1);
-        const iTopB = pushVertex(bx, y1, bz, nx, 0, nz, uEnd, v1, c1);
-        if (!flip) indices.push(iBottomA, iBottomB, iTopB, iBottomA, iTopB, iTopA);
-        else indices.push(iBottomA, iTopB, iBottomB, iBottomA, iTopA, iTopB);
-      };
-
-      const emitStoreys = (y0: number, y1: number, c0: THREE.Color, c1: THREE.Color) => {
-        const span = y1 - y0;
-        if (span <= 1e-5) return;
-        let y = y0;
-        let remaining = span / floorWorld;
-        while (remaining > 0.05 && y < y1 - 1e-5) {
-          const take = Math.min(slice.rows, remaining);
-          const yNext = Math.min(y1, y + take * floorWorld);
-          const { v0, v1 } = facadeVForFloors(style, take);
-          const t0 = (y - y0) / span;
-          const t1 = (yNext - y0) / span;
-          emitQuad(y, yNext, v0, v1, c0.clone().lerp(c1, t0), c0.clone().lerp(c1, t1));
-          remaining -= take;
-          y = yNext;
+    const emitRingWalls = (
+      useRing: { x: number; z: number }[],
+      y0: number,
+      y1: number,
+      opts: { plinth: boolean; shop: boolean; cornice: boolean; doors: boolean },
+    ) => {
+      const count = useRing.length;
+      let longestI = 0;
+      let longestM = 0;
+      for (let i = 0; i < count; i++) {
+        const a = useRing[i];
+        const bp = useRing[(i + 1) % count];
+        const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
+        if (edgeM > longestM) {
+          longestM = edgeM;
+          longestI = i;
         }
-      };
-
-      const wallTop = Math.max(plinthWorld, heightWorld - corniceWorld);
-      if (shopWorld > 0.02 && shopWorld < heightWorld * 0.85) {
-        const shopUv = facadeVForFloors(style, 1);
-        emitQuad(0, shopWorld, shopUv.v0, shopUv.v1, wallBottomColor.clone().lerp(SHOP_GLOW, 0.55), SHOP_GLOW);
-        emitStoreys(shopWorld, wallTop, base, base);
-      } else if (plinthWorld > 0.01) {
-        emitQuad(0, plinthWorld, 0, 0, wallBottomColor, wallBottomColor);
-        emitStoreys(plinthWorld, wallTop, wallBottomColor, base);
-      } else {
-        emitStoreys(0, wallTop, wallBottomColor, base);
-      }
-      if (corniceWorld > 0.008 && wallTop < heightWorld) {
-        emitQuad(wallTop, heightWorld, 0, 0, corniceColor, corniceColor, 0.28 * METERS_TO_WORLD);
       }
 
-      const wantDoor =
-        i === longestI &&
-        longestM >= 4.2 &&
-        (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_RETAIL);
-      if (wantDoor) {
-        const doorW = Math.min(1.35 * METERS_TO_WORLD, Math.hypot(dx, dz) * 0.24);
-        const doorH = Math.min(2.4 * METERS_TO_WORLD * HEIGHT_SCALE, heightWorld * 0.58);
-        const mx = (a.x + bp.x) / 2;
-        const mz = (a.z + bp.z) / 2;
-        const ox = nx * 0.04 * METERS_TO_WORLD;
-        const oz = nz * 0.04 * METERS_TO_WORLD;
-        const tx = dx / (Math.hypot(dx, dz) || 1);
-        const tz = dz / (Math.hypot(dx, dz) || 1);
-        const hx = (tx * doorW) / 2;
-        const hz = (tz * doorW) / 2;
-        const door = DOOR_PAINTS[seed % DOOR_PAINTS.length];
-        const d0 = pushVertex(mx - hx + ox, 0, mz - hz + oz, nx, 0, nz, 0, 0, door);
-        const d1 = pushVertex(mx + hx + ox, 0, mz + hz + oz, nx, 0, nz, 0, 0, door);
-        const d2 = pushVertex(mx + hx + ox, doorH, mz + hz + oz, nx, 0, nz, 0, 0, door);
-        const d3 = pushVertex(mx - hx + ox, doorH, mz - hz + oz, nx, 0, nz, 0, 0, door);
-        if (!flip) indices.push(d0, d1, d2, d0, d2, d3);
-        else indices.push(d0, d2, d1, d0, d3, d2);
+      let cumMeters = 0;
+      for (let i = 0; i < count; i++) {
+        const a = useRing[i];
+        const bp = useRing[(i + 1) % count];
+        const edgeLenMeters = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
+        const uStart = cumMeters / slice.uPeriodM;
+        const uEnd = (cumMeters + edgeLenMeters) / slice.uPeriodM;
+        cumMeters += edgeLenMeters;
+        const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
+        const dx = bp.x - a.x;
+        const dz = bp.z - a.z;
+        const candX = -dz * (y1 - y0);
+        const candZ = dx * (y1 - y0);
+        const flip = candX * nx + candZ * nz < 0;
+
+        const emitQuad = (
+          qy0: number,
+          qy1: number,
+          v0: number,
+          v1: number,
+          c0: THREE.Color,
+          c1: THREE.Color,
+          inset = 0,
+        ) => {
+          const ax = a.x + nx * inset;
+          const az = a.z + nz * inset;
+          const bx = bp.x + nx * inset;
+          const bz = bp.z + nz * inset;
+          const iBottomA = pushVertex(ax, qy0, az, nx, 0, nz, uStart, v0, c0);
+          const iBottomB = pushVertex(bx, qy0, bz, nx, 0, nz, uEnd, v0, c0);
+          const iTopA = pushVertex(ax, qy1, az, nx, 0, nz, uStart, v1, c1);
+          const iTopB = pushVertex(bx, qy1, bz, nx, 0, nz, uEnd, v1, c1);
+          if (!flip) indices.push(iBottomA, iBottomB, iTopB, iBottomA, iTopB, iTopA);
+          else indices.push(iBottomA, iTopB, iBottomB, iBottomA, iTopA, iTopB);
+        };
+
+        const emitStoreys = (sy0: number, sy1: number, c0: THREE.Color, c1: THREE.Color) => {
+          const span = sy1 - sy0;
+          if (span <= 1e-5) return;
+          let y = sy0;
+          let remaining = span / floorWorld;
+          while (remaining > 0.05 && y < sy1 - 1e-5) {
+            const take = Math.min(slice.rows, remaining);
+            const yNext = Math.min(sy1, y + take * floorWorld);
+            const { v0, v1 } = facadeVForFloors(style, take, district);
+            const t0 = (y - sy0) / span;
+            const t1 = (yNext - sy0) / span;
+            emitQuad(y, yNext, v0, v1, c0.clone().lerp(c1, t0), c0.clone().lerp(c1, t1));
+            remaining -= take;
+            y = yNext;
+          }
+        };
+
+        const plinthTop = opts.plinth ? y0 + plinthWorld : y0;
+        const wallTop = Math.max(plinthTop, y1 - (opts.cornice ? corniceWorld : 0));
+        if (opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85) {
+          const shopUv = facadeVForFloors(style, 1, district);
+          emitQuad(
+            y0,
+            y0 + shopWorld,
+            shopUv.v0,
+            shopUv.v1,
+            wallBottomColor.clone().lerp(SHOP_GLOW, 0.55),
+            SHOP_GLOW,
+          );
+          emitStoreys(y0 + shopWorld, wallTop, base, base);
+        } else if (opts.plinth && plinthWorld > 0.01) {
+          emitQuad(y0, plinthTop, 0, 0, wallBottomColor, wallBottomColor);
+          emitStoreys(plinthTop, wallTop, wallBottomColor, base);
+        } else {
+          emitStoreys(y0, wallTop, wallBottomColor, base);
+        }
+        if (opts.cornice && corniceWorld > 0.008 && wallTop < y1) {
+          emitQuad(wallTop, y1, 0, 0, corniceColor, corniceColor, 0.28 * METERS_TO_WORLD);
+        }
+
+        const wantDoor =
+          opts.doors &&
+          i === longestI &&
+          longestM >= 4.2 &&
+          (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_RETAIL);
+        if (wantDoor) {
+          const doorW = Math.min(1.35 * METERS_TO_WORLD, Math.hypot(dx, dz) * 0.24);
+          const doorH = Math.min(2.4 * METERS_TO_WORLD * vScale, (y1 - y0) * 0.58);
+          const mx = (a.x + bp.x) / 2;
+          const mz = (a.z + bp.z) / 2;
+          const ox = nx * 0.04 * METERS_TO_WORLD;
+          const oz = nz * 0.04 * METERS_TO_WORLD;
+          const tx = dx / (Math.hypot(dx, dz) || 1);
+          const tz = dz / (Math.hypot(dx, dz) || 1);
+          const hx = (tx * doorW) / 2;
+          const hz = (tz * doorW) / 2;
+          const door = DOOR_PAINTS[seed % DOOR_PAINTS.length];
+          const d0 = pushVertex(mx - hx + ox, y0, mz - hz + oz, nx, 0, nz, 0, 0, door);
+          const d1 = pushVertex(mx + hx + ox, y0, mz + hz + oz, nx, 0, nz, 0, 0, door);
+          const d2 = pushVertex(mx + hx + ox, y0 + doorH, mz + hz + oz, nx, 0, nz, 0, 0, door);
+          const d3 = pushVertex(mx - hx + ox, y0 + doorH, mz - hz + oz, nx, 0, nz, 0, 0, door);
+          if (!flip) indices.push(d0, d1, d2, d0, d2, d3);
+          else indices.push(d0, d2, d1, d0, d3, d2);
+        }
       }
+    };
+
+    if (podium) {
+      emitRingWalls(ring, 0, podiumWorld, { plinth: true, shop: false, cornice: true, doors: true });
+      emitRingWalls(shaftRing, podiumWorld, heightWorld, { plinth: false, shop: false, cornice: true, doors: false });
+    } else {
+      emitRingWalls(ring, 0, heightWorld, {
+        plinth: shopWorld <= 0.02,
+        shop: shopWorld > 0.02,
+        cornice: true,
+        doors: true,
+      });
     }
 
-    const axis = principalAxis(ring, cx, cz);
+    const roofRing = shaftRing;
+    const axis = principalAxis(roofRing, cx, cz);
     const widthM = (axis.maxPerp * 2) / METERS_TO_WORLD;
-    const pitched = roof !== ROOF_FLAT && b.heightM <= 22 && widthM < 28 && n <= 12;
+    const pitched = !forceFlat && roof !== ROOF_FLAT && b.heightM <= 22 && widthM < 28 && n <= 12;
     const riseM = pitched ? Math.min(8.5, Math.max(2.4, widthM * 0.36)) : 0;
-    const riseWorld = riseM * METERS_TO_WORLD * HEIGHT_SCALE;
+    const riseWorld = riseM * METERS_TO_WORLD * vScale;
     const eavesY = heightWorld;
 
     const roofYAt = (p: { x: number; z: number }): number => {
@@ -423,52 +554,57 @@ export function buildChunkTier(
       }
       const d = Math.hypot(p.x - cx, p.z - cz);
       let maxD = 1e-6;
-      for (const q of ring) maxD = Math.max(maxD, Math.hypot(q.x - cx, q.z - cz));
+      for (const q of roofRing) maxD = Math.max(maxD, Math.hypot(q.x - cx, q.z - cz));
       return eavesY + riseWorld * (1 - Math.min(1, d / maxD));
     };
 
-    for (let t = 0; t < b.indices.length; t += 3) {
-      const i0 = b.indices[t];
-      let i1 = b.indices[t + 1];
-      let i2 = b.indices[t + 2];
-      const p0 = ring[i0];
-      const p1 = ring[i1];
-      const p2 = ring[i2];
-      const y0 = roofYAt(p0);
-      let y1 = roofYAt(p1);
-      let y2 = roofYAt(p2);
-      const axv = p1.x - p0.x;
-      const ayv = y1 - y0;
-      const azv = p1.z - p0.z;
-      const bxv = p2.x - p0.x;
-      const byv = y2 - y0;
-      const bzv = p2.z - p0.z;
-      let nx = ayv * bzv - azv * byv;
-      let ny = azv * bxv - axv * bzv;
-      let nz = axv * byv - ayv * bxv;
-      if (ny < 0) {
-        nx = -nx;
-        ny = -ny;
-        nz = -nz;
-        const tmp = i1;
-        i1 = i2;
-        i2 = tmp;
-        const ty = y1;
-        y1 = y2;
-        y2 = ty;
+    const emitRoof = (useRing: { x: number; z: number }[], yAt: (p: { x: number; z: number }) => number, color: THREE.Color) => {
+      for (let t = 0; t < b.indices.length; t += 3) {
+        const i0 = b.indices[t];
+        let i1 = b.indices[t + 1];
+        let i2 = b.indices[t + 2];
+        const p0 = useRing[i0];
+        const p1 = useRing[i1];
+        const p2 = useRing[i2];
+        const y0 = yAt(p0);
+        let y1 = yAt(p1);
+        let y2 = yAt(p2);
+        const axv = p1.x - p0.x;
+        const ayv = y1 - y0;
+        const azv = p1.z - p0.z;
+        const bxv = p2.x - p0.x;
+        const byv = y2 - y0;
+        const bzv = p2.z - p0.z;
+        let nx = ayv * bzv - azv * byv;
+        let ny = azv * bxv - axv * bzv;
+        let nz = axv * byv - ayv * bxv;
+        if (ny < 0) {
+          nx = -nx;
+          ny = -ny;
+          nz = -nz;
+          const tmp = i1;
+          i1 = i2;
+          i2 = tmp;
+          const ty = y1;
+          y1 = y2;
+          y2 = ty;
+        }
+        const len = Math.hypot(nx, ny, nz) || 1;
+        nx /= len;
+        ny /= len;
+        nz /= len;
+        const q0 = useRing[i0];
+        const q1 = useRing[i1];
+        const q2 = useRing[i2];
+        const v0 = pushVertex(q0.x, yAt(q0), q0.z, nx, ny, nz, 0, 0, color);
+        const v1 = pushVertex(q1.x, yAt(q1), q1.z, nx, ny, nz, 0, 0, color);
+        const v2 = pushVertex(q2.x, yAt(q2), q2.z, nx, ny, nz, 0, 0, color);
+        indices.push(v0, v1, v2);
       }
-      const len = Math.hypot(nx, ny, nz) || 1;
-      nx /= len;
-      ny /= len;
-      nz /= len;
-      const q0 = ring[i0];
-      const q1 = ring[i1];
-      const q2 = ring[i2];
-      const v0 = pushVertex(q0.x, roofYAt(q0), q0.z, nx, ny, nz, 0, 0, roofColor);
-      const v1 = pushVertex(q1.x, roofYAt(q1), q1.z, nx, ny, nz, 0, 0, roofColor);
-      const v2 = pushVertex(q2.x, roofYAt(q2), q2.z, nx, ny, nz, 0, 0, roofColor);
-      indices.push(v0, v1, v2);
-    }
+    };
+
+    if (podium) emitRoof(ring, () => podiumWorld, roofColor.clone().lerp(AO_DARK, 0.12));
+    emitRoof(roofRing, roofYAt, roofColor);
 
     const ridgeY = eavesY + riseWorld;
     if (pitched && (style === STYLE_HOUSE || style === STYLE_TERRACE) && areaM2 < 480) {
@@ -478,7 +614,7 @@ export function buildChunkTier(
         ridgeY - 0.5 * METERS_TO_WORLD,
         cz + axis.az * along,
         1.15 * METERS_TO_WORLD,
-        2.6 * METERS_TO_WORLD * HEIGHT_SCALE,
+        2.6 * METERS_TO_WORLD * vScale,
         1.15 * METERS_TO_WORLD,
         CHIMNEY_COLOR,
       );
@@ -486,14 +622,14 @@ export function buildChunkTier(
 
     if ((style === STYLE_OFFICE || style === STYLE_TOWER || style === STYLE_APARTMENTS) && b.heightM >= 12 && areaM2 > 160) {
       const s = 3.2 * METERS_TO_WORLD;
-      pushBox(cx, eavesY, cz, s, 2.2 * METERS_TO_WORLD * HEIGHT_SCALE, s * 0.7, HVAC_COLOR);
+      pushBox(cx, eavesY, cz, s, 2.2 * METERS_TO_WORLD * vScale, s * 0.7, HVAC_COLOR);
       if (areaM2 > 320) {
         pushBox(
           cx + axis.ax * s * 1.4,
           eavesY,
           cz + axis.az * s * 1.4,
           s * 0.7,
-          1.6 * METERS_TO_WORLD * HEIGHT_SCALE,
+          1.6 * METERS_TO_WORLD * vScale,
           s * 0.5,
           HVAC_COLOR,
         );

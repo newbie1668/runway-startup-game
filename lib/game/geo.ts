@@ -38,6 +38,10 @@ export function project([lng, lat]: LngLat): WorldPoint {
   };
 }
 
+export function unproject(x: number, y: number): LngLat {
+  return [LON_MIN + x / (1000 * LAT_COS), LAT_MAX - y / 1000];
+}
+
 // ---------------------------------------------------------------------------
 // The Thames, west to east. The loop around the Isle of Dogs is what makes
 // the silhouette read instantly as London.
@@ -321,7 +325,7 @@ export interface Landmark {
 }
 
 export const LANDMARKS: readonly Landmark[] = [
-  { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90 },
+  { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90, yaw: 0.12 },
   { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },
   { kind: 'bigben', name: 'Palace of Westminster', at: [-0.1246, 51.5007], exclusionM: 160 },
   { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215], exclusionM: 70 },
@@ -331,7 +335,7 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0754, 51.5055], exclusionM: 90 },
   { kind: 'walkie', name: 'Walkie Talkie', at: [-0.0837, 51.5114], exclusionM: 80 },
   { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 90 },
-  { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 90 },
+  { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 110 },
   { kind: 'battersea', name: 'Battersea Power Station', at: [-0.1446, 51.4819], exclusionM: 180 },
   { kind: 'bishop', name: '22 Bishopsgate', at: [-0.083, 51.5144], exclusionM: 90 },
   { kind: 'heron', name: 'Heron Tower', at: [-0.081, 51.5162], exclusionM: 80 },
@@ -347,6 +351,6 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'albertbr', name: 'Albert Bridge', at: [-0.1668, 51.4824], exclusionM: 55, yaw: 0.85 },
   { kind: 'hungerford', name: 'Hungerford Bridge', at: [-0.1201, 51.5062], exclusionM: 45, yaw: 0.45 },
   { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 110 },
-  { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 140 },
+  { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 160 },
   { kind: 'monument', name: 'The Monument', at: [-0.0861, 51.5102], exclusionM: 40 },
 ] as const;

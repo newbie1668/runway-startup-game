@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { NOTICED_BAKE_HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -68,8 +69,8 @@ export async function loadNoticedPrefabs(): Promise<{
 
 export function instantiateNoticed(prefab: THREE.Object3D): THREE.Group {
   const clone = prefab.clone(true);
-  if (clone instanceof THREE.Group) return clone;
-  const group = new THREE.Group();
-  group.add(clone);
+  const group = clone instanceof THREE.Group ? clone : new THREE.Group();
+  if (!(clone instanceof THREE.Group)) group.add(clone);
+  group.scale.y = TOWER_HEIGHT_SCALE / NOTICED_BAKE_HEIGHT_SCALE;
   return group;
 }

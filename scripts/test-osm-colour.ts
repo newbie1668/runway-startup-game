@@ -2,7 +2,22 @@
  * OSM colour packing — offline, no DOM.
  */
 import assert from 'node:assert/strict';
-import { STYLE_TERRACE, STYLE_TOWER, facadeVForFloors } from '../lib/game/render3d/buildingStyle';
+import {
+  STYLE_APARTMENTS,
+  STYLE_HOUSE,
+  STYLE_INDUSTRIAL,
+  STYLE_OFFICE,
+  STYLE_TERRACE,
+  STYLE_TOWER,
+  classifyBuilding,
+  districtAt,
+  extrusionScale,
+  facadeVForFloors,
+  resolveStyle,
+  restyleForDistrict,
+  TOWER_HEIGHT_SCALE,
+  HEIGHT_SCALE,
+} from '../lib/game/render3d/buildingStyle';
 import {
   fromRgb565,
   isGenericWallPaint,
@@ -59,6 +74,36 @@ check('generic OSM material / pale greys are not treated as unique paints', () =
   assert.equal(isGenericWallPaint(0xcdcdcd), true); // pale grey
   assert.equal(isGenericWallPaint(0xb53931), false); // tagged red
   assert.equal(isGenericWallPaint(0x2a6ab4), false); // tagged blue
+});
+
+check('tall residential OSM tags become towers, not brick apartments', () => {
+  assert.equal(classifyBuilding({ building: 'apartments' }, 187, 900).style, STYLE_TOWER);
+  assert.equal(resolveStyle(STYLE_APARTMENTS, 200, 1200), STYLE_TOWER);
+  assert.equal(resolveStyle(STYLE_APARTMENTS, 20, 400), STYLE_APARTMENTS);
+});
+
+check('district boxes match the labelled neighbourhoods', () => {
+  assert.equal(districtAt(-0.0196, 51.505), 'canary');
+  assert.equal(districtAt(-0.193, 51.4985), 'kensington');
+  assert.equal(districtAt(-0.081, 51.526), 'shoreditch');
+  assert.equal(districtAt(-0.1246, 51.5007), 'westminster');
+  assert.equal(districtAt(-0.0925, 51.5158), 'city');
+  assert.equal(districtAt(-0.1196, 51.5033), 'southbank');
+  assert.equal(districtAt(-0.115, 51.4605), 'south');
+  assert.equal(districtAt(-0.148, 51.5098), 'westend');
+});
+
+check('Canary Wharf restyles mid-rises to glass, Shoreditch to warehouses', () => {
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 40, 800, 'canary'), STYLE_TOWER);
+  assert.equal(restyleForDistrict(STYLE_TERRACE, 16, 300, 'shoreditch'), STYLE_INDUSTRIAL);
+  assert.equal(restyleForDistrict(STYLE_HOUSE, 12, 180, 'kensington'), STYLE_TERRACE);
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westminster'), STYLE_OFFICE);
+});
+
+check('towers extrude taller than houses', () => {
+  assert.ok(extrusionScale(STYLE_TOWER, 200, 'canary') > extrusionScale(STYLE_TERRACE, 12, 'kensington'));
+  assert.equal(extrusionScale(STYLE_TOWER, 200, 'canary'), TOWER_HEIGHT_SCALE);
+  assert.equal(extrusionScale(STYLE_TERRACE, 10, 'inner'), HEIGHT_SCALE);
 });
 
 console.log(`\nAll ${passed} OSM colour / façade UV checks passed.`);

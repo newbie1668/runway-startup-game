@@ -60,6 +60,18 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     // From ESE, looking WNW: both towers left/right, walkways and lanterns readable.
     return { at: hit.at, viewH: 1.08, azimuth: Math.PI / 2 - 0.38 };
   }
+  if (hit.kind === 'eye') {
+    // From the west bank / river, disc face-on, A-frame in front. Pulled
+    // back so the full 135 m wheel sits in frame (lookAt is ground, not hub).
+    return { at: hit.at, viewH: 3.6, azimuth: -Math.PI / 2 };
+  }
+  if (hit.kind === 'buckingham') {
+    // From the Mall, east façade reads as a wide palace not a slab.
+    return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
+  }
+  if (hit.kind === 'canadasq') {
+    return { at: hit.at, viewH: 7.2, azimuth: Math.PI / 2 - 0.35 };
+  }
   if (hit.kind === 'westminsterbr' || hit.kind === 'lambethbr' || hit.kind === 'albertbr') {
     return { at: hit.at, viewH: 1.35, azimuth: 0 };
   }
@@ -69,7 +81,6 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     hit.kind === 'hungerford' ||
     hit.kind === 'bigben' ||
     hit.kind === 'abbey' ||
-    hit.kind === 'buckingham' ||
     hit.kind === 'towerlondon' ||
     hit.kind === 'battersea' ||
     hit.kind === 'o2';

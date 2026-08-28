@@ -1,45 +1,45 @@
 {
-  "generatedAt": "2026-08-27T22:10:10.067Z",
+  "generatedAt": "2026-08-27T23:11:36.882Z",
   "files": [
     {
       "kind": "eye",
       "file": "eye.glb",
-      "bytes": 242488
+      "bytes": 244260
     },
     {
       "kind": "shard",
       "file": "shard.glb",
-      "bytes": 172268
+      "bytes": 171412
     },
     {
       "kind": "bigben",
       "file": "bigben.glb",
-      "bytes": 89296
+      "bytes": 98504
     },
     {
       "kind": "bttower",
       "file": "bttower.glb",
-      "bytes": 58648
+      "bytes": 58624
     },
     {
       "kind": "stpauls",
       "file": "stpauls.glb",
-      "bytes": 87604
+      "bytes": 87588
     },
     {
       "kind": "o2",
       "file": "o2.glb",
-      "bytes": 83000
+      "bytes": 82936
     },
     {
       "kind": "gherkin",
       "file": "gherkin.glb",
-      "bytes": 627744
+      "bytes": 627760
     },
     {
       "kind": "towerbridge",
       "file": "towerbridge.glb",
-      "bytes": 794284
+      "bytes": 794360
     },
     {
       "kind": "walkie",
@@ -49,37 +49,37 @@
     {
       "kind": "grater",
       "file": "grater.glb",
-      "bytes": 56148
+      "bytes": 56152
     },
     {
       "kind": "canadasq",
       "file": "canadasq.glb",
-      "bytes": 125508
+      "bytes": 138304
     },
     {
       "kind": "battersea",
       "file": "battersea.glb",
-      "bytes": 125944
+      "bytes": 125928
     },
     {
       "kind": "bishop",
       "file": "bishop.glb",
-      "bytes": 23208
+      "bytes": 23204
     },
     {
       "kind": "heron",
       "file": "heron.glb",
-      "bytes": 6988
+      "bytes": 6992
     },
     {
       "kind": "tower42",
       "file": "tower42.glb",
-      "bytes": 10768
+      "bytes": 10764
     },
     {
       "kind": "abbey",
       "file": "abbey.glb",
-      "bytes": 27504
+      "bytes": 27492
     },
     {
       "kind": "oldstreet",
@@ -119,7 +119,7 @@
     {
       "kind": "albertbr",
       "file": "albertbr.glb",
-      "bytes": 755704
+      "bytes": 755720
     },
     {
       "kind": "hungerford",
@@ -129,17 +129,17 @@
     {
       "kind": "towerlondon",
       "file": "towerlondon.glb",
-      "bytes": 27932
+      "bytes": 27916
     },
     {
       "kind": "buckingham",
       "file": "buckingham.glb",
-      "bytes": 28296
+      "bytes": 76596
     },
     {
       "kind": "monument",
       "file": "monument.glb",
-      "bytes": 14264
+      "bytes": 14260
     }
   ]
 }

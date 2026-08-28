@@ -31,7 +31,8 @@ const WIKI_CACHE = path.join(CACHE_DIR, 'wiki');
 const OUT_DIR = path.join(ROOT, 'public/map/noticed');
 const BLENDER = process.env.BLENDER ?? '/opt/homebrew/bin/blender';
 const USER_AGENT = 'RunwayStartupGame/0.1 (bake-time noticed-tower photos; +https://github.com/newbie1668/runway-startup-game)';
-/** Matches lib/game/render3d/cityBuilder.ts HEIGHT_SCALE. */
+/** Matches the bake pin in lib/game/render3d/buildingStyle.ts NOTICED_BAKE_HEIGHT_SCALE.
+ *  Runtime instantiateNoticed rescales Y to TOWER_HEIGHT_SCALE. */
 const HEIGHT_SCALE = 1.5;
 
 interface LatLon {
