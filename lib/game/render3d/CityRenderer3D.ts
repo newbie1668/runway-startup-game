@@ -180,18 +180,18 @@ export class CityRenderer3D implements IMapRenderer {
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.setClearColor(SKY, 1);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
-    this.fog = new THREE.Fog(SKY, 18, 90);
+    this.fog = new THREE.Fog(SKY, 22, 110);
     this.scene3d.fog = this.fog;
     this.scene3d.background = new THREE.Color(SKY);
 
-    this.hemi = new THREE.HemisphereLight(0xd4e4f2, 0xc2b6a4, 0.62);
-    const amb = new THREE.AmbientLight(0xf0ebe3, 0.28);
-    this.sun = new THREE.DirectionalLight(0xfff1d4, 1.55);
+    this.hemi = new THREE.HemisphereLight(0xdce8f2, 0xd0c4b0, 0.92);
+    const amb = new THREE.AmbientLight(0xf4efe6, 0.48);
+    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.22);
     this.sun.castShadow = true;
     const mapSize = this.isCoarsePointer ? 1024 : 2048;
     this.sun.shadow.mapSize.set(mapSize, mapSize);

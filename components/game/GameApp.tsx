@@ -111,6 +111,11 @@ export function GameApp() {
   const rendererRef = useRef<IMapRenderer | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const onMapReady = useCallback(() => setMapReady(true), []);
+  const hideChrome = useSyncExternalStore(
+    () => () => undefined,
+    () => new URLSearchParams(window.location.search).get('chrome') === '0',
+    () => false,
+  );
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -367,7 +372,7 @@ export function GameApp() {
   return (
     <div
       className={`flex h-dvh w-full flex-col overflow-hidden md:flex-row ${
-        screen === 'play' ? 'bg-[#070c1a] text-slate-200' : 'bg-[#8ec5f0] text-slate-800'
+        screen === 'play' ? 'bg-[#070c1a] text-slate-200' : 'bg-[#c5d4e4] text-slate-800'
       }`}
     >
       {/* Map side */}
@@ -378,12 +383,7 @@ export function GameApp() {
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas
-          scene={scene}
-          rendererRef={rendererRef}
-          onHit={onHit}
-          onReady={onMapReady}
-        />
+        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onReady={onMapReady} />
 
         {!mapReady && (
           <div
@@ -418,14 +418,16 @@ export function GameApp() {
           </div>
         )}
 
-        <button
-          onClick={toggleMute}
-          title="Toggle sound (M)"
-          aria-label={muted ? 'Turn sound on' : 'Mute sound'}
-          className="absolute top-3 right-3 z-30 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
-        >
-          {muted ? '🔇' : '🔊'}
-        </button>
+        {!hideChrome && (
+          <button
+            onClick={toggleMute}
+            title="Toggle sound (M)"
+            aria-label={muted ? 'Turn sound on' : 'Mute sound'}
+            className="absolute top-3 right-3 z-30 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
+        )}
 
         {screen === 'play' && (
           <div className="pointer-events-none absolute bottom-2 left-3 hidden rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
@@ -434,7 +436,7 @@ export function GameApp() {
         )}
 
         {/* Title screen */}
-        {screen === 'title' && (
+        {screen === 'title' && !hideChrome && (
           <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
             <div className="w-full max-w-xl rounded-3xl bg-white/90 px-6 py-8 text-center shadow-2xl shadow-slate-900/20 backdrop-blur-md md:px-10">
               <p className="text-xs font-black tracking-[0.5em] text-sky-800">
@@ -477,7 +479,7 @@ export function GameApp() {
         )}
 
         {/* Setup overlay */}
-        {screen === 'setup' && (
+        {screen === 'setup' && !hideChrome && (
           <SetupOverlay
             step={setupStep}
             name={draftName}

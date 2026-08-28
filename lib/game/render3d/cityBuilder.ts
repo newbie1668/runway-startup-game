@@ -762,7 +762,7 @@ function emitFacadeWindows(
   const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
   const tx = (bp.x - a.x) / elen;
   const tz = (bp.z - a.z) / elen;
-  const inset = 0.14 * METERS_TO_WORLD;
+  const inset = -0.05 * METERS_TO_WORLD;
   const u0 = marginU * METERS_TO_WORLD + winW / 2;
   const uSpan = elen - 2 * (marginU * METERS_TO_WORLD);
   const vSpan = winEnd - winStart;
@@ -786,6 +786,9 @@ export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | nul
     color: pal.WINDOW,
     side: THREE.FrontSide,
     fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -975,9 +978,9 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
     }
   }
 
-  const streetSpacing = [22, 28];
+  const streetSpacing = [20, 26, 36];
   for (const road of cityData.roads as CityRoad[]) {
-    if (road.tier > 1 || spots.length >= TREE_MAX) continue;
+    if (road.tier > 2 || spots.length >= TREE_MAX) continue;
     const pts = roadPts(road);
     if (!pts) continue;
     const spacing = streetSpacing[road.tier]! * METERS_TO_WORLD;
@@ -998,7 +1001,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
       while (nextAt <= travelled + len && spots.length < TREE_MAX) {
         const t = (nextAt - travelled) / len;
         h = mulberry(h);
-        if (((h >>> 8) & 7) !== 0) {
+        if (road.tier === 2 ? ((h >>> 8) & 3) === 0 : ((h >>> 8) & 7) !== 0) {
           spots.push({
             x: a.x + dx * t + px * offset * sign,
             z: a.z + dz * t + pz * offset * sign,

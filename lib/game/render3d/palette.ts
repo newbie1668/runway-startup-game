@@ -24,7 +24,7 @@ export const PARK = 0x7d966c;
 export const PARK_PATH = 0xd5cfc2;
 export const WATER = 0x6a86a0;
 export const WATER_BANK = 0x8aa0b2;
-export const ASPHALT = 0x5c5e62;
+export const ASPHALT = 0x6e7074;
 export const PAVEMENT = 0xc6c2b8;
 export const MARKING = 0xf3f3ef;
 export const WINDOW = 0x1a2230;
@@ -52,7 +52,7 @@ const GEORGIAN_CREAM = [
   0xefe6d4, 0xe8dcc4, 0xf3eadc, 0xe4d8c0, 0xddd0b8, 0xf0e6d0, 0xe6dcc8, 0xd8cdb8,
 ];
 const VICTORIAN_RED = [
-  0x9a5548, 0x8b4a3e, 0xa46254, 0x7a4036, 0xb07062, 0x8e5044, 0xa0584c, 0x744038,
+  0x8a564c, 0x7e4c44, 0x966258, 0x704840, 0xa07066, 0x825850, 0x8e6058, 0x6c4c44,
 ];
 const PORTLAND = [0xdcd6c8, 0xd0c8b8, 0xe4ddd0, 0xc4bdb0, 0xd8d0c4, 0xb8b09e];
 const SOFT_GREY = [0xa8a49c, 0x9c9890, 0xb4b0a8, 0x8e8a84, 0xaca8a0, 0x96928c];
@@ -317,7 +317,7 @@ export function wallHex(
   seed: number,
   osmRgb: number | null,
 ): number {
-  if (osmRgb !== null) {
+  if (osmRgb !== null && style !== STYLE_HOUSE && style !== STYLE_TERRACE) {
     const clamped = clampWallColour(osmRgb);
     if (clamped !== null) return jitterHex(clamped, seed, { h: 0.008, s: 0.02, l: 0.03 });
   }
