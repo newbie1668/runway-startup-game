@@ -139,7 +139,9 @@ export class CityRenderer3D implements IMapRenderer {
   private maxZoom = 880;
   private cssW = 0;
   private cssH = 0;
-  private readonly heroAzimuth = heroLook().azimuth;
+  private heroAzimuth = heroLook().azimuth;
+  private lastSearch = typeof window === 'undefined' ? '' : window.location.search;
+  private laidOut = false;
 
   private readonly cityGroup = new THREE.Group();
   private readonly buildingMaterial: THREE.MeshLambertMaterial;
@@ -579,11 +581,18 @@ export class CityRenderer3D implements IMapRenderer {
     this.rig.setViewport(this.cssW, this.cssH);
     const fit = this.computeFit();
     this.minZoom = fit * 0.85;
+    if (!this.laidOut) {
+      this.laidOut = true;
+      this.fitAll();
+      return;
+    }
     if (this.cam.zoom < this.minZoom) this.cam.zoom = fit * 1.02;
     this.syncRig();
   }
 
   fitAll(): void {
+    const look = heroLook();
+    this.heroAzimuth = look.azimuth;
     const view = viewParam();
     if (view === 'wide') {
       this.fitOverview();
@@ -681,6 +690,10 @@ export class CityRenderer3D implements IMapRenderer {
     if (this.disposed) return;
     this.drainBuildQueue();
     if (this.cssW === 0 || this.cssH === 0) return;
+    if (window.location.search !== this.lastSearch) {
+      this.lastSearch = window.location.search;
+      this.fitAll();
+    }
     this.syncRig();
     this.updateSunShadow();
 

@@ -88,6 +88,10 @@ function getHideChrome() {
   return new URLSearchParams(window.location.search).get('chrome') === '0';
 }
 
+function getForce2d() {
+  return new URLSearchParams(window.location.search).get('map') === '2d';
+}
+
 function parseSave(raw: string | null): GameState | null {
   if (!raw) return null;
   try {
@@ -125,6 +129,7 @@ export function GameApp() {
   const [mapReady, setMapReady] = useState(false);
   const onMapReady = useCallback(() => setMapReady(true), []);
   const hideChrome = useSyncExternalStore(subscribeChrome, getHideChrome, () => false);
+  const force2d = useSyncExternalStore(subscribeChrome, getForce2d, () => false);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -395,7 +400,7 @@ export function GameApp() {
         <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onReady={onMapReady} />
 
         <CityHud
-          hide={hideChrome}
+          hide={hideChrome || force2d}
           screen={screen}
           game={game}
           onFlyTo={(x, y, viewH) => rendererRef.current?.lookAt(x, y, viewH)}
