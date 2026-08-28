@@ -70,4 +70,38 @@ check('Hungerford deck matches LANDMARK_DECK_Y', () => {
   assert.ok(found);
 });
 
+function countGlow(root: THREE.Object3D): number {
+  let n = 0;
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    if (mats.some((m) => m instanceof THREE.MeshBasicMaterial)) n += 1;
+  });
+  return n;
+}
+
+check('Shard keeps glowing ridge lines', () => {
+  assert.ok(countGlow(build('shard')) >= 8, 'Shard silhouette needs MeshBasicMaterial ridges');
+});
+
+check('Gherkin keeps a diagrid plus window panes', () => {
+  const g = build('gherkin');
+  assert.ok(countGlow(g) >= 8, 'Gherkin diagrid should glow');
+  let panes = 0;
+  g.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'PlaneGeometry') panes += 1;
+  });
+  assert.ok(panes >= 16, `expected Gherkin window panes, got ${panes}`);
+});
+
+check("St Paul's nave has a window grid and dome ridges", () => {
+  const st = build('stpauls');
+  assert.ok(countGlow(st) >= 8, "St Paul's dome ridges");
+  let boxes = 0;
+  st.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'BoxGeometry') boxes += 1;
+  });
+  assert.ok(boxes >= 40, `nave window grid should add boxes, got ${boxes}`);
+});
+
 console.log(`\nAll ${passed} landmark geometry checks passed.`);

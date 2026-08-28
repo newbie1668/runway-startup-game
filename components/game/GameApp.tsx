@@ -28,7 +28,6 @@ import {
   newGame,
   performAction,
 } from '@/lib/game/engine';
-import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
 import type { IMapRenderer, Scene } from '@/lib/game/scene';
@@ -41,6 +40,7 @@ import type {
   SectorId,
 } from '@/lib/game/types';
 import { MapCanvas } from './MapCanvas';
+import { CityHud } from './CityHud';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
 import { Sidebar } from './Sidebar';
 import { DilemmaModal, EndOverlay, MoveModal } from './Modals';
@@ -394,6 +394,13 @@ export function GameApp() {
       >
         <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onReady={onMapReady} />
 
+        <CityHud
+          hide={hideChrome}
+          screen={screen}
+          game={game}
+          onFlyTo={(x, y, viewH) => rendererRef.current?.lookAt(x, y, viewH)}
+        />
+
         {!mapReady && !hideChrome && (
           <div
             className="absolute inset-0 z-40 flex items-center justify-center bg-[#070c1a]/92 backdrop-blur-sm"
@@ -409,30 +416,14 @@ export function GameApp() {
           </div>
         )}
 
-        {/* Map chrome */}
-        {screen === 'play' && game && (
-          <div className="pointer-events-none absolute top-3 left-3 rounded-xl border border-white/10 bg-[#0b1226]/85 px-3.5 py-2 backdrop-blur">
-            <p className="text-[10px] font-black tracking-[0.3em] text-amber-300">RUNWAY</p>
-            <p className="text-sm font-black text-white">
-              Week {game.week}
-              <span className="mx-1.5 text-slate-600">·</span>
-              {STAGES[game.stageIndex].name}
-              {game.valuation > 0 && (
-                <>
-                  <span className="mx-1.5 text-slate-600">·</span>
-                  <span className="text-amber-200">{fmtMoney(game.valuation)}</span>
-                </>
-              )}
-            </p>
-          </div>
-        )}
+        {/* Map chrome is the glass HUD; mute stays a glass pill so it doesn't cover search. */}
 
         {!hideChrome && (
           <button
             onClick={toggleMute}
             title="Toggle sound (M)"
             aria-label={muted ? 'Turn sound on' : 'Mute sound'}
-            className="absolute top-3 right-3 z-30 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
+            className="absolute top-3 right-3 z-30 rounded-full border border-white/55 bg-white/45 px-3 py-2 text-base text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur-xl transition hover:bg-white/60"
           >
             {muted ? '🔇' : '🔊'}
           </button>

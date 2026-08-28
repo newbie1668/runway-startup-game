@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-08-28T13:23:50.510Z",
+  "generatedAt": "2026-08-28T19:59:41.383Z",
   "files": [
     {
       "kind": "eye",
       "file": "eye.glb",
-      "bytes": 285528
+      "bytes": 381484
     },
     {
       "kind": "shard",
       "file": "shard.glb",
-      "bytes": 171408
+      "bytes": 234612
     },
     {
       "kind": "bigben",
@@ -24,7 +24,7 @@
     {
       "kind": "stpauls",
       "file": "stpauls.glb",
-      "bytes": 87584
+      "bytes": 242452
     },
     {
       "kind": "o2",
@@ -34,17 +34,17 @@
     {
       "kind": "gherkin",
       "file": "gherkin.glb",
-      "bytes": 247472
+      "bytes": 345940
     },
     {
       "kind": "towerbridge",
       "file": "towerbridge.glb",
-      "bytes": 946548
+      "bytes": 1058904
     },
     {
       "kind": "walkie",
       "file": "walkie.glb",
-      "bytes": 30248
+      "bytes": 30392
     },
     {
       "kind": "grater",

@@ -34,11 +34,14 @@ import {
   restyleForDistrict,
   districtAt,
   extrusionScale,
+  wantBayWindows,
   wantFacadeWindows,
   wantPodium,
+  bayCountForEdge,
   type DistrictId,
 } from './buildingStyle';
 import * as pal from './palette';
+import { DASH_WIDTH_M, polylineDashes } from './streetMarks';
 
 export { HEIGHT_SCALE, TOWER_HEIGHT_SCALE, NOTICED_BAKE_HEIGHT_SCALE } from './buildingStyle';
 
@@ -83,12 +86,14 @@ export type BuildingPick = {
 
 export type CityScratch = {
   windows: number[];
+  windowColors: number[];
   picks: BuildingPick[];
   rooftops: number[];
+  rooftopColors: number[];
 };
 
 export function createScratch(): CityScratch {
-  return { windows: [], picks: [], rooftops: [] };
+  return { windows: [], windowColors: [], picks: [], rooftops: [], rooftopColors: [] };
 }
 
 function hexColor(hex: number): THREE.Color {
@@ -211,6 +216,7 @@ function pushWindowMatrix(
   nz: number,
   w: number,
   h: number,
+  color: number = pal.WINDOW,
 ): void {
   if (scratch.windows.length / 16 >= WINDOW_MAX) return;
   const yaw = Math.atan2(nx, nz);
@@ -222,7 +228,10 @@ function pushWindowMatrix(
   tmpMat.compose(tmpPos, tmpQuat, tmpScale);
   const e = tmpMat.elements;
   for (let i = 0; i < 16; i++) scratch.windows.push(e[i]!);
+  scratch.windowColors.push(color);
 }
+
+const ROOF_CLUTTER = [pal.HVAC, pal.HVAC_BLACK, pal.HVAC_BLUE, pal.HVAC_RED] as const;
 
 function pushRooftopMatrix(
   scratch: CityScratch,
@@ -233,6 +242,7 @@ function pushRooftopMatrix(
   sy: number,
   sz: number,
   yaw: number,
+  color: number = pal.HVAC,
 ): void {
   if (scratch.rooftops.length / 16 >= ROOFTOP_MAX) return;
   tmpQuat.set(0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2));
@@ -241,6 +251,7 @@ function pushRooftopMatrix(
   tmpMat.compose(tmpPos, tmpQuat, tmpScale);
   const e = tmpMat.elements;
   for (let i = 0; i < 16; i++) scratch.rooftops.push(e[i]!);
+  scratch.rooftopColors.push(color);
 }
 
 /** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
@@ -314,6 +325,125 @@ export function buildChunkTier(
           x - hx,
           y + sy,
           z - hz,
+        ],
+        n: [0, 1, 0],
+      },
+    ];
+    for (const f of faces) {
+      const i0 = pushVertex(f.q[0]!, f.q[1]!, f.q[2]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      const i1 = pushVertex(f.q[3]!, f.q[4]!, f.q[5]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      const i2 = pushVertex(f.q[6]!, f.q[7]!, f.q[8]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      const i3 = pushVertex(f.q[9]!, f.q[10]!, f.q[11]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      indices.push(i0, i1, i2, i0, i2, i3);
+    }
+  };
+
+  /** Box aligned to wall tangent `tx,tz` and outward normal `nx,nz`. */
+  const pushOrientedBox = (
+    cx: number,
+    y0: number,
+    cz: number,
+    along: number,
+    height: number,
+    out: number,
+    tx: number,
+    tz: number,
+    nx: number,
+    nz: number,
+    hex: number,
+  ) => {
+    const hx = along / 2;
+    const hz = out / 2;
+    const y1 = y0 + height;
+    const corners = [
+      { x: cx - tx * hx - nx * hz, z: cz - tz * hx - nz * hz },
+      { x: cx + tx * hx - nx * hz, z: cz + tz * hx - nz * hz },
+      { x: cx + tx * hx + nx * hz, z: cz + tz * hx + nz * hz },
+      { x: cx - tx * hx + nx * hz, z: cz - tz * hx + nz * hz },
+    ];
+    const faces: { q: number[]; n: [number, number, number] }[] = [
+      {
+        q: [
+          corners[0]!.x,
+          y0,
+          corners[0]!.z,
+          corners[1]!.x,
+          y0,
+          corners[1]!.z,
+          corners[1]!.x,
+          y1,
+          corners[1]!.z,
+          corners[0]!.x,
+          y1,
+          corners[0]!.z,
+        ],
+        n: [-nx, 0, -nz],
+      },
+      {
+        q: [
+          corners[2]!.x,
+          y0,
+          corners[2]!.z,
+          corners[3]!.x,
+          y0,
+          corners[3]!.z,
+          corners[3]!.x,
+          y1,
+          corners[3]!.z,
+          corners[2]!.x,
+          y1,
+          corners[2]!.z,
+        ],
+        n: [nx, 0, nz],
+      },
+      {
+        q: [
+          corners[1]!.x,
+          y0,
+          corners[1]!.z,
+          corners[2]!.x,
+          y0,
+          corners[2]!.z,
+          corners[2]!.x,
+          y1,
+          corners[2]!.z,
+          corners[1]!.x,
+          y1,
+          corners[1]!.z,
+        ],
+        n: [tx, 0, tz],
+      },
+      {
+        q: [
+          corners[3]!.x,
+          y0,
+          corners[3]!.z,
+          corners[0]!.x,
+          y0,
+          corners[0]!.z,
+          corners[0]!.x,
+          y1,
+          corners[0]!.z,
+          corners[3]!.x,
+          y1,
+          corners[3]!.z,
+        ],
+        n: [-tx, 0, -tz],
+      },
+      {
+        q: [
+          corners[3]!.x,
+          y1,
+          corners[3]!.z,
+          corners[2]!.x,
+          y1,
+          corners[2]!.z,
+          corners[1]!.x,
+          y1,
+          corners[1]!.z,
+          corners[0]!.x,
+          y1,
+          corners[0]!.z,
         ],
         n: [0, 1, 0],
       },
@@ -473,8 +603,24 @@ export function buildChunkTier(
         if (opts.windows && scratch) {
           const edgeLenM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
           const spanM = (y1 - y0) / METERS_TO_WORLD;
-          if (wantFacadeWindows(edgeLenM, spanM, style))
+          if (wantBayWindows(edgeLenM, spanM, style)) {
+            emitBayWindows(
+              scratch,
+              pushOrientedBox,
+              a,
+              bp,
+              nx,
+              nz,
+              y0,
+              y1,
+              style,
+              vScale,
+              shopWorld,
+              pal.mixHex(baseHex, pal.CORNICE, 0.12),
+            );
+          } else if (wantFacadeWindows(edgeLenM, spanM, style)) {
             emitFacadeWindows(scratch, a, bp, nx, nz, y0, y1, style, major, shopWorld, vScale);
+          }
         }
       }
     };
@@ -660,6 +806,7 @@ export function buildChunkTier(
         2.4 * METERS_TO_WORLD * vScale,
         s * 0.75,
         yaw,
+        ROOF_CLUTTER[seed % ROOF_CLUTTER.length]!,
       );
       if (areaM2 > 320) {
         pushRooftopMatrix(
@@ -671,6 +818,7 @@ export function buildChunkTier(
           1.5 * METERS_TO_WORLD * vScale,
           s * 0.5,
           yaw,
+          ROOF_CLUTTER[(seed + 1) % ROOF_CLUTTER.length]!,
         );
       }
       if (areaM2 > 500 && major) {
@@ -683,6 +831,7 @@ export function buildChunkTier(
           0.55 * METERS_TO_WORLD,
           s * 0.45,
           yaw,
+          ROOF_CLUTTER[(seed + 2) % ROOF_CLUTTER.length]!,
         );
       }
     }
@@ -715,6 +864,65 @@ export function buildChunkTier(
   mesh.userData.chunkId = chunkId;
   mesh.userData.major = major;
   return mesh;
+}
+
+type OrientedBoxFn = (
+  cx: number,
+  y0: number,
+  cz: number,
+  along: number,
+  height: number,
+  out: number,
+  tx: number,
+  tz: number,
+  nx: number,
+  nz: number,
+  hex: number,
+) => void;
+
+function emitBayWindows(
+  scratch: CityScratch,
+  pushOrientedBox: OrientedBoxFn,
+  a: { x: number; z: number },
+  bp: { x: number; z: number },
+  nx: number,
+  nz: number,
+  y0: number,
+  y1: number,
+  style: number,
+  vScale: number,
+  shopWorld: number,
+  wallHex: number,
+): void {
+  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
+  const edgeM = elen / METERS_TO_WORLD;
+  const count = bayCountForEdge(edgeM);
+  const tx = (bp.x - a.x) / elen;
+  const tz = (bp.z - a.z) / elen;
+  const depth = (style === STYLE_APARTMENTS ? 0.95 : 1.35) * METERS_TO_WORLD;
+  const bayW = Math.min(2.6 * METERS_TO_WORLD, elen / (count + 0.6));
+  const sill = y0 + (shopWorld > 0.02 ? shopWorld : 0.55 * METERS_TO_WORLD * vScale);
+  const head = y1 - 0.45 * METERS_TO_WORLD * vScale;
+  const bayH = head - sill;
+  if (bayH < 1.8 * METERS_TO_WORLD) return;
+
+  for (let i = 0; i < count; i++) {
+    const t = (i + 1) / (count + 1);
+    const mx = a.x + (bp.x - a.x) * t;
+    const mz = a.z + (bp.z - a.z) * t;
+    const cx = mx + nx * (depth / 2);
+    const cz = mz + nz * (depth / 2);
+    pushOrientedBox(cx, sill, cz, bayW, bayH, depth, tx, tz, nx, nz, wallHex);
+    const paneW = bayW * 0.62;
+    const paneH = Math.min(bayH * 0.42, 2.1 * METERS_TO_WORLD * vScale);
+    const frontX = mx + nx * (depth + 0.04 * METERS_TO_WORLD);
+    const frontZ = mz + nz * (depth + 0.04 * METERS_TO_WORLD);
+    const rows = bayH > 4.2 * METERS_TO_WORLD ? 2 : 1;
+    for (let r = 0; r < rows; r++) {
+      const py = sill + ((r + 0.5) / rows) * bayH;
+      pushWindowMatrix(scratch, frontX, py, frontZ, nx, nz, paneW, paneH, pal.BAY_GLASS);
+    }
+  }
 }
 
 function emitFacadeWindows(
@@ -788,7 +996,7 @@ export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | nul
   if (count === 0) return null;
   const geo = new THREE.PlaneGeometry(1, 1);
   const mat = new THREE.MeshLambertMaterial({
-    color: pal.WINDOW,
+    color: 0xffffff,
     side: THREE.DoubleSide,
     fog: true,
     polygonOffset: true,
@@ -798,11 +1006,15 @@ export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | nul
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
   const m = new THREE.Matrix4();
+  const c = new THREE.Color();
   for (let i = 0; i < count; i++) {
     m.fromArray(scratch.windows, i * 16);
     mesh.setMatrixAt(i, m);
+    c.setHex(scratch.windowColors[i] ?? pal.WINDOW);
+    mesh.setColorAt(i, c);
   }
   mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.castShadow = false;
   mesh.receiveShadow = true;
   mesh.frustumCulled = false;
@@ -813,15 +1025,19 @@ export function buildRooftopMesh(scratch: CityScratch): THREE.InstancedMesh | nu
   const count = Math.floor(scratch.rooftops.length / 16);
   if (count === 0) return null;
   const geo = new THREE.BoxGeometry(1, 1, 1);
-  const mat = new THREE.MeshLambertMaterial({ color: pal.HVAC, fog: true });
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, fog: true });
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
   const m = new THREE.Matrix4();
+  const c = new THREE.Color();
   for (let i = 0; i < count; i++) {
     m.fromArray(scratch.rooftops, i * 16);
     mesh.setMatrixAt(i, m);
+    c.setHex(scratch.rooftopColors[i] ?? pal.HVAC);
+    mesh.setColorAt(i, c);
   }
   mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.frustumCulled = false;
@@ -1169,7 +1385,7 @@ function mulberry(h: number): number {
 /** Instanced low-poly trees in parks and along major streets. */
 export function buildParkTrees(cityData: CityData): THREE.Group | null {
   const dummy = new THREE.Object3D();
-  const spots: { x: number; z: number; scale: number; shade: number }[] = [];
+  const spots: { x: number; z: number; scale: number; shade: number; cluster: boolean }[] = [];
   const groves: { x: number; z: number; scale: number; shade: number }[] = [];
 
   for (const park of cityData.parks) {
@@ -1187,6 +1403,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         z: info.z + Math.sin(ang) * rad,
         scale: 9.2 + ((h >>> 16) & 7) * 0.7,
         shade: (h >>> 20) % 3,
+        cluster: false,
       });
     }
     if (info.areaM2 > 8_000) {
@@ -1239,6 +1456,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
               z: sz,
               scale: 7.2 + ((h >>> 16) & 5) * 0.45,
               shade: (h >>> 22) % 3,
+              cluster: true,
             });
           }
         }
@@ -1255,7 +1473,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
     (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true, fog: true }),
   );
   const counts = [0, 0, 0];
-  for (const s of spots) counts[s.shade]! += 1;
+  for (const s of spots) counts[s.shade]! += s.cluster ? 3 : 1;
   const canopies: THREE.InstancedMesh[] = [];
   for (let shade = 0; shade < 3; shade++) {
     if (counts[shade]! <= 0) continue;
@@ -1281,16 +1499,52 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
   trunks.castShadow = true;
   trunks.frustumCulled = false;
 
+  const placeCanopy = (
+    shade: number,
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    rot: number,
+  ) => {
+    dummy.position.set(x, y, z);
+    dummy.scale.set(sx, sy, sz);
+    dummy.rotation.set(0, rot, 0);
+    dummy.updateMatrix();
+    const ci = cursor[shade]!;
+    canopies[shade]!.setMatrixAt(ci, dummy.matrix);
+    cursor[shade] = ci + 1;
+  };
+
   for (let i = 0; i < spots.length; i++) {
     const s = spots[i]!;
     const r = s.scale * METERS_TO_WORLD;
-    dummy.position.set(s.x, r * 0.95, s.z);
-    dummy.scale.set(r, r * 0.78, r);
-    dummy.rotation.set(0, ((s.shade + i) * 0.7) % (Math.PI * 2), 0);
-    dummy.updateMatrix();
-    const ci = cursor[s.shade]!;
-    canopies[s.shade]!.setMatrixAt(ci, dummy.matrix);
-    cursor[s.shade] = ci + 1;
+    placeCanopy(s.shade, s.x, r * 0.95, s.z, r, r * 0.78, r, ((s.shade + i) * 0.7) % (Math.PI * 2));
+    if (s.cluster) {
+      const a = i * 1.7;
+      placeCanopy(
+        s.shade,
+        s.x + Math.cos(a) * r * 0.55,
+        r * 1.05,
+        s.z + Math.sin(a) * r * 0.55,
+        r * 0.62,
+        r * 0.5,
+        r * 0.62,
+        a,
+      );
+      placeCanopy(
+        s.shade,
+        s.x + Math.cos(a + 2.1) * r * 0.48,
+        r * 0.88,
+        s.z + Math.sin(a + 2.1) * r * 0.48,
+        r * 0.55,
+        r * 0.48,
+        r * 0.55,
+        a + 1.3,
+      );
+    }
     dummy.rotation.set(0, 0, 0);
     dummy.position.set(s.x, r * 0.28, s.z);
     dummy.scale.set(r * 0.18, r * 0.55, r * 0.18);
@@ -1558,26 +1812,28 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       for (const run of runs) {
         appendRibbon(walkPos, walkIdx, run, halfWalk, SIDEWALK_Y);
         appendRibbon(asphPos, asphIdx, run, halfCarriage, ROAD_Y);
-        if (tier === 0) {
-          appendRibbon(markPos, markIdx, run, 0.22 * METERS_TO_WORLD, MARK_Y);
-          if (run.length >= 2) {
-            const a = run[0]!;
-            const b = run[1]!;
-            let dx = b.x - a.x;
-            let dz = b.z - a.z;
-            const len = Math.hypot(dx, dz) || 1;
-            dx /= len;
-            dz /= len;
-            addCrosswalk(
-              markPos,
-              markIdx,
-              a.x + dx * 2.5 * METERS_TO_WORLD,
-              a.z + dz * 2.5 * METERS_TO_WORLD,
-              dx,
-              dz,
-              halfCarriage,
-            );
-          }
+        if (tier <= 1) {
+          const dashes = polylineDashes(run);
+          const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+          for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
+        }
+        if (tier === 0 && run.length >= 2) {
+          const a = run[0]!;
+          const b = run[1]!;
+          let dx = b.x - a.x;
+          let dz = b.z - a.z;
+          const len = Math.hypot(dx, dz) || 1;
+          dx /= len;
+          dz /= len;
+          addCrosswalk(
+            markPos,
+            markIdx,
+            a.x + dx * 2.5 * METERS_TO_WORLD,
+            a.z + dz * 2.5 * METERS_TO_WORLD,
+            dx,
+            dz,
+            halfCarriage,
+          );
         }
       }
     }

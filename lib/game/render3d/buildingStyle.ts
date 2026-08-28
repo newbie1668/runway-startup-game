@@ -174,6 +174,29 @@ export function wantFacadeWindows(edgeM: number, heightM: number, style: number)
   return true;
 }
 
+/**
+ * Kansas street-camera bays: rectangular protrusions on residential fronts.
+ * Short edges (6–13.5 m) are a house street face; long edges (≥20 m) are a
+ * whole terrace row. The 13.5–20 m band is usually depth / party wall.
+ */
+export function wantBayWindows(edgeM: number, heightM: number, style: number): boolean {
+  if (style !== STYLE_HOUSE && style !== STYLE_TERRACE && style !== STYLE_APARTMENTS) {
+    return false;
+  }
+  if (heightM < 7 || heightM > 22) return false;
+  if (edgeM >= 6.2 && edgeM <= 13.5) return true;
+  if ((style === STYLE_TERRACE || style === STYLE_APARTMENTS) && edgeM >= 20 && edgeM <= 55) {
+    return true;
+  }
+  return false;
+}
+
+export function bayCountForEdge(edgeM: number): number {
+  if (edgeM >= 20) return Math.min(5, Math.max(3, Math.round(edgeM / 8)));
+  if (edgeM >= 10) return 2;
+  return 1;
+}
+
 function roofFromTag(shape: string | undefined): number | null {
   if (!shape) return null;
   const s = shape.toLowerCase();

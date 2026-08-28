@@ -40,7 +40,7 @@ import {
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
-import { DISTRICT_LABEL, SKY, STYLE_LABEL } from './palette';
+import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
 
 const CITY_BIN_URL = '/map/london-city.bin';
@@ -54,12 +54,14 @@ const HERO_AT = [-0.1358, 51.5196] as const;
 const HERO_VIEW_HEIGHT = 0.95;
 
 /** Close cameras on bake-time noticed towers (lng/lat from OSM rings). */
-const NOTICED_LOOK: Record<string, { at: readonly [number, number]; viewH: number; azimuth: number }> =
-  {
-    parkdrive: { at: [-0.0151, 51.5023], viewH: 2.55, azimuth: 0.95 },
-    newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
-    wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
-  };
+const NOTICED_LOOK: Record<
+  string,
+  { at: readonly [number, number]; viewH: number; azimuth: number }
+> = {
+  parkdrive: { at: [-0.0151, 51.5023], viewH: 2.55, azimuth: 0.95 },
+  newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
+  wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
+};
 
 /** Warm afternoon sun from the south-west, ~30° elevation — long façade shadows. */
 const SUN_DIR = new THREE.Vector3(-0.84, 0.5, 0.78).normalize();
@@ -484,10 +486,11 @@ export class CityRenderer3D implements IMapRenderer {
     if (this.cardPos.z > 1) return;
     const screenX = ((this.cardPos.x + 1) / 2) * this.cssW;
     const screenY = ((1 - this.cardPos.y) / 2) * this.cssH;
-    const name = STYLE_LABEL[pick.style] ?? 'Building';
+    const name = USE_LABEL[pick.style] ?? STYLE_LABEL[pick.style] ?? 'Building';
+    const area = `${Math.round(pick.areaM2).toLocaleString('en-GB')} m²`;
     const lines = [
       name,
-      `${Math.round(pick.heightM)} m · ${DISTRICT_LABEL[pick.district]}`,
+      `${area} · ${Math.round(pick.heightM)} m · ${DISTRICT_LABEL[pick.district]}`,
       'OpenStreetMap',
     ];
     ctx.save();
@@ -497,25 +500,25 @@ export class CityRenderer3D implements IMapRenderer {
       ctx.measureText(lines[1]!).width,
       ctx.measureText(lines[2]!).width,
     );
-    const bw = w0 + 20;
-    const bh = 58;
+    const bw = w0 + 22;
+    const bh = 60;
     const bx = Math.min(Math.max(screenX - bw / 2, 8), this.cssW - bw - 8);
     const by = Math.min(Math.max(screenY - bh - 14, 8), this.cssH - bh - 8);
-    ctx.fillStyle = 'rgba(18, 24, 36, 0.9)';
-    ctx.strokeStyle = 'rgba(126, 200, 255, 0.55)';
-    ctx.lineWidth = 1.2;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 8);
+    ctx.roundRect(bx, by, bw, bh, 12);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = '#e8eef6';
+    ctx.fillStyle = '#1e293b';
     ctx.textAlign = 'left';
-    ctx.fillText(lines[0]!, bx + 10, by + 18);
+    ctx.fillText(lines[0]!, bx + 11, by + 18);
     ctx.font = '500 11px ui-sans-serif, system-ui';
-    ctx.fillStyle = '#c5d0dc';
-    ctx.fillText(lines[1]!, bx + 10, by + 36);
-    ctx.fillStyle = '#8aa0b4';
-    ctx.fillText(lines[2]!, bx + 10, by + 50);
+    ctx.fillStyle = '#334155';
+    ctx.fillText(lines[1]!, bx + 11, by + 36);
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(lines[2]!, bx + 11, by + 51);
     ctx.restore();
   }
 
@@ -644,6 +647,16 @@ export class CityRenderer3D implements IMapRenderer {
 
   setCamera(c: CameraState): void {
     this.cam = { ...c };
+    this.clampCamera();
+    this.syncRig();
+  }
+
+  lookAt(x: number, y: number, viewH?: number): void {
+    this.cam.x = x;
+    this.cam.y = y;
+    if (viewH && viewH > 0 && this.cssH > 0) {
+      this.cam.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.cssH / viewH));
+    }
     this.clampCamera();
     this.syncRig();
   }

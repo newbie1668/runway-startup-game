@@ -81,6 +81,42 @@ function addBox(
   return mesh;
 }
 
+/** Kansas cathedral language: glowing recessed ridges, not textured albedo. */
+function glowMat(color: number): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color });
+}
+
+function glassPane(color = 0x6a8aa0): THREE.MeshLambertMaterial {
+  return new THREE.MeshLambertMaterial({ color });
+}
+
+/** Grid of blue-tinted rectangles on an axis-aligned façade. */
+function addWindowGrid(
+  group: THREE.Group,
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+  ox: number,
+  y0: number,
+  oz: number,
+  facing: 'x' | 'z',
+  color = 0x6a8aa0,
+): void {
+  const glass = glassPane(color);
+  const paneW = (width / cols) * 0.52;
+  const paneH = (height / rows) * 0.55;
+  const thick = m(0.32);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const u = ((c + 0.5) / cols - 0.5) * width;
+      const y = y0 + ((r + 0.5) / rows) * height - paneH / 2;
+      if (facing === 'z') addBox(group, paneW, paneH, thick, glass, ox + u, y, oz);
+      else addBox(group, thick, paneH, paneW, glass, ox, y, oz + u);
+    }
+  }
+}
+
 type BridgeLamp =
   'westminster' | 'lambeth' | 'albert' | 'tower' | 'blackfriars' | 'stone' | 'white';
 
@@ -246,12 +282,12 @@ function buildShard(): THREE.Group {
   bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   bodyGeo.setIndex(indices);
   bodyGeo.computeVertexNormals();
-  group.add(new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: 0xb0c4d4 })));
+  group.add(new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: 0x6a8498 })));
 
-  const mullion = new THREE.MeshLambertMaterial({ color: 0xe4eef6 });
+  const mullion = glowMat(0xf4f8fc);
   for (const p of basePts) addCylinderBetween(group, p, apex, m(2.1), mullion);
-  for (let f = 1; f <= 7; f++) {
-    const t = f / 8;
+  for (let f = 1; f <= 10; f++) {
+    const t = f / 11;
     const ring = basePts.map(
       (p) =>
         new THREE.Vector3(
@@ -261,7 +297,7 @@ function buildShard(): THREE.Group {
         ),
     );
     for (let i = 0; i < 8; i++)
-      addCylinderBetween(group, ring[i], ring[(i + 1) % 8], m(1.05), mullion);
+      addCylinderBetween(group, ring[i]!, ring[(i + 1) % 8]!, m(0.85), mullion);
   }
 
   const spireH = height - bodyH;
@@ -295,12 +331,13 @@ function buildGherkin(): THREE.Group {
     const t = i / segments;
     profile.push(new THREE.Vector2(gherkinRadius(t, maxR), t * height));
   }
-  const glass = new THREE.MeshLambertMaterial({ color: 0x8ab0a8 });
+  const glass = new THREE.MeshLambertMaterial({ color: 0x7a9aa8 });
   group.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 32), glass));
 
-  const steel = new THREE.MeshLambertMaterial({ color: 0x6a7e78 });
+  const steel = glowMat(0xd0e0dc);
+  const pane = glassPane(0x4a7080);
   const uSeg = 8;
-  const vSeg = 5;
+  const vSeg = 6;
   const at = (u: number, v: number) => {
     const r = gherkinRadius(v, maxR);
     const a = u * Math.PI * 2;
@@ -312,16 +349,21 @@ function buildGherkin(): THREE.Group {
         group,
         at(u / uSeg, v / vSeg),
         at((u + 1) / uSeg, (v + 1) / vSeg),
-        m(1.35),
+        m(1.15),
         steel,
       );
       addCylinderBetween(
         group,
         at((u + 1) / uSeg, v / vSeg),
         at(u / uSeg, (v + 1) / vSeg),
-        m(1.35),
+        m(1.15),
         steel,
       );
+      const p = at((u + 0.5) / uSeg, (v + 0.45) / vSeg);
+      const diamond = new THREE.Mesh(new THREE.PlaneGeometry(m(7.2), m(11)), pane);
+      diamond.position.set(p.x * 1.02, p.y, p.z * 1.02);
+      diamond.lookAt(p.x * 2, p.y, p.z * 2);
+      group.add(diamond);
     }
   }
   return group;
@@ -476,12 +518,16 @@ function buildLondonEye(): THREE.Group {
     const rim = new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
     addCylinderBetween(wheel, new THREE.Vector3(0, 0, 0), rim, m(0.7), spokeMat);
   }
-  const podMat = emissiveMaterial(0xa8d8ea);
+  const podMat = glowMat(0xa8d8ea);
+  const podGlass = glassPane(0x6a9ab0);
   for (let i = 0; i < 32; i++) {
     const angle = (i / 32) * Math.PI * 2;
-    const pod = new THREE.Mesh(new THREE.CapsuleGeometry(m(2.8), m(3.2), 4, 8), podMat);
+    const pod = new THREE.Mesh(new THREE.CapsuleGeometry(m(2.8), m(3.2), 4, 8), podGlass);
     pod.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
     wheel.add(pod);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(m(1.1), 6, 6), podMat);
+    lamp.position.copy(pod.position);
+    wheel.add(lamp);
   }
   // Postcard camera looks from the west (`look=eye`); disc in YZ faces ±X.
   wheel.position.copy(hubAt);
@@ -511,6 +557,10 @@ function buildStPauls(): THREE.Group {
 
   addBox(group, m(115), h(22), m(38), stone, 0, 0, 0);
   addBox(group, m(38), h(28), m(70), stone, 0, 0, 0);
+  addWindowGrid(group, m(96), h(14), 12, 2, 0, h(4), m(19.2), 'z', 0x6a8aa0);
+  addWindowGrid(group, m(96), h(14), 12, 2, 0, h(4), -m(19.2), 'z', 0x6a8aa0);
+  addWindowGrid(group, m(56), h(16), 6, 2, m(19.2), h(6), 0, 'x', 0x6a8aa0);
+  addWindowGrid(group, m(56), h(16), 6, 2, -m(19.2), h(6), 0, 'x', 0x6a8aa0);
   for (const side of [-1, 1]) {
     addBox(group, m(16), h(52), m(16), stone, side * m(48), 0, 0);
     const roof = new THREE.Mesh(
@@ -547,6 +597,18 @@ function buildStPauls(): THREE.Group {
   );
   dome.position.y = h(28) + drumH;
   group.add(dome);
+  const ridge = glowMat(0xf4eee0);
+  const domeY = h(28) + drumH;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    addCylinderBetween(
+      group,
+      new THREE.Vector3(Math.cos(a) * domeR, domeY, Math.sin(a) * domeR),
+      new THREE.Vector3(0, domeY + domeR, 0),
+      m(0.55),
+      ridge,
+    );
+  }
   addBox(group, m(2.5), h(8), m(8), dark, 0, h(28) + drumH + m(6), domeR * 0.55);
 
   const lanternH = h(16);
@@ -623,6 +685,30 @@ function buildTowerBridge(): THREE.Group {
     lintel.position.set(0, archH - m(1.6), z);
     group.add(lintel);
     addBox(group, shaftW, towerHeight - archH, shaftW, stone, 0, archH, z);
+    addWindowGrid(
+      group,
+      shaftW * 0.72,
+      towerHeight - archH - m(8),
+      3,
+      5,
+      0,
+      archH + m(4),
+      z + shaftW / 2 + m(0.2),
+      'z',
+      0x5a7a98,
+    );
+    addWindowGrid(
+      group,
+      shaftW * 0.72,
+      towerHeight - archH - m(8),
+      3,
+      5,
+      0,
+      archH + m(4),
+      z - shaftW / 2 - m(0.2),
+      'z',
+      0x5a7a98,
+    );
     addBox(group, shaftW + m(0.6), m(1.1), shaftW + m(0.6), band, 0, h(18), z);
     addBox(group, shaftW + m(0.6), m(1.1), shaftW + m(0.6), band, 0, h(38), z);
 
@@ -836,7 +922,8 @@ function buildO2(): THREE.Group {
 function buildWalkie(): THREE.Group {
   const group = new THREE.Group();
   const height = ht(160);
-  const glass = new THREE.MeshLambertMaterial({ color: 0x8fa0b0 });
+  const wall = new THREE.MeshLambertMaterial({ color: 0xc8c4bc });
+  const win = new THREE.MeshLambertMaterial({ color: 0x6a7e90 });
   const steps = 16;
   for (let i = 0; i < steps; i++) {
     const t0 = i / steps;
@@ -846,7 +933,7 @@ function buildWalkie(): THREE.Group {
     const d = m(18) + flare * m(18);
     const geo = new THREE.BoxGeometry(w, (t1 - t0) * height, d);
     geo.translate(0, ((t0 + t1) / 2) * height, 0);
-    group.add(new THREE.Mesh(geo, glass));
+    group.add(new THREE.Mesh(geo, i % 2 === 0 ? wall : win));
   }
   addBox(group, m(58), m(4), m(34), emissiveMaterial(0xf0d090), 0, height - m(4), 0);
   group.rotation.y = 0.35;

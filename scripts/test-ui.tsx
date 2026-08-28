@@ -147,4 +147,12 @@ check('the mobile hero keeps its copy readable and sound control named', () => {
   assert.match(html, /aria-label="Mute sound"/);
 });
 
+check('the 3D map carries an SFSIM glass HUD with offline place search', () => {
+  const html = renderToStaticMarkup(<GameApp />);
+  assert.match(html, /id="city-search"/);
+  assert.match(html, /Search buildings, streets, parks, neighbourhoods/);
+  assert.match(html, /data-city-hud="pane"/);
+  assert.match(html, /data-city-hud="search"/);
+});
+
 console.log(`\nAll ${passed} UI checks passed.`);

@@ -142,6 +142,15 @@ export class MapRenderer implements IMapRenderer {
     this.clampCamera();
   }
 
+  lookAt(x: number, y: number, viewH?: number) {
+    this.cam.x = x;
+    this.cam.y = y;
+    if (viewH && viewH > 0 && this.cssH > 0) {
+      this.cam.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.cssH / viewH));
+    }
+    this.clampCamera();
+  }
+
   dispose() {
     // Plain 2D canvas owns no GPU/native resources to release.
   }

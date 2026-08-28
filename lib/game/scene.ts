@@ -76,6 +76,9 @@ export interface IMapRenderer {
   floatText(hubId: HubId | null, text: string, color?: string): void;
   puffSmoke(hubId: HubId | null): void;
   sparkle(hubId: HubId | null): void;
+  /** Fly the camera to a ground point. `viewH` is the world-unit height of the
+   *  frame (cssH / viewH → zoom), matching `?look=` cameras. */
+  lookAt(x: number, y: number, viewH?: number): void;
   getCamera(): CameraState;
   setCamera(c: CameraState): void;
   dispose(): void;

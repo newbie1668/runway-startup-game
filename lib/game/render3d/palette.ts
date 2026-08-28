@@ -20,14 +20,20 @@ import {
 /** Pale overcast sky — fog, clear colour, and the 2D canvas CSS gradient all match. */
 export const SKY = 0xc5d4e4;
 export const GROUND = 0xb7b2a6;
-export const PARK = 0x6e8a5c;
+export const PARK = 0x5f8a4a;
 export const PARK_PATH = 0xddd6c6;
 export const WATER = 0x6b8498;
 export const WATER_BANK = 0x8fa4b4;
-export const ASPHALT = 0x5a5c60;
+export const ASPHALT = 0x3c3e42;
 export const PAVEMENT = 0xd6d2c8;
 export const MARKING = 0xf3f3ef;
-export const WINDOW = 0x2a3544;
+/** Blue-tinted glass rectangles — Kansas civic/street read, not black holes. */
+export const WINDOW = 0x4a6078;
+export const BAY_GLASS = 0x2c3d52;
+/** Roof clutter — Kansas HVAC blocks in charcoal / blue / red. */
+export const HVAC_BLUE = 0x3a5080;
+export const HVAC_RED = 0x8a3834;
+export const HVAC_BLACK = 0x2a3038;
 export const SHOPFRONT = 0x3c372f;
 export const CORNICE = 0xe4dccb;
 export const AO_DARK = 0x6a5e50;
@@ -102,6 +108,17 @@ export const STYLE_LABEL: Record<number, string> = {
   [STYLE_INDUSTRIAL]: 'Warehouse',
   [STYLE_RETAIL]: 'Shop',
   [STYLE_TOWER]: 'Tower',
+};
+
+/** Kansas use-type labels (residence / business / shop) from OSM style. */
+export const USE_LABEL: Record<number, string> = {
+  [STYLE_HOUSE]: 'Residence',
+  [STYLE_TERRACE]: 'Residence',
+  [STYLE_APARTMENTS]: 'Residence',
+  [STYLE_OFFICE]: 'Business',
+  [STYLE_INDUSTRIAL]: 'Warehouse',
+  [STYLE_RETAIL]: 'Shop',
+  [STYLE_TOWER]: 'Business',
 };
 
 export function rgbToHsl(rgb: number): { h: number; s: number; l: number } {
