@@ -147,6 +147,7 @@ export class CityRenderer3D implements IMapRenderer {
   private selected: BuildingPick | null = null;
   private readonly beamGroup = new THREE.Group();
   private readonly buildingMeshes: THREE.Object3D[] = [];
+  private readonly cardPos = new THREE.Vector3();
 
   private disposed = false;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
@@ -454,8 +455,10 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   private drawBuildingCard(ctx: CanvasRenderingContext2D, pick: BuildingPick): void {
-    const screen = this.rig.worldToScreen({ x: pick.x, y: pick.z });
-    if (!screen) return;
+    this.cardPos.set(pick.x, pick.heightWorld + 0.12, pick.z).project(this.rig.camera);
+    if (this.cardPos.z > 1) return;
+    const screenX = ((this.cardPos.x + 1) / 2) * this.cssW;
+    const screenY = ((1 - this.cardPos.y) / 2) * this.cssH;
     const name = STYLE_LABEL[pick.style] ?? 'Building';
     const lines = [
       name,
@@ -471,8 +474,8 @@ export class CityRenderer3D implements IMapRenderer {
     );
     const bw = w0 + 20;
     const bh = 58;
-    const bx = Math.min(Math.max(screen.x - bw / 2, 8), this.cssW - bw - 8);
-    const by = Math.max(8, screen.y - pick.heightWorld * 0.15 - bh - 18);
+    const bx = Math.min(Math.max(screenX - bw / 2, 8), this.cssW - bw - 8);
+    const by = Math.min(Math.max(screenY - bh - 14, 8), this.cssH - bh - 8);
     ctx.fillStyle = 'rgba(18, 24, 36, 0.9)';
     ctx.strokeStyle = 'rgba(126, 200, 255, 0.55)';
     ctx.lineWidth = 1.2;
