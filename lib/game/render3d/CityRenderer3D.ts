@@ -69,6 +69,9 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (hit.kind === 'buckingham') {
     return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
   }
+  if (hit.kind === 'hungerford') {
+    return { at: hit.at, viewH: 2.6, azimuth: -Math.PI / 2 };
+  }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 7.2, azimuth: Math.PI / 2 - 0.35 };
   }

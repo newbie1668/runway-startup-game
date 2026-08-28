@@ -8,7 +8,7 @@
  */
 
 import * as THREE from 'three';
-import { METERS_TO_WORLD, WORLD, unproject } from '../geo';
+import { LANDMARKS, METERS_TO_WORLD, WORLD, isDeckLandmark, project, unproject } from '../geo';
 import { HUB_POS } from '../overlay';
 import type { HubId } from '../types';
 import {
@@ -53,9 +53,9 @@ export const ROOFTOP_MAX = 24_000;
 
 const ROAD_WIDTHS_M = [14, 9.5, 5.8];
 const SIDEWALK_M = [3.6, 2.8, 2.0];
-const ROAD_Y = 0.12;
-const SIDEWALK_Y = 0.2;
-const MARK_Y = 0.135;
+export const ROAD_Y = 0.14;
+const SIDEWALK_Y = 0.09;
+const MARK_Y = 0.155;
 const PARK_Y = 0.08;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
@@ -787,7 +787,7 @@ export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | nul
   const count = Math.floor(scratch.windows.length / 16);
   if (count === 0) return null;
   const geo = new THREE.PlaneGeometry(1, 1);
-  const mat = new THREE.MeshBasicMaterial({
+  const mat = new THREE.MeshLambertMaterial({
     color: pal.WINDOW,
     side: THREE.DoubleSide,
     fog: true,
@@ -1207,6 +1207,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
   }
 
   const streetSpacing = [20, 26, 36];
+  const rings = waterRings(cityData);
   for (const road of cityData.roads as CityRoad[]) {
     if (road.tier > 2 || spots.length >= TREE_MAX) continue;
     const pts = roadPts(road);
@@ -1230,12 +1231,16 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         const t = (nextAt - travelled) / len;
         h = mulberry(h);
         if (road.tier === 2 ? ((h >>> 8) & 3) === 0 : ((h >>> 8) & 7) !== 0) {
-          spots.push({
-            x: a.x + dx * t + px * offset * sign,
-            z: a.z + dz * t + pz * offset * sign,
-            scale: 7.2 + ((h >>> 16) & 5) * 0.45,
-            shade: (h >>> 22) % 3,
-          });
+          const sx = a.x + dx * t + px * offset * sign;
+          const sz = a.z + dz * t + pz * offset * sign;
+          if (!pointOverWater(sx, sz, rings) && !pointOnPrefabDeck(sx, sz)) {
+            spots.push({
+              x: sx,
+              z: sz,
+              scale: 7.2 + ((h >>> 16) & 5) * 0.45,
+              shade: (h >>> 22) % 3,
+            });
+          }
         }
         nextAt += spacing;
         sign = -sign;
@@ -1341,28 +1346,40 @@ function buildRibbonGeometry(
 ): { positions: number[]; indices: number[] } {
   const positions: number[] = [];
   const indices: number[] = [];
-  for (let i = 0; i < ptsWorld.length - 1; i++) {
-    const a = ptsWorld[i]!;
-    const bp = ptsWorld[i + 1]!;
-    const dx = bp.x - a.x;
-    const dz = bp.z - a.z;
+  const n = ptsWorld.length;
+  if (n < 2) return { positions, indices };
+
+  const nx: number[] = new Array(n);
+  const nz: number[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const prev = ptsWorld[Math.max(0, i - 1)]!;
+    const next = ptsWorld[Math.min(n - 1, i + 1)]!;
+    const dx = next.x - prev.x;
+    const dz = next.z - prev.z;
     const len = Math.hypot(dx, dz) || 1;
-    const px = (-dz / len) * halfWidthWorld;
-    const pz = (dx / len) * halfWidthWorld;
+    nx[i] = (-dz / len) * halfWidthWorld;
+    nz[i] = (dx / len) * halfWidthWorld;
+  }
+
+  for (let i = 0; i < n - 1; i++) {
+    const a = ptsWorld[i]!;
+    const b = ptsWorld[i + 1]!;
+    const seg = Math.hypot(b.x - a.x, b.z - a.z);
+    if (seg < 0.35 * METERS_TO_WORLD) continue;
     const base = positions.length / 3;
     positions.push(
-      a.x + px,
+      a.x + nx[i]!,
       y,
-      a.z + pz,
-      a.x - px,
+      a.z + nz[i]!,
+      a.x - nx[i]!,
       y,
-      a.z - pz,
-      bp.x - px,
+      a.z - nz[i]!,
+      b.x - nx[i + 1]!,
       y,
-      bp.z - pz,
-      bp.x + px,
+      b.z - nz[i + 1]!,
+      b.x + nx[i + 1]!,
       y,
-      bp.z + pz,
+      b.z + nz[i + 1]!,
     );
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -1433,29 +1450,68 @@ function addCrosswalk(
   }
 }
 
-function offsetPolyline(
-  pts: { x: number; z: number }[],
-  offset: number,
-): { x: number; z: number }[] {
-  const out: { x: number; z: number }[] = [];
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i]!;
-    let tx: number;
-    let tz: number;
-    if (i === 0) {
-      tx = pts[1]!.x - p.x;
-      tz = pts[1]!.z - p.z;
-    } else if (i === pts.length - 1) {
-      tx = p.x - pts[i - 1]!.x;
-      tz = p.z - pts[i - 1]!.z;
-    } else {
-      tx = pts[i + 1]!.x - pts[i - 1]!.x;
-      tz = pts[i + 1]!.z - pts[i - 1]!.z;
-    }
-    const len = Math.hypot(tx, tz) || 1;
-    out.push({ x: p.x + (-tz / len) * offset, z: p.z + (tx / len) * offset });
+function pointInRing(x: number, z: number, ring: { x: number; z: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i]!.x;
+    const zi = ring[i]!.z;
+    const xj = ring[j]!.x;
+    const zj = ring[j]!.z;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi) inside = !inside;
   }
-  return out;
+  return inside;
+}
+
+function waterRings(cityData: CityData): { x: number; z: number }[][] {
+  return cityData.water.map((poly) => {
+    const n = poly.verts.length / 2;
+    const ring = new Array<{ x: number; z: number }>(n);
+    for (let i = 0; i < n; i++) {
+      ring[i] = { x: dequantizeX(poly.verts[i * 2]!), z: dequantizeY(poly.verts[i * 2 + 1]!) };
+    }
+    return ring;
+  });
+}
+
+function pointOverWater(x: number, z: number, rings: { x: number; z: number }[][]): boolean {
+  for (const ring of rings) {
+    if (pointInRing(x, z, ring)) return true;
+  }
+  return false;
+}
+
+function pointOnPrefabDeck(x: number, z: number): boolean {
+  for (const landmark of LANDMARKS) {
+    const at = project(landmark.at);
+    if (landmark.kind === 'oldstreet') {
+      const r = (landmark.exclusionM ?? 90) * METERS_TO_WORLD;
+      if (Math.hypot(x - at.x, z - at.y) < r) return true;
+      continue;
+    }
+    if (!isDeckLandmark(landmark.kind)) continue;
+    const r = 36 * METERS_TO_WORLD;
+    if (Math.hypot(x - at.x, z - at.y) < r) return true;
+  }
+  return false;
+}
+
+/** Keep land approaches; drop the span that fights the 3D bridge prefab. */
+function landRoadRuns(
+  pts: { x: number; z: number }[],
+  rings: { x: number; z: number }[][],
+): { x: number; z: number }[][] {
+  const runs: { x: number; z: number }[][] = [];
+  let cur: { x: number; z: number }[] = [];
+  const flush = () => {
+    if (cur.length >= 2) runs.push(cur);
+    cur = [];
+  };
+  for (const p of pts) {
+    if (pointOverWater(p.x, p.z, rings) || pointOnPrefabDeck(p.x, p.z)) flush();
+    else cur.push(p);
+  }
+  flush();
+  return runs;
 }
 
 /** One group per tier so minor streets can hide independently at low zoom. */
@@ -1485,6 +1541,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
 
   const markPos: number[] = [];
   const markIdx: number[] = [];
+  const rings = waterRings(cityData);
 
   for (let tier = 0; tier <= 2; tier++) {
     const walkPos: number[] = [];
@@ -1492,49 +1549,32 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
     const asphPos: number[] = [];
     const asphIdx: number[] = [];
     const halfCarriage = (ROAD_WIDTHS_M[tier]! * METERS_TO_WORLD) / 2;
-    const walkHalf = (SIDEWALK_M[tier]! * METERS_TO_WORLD) / 2;
-    const walkOffset = halfCarriage + walkHalf;
+    const halfWalk = halfCarriage + SIDEWALK_M[tier]! * METERS_TO_WORLD;
     for (const road of cityData.roads as CityRoad[]) {
       if (road.tier !== tier) continue;
       const pts = roadPts(road);
       if (!pts) continue;
-      appendRibbon(walkPos, walkIdx, offsetPolyline(pts, walkOffset), walkHalf, SIDEWALK_Y);
-      appendRibbon(walkPos, walkIdx, offsetPolyline(pts, -walkOffset), walkHalf, SIDEWALK_Y);
-      appendRibbon(asphPos, asphIdx, pts, halfCarriage, ROAD_Y);
-      if (tier <= 1) {
-        appendRibbon(markPos, markIdx, pts, 0.42 * METERS_TO_WORLD, MARK_Y);
-        if (tier === 0 && pts.length >= 2) {
-          const a = pts[0]!;
-          const b = pts[1]!;
-          let dx = b.x - a.x;
-          let dz = b.z - a.z;
-          const len = Math.hypot(dx, dz) || 1;
-          dx /= len;
-          dz /= len;
-          addCrosswalk(
-            markPos,
-            markIdx,
-            a.x + dx * 2.5 * METERS_TO_WORLD,
-            a.z + dz * 2.5 * METERS_TO_WORLD,
-            dx,
-            dz,
-            halfCarriage,
-          );
-          if (pts.length >= 3) {
-            const c = pts[pts.length - 2]!;
-            const d = pts[pts.length - 1]!;
-            let ex = d.x - c.x;
-            let ez = d.z - c.z;
-            const el = Math.hypot(ex, ez) || 1;
-            ex /= el;
-            ez /= el;
+      const runs = landRoadRuns(pts, rings);
+      for (const run of runs) {
+        appendRibbon(walkPos, walkIdx, run, halfWalk, SIDEWALK_Y);
+        appendRibbon(asphPos, asphIdx, run, halfCarriage, ROAD_Y);
+        if (tier === 0) {
+          appendRibbon(markPos, markIdx, run, 0.22 * METERS_TO_WORLD, MARK_Y);
+          if (run.length >= 2) {
+            const a = run[0]!;
+            const b = run[1]!;
+            let dx = b.x - a.x;
+            let dz = b.z - a.z;
+            const len = Math.hypot(dx, dz) || 1;
+            dx /= len;
+            dz /= len;
             addCrosswalk(
               markPos,
               markIdx,
-              d.x - ex * 2.5 * METERS_TO_WORLD,
-              d.z - ez * 2.5 * METERS_TO_WORLD,
-              ex,
-              ez,
+              a.x + dx * 2.5 * METERS_TO_WORLD,
+              a.z + dz * 2.5 * METERS_TO_WORLD,
+              dx,
+              dz,
               halfCarriage,
             );
           }
@@ -1552,7 +1592,6 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       g.computeBoundingSphere();
       const mesh = new THREE.Mesh(g, sidewalkMat);
       mesh.receiveShadow = true;
-      mesh.castShadow = true;
       tierGroup.add(mesh);
     }
     if (asphPos.length > 0) {
@@ -1588,6 +1627,7 @@ const LAMP_SPACING_M = [34, 42];
 /** Instanced lamp posts along primary/secondary kerbs — unlit street furniture. */
 export function buildStreetLamps(cityData: CityData): THREE.Group | null {
   const spots: { x: number; z: number }[] = [];
+  const rings = waterRings(cityData);
   for (const road of cityData.roads as CityRoad[]) {
     if (road.tier > 1) continue;
     const pts = roadPts(road);
@@ -1608,7 +1648,11 @@ export function buildStreetLamps(cityData: CityData): THREE.Group | null {
       const pz = dx / len;
       while (nextAt <= travelled + len && spots.length < LAMP_MAX) {
         const t = (nextAt - travelled) / len;
-        spots.push({ x: a.x + dx * t + px * offset * sign, z: a.z + dz * t + pz * offset * sign });
+        const lx = a.x + dx * t + px * offset * sign;
+        const lz = a.z + dz * t + pz * offset * sign;
+        if (!pointOverWater(lx, lz, rings) && !pointOnPrefabDeck(lx, lz)) {
+          spots.push({ x: lx, z: lz });
+        }
         nextAt += spacing;
         sign = -sign;
       }

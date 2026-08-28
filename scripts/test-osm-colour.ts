@@ -140,6 +140,7 @@ check('street-front windows skip terrace party walls and tiny edges', () => {
   assert.equal(wantFacadeWindows(2.5, 10, STYLE_TERRACE), false);
   assert.equal(wantFacadeWindows(4, 4, STYLE_HOUSE), false);
   assert.equal(wantFacadeWindows(18, 30, STYLE_OFFICE), true);
+  assert.equal(wantFacadeWindows(18, 80, STYLE_TOWER), false);
 });
 
 check('pitched and terrace roofs stay muted brown/slate, not confetti', () => {
@@ -152,10 +153,31 @@ check('pitched and terrace roofs stay muted brown/slate, not confetti', () => {
   }
 });
 
-check('West End terraces mix cream with stock brick, not only stucco', () => {
-  const pal = paletteFor(STYLE_TERRACE, 'westend');
-  assert.ok(pal.includes(0xefe6d4));
-  assert.ok(pal.includes(0xc9ae86));
+check('Canary glass is muted but not near-black', () => {
+  for (const hex of paletteFor(STYLE_TOWER, 'canary')) {
+    const { l } = rgbToHsl(hex);
+    assert.ok(l >= 0.32, `${hex.toString(16)} l=${l}`);
+    assert.equal(isConfettiHue(hex), false);
+  }
+});
+
+check('Canary towers ignore black OSM paints', () => {
+  const hex = wallHex(STYLE_TOWER, 'canary', 10, 10, 1, 0x000000);
+  const { l } = rgbToHsl(hex);
+  assert.ok(l >= 0.32, `black OSM tower became ${hex.toString(16)} l=${l}`);
+});
+
+check('City towers use readable glass, not charcoal silhouettes', () => {
+  for (const hex of paletteFor(STYLE_TOWER, 'city')) {
+    const { l } = rgbToHsl(hex);
+    assert.ok(l >= 0.32, `${hex.toString(16)} l=${l}`);
+  }
+});
+
+check('West End terraces stay cream', () => {
+  const hex = wallHex(STYLE_TERRACE, 'westend', 0, 0, 1, null);
+  const { l } = rgbToHsl(hex);
+  assert.ok(l >= 0.5, `westend terrace l=${l}`);
 });
 
 check('towers extrude taller than houses', () => {

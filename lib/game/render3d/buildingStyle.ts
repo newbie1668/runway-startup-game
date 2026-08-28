@@ -168,6 +168,7 @@ export function inferRoof(style: number): number {
  * sash from the street).
  */
 export function wantFacadeWindows(edgeM: number, heightM: number, style: number): boolean {
+  if (style === STYLE_TOWER) return false;
   if (heightM < 5.2 || edgeM < 3.5) return false;
   if ((style === STYLE_HOUSE || style === STYLE_TERRACE) && edgeM > 15.5) return false;
   return true;

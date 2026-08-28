@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { NOTICED_BAKE_HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
+import { makeMatteLambert } from './matteGltf';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -51,6 +52,7 @@ export async function loadNoticedPrefabs(): Promise<{
     (manifest.files ?? []).map(async (file) => {
       try {
         const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
+        makeMatteLambert(gltf.scene);
         prefabs.set(file.id, gltf.scene);
         entries.push({
           id: file.id,

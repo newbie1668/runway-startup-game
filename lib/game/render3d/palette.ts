@@ -27,7 +27,7 @@ export const WATER_BANK = 0x8fa4b4;
 export const ASPHALT = 0x5a5c60;
 export const PAVEMENT = 0xd6d2c8;
 export const MARKING = 0xf3f3ef;
-export const WINDOW = 0x1a2230;
+export const WINDOW = 0x2a3544;
 export const SHOPFRONT = 0x3c372f;
 export const CORNICE = 0xe4dccb;
 export const AO_DARK = 0x6a5e50;
@@ -56,8 +56,8 @@ const VICTORIAN_RED = [
 ];
 const PORTLAND = [0xdcd6c8, 0xd0c8b8, 0xe4ddd0, 0xc4bdb0, 0xd8d0c4, 0xb8b09e];
 const SOFT_GREY = [0xa8a49c, 0x9c9890, 0xb4b0a8, 0x8e8a84, 0xaca8a0, 0x96928c];
-const CHARCOAL = [0x3d4654, 0x4a5462, 0x353e4c, 0x5a6470, 0x2e3644];
-const NAVY_GLASS = [0x3a4a5c, 0x2e3c4e, 0x46586a, 0x334050, 0x3e4c5c];
+const CHARCOAL = [0x7a8794, 0x6e7b88, 0x8894a0, 0x667480, 0x80909c];
+const NAVY_GLASS = [0x7a92a4, 0x6e8698, 0x8aa4b4, 0x668090, 0x7698aa];
 const WAREHOUSE = [0x8a7a68, 0x7a6e60, 0x9a8a76, 0x6e6458, 0xa0907c];
 
 /** Every legal wall swatch — OSM paints snap into this gamut. */
@@ -218,7 +218,7 @@ export function paletteFor(style: number, district: DistrictId): readonly number
         ? NAVY_GLASS
         : SOFT_GREY;
     case 'city':
-      return style === STYLE_TOWER ? CHARCOAL : PORTLAND;
+      return style === STYLE_TOWER ? NAVY_GLASS : PORTLAND;
     case 'westminster':
       return style === STYLE_TOWER ? CHARCOAL : PORTLAND;
     case 'westend':
@@ -325,9 +325,20 @@ export function wallHex(
   seed: number,
   osmRgb: number | null,
 ): number {
-  if (osmRgb !== null && style !== STYLE_HOUSE && style !== STYLE_TERRACE) {
+  // Glass towers are tagged black/grey in OSM; that paint crushes to a silhouette
+  // under ACES. Neighbourhood palettes stay in the readable navy-glass range.
+  const allowOsm =
+    osmRgb !== null &&
+    style !== STYLE_HOUSE &&
+    style !== STYLE_TERRACE &&
+    style !== STYLE_TOWER &&
+    !(district === 'canary' && style === STYLE_OFFICE);
+  if (allowOsm) {
     const clamped = clampWallColour(osmRgb);
-    if (clamped !== null) return jitterHex(clamped, seed, { h: 0.008, s: 0.02, l: 0.03 });
+    if (clamped !== null) {
+      const { l } = rgbToHsl(clamped);
+      if (l >= 0.36) return jitterHex(clamped, seed, { h: 0.008, s: 0.02, l: 0.03 });
+    }
   }
   const pal = paletteFor(style, district);
   const fam = familyHash(cx, cz, style);
