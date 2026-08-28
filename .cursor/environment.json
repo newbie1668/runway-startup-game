@@ -1,0 +1,17 @@
+{
+  "name": "RUNWAY Startup Game",
+  "install": "corepack enable && corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "pnpm dev",
+      "description": "Next.js dev server for the RUNWAY game (http://localhost:3000, game route at /game)."
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 3000
+    }
+  ]
+}
