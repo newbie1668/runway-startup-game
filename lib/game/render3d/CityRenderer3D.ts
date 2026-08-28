@@ -244,13 +244,13 @@ export class CityRenderer3D implements IMapRenderer {
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xb8e0ff,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.45,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.15, 28), ringMat);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.2, 28), ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.name = 'ring';
     ring.renderOrder = 12;
@@ -440,8 +440,8 @@ export class CityRenderer3D implements IMapRenderer {
       this.beamGroup.visible = false;
       return;
     }
-    const r = Math.max(0.22, Math.sqrt(pick.areaM2) * METERS_TO_WORLD * 0.7);
-    const h = Math.max(4.5, pick.heightWorld * 5.5 + 3.2);
+    const r = Math.min(0.14, Math.max(0.055, Math.sqrt(pick.areaM2) * METERS_TO_WORLD * 0.2));
+    const h = Math.max(3.8, pick.heightWorld * 7.5 + 2.6);
     this.beamGroup.position.set(pick.x, pick.heightWorld, pick.z);
     const shaft = this.beamGroup.getObjectByName('shaft') as THREE.Mesh | undefined;
     const core = this.beamGroup.getObjectByName('core') as THREE.Mesh | undefined;
@@ -451,12 +451,12 @@ export class CityRenderer3D implements IMapRenderer {
       shaft.position.y = h / 2;
     }
     if (core) {
-      core.scale.set(r, h * 1.05, r);
-      core.position.y = (h * 1.05) / 2;
+      core.scale.set(r * 0.35, h * 1.08, r * 0.35);
+      core.position.y = (h * 1.08) / 2;
     }
     if (ring) {
-      ring.scale.set(r * 1.15, r * 1.15, 1);
-      ring.position.y = 0.02;
+      ring.scale.set(r * 1.4, r * 1.4, 1);
+      ring.position.y = 0.03;
     }
     this.beamGroup.visible = true;
   }
