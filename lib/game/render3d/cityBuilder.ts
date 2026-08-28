@@ -1616,6 +1616,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
     const mesh = new THREE.Mesh(g, markMat);
     mesh.receiveShadow = true;
     mesh.renderOrder = 1;
+    mesh.userData.roadMarks = true;
     group.add(mesh);
   }
   return group.children.length > 0 ? group : null;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-28T12:36:31.321Z",
+  "generatedAt": "2026-08-28T13:23:50.510Z",
   "files": [
     {
       "kind": "eye",
@@ -34,12 +34,12 @@
     {
       "kind": "gherkin",
       "file": "gherkin.glb",
-      "bytes": 247600
+      "bytes": 247472
     },
     {
       "kind": "towerbridge",
       "file": "towerbridge.glb",
-      "bytes": 900212
+      "bytes": 946548
     },
     {
       "kind": "walkie",
@@ -124,7 +124,7 @@
     {
       "kind": "hungerford",
       "file": "hungerford.glb",
-      "bytes": 605748
+      "bytes": 747192
     },
     {
       "kind": "towerlondon",

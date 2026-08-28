@@ -288,7 +288,7 @@ function gherkinRadius(t: number, maxR: number): number {
 function buildGherkin(): THREE.Group {
   const group = new THREE.Group();
   const height = ht(180);
-  const maxR = m(28);
+  const maxR = m(32);
   const profile: THREE.Vector2[] = [];
   const segments = 24;
   for (let i = 0; i <= segments; i++) {
@@ -594,27 +594,41 @@ function buildTowerBridge(): THREE.Group {
 
   const towerHeight = h(65);
   const towerHalfSpan = m(42);
-  const shaftW = m(16);
-  const wallT = m(3.4);
-  const openW = shaftW - wallT * 2;
+  const shaftW = m(18);
+  const pier = m(3.6);
   const deckY = LANDMARK_DECK_Y;
-  const deckThick = m(2.6);
-  const deckW = m(12.4);
-  const archH = deckY + m(11);
+  const deckThick = m(2.8);
+  const deckW = m(11.5);
+  const archH = deckY + m(12);
   const walkY = towerHeight * 0.78;
-  const approach = towerHalfSpan + m(100);
+  const approach = towerHalfSpan + m(110);
 
   for (const side of [-1, 1]) {
     const z = side * towerHalfSpan;
-    addBox(group, wallT, archH, shaftW, stone, -shaftW / 2 + wallT / 2, 0, z);
-    addBox(group, wallT, archH, shaftW, stone, shaftW / 2 - wallT / 2, 0, z);
+    for (const xSign of [-1, 1]) {
+      for (const zSign of [-1, 1]) {
+        addBox(
+          group,
+          pier,
+          archH,
+          pier,
+          stone,
+          xSign * (shaftW / 2 - pier / 2),
+          0,
+          z + zSign * (shaftW / 2 - pier / 2),
+        );
+      }
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(shaftW, m(3.2), shaftW), stone);
+    lintel.position.set(0, archH - m(1.6), z);
+    group.add(lintel);
     addBox(group, shaftW, towerHeight - archH, shaftW, stone, 0, archH, z);
     addBox(group, shaftW + m(0.6), m(1.1), shaftW + m(0.6), band, 0, h(18), z);
     addBox(group, shaftW + m(0.6), m(1.1), shaftW + m(0.6), band, 0, h(38), z);
 
     addPointedArchVoid(
       group,
-      openW * 0.92,
+      deckW + m(1.2),
       m(13),
       m(1.4),
       voidMat,
@@ -624,7 +638,7 @@ function buildTowerBridge(): THREE.Group {
     );
     addPointedArchVoid(
       group,
-      openW * 0.92,
+      deckW + m(1.2),
       m(13),
       m(1.4),
       voidMat,
@@ -725,26 +739,7 @@ function buildTowerBridge(): THREE.Group {
     );
   }
 
-  const halfTower = shaftW / 2;
-  const inner = towerHalfSpan - halfTower;
-  const outer = towerHalfSpan + halfTower;
-  addDeckSlab(group, deckW, deckThick, inner * 2, asphalt, 0, deckY, 0);
-  for (const side of [-1, 1]) {
-    const z0 = side * outer;
-    const z1 = side * approach;
-    const len = Math.abs(z1 - z0);
-    addDeckSlab(group, deckW, deckThick, len, asphalt, 0, deckY, (z0 + z1) / 2);
-    addDeckSlab(
-      group,
-      openW * 0.9,
-      deckThick * 0.85,
-      shaftW + m(0.6),
-      asphalt,
-      0,
-      deckY,
-      side * towerHalfSpan,
-    );
-  }
+  addDeckSlab(group, deckW, deckThick, approach * 2, asphalt, 0, deckY, 0);
 
   for (const side of [-1, 1]) {
     const towerZ = side * towerHalfSpan;
@@ -1286,7 +1281,7 @@ function buildHungerford(): THREE.Group {
   const group = new THREE.Group();
   const white = new THREE.MeshLambertMaterial({ color: 0xe8e6e0 });
   const rail = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
-  const length = m(340);
+  const length = m(420);
   const deckY = LANDMARK_DECK_Y;
   const railDeck = new THREE.Mesh(new THREE.BoxGeometry(length, m(2.8), m(12)), rail);
   railDeck.position.y = deckY;

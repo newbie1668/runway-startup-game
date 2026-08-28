@@ -61,10 +61,10 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   const hit = LANDMARKS.find((l) => l.kind === look);
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
   if (hit.kind === 'towerbridge') {
-    return { at: hit.at, viewH: 1.08, azimuth: Math.PI / 2 - 0.38 };
+    return { at: hit.at, viewH: 2.45, azimuth: Math.PI / 2 - 0.32 };
   }
   if (hit.kind === 'eye') {
-    return { at: hit.at, viewH: 3.6, azimuth: -Math.PI / 2 };
+    return { at: hit.at, viewH: 2.4, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'buckingham') {
     return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
@@ -74,6 +74,17 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 7.2, azimuth: Math.PI / 2 - 0.35 };
+  }
+  if (
+    hit.kind === 'gherkin' ||
+    hit.kind === 'shard' ||
+    hit.kind === 'walkie' ||
+    hit.kind === 'grater' ||
+    hit.kind === 'bishop' ||
+    hit.kind === 'heron' ||
+    hit.kind === 'tower42'
+  ) {
+    return { at: hit.at, viewH: 4.4, azimuth: 0.42 };
   }
   if (hit.kind === 'westminsterbr' || hit.kind === 'lambethbr' || hit.kind === 'albertbr') {
     return { at: hit.at, viewH: 1.35, azimuth: 0 };
@@ -130,9 +141,11 @@ export class CityRenderer3D implements IMapRenderer {
   private lastPlayerHubId: HubId | null = null;
   private readonly minorMeshes: THREE.Mesh[] = [];
   private tier2RoadMesh: THREE.Object3D | null = null;
+  private markMesh: THREE.Object3D | null = null;
   private lampGroup: THREE.Object3D | null = null;
   private lastMinorVisible: boolean | null = null;
   private lastTier2Visible: boolean | null = null;
+  private lastMarksVisible: boolean | null = null;
   private lastLampsVisible: boolean | null = null;
   private treeGroup: THREE.Object3D | null = null;
   private lastGrovesVisible: boolean | null = null;
@@ -341,6 +354,7 @@ export class CityRenderer3D implements IMapRenderer {
         this.cityGroup.add(roadGroup);
         for (const child of roadGroup.children) {
           if (child.userData.roadTier === 2) this.tier2RoadMesh = child;
+          if (child.userData.roadMarks) this.markMesh = child;
         }
       }
     });
@@ -662,6 +676,11 @@ export class CityRenderer3D implements IMapRenderer {
     if (tier2Visible !== this.lastTier2Visible) {
       if (this.tier2RoadMesh) this.tier2RoadMesh.visible = tier2Visible;
       this.lastTier2Visible = tier2Visible;
+    }
+    const marksVisible = this.cam.zoom >= 14;
+    if (marksVisible !== this.lastMarksVisible) {
+      if (this.markMesh) this.markMesh.visible = marksVisible;
+      this.lastMarksVisible = marksVisible;
     }
     const lampsVisible = this.cam.zoom >= 28;
     if (lampsVisible !== this.lastLampsVisible) {
