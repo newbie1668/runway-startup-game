@@ -527,6 +527,23 @@ export function buildChunkTier(
       return eavesY + riseWorld * (1 - Math.min(1, d / maxD));
     };
 
+    if (pitched) {
+      const count = roofRing.length;
+      for (let i = 0; i < count; i++) {
+        const a = roofRing[i]!;
+        const bp = roofRing[(i + 1) % count]!;
+        const ya = roofYAt(a);
+        const yb = roofYAt(bp);
+        if (ya <= eavesY + 1e-4 && yb <= eavesY + 1e-4) continue;
+        const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
+        const g0 = pushVertex(a.x, eavesY, a.z, nx, 0, nz, baseHex);
+        const g1 = pushVertex(bp.x, eavesY, bp.z, nx, 0, nz, baseHex);
+        const g2 = pushVertex(bp.x, yb, bp.z, nx, 0, nz, roofHex);
+        const g3 = pushVertex(a.x, ya, a.z, nx, 0, nz, roofHex);
+        indices.push(g0, g1, g2, g0, g2, g3);
+      }
+    }
+
     const emitRoof = (
       useRing: { x: number; z: number }[],
       yAt: (p: { x: number; z: number }) => number,
@@ -818,7 +835,7 @@ function buildMergedPolyMesh(
   polys: CityPoly[],
   color: number,
   y: number,
-  opts: { receiveShadow?: boolean; doubleSide?: boolean } = {},
+  opts: { receiveShadow?: boolean; doubleSide?: boolean; vary?: boolean } = {},
 ): THREE.Mesh | null {
   let totalVerts = 0;
   let totalTris = 0;
@@ -829,16 +846,32 @@ function buildMergedPolyMesh(
   if (totalTris === 0) return null;
 
   const positions = new Float32Array(totalVerts * 3);
+  const colors = opts.vary ? new Float32Array(totalVerts * 3) : null;
   const indices = new Uint32Array(totalTris * 3);
   let vOff = 0;
+  let cOff = 0;
   let iOff = 0;
   let vertBase = 0;
+  const base = new THREE.Color(color);
+  const dark = new THREE.Color(color).offsetHSL(0, 0.04, -0.08);
+  const lite = new THREE.Color(color).offsetHSL(0.02, -0.02, 0.07);
   for (const p of polys) {
     const n = p.verts.length / 2;
     for (let i = 0; i < n; i++) {
-      positions[vOff++] = dequantizeX(p.verts[i * 2]!);
+      const x = dequantizeX(p.verts[i * 2]!);
+      const z = dequantizeY(p.verts[i * 2 + 1]!);
+      positions[vOff++] = x;
       positions[vOff++] = y;
-      positions[vOff++] = dequantizeY(p.verts[i * 2 + 1]!);
+      positions[vOff++] = z;
+      if (colors) {
+        const h =
+          Math.imul(Math.round(x * 40), 374761393) ^ Math.imul(Math.round(z * 40), 668265263);
+        const u = ((h >>> 0) % 1000) / 1000;
+        const c = u < 0.38 ? dark : u > 0.72 ? lite : base;
+        colors[cOff++] = c.r;
+        colors[cOff++] = c.g;
+        colors[cOff++] = c.b;
+      }
     }
     for (let i = 0; i < p.indices.length; i++) indices[iOff++] = p.indices[i]! + vertBase;
     vertBase += n;
@@ -846,11 +879,13 @@ function buildMergedPolyMesh(
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  if (colors) geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   const material = new THREE.MeshLambertMaterial({
-    color,
+    color: colors ? 0xffffff : color,
+    vertexColors: !!colors,
     side: opts.doubleSide === false ? THREE.FrontSide : THREE.DoubleSide,
     fog: true,
   });
@@ -892,7 +927,7 @@ function parkCentroid(
 }
 
 export function buildParks(cityData: CityData): THREE.Group | null {
-  const grass = buildMergedPolyMesh(cityData.parks, pal.PARK, PARK_Y);
+  const grass = buildMergedPolyMesh(cityData.parks, pal.PARK, PARK_Y, { vary: true });
   if (!grass) return null;
   const group = new THREE.Group();
   group.add(grass);
