@@ -175,10 +175,15 @@ check('City towers use readable glass, not charcoal silhouettes', () => {
   }
 });
 
-check('West End terraces stay cream', () => {
-  const hex = wallHex(STYLE_TERRACE, 'westend', 0, 0, 1, null);
-  const { l } = rgbToHsl(hex);
-  assert.ok(l >= 0.5, `westend terrace l=${l}`);
+check('West End terraces mix cream and brick instead of one cloned slab', () => {
+  const a = wallHex(STYLE_TERRACE, 'westend', 0, 0, 1, null);
+  const b = wallHex(STYLE_TERRACE, 'westend', 2.4, 1.1, 99_001, null);
+  assert.notEqual(a, b, 'adjacent hashes should pick different swatches');
+  for (const hex of [a, b]) {
+    const { l } = rgbToHsl(hex);
+    assert.ok(l >= 0.28, `westend terrace l=${l}`);
+    assert.equal(isConfettiHue(hex), false);
+  }
 });
 
 check('towers extrude taller than houses', () => {

@@ -42,6 +42,38 @@ export function unproject(x: number, y: number): LngLat {
   return [LON_MIN + x / (1000 * LAT_COS), LAT_MAX - y / 1000];
 }
 
+/** Thames direction in world XY (east, south-positive as used by the 3D Z axis). */
+export function thamesTangent(at: LngLat): { x: number; y: number } {
+  const p = project(at);
+  const pts = THAMES.map((ll) => project(ll));
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const d = Math.hypot(pts[i]!.x - p.x, pts[i]!.y - p.y);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  const a = pts[Math.max(0, best - 1)]!;
+  const b = pts[Math.min(pts.length - 1, best + 1)]!;
+  const x = b.x - a.x;
+  const y = b.y - a.y;
+  const len = Math.hypot(x, y) || 1;
+  return { x: x / len, y: y / len };
+}
+
+/**
+ * Y rotation for a mesh modelled along local +X so that +X crosses the Thames.
+ * Three.js Y-rotation maps +X to (cos θ, 0, −sin θ).
+ */
+export function bridgeSpanYawX(at: LngLat): number {
+  const t = thamesTangent(at);
+  const dirX = -t.y;
+  const dirZ = t.x;
+  return Math.atan2(-dirZ, dirX);
+}
+
 // ---------------------------------------------------------------------------
 // The Thames, west to east. The loop around the Isle of Dogs is what makes
 // the silhouette read instantly as London.
@@ -324,7 +356,7 @@ export interface Landmark {
   yaw?: number;
 }
 
-/** Named decks we should not also draw as OSM road ribbons. */
+/** Named civic decks (bridges + Old Street). River spans also get OSM asphalt. */
 export function isDeckLandmark(kind: LandmarkKind): boolean {
   return (
     kind === 'towerbridge' ||
@@ -358,44 +390,56 @@ export const LANDMARKS: readonly Landmark[] = [
     name: 'Westminster Bridge',
     at: [-0.1218, 51.5008],
     exclusionM: 90,
-    yaw: 0,
+    yaw: bridgeSpanYawX([-0.1218, 51.5008]),
   },
-  { kind: 'lambethbr', name: 'Lambeth Bridge', at: [-0.123, 51.4945], exclusionM: 90, yaw: 0.08 },
+  {
+    kind: 'lambethbr',
+    name: 'Lambeth Bridge',
+    at: [-0.123, 51.4945],
+    exclusionM: 90,
+    yaw: bridgeSpanYawX([-0.123, 51.4945]),
+  },
   {
     kind: 'waterloobr',
     name: 'Waterloo Bridge',
     at: [-0.1172, 51.5084],
     exclusionM: 90,
-    yaw: 1.15,
+    yaw: bridgeSpanYawX([-0.1172, 51.5084]),
   },
   {
     kind: 'blackfriarsbr',
     name: 'Blackfriars Bridge',
     at: [-0.1044, 51.5096],
     exclusionM: 90,
-    yaw: Math.PI / 2,
+    yaw: bridgeSpanYawX([-0.1044, 51.5096]),
   },
   {
     kind: 'londonbr',
     name: 'London Bridge',
     at: [-0.0877, 51.5079],
     exclusionM: 90,
-    yaw: Math.PI / 2,
+    yaw: bridgeSpanYawX([-0.0877, 51.5079]),
   },
   {
     kind: 'millennium',
     name: 'Millennium Bridge',
     at: [-0.0985, 51.5104],
     exclusionM: 80,
-    yaw: Math.PI / 2,
+    yaw: bridgeSpanYawX([-0.0985, 51.5104]),
   },
-  { kind: 'albertbr', name: 'Albert Bridge', at: [-0.1668, 51.4824], exclusionM: 90, yaw: 0.85 },
+  {
+    kind: 'albertbr',
+    name: 'Albert Bridge',
+    at: [-0.1668, 51.4824],
+    exclusionM: 90,
+    yaw: bridgeSpanYawX([-0.1668, 51.4824]),
+  },
   {
     kind: 'hungerford',
     name: 'Hungerford Bridge',
     at: [-0.1201, 51.5062],
     exclusionM: 80,
-    yaw: 0.45,
+    yaw: bridgeSpanYawX([-0.1201, 51.5062]),
   },
   { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 110 },
   { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 160 },

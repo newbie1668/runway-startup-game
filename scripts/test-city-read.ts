@@ -16,6 +16,9 @@ import { polylineDashes, segmentEdgeOffsets } from '../lib/game/render3d/streetM
 import { chamferRing } from '../lib/game/render3d/footprint';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import { METERS_TO_WORLD } from '../lib/game/geo';
+import { splitRoadRuns, BRIDGE_SPAN_MIN_M } from '../lib/game/render3d/cityBuilder';
+import { wallHex } from '../lib/game/render3d/palette';
+import { STYLE_TERRACE } from '../lib/game/render3d/buildingStyle';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -117,6 +120,48 @@ check('London clock and climate stay offline', () => {
   assert.ok(climate.tempC > 0 && climate.tempC < 40);
   assert.ok(climate.sunset.includes(':'));
   assert.ok(climate.aqi > 0);
+});
+
+check('river crossings keep a long interior water span and drop bank noise', () => {
+  const min = BRIDGE_SPAN_MIN_M * METERS_TO_WORLD;
+  const landA = [
+    { x: 0, z: 0 },
+    { x: 2, z: 0 },
+  ];
+  const span = [
+    { x: 2.1, z: 0 },
+    { x: 2.1 + min + 0.4, z: 0 },
+  ];
+  const landB = [
+    { x: 2.1 + min + 0.5, z: 0 },
+    { x: 2.1 + min + 2.5, z: 0 },
+  ];
+  const pts = [...landA, ...span, ...landB];
+  const wet = new Set(span.map((p) => `${p.x},${p.z}`));
+  const runs = splitRoadRuns(pts, (x, z) => wet.has(`${x},${z}`));
+  assert.ok(
+    runs.some((r) => r.span),
+    'expected a kept Thames span',
+  );
+  const dip = [
+    { x: 0, z: 0 },
+    { x: 1, z: 0 },
+    { x: 1.05, z: 0 },
+    { x: 2, z: 0 },
+  ];
+  const dipWet = (x: number, z: number) => x === 1.05 && z === 0;
+  const dipped = splitRoadRuns(dip, dipWet);
+  assert.equal(
+    dipped.some((r) => r.span),
+    false,
+    'short water dips must not become decks',
+  );
+});
+
+check('neighbouring terraces do not share one cloned wall paint', () => {
+  const a = wallHex(STYLE_TERRACE, 'westend', 10, 10, 11, null);
+  const b = wallHex(STYLE_TERRACE, 'westend', 12.2, 10.8, 4_001_001, null);
+  assert.notEqual(a, b);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

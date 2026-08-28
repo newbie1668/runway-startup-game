@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { isDeckLandmark } from '../lib/game/geo';
 import { ROAD_Y } from '../lib/game/render3d/cityBuilder';
 import { EYE_WHEEL_NAME, LANDMARK_DECK_Y, build } from '../lib/game/render3d/landmarks';
+import { ASPHALT } from '../lib/game/render3d/palette';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -102,6 +103,34 @@ check("St Paul's nave has a window grid and dome ridges", () => {
     if (obj instanceof THREE.Mesh && obj.geometry.type === 'BoxGeometry') boxes += 1;
   });
   assert.ok(boxes >= 40, `nave window grid should add boxes, got ${boxes}`);
+});
+
+function deckHex(kind: Parameters<typeof build>[0]): number | null {
+  const root = build(kind);
+  const deck = root.getObjectByName('deck');
+  if (!(deck instanceof THREE.Mesh)) return null;
+  const mat = deck.material;
+  if (mat instanceof THREE.MeshLambertMaterial || mat instanceof THREE.MeshBasicMaterial) {
+    return mat.color.getHex();
+  }
+  return null;
+}
+
+check('named Thames decks use street asphalt, not park green or brick red', () => {
+  for (const kind of [
+    'westminsterbr',
+    'lambethbr',
+    'waterloobr',
+    'blackfriarsbr',
+    'londonbr',
+    'millennium',
+    'albertbr',
+    'hungerford',
+    'towerbridge',
+  ] as const) {
+    const hex = deckHex(kind);
+    assert.equal(hex, ASPHALT, `${kind} deck ${hex?.toString(16)} should be asphalt`);
+  }
 });
 
 console.log(`\nAll ${passed} landmark geometry checks passed.`);

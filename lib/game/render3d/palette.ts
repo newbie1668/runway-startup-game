@@ -2,8 +2,8 @@
  * SFSIM daytime city palette — muted London stock, stucco, brick, stone.
  *
  * No DOM / three.js. Shared by the runtime builder and offline tests.
- * Adjacent buildings share a family swatch (block-scale hash) with only
- * small per-building lightness jitter — never random confetti hues.
+ * Each footprint picks a district swatch from a stable hash so neighbouring
+ * plots differ (cream next to brick next to grey), without confetti hues.
  */
 
 import {
@@ -347,11 +347,7 @@ export function wallHex(
   // Glass towers are tagged black/grey in OSM; that paint crushes to a silhouette
   // under ACES. Neighbourhood palettes stay in the readable navy-glass range.
   const allowOsm =
-    osmRgb !== null &&
-    style !== STYLE_HOUSE &&
-    style !== STYLE_TERRACE &&
-    style !== STYLE_TOWER &&
-    !(district === 'canary' && style === STYLE_OFFICE);
+    osmRgb !== null && style !== STYLE_TOWER && !(district === 'canary' && style === STYLE_OFFICE);
   if (allowOsm) {
     const clamped = clampWallColour(osmRgb);
     if (clamped !== null) {
@@ -360,9 +356,9 @@ export function wallHex(
     }
   }
   const pal = paletteFor(style, district);
-  const fam = familyHash(cx, cz, style);
-  const base = pal[fam % pal.length]!;
-  return jitterHex(base, seed, { h: 0.01, s: 0.03, l: 0.045 });
+  const pick = familyHash(cx, cz, seed);
+  const base = pal[pick % pal.length]!;
+  return jitterHex(base, seed, { h: 0.016, s: 0.045, l: 0.07 });
 }
 
 export function doorHex(seed: number): number {

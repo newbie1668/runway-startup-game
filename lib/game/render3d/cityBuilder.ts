@@ -8,7 +8,7 @@
  */
 
 import * as THREE from 'three';
-import { LANDMARKS, METERS_TO_WORLD, WORLD, isDeckLandmark, project, unproject } from '../geo';
+import { LANDMARKS, METERS_TO_WORLD, WORLD, project, unproject } from '../geo';
 import { HUB_POS } from '../overlay';
 import type { HubId } from '../types';
 import {
@@ -713,9 +713,7 @@ export function buildChunkTier(
     }
 
     const wantAwning =
-      (shopWorld > 0.02 ||
-        style === STYLE_RETAIL ||
-        (style === STYLE_TERRACE && seed % 5 === 0)) &&
+      (shopWorld > 0.02 || style === STYLE_RETAIL || (style === STYLE_TERRACE && seed % 5 === 0)) &&
       longestM >= 7;
     if (wantAwning) {
       const a = ring[longestI]!;
@@ -742,10 +740,7 @@ export function buildChunkTier(
       );
     }
 
-    if (
-      (style === STYLE_RETAIL || (style === STYLE_OFFICE && seed % 9 === 0)) &&
-      longestM >= 8
-    ) {
+    if ((style === STYLE_RETAIL || (style === STYLE_OFFICE && seed % 9 === 0)) && longestM >= 8) {
       const a = ring[longestI]!;
       const bp = ring[(longestI + 1) % n]!;
       const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
@@ -1036,7 +1031,8 @@ function emitBayWindows(
   const count = bayCountForEdge(edgeM);
   const tx = (bp.x - a.x) / elen;
   const tz = (bp.z - a.z) / elen;
-  const depth = (style === STYLE_APARTMENTS || style === STYLE_OFFICE ? 1.45 : 2.15) * METERS_TO_WORLD;
+  const depth =
+    (style === STYLE_APARTMENTS || style === STYLE_OFFICE ? 1.45 : 2.15) * METERS_TO_WORLD;
   const bayW = Math.min(2.6 * METERS_TO_WORLD, elen / (count + 0.6));
   const sill = y0 + (shopWorld > 0.02 ? shopWorld : 0.55 * METERS_TO_WORLD * vScale);
   const head = y1 - 0.45 * METERS_TO_WORLD * vScale;
@@ -1930,36 +1926,52 @@ function pointOverWater(x: number, z: number, rings: { x: number; z: number }[][
 
 function pointOnPrefabDeck(x: number, z: number): boolean {
   for (const landmark of LANDMARKS) {
+    if (landmark.kind !== 'oldstreet') continue;
     const at = project(landmark.at);
-    if (landmark.kind === 'oldstreet') {
-      const r = (landmark.exclusionM ?? 90) * METERS_TO_WORLD;
-      if (Math.hypot(x - at.x, z - at.y) < r) return true;
-      continue;
-    }
-    if (!isDeckLandmark(landmark.kind)) continue;
-    const r = 36 * METERS_TO_WORLD;
+    const r = (landmark.exclusionM ?? 90) * METERS_TO_WORLD;
     if (Math.hypot(x - at.x, z - at.y) < r) return true;
   }
   return false;
 }
 
-/** Keep land approaches; drop the span that fights the 3D bridge prefab. */
-function landRoadRuns(
+/** Consecutive over-water centreline longer than this is a river crossing. */
+export const BRIDGE_SPAN_MIN_M = 55;
+
+export type RoadRun = { pts: { x: number; z: number }[]; span: boolean };
+
+/** Land ribbons plus interior water spans (Thames crossings). Bank-noise dips are dropped. */
+export function splitRoadRuns(
   pts: { x: number; z: number }[],
-  rings: { x: number; z: number }[][],
-): { x: number; z: number }[][] {
-  const runs: { x: number; z: number }[][] = [];
-  let cur: { x: number; z: number }[] = [];
-  const flush = () => {
-    if (cur.length >= 2) runs.push(cur);
-    cur = [];
-  };
-  for (const p of pts) {
-    if (pointOverWater(p.x, p.z, rings) || pointOnPrefabDeck(p.x, p.z)) flush();
-    else cur.push(p);
+  overWater: (x: number, z: number) => boolean,
+): RoadRun[] {
+  if (pts.length < 2) return [];
+  const wet = pts.map((p) => overWater(p.x, p.z));
+  const groups: { start: number; end: number; wet: boolean }[] = [];
+  let i = 0;
+  while (i < pts.length) {
+    const w = wet[i]!;
+    let j = i + 1;
+    while (j < pts.length && wet[j] === w) j += 1;
+    groups.push({ start: i, end: j, wet: w });
+    i = j;
   }
-  flush();
-  return runs;
+  const out: RoadRun[] = [];
+  for (const run of groups) {
+    const slice = pts.slice(run.start, run.end);
+    if (!run.wet) {
+      if (slice.length >= 2) out.push({ pts: slice, span: false });
+      continue;
+    }
+    let len = 0;
+    for (let k = 0; k < slice.length - 1; k++) {
+      len += Math.hypot(slice[k + 1]!.x - slice[k]!.x, slice[k + 1]!.z - slice[k]!.z);
+    }
+    const interior = run.start > 0 && run.end < pts.length;
+    if (!interior || len < BRIDGE_SPAN_MIN_M * METERS_TO_WORLD) continue;
+    const joined = pts.slice(run.start - 1, run.end + 1);
+    if (joined.length >= 2) out.push({ pts: joined, span: true });
+  }
+  return out;
 }
 
 /** One group per tier so minor streets can hide independently at low zoom. */
@@ -2002,27 +2014,27 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       if (road.tier !== tier) continue;
       const pts = roadPts(road);
       if (!pts) continue;
-      const runs = landRoadRuns(pts, rings);
+      const runs = splitRoadRuns(pts, (x, z) => pointOverWater(x, z, rings));
       for (const run of runs) {
-        appendRibbon(walkPos, walkIdx, run, halfWalk, SIDEWALK_Y);
-        appendRibbon(asphPos, asphIdx, run, halfCarriage, ROAD_Y);
+        if (!run.span) appendRibbon(walkPos, walkIdx, run.pts, halfWalk, SIDEWALK_Y);
+        appendRibbon(asphPos, asphIdx, run.pts, halfCarriage, ROAD_Y);
         if (tier <= 1) {
-          const dashes = polylineDashes(run);
+          const dashes = polylineDashes(run.pts);
           const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
           for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
           const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
           const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
           if (inset > halfEdge) {
-            for (let i = 0; i < run.length - 1; i++) {
-              const edges = segmentEdgeOffsets(run[i]!, run[i + 1]!, inset);
+            for (let i = 0; i < run.pts.length - 1; i++) {
+              const edges = segmentEdgeOffsets(run.pts[i]!, run.pts[i + 1]!, inset);
               appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
               appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
             }
           }
         }
-        if (tier === 0 && run.length >= 2) {
-          const a = run[0]!;
-          const b = run[1]!;
+        if (tier === 0 && !run.span && run.pts.length >= 2) {
+          const a = run.pts[0]!;
+          const b = run.pts[1]!;
           let dx = b.x - a.x;
           let dz = b.z - a.z;
           const len = Math.hypot(dx, dz) || 1;
