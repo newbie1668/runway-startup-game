@@ -1974,6 +1974,77 @@ export function splitRoadRuns(
   return out;
 }
 
+export type RoadApproach = {
+  x: number;
+  z: number;
+  dx: number;
+  dz: number;
+  tier: number;
+};
+
+function approachIfTowardWater(
+  end: { x: number; z: number },
+  inward: { x: number; z: number },
+  tier: number,
+  overWater: (x: number, z: number) => boolean,
+): RoadApproach | null {
+  const dx = end.x - inward.x;
+  const dz = end.z - inward.z;
+  const len = Math.hypot(dx, dz) || 1;
+  const ux = dx / len;
+  const uz = dz / len;
+  const probeM = [8, 18, 36];
+  const hits = probeM.some((m) =>
+    overWater(end.x + ux * m * METERS_TO_WORLD, end.z + uz * m * METERS_TO_WORLD),
+  );
+  if (!hits) return null;
+  return { x: end.x, z: end.z, dx: ux, dz: uz, tier };
+}
+
+/** Pair land-road stubs that face each other across water into a carriageway span. */
+export function stitchWaterSpans(
+  approaches: RoadApproach[],
+  overWater: (x: number, z: number) => boolean,
+): { pts: { x: number; z: number }[]; tier: number }[] {
+  const used = new Set<number>();
+  const spans: { pts: { x: number; z: number }[]; tier: number }[] = [];
+  const minD = 60 * METERS_TO_WORLD;
+  const maxD = 460 * METERS_TO_WORLD;
+  for (let i = 0; i < approaches.length; i++) {
+    if (used.has(i)) continue;
+    const a = approaches[i]!;
+    let best = -1;
+    let bestD = Infinity;
+    for (let j = i + 1; j < approaches.length; j++) {
+      if (used.has(j)) continue;
+      const b = approaches[j]!;
+      const d = Math.hypot(b.x - a.x, b.z - a.z);
+      if (d < minD || d > maxD) continue;
+      if (!overWater((a.x + b.x) / 2, (a.z + b.z) / 2)) continue;
+      const ux = (b.x - a.x) / d;
+      const uz = (b.z - a.z) / d;
+      const align = Math.abs(a.dx * ux + a.dz * uz) + Math.abs(b.dx * ux + b.dz * uz);
+      if (align < 1.0) continue;
+      if (d < bestD) {
+        bestD = d;
+        best = j;
+      }
+    }
+    if (best < 0) continue;
+    used.add(i);
+    used.add(best);
+    const b = approaches[best]!;
+    spans.push({
+      pts: [
+        { x: a.x, z: a.z },
+        { x: b.x, z: b.z },
+      ],
+      tier: Math.min(a.tier, b.tier),
+    });
+  }
+  return spans;
+}
+
 /** One group per tier so minor streets can hide independently at low zoom. */
 export function buildRoads(cityData: CityData): THREE.Group | null {
   const group = new THREE.Group();
@@ -2002,6 +2073,8 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
   const markPos: number[] = [];
   const markIdx: number[] = [];
   const rings = waterRings(cityData);
+  const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
+  const approaches: RoadApproach[] = [];
 
   for (let tier = 0; tier <= 2; tier++) {
     const walkPos: number[] = [];
@@ -2014,8 +2087,19 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       if (road.tier !== tier) continue;
       const pts = roadPts(road);
       if (!pts) continue;
-      const runs = splitRoadRuns(pts, (x, z) => pointOverWater(x, z, rings));
+      const runs = splitRoadRuns(pts, overWater);
       for (const run of runs) {
+        if (!run.span && run.pts.length >= 2) {
+          const head = approachIfTowardWater(run.pts[0]!, run.pts[1]!, tier, overWater);
+          const tail = approachIfTowardWater(
+            run.pts[run.pts.length - 1]!,
+            run.pts[run.pts.length - 2]!,
+            tier,
+            overWater,
+          );
+          if (head) approaches.push(head);
+          if (tail) approaches.push(tail);
+        }
         if (!run.span) appendRibbon(walkPos, walkIdx, run.pts, halfWalk, SIDEWALK_Y);
         appendRibbon(asphPos, asphIdx, run.pts, halfCarriage, ROAD_Y);
         if (tier <= 1) {
@@ -2076,6 +2160,38 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       tierGroup.add(mesh);
     }
     group.add(tierGroup);
+  }
+
+  const stitches = stitchWaterSpans(approaches, overWater);
+  if (stitches.length > 0) {
+    const stitchPos: number[] = [];
+    const stitchIdx: number[] = [];
+    for (const span of stitches) {
+      const halfCarriage = (ROAD_WIDTHS_M[span.tier]! * METERS_TO_WORLD) / 2;
+      appendRibbon(stitchPos, stitchIdx, span.pts, halfCarriage, ROAD_Y);
+      if (span.tier <= 1) {
+        const dashes = polylineDashes(span.pts);
+        const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+        for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
+        const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
+        const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
+        if (inset > halfEdge && span.pts.length >= 2) {
+          const edges = segmentEdgeOffsets(span.pts[0]!, span.pts[1]!, inset);
+          appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
+          appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+        }
+      }
+    }
+    if (stitchPos.length > 0) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(stitchPos, 3));
+      g.setIndex(stitchIdx);
+      g.computeVertexNormals();
+      g.computeBoundingSphere();
+      const mesh = new THREE.Mesh(g, asphaltMat);
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
   }
 
   if (markPos.length > 0) {

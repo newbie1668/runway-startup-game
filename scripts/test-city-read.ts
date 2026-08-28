@@ -16,7 +16,11 @@ import { polylineDashes, segmentEdgeOffsets } from '../lib/game/render3d/streetM
 import { chamferRing } from '../lib/game/render3d/footprint';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import { METERS_TO_WORLD } from '../lib/game/geo';
-import { splitRoadRuns, BRIDGE_SPAN_MIN_M } from '../lib/game/render3d/cityBuilder';
+import {
+  splitRoadRuns,
+  stitchWaterSpans,
+  BRIDGE_SPAN_MIN_M,
+} from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
 import { STYLE_TERRACE } from '../lib/game/render3d/buildingStyle';
 
@@ -162,6 +166,16 @@ check('neighbouring terraces do not share one cloned wall paint', () => {
   const a = wallHex(STYLE_TERRACE, 'westend', 10, 10, 11, null);
   const b = wallHex(STYLE_TERRACE, 'westend', 12.2, 10.8, 4_001_001, null);
   assert.notEqual(a, b);
+});
+
+check('land stubs facing across water stitch into an asphalt span', () => {
+  const approaches = [
+    { x: 0, z: 0, dx: 1, dz: 0, tier: 0 },
+    { x: 2.2, z: 0, dx: -1, dz: 0, tier: 0 },
+  ];
+  const spans = stitchWaterSpans(approaches, (x) => x > 0.4 && x < 1.8);
+  assert.equal(spans.length, 1);
+  assert.equal(spans[0]!.pts.length, 2);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

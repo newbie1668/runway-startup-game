@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { LANDMARKS, type LandmarkKind } from '../geo';
+import { LANDMARKS, isDeckLandmark, type LandmarkKind } from '../geo';
 import { build as buildLandmark } from './landmarks';
 import { makeMatteLambert } from './matteGltf';
 
@@ -37,6 +37,8 @@ export function instantiateLandmark(
   kind: LandmarkKind,
   prefabs: Map<LandmarkKind, THREE.Object3D>,
 ): THREE.Group {
+  // River decks stay procedural so asphalt/join fixes are not stuck in a stale GLB.
+  if (isDeckLandmark(kind) && kind !== 'oldstreet') return buildLandmark(kind);
   const prefab = prefabs.get(kind);
   if (!prefab) return buildLandmark(kind);
   const clone = prefab.clone(true);
