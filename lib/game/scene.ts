@@ -70,6 +70,8 @@ export interface IMapRenderer {
   pan(dxPx: number, dyPx: number): void;
   zoomAt(sx: number, sy: number, factor: number): void;
   hitTest(sx: number, sy: number): HitTarget | null;
+  /** 3D-only: building pick / light beam. 2D renderer omits this. */
+  notifyPointer?(sx: number, sy: number, kind: 'hover' | 'click'): void;
   burstConfetti(hubId: HubId | null): void;
   floatText(hubId: HubId | null, text: string, color?: string): void;
   puffSmoke(hubId: HubId | null): void;

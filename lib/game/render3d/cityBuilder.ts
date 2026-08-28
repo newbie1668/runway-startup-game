@@ -1,31 +1,33 @@
 /**
  * RUNWAY — decoded city data -> three.js geometry.
  *
- * Real OSM footprints don't have consistent winding, so wall/roof faces
- * compute their own outward-facing normal (from the footprint centroid) and
- * pick triangle order to match it at build time, rather than assuming a
- * fixed winding convention. This is a one-time streaming-build cost, not a
- * per-frame one.
+ * Daytime SFSIM look: solid vertex colours, geometric window insets
+ * (instanced quads), darker roofs with parapets/clutter, grey streets with
+ * white markings, instanced trees. Real OSM footprints keep their own
+ * outward-facing normals (winding is inconsistent).
  */
 
 import * as THREE from 'three';
-import { METERS_TO_WORLD, TUBE_LINES, WORLD, project, unproject } from '../geo';
+import { METERS_TO_WORLD, WORLD, unproject } from '../geo';
 import { HUB_POS } from '../overlay';
 import type { HubId } from '../types';
-import { dequantizeX, dequantizeY, type CityBuilding, type CityData, type CityPoly, type CityRoad } from './format';
+import {
+  dequantizeX,
+  dequantizeY,
+  type CityBuilding,
+  type CityData,
+  type CityPoly,
+  type CityRoad,
+} from './format';
 import { fromRgb565, isGenericWallPaint } from './osmColour';
 import {
   ROOF_FLAT,
-  ROOF_GABLED,
   STYLE_HOUSE,
-  STYLE_INDUSTRIAL,
   STYLE_OFFICE,
   STYLE_APARTMENTS,
   STYLE_RETAIL,
   STYLE_TERRACE,
   STYLE_TOWER,
-  facadeSlice,
-  facadeVForFloors,
   inferRoof,
   resolveStyle,
   restyleForDistrict,
@@ -34,6 +36,7 @@ import {
   wantPodium,
   type DistrictId,
 } from './buildingStyle';
+import * as pal from './palette';
 
 export { HEIGHT_SCALE, TOWER_HEIGHT_SCALE, NOTICED_BAKE_HEIGHT_SCALE } from './buildingStyle';
 
@@ -41,72 +44,52 @@ export const CHUNK_COLS = 8;
 export const CHUNK_ROWS = 6;
 export const CHUNK_COUNT = CHUNK_COLS * CHUNK_ROWS;
 
-const HOUSE_BRICK = [
-  0xf0d48a, 0xc43a28, 0xf4eee0, 0x8e2418, 0xd47838, 0x6a3028, 0xc4a060, 0xb85040, 0xd8c4b0, 0x9aada8,
-  0xe8b0a8, 0xa8c0d0, 0xf2e6c8, 0x7a3a28, 0xc8d070, 0x5a4038,
-].map((c) => new THREE.Color(c));
-const TERRACE_BRICK = [
-  0xe2a848, 0xc02820, 0xf7f1e4, 0x8a1810, 0xd07030, 0xb84030, 0xd8b070, 0x9a3a28, 0xe8c8b8, 0x7a8a9a,
-  0xf0d090, 0x4a6a8a, 0xd4a090, 0x6e3a28, 0xc4b49a, 0xb86840,
-].map((c) => new THREE.Color(c));
-const APARTMENT_SLATE = [0xe0c8a4, 0xc44030, 0x8a9aaa, 0x7a5040, 0xb84830, 0xd2b896, 0x5a6a78, 0xc89060].map(
-  (c) => new THREE.Color(c),
-);
-const OFFICE_GLASS = [0x6a8aa0, 0xb8c8d4, 0x4a7088, 0xc4b090, 0x5a9aaa, 0x8a9aac, 0xd0c4b0, 0x3a5868].map(
-  (c) => new THREE.Color(c),
-);
-const INDUSTRIAL_DUN = [0xc4a85c, 0x8a5844, 0x5a7860, 0xd4b070, 0x7a4a38, 0x6a6860].map((c) => new THREE.Color(c));
-const TOWER_GLASS = [0x5a88a8, 0xc8d4dc, 0x3a6078, 0xa8b8c4, 0x7aa0b0, 0xd0c8b8].map((c) => new THREE.Color(c));
-const RETAIL_WARM = [0xe84828, 0xf2d8a8, 0xa02820, 0xd49040, 0x2a6ab4, 0xf0c030].map((c) => new THREE.Color(c));
-const CANARY_GLASS = [0x6a8aa8, 0xc8d4dc, 0x3a5870, 0xa8c0d0, 0x5aa0b0, 0xd0d8e0, 0x2a4050, 0x8ab0c0].map(
-  (c) => new THREE.Color(c),
-);
-const CANARY_PODIUM = [0xc4c0b8, 0x9aa4ac, 0xd8d4cc, 0x6a7278].map((c) => new THREE.Color(c));
-const CITY_STONE = [0xc4b090, 0x5a88a8, 0xd0c4b0, 0x3a5868, 0xa8b8c4, 0x8a9aaa, 0xe0d8c8].map(
-  (c) => new THREE.Color(c),
-);
-const PORTLAND = [0xe8e2d4, 0xd4cbb8, 0xc8c0b0, 0xb0a898, 0xe0d8c8, 0x9a9488].map((c) => new THREE.Color(c));
-const STUCCO_CREAM = [0xf4eee4, 0xe8dcc8, 0xf7f1e4, 0xeee4d4, 0xd8c4b0, 0xc43a28, 0xf0d48a, 0xe2d2c0].map(
-  (c) => new THREE.Color(c),
-);
-const GEORGIAN = [0xc43a28, 0xe8d4b0, 0xb85040, 0xf0d48a, 0x8e2418, 0xd8c4b0, 0xf4eee0].map((c) => new THREE.Color(c));
-const STOCK_YELLOW = [0xd2b896, 0xc4a060, 0xb89870, 0xe2c8a0, 0x8a6a48, 0xc8b090].map((c) => new THREE.Color(c));
-const SHORE_WAREHOUSE = [0x8e5a3a, 0xc4a060, 0x6a4030, 0xe8b0a8, 0x5a7860, 0xd4b070, 0x3a3c42, 0xc02820].map(
-  (c) => new THREE.Color(c),
-);
-const EAST_SOOT = [0x6a4030, 0xa87850, 0x5a3028, 0x8a5844, 0xb89070, 0x4a3028].map((c) => new THREE.Color(c));
-const SOUTH_BANK = [0xb8b0a4, 0x8a3e36, 0x6a8aa0, 0xc4b49a, 0x5a6a78, 0xd0c8b8].map((c) => new THREE.Color(c));
-const BATTERSEA_BRICK = [0x8a3e36, 0x6a3028, 0xc4a060, 0x5a88a8, 0xb85040].map((c) => new THREE.Color(c));
-const GREENWICH_NAVY = [0xe8dcc8, 0xc4a060, 0x4a6a8a, 0xd4c4b0, 0x8a9aaa].map((c) => new THREE.Color(c));
-const BRIXTON_WARM = [0xc02820, 0xd47838, 0xe2a848, 0x8a1810, 0xf0d48a, 0xb84030].map((c) => new THREE.Color(c));
-const STRATFORD_NEW = [0xa8c0d0, 0xc8d4dc, 0xe8dcc8, 0x5a88a8, 0xd0c8b8, 0xb8c8d4].map((c) => new THREE.Color(c));
-const AO_DARK = new THREE.Color(0x6a5848);
-const CORNICE = new THREE.Color(0xe8e0d4);
-const DOOR_PAINTS = [0xc41c1c, 0x1a3a6e, 0x1a1a1a, 0x2d5a3d, 0xd4a017, 0x0e6b6b, 0xf4f0e6, 0x6b2d5a].map(
-  (c) => new THREE.Color(c),
-);
-const ROOF_SLATE = new THREE.Color(0x5a6270);
-const ROOF_TILE = new THREE.Color(0xc45838);
-const ROOF_METAL = new THREE.Color(0x5a5850);
-const ROOF_OFFICE = new THREE.Color(0x5c616a);
-const SHOP_GLOW = new THREE.Color(0x8a6040);
-const HVAC_COLOR = new THREE.Color(0x3a4458);
-const CHIMNEY_COLOR = new THREE.Color(0x3a2420);
+export const WINDOW_MAX = 520_000;
+export const TREE_MAX = 28_000;
+export const ROOFTOP_MAX = 24_000;
 
-const ROAD_WIDTHS_M = [11, 8, 5.5];
-const SIDEWALK_M = [3.0, 2.4, 1.9];
-const ROAD_Y = 0.18;
-const SIDEWALK_Y = 0.1;
-const SIDEWALK_COLOR = 0xc9bba8;
-const ROAD_DASH_M = 8;
+const ROAD_WIDTHS_M = [13, 9, 5.5];
+const SIDEWALK_M = [3.2, 2.5, 1.8];
+const ROAD_Y = 0.16;
+const SIDEWALK_Y = 0.09;
+const MARK_Y = 0.175;
+const PARK_Y = 0.08;
+const WATER_Y = 0.04;
 
-const TUBE_WIDTH_M = 4;
-const TUBE_Y = 0.25;
+const HUB_GLOW_COLOR = 0xb8d4e8;
+export const HUB_GLOW_PLAYER_COLOR = 0xf0c56a;
+const HUB_GLOW_SIZE_M = 36;
+const HUB_GLOW_HEIGHT_M = 4;
 
-const HUB_GLOW_COLOR = 0x7dd3fc;
-export const HUB_GLOW_PLAYER_COLOR = 0xf8c33a;
-const HUB_GLOW_SIZE_M = 50;
-const HUB_GLOW_HEIGHT_M = 8;
+const tmpColor = new THREE.Color();
+const tmpQuat = new THREE.Quaternion();
+const tmpPos = new THREE.Vector3();
+const tmpScale = new THREE.Vector3();
+const tmpMat = new THREE.Matrix4();
+
+export type BuildingPick = {
+  x: number;
+  z: number;
+  heightWorld: number;
+  heightM: number;
+  areaM2: number;
+  style: number;
+  district: DistrictId;
+};
+
+export type CityScratch = {
+  windows: number[];
+  picks: BuildingPick[];
+  rooftops: number[];
+};
+
+export function createScratch(): CityScratch {
+  return { windows: [], picks: [], rooftops: [] };
+}
+
+function hexColor(hex: number): THREE.Color {
+  return tmpColor.setHex(hex);
+}
 
 function hashBuildingIndex(
   heightM: number,
@@ -127,17 +110,14 @@ function hashBuildingIndex(
   return Math.abs(h) % mod;
 }
 
-function jitterColor(c: THREE.Color, seed: number, hueSpread: number): THREE.Color {
-  const out = c.clone();
-  const u = ((seed >>> 8) & 255) / 255;
-  const v = ((seed >>> 16) & 255) / 255;
-  const w = ((seed >>> 24) & 255) / 255;
-  out.offsetHSL((u - 0.5) * hueSpread, (v - 0.5) * 0.28, (w - 0.5) * 0.1);
-  return out;
-}
-
-/** Perpendicular to edge a->b that points away from the footprint centroid. */
-function outwardNormal(ax: number, az: number, bx: number, bz: number, cx: number, cz: number): [number, number] {
+function outwardNormal(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+): [number, number] {
   let nx = bz - az;
   let nz = -(bx - ax);
   const midX = (ax + bx) / 2;
@@ -150,80 +130,11 @@ function outwardNormal(ax: number, az: number, bx: number, bz: number, cx: numbe
   return [nx / len, nz / len];
 }
 
-export function createBuildingMaterial(
-  albedo: THREE.Texture,
-  emissiveMap: THREE.Texture,
-): THREE.MeshLambertMaterial {
+export function createBuildingMaterial(): THREE.MeshLambertMaterial {
   return new THREE.MeshLambertMaterial({
     vertexColors: true,
-    map: albedo,
-    emissive: 0xffffff,
-    emissiveMap,
-    emissiveIntensity: 0,
+    fog: true,
   });
-}
-
-function paletteFor(style: number, district: DistrictId): THREE.Color[] {
-  switch (district) {
-    case 'canary':
-      return style === STYLE_TOWER || style === STYLE_OFFICE || style === STYLE_APARTMENTS
-        ? CANARY_GLASS
-        : CANARY_PODIUM;
-    case 'city':
-      return style === STYLE_TOWER ? TOWER_GLASS : CITY_STONE;
-    case 'westminster':
-      return style === STYLE_TOWER ? TOWER_GLASS : PORTLAND;
-    case 'westend':
-    case 'kensington':
-      return style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_OFFICE
-        ? STUCCO_CREAM
-        : style === STYLE_TOWER
-          ? TOWER_GLASS
-          : STUCCO_CREAM;
-    case 'islington':
-      return style === STYLE_TOWER ? TOWER_GLASS : GEORGIAN;
-    case 'camden':
-      return style === STYLE_TOWER ? TOWER_GLASS : STOCK_YELLOW;
-    case 'shoreditch':
-      return style === STYLE_TOWER ? TOWER_GLASS : SHORE_WAREHOUSE;
-    case 'eastend':
-      return style === STYLE_TOWER ? TOWER_GLASS : EAST_SOOT;
-    case 'southbank':
-      return SOUTH_BANK;
-    case 'battersea':
-      return style === STYLE_TOWER ? TOWER_GLASS : BATTERSEA_BRICK;
-    case 'greenwich':
-      return GREENWICH_NAVY;
-    case 'south':
-      return style === STYLE_TOWER ? TOWER_GLASS : BRIXTON_WARM;
-    case 'stratford':
-      return style === STYLE_TOWER || style === STYLE_OFFICE ? STRATFORD_NEW : STRATFORD_NEW;
-    default:
-      break;
-  }
-  switch (style) {
-    case STYLE_HOUSE:
-      return HOUSE_BRICK;
-    case STYLE_TERRACE:
-      return TERRACE_BRICK;
-    case STYLE_OFFICE:
-      return OFFICE_GLASS;
-    case STYLE_INDUSTRIAL:
-      return INDUSTRIAL_DUN;
-    case STYLE_RETAIL:
-      return RETAIL_WARM;
-    case STYLE_TOWER:
-      return TOWER_GLASS;
-    default:
-      return APARTMENT_SLATE;
-  }
-}
-
-function roofTint(style: number, roof: number): THREE.Color {
-  if (roof !== ROOF_FLAT) return style === STYLE_HOUSE ? ROOF_TILE : ROOF_SLATE;
-  if (style === STYLE_INDUSTRIAL) return ROOF_METAL;
-  if (style === STYLE_OFFICE || style === STYLE_TOWER) return ROOF_OFFICE;
-  return ROOF_SLATE;
 }
 
 function insetRing(
@@ -242,14 +153,18 @@ function footprintAreaM2(ring: { x: number; z: number }[]): number {
   let acc = 0;
   const n = ring.length;
   for (let i = 0; i < n; i++) {
-    const a = ring[i];
-    const b = ring[(i + 1) % n];
+    const a = ring[i]!;
+    const b = ring[(i + 1) % n]!;
     acc += a.x * b.z - b.x * a.z;
   }
-  return Math.abs(acc) * 0.5 / (METERS_TO_WORLD * METERS_TO_WORLD);
+  return (Math.abs(acc) * 0.5) / (METERS_TO_WORLD * METERS_TO_WORLD);
 }
 
-function principalAxis(ring: { x: number; z: number }[], cx: number, cz: number): { ax: number; az: number; px: number; pz: number; maxPerp: number } {
+function principalAxis(
+  ring: { x: number; z: number }[],
+  cx: number,
+  cz: number,
+): { ax: number; az: number; px: number; pz: number; maxPerp: number } {
   let cxx = 0;
   let czz = 0;
   let cxz = 0;
@@ -283,16 +198,57 @@ function principalAxis(ring: { x: number; z: number }[], cx: number, cz: number)
   return { ax, az, px, pz, maxPerp };
 }
 
+function pushWindowMatrix(
+  scratch: CityScratch,
+  x: number,
+  y: number,
+  z: number,
+  nx: number,
+  nz: number,
+  w: number,
+  h: number,
+): void {
+  if (scratch.windows.length / 16 >= WINDOW_MAX) return;
+  const yaw = Math.atan2(nx, nz);
+  const hy = Math.sin(yaw / 2);
+  const hw = Math.cos(yaw / 2);
+  tmpQuat.set(0, hy, 0, hw);
+  tmpPos.set(x, y, z);
+  tmpScale.set(w, h, 1);
+  tmpMat.compose(tmpPos, tmpQuat, tmpScale);
+  const e = tmpMat.elements;
+  for (let i = 0; i < 16; i++) scratch.windows.push(e[i]!);
+}
+
+function pushRooftopMatrix(
+  scratch: CityScratch,
+  x: number,
+  y: number,
+  z: number,
+  sx: number,
+  sy: number,
+  sz: number,
+  yaw: number,
+): void {
+  if (scratch.rooftops.length / 16 >= ROOFTOP_MAX) return;
+  tmpQuat.set(0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2));
+  tmpPos.set(x, y + sy / 2, z);
+  tmpScale.set(sx, sy, sz);
+  tmpMat.compose(tmpPos, tmpQuat, tmpScale);
+  const e = tmpMat.elements;
+  for (let i = 0; i < 16; i++) scratch.rooftops.push(e[i]!);
+}
+
 /** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
 export function buildChunkTier(
   cityData: CityData,
   chunkId: number,
   major: boolean,
   landmarkAnchors: readonly { x: number; y: number; r: number }[] = [],
+  scratch?: CityScratch,
 ): THREE.Mesh | null {
   const positions: number[] = [];
   const normals: number[] = [];
-  const uvs: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
 
@@ -303,32 +259,66 @@ export function buildChunkTier(
     nx: number,
     ny: number,
     nz: number,
-    u: number,
-    v: number,
-    color: THREE.Color,
+    hex: number,
   ): number => {
     positions.push(x, y, z);
     normals.push(nx, ny, nz);
-    uvs.push(u, v);
-    colors.push(color.r, color.g, color.b);
+    hexColor(hex);
+    colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
     return positions.length / 3 - 1;
   };
 
-  const pushBox = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: THREE.Color) => {
+  const pushBox = (
+    x: number,
+    y: number,
+    z: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    hex: number,
+  ) => {
     const hx = sx / 2;
     const hz = sz / 2;
     const faces = [
-      { q: [x - hx, y, z + hz, x + hx, y, z + hz, x + hx, y + sy, z + hz, x - hx, y + sy, z + hz], n: [0, 0, 1] },
-      { q: [x + hx, y, z - hz, x - hx, y, z - hz, x - hx, y + sy, z - hz, x + hx, y + sy, z - hz], n: [0, 0, -1] },
-      { q: [x + hx, y, z + hz, x + hx, y, z - hz, x + hx, y + sy, z - hz, x + hx, y + sy, z + hz], n: [1, 0, 0] },
-      { q: [x - hx, y, z - hz, x - hx, y, z + hz, x - hx, y + sy, z + hz, x - hx, y + sy, z - hz], n: [-1, 0, 0] },
-      { q: [x - hx, y + sy, z + hz, x + hx, y + sy, z + hz, x + hx, y + sy, z - hz, x - hx, y + sy, z - hz], n: [0, 1, 0] },
+      {
+        q: [x - hx, y, z + hz, x + hx, y, z + hz, x + hx, y + sy, z + hz, x - hx, y + sy, z + hz],
+        n: [0, 0, 1],
+      },
+      {
+        q: [x + hx, y, z - hz, x - hx, y, z - hz, x - hx, y + sy, z - hz, x + hx, y + sy, z - hz],
+        n: [0, 0, -1],
+      },
+      {
+        q: [x + hx, y, z + hz, x + hx, y, z - hz, x + hx, y + sy, z - hz, x + hx, y + sy, z + hz],
+        n: [1, 0, 0],
+      },
+      {
+        q: [x - hx, y, z - hz, x - hx, y, z + hz, x - hx, y + sy, z + hz, x - hx, y + sy, z - hz],
+        n: [-1, 0, 0],
+      },
+      {
+        q: [
+          x - hx,
+          y + sy,
+          z + hz,
+          x + hx,
+          y + sy,
+          z + hz,
+          x + hx,
+          y + sy,
+          z - hz,
+          x - hx,
+          y + sy,
+          z - hz,
+        ],
+        n: [0, 1, 0],
+      },
     ];
     for (const f of faces) {
-      const i0 = pushVertex(f.q[0], f.q[1], f.q[2], f.n[0], f.n[1], f.n[2], 0, 0, color);
-      const i1 = pushVertex(f.q[3], f.q[4], f.q[5], f.n[0], f.n[1], f.n[2], 0, 0, color);
-      const i2 = pushVertex(f.q[6], f.q[7], f.q[8], f.n[0], f.n[1], f.n[2], 0, 0, color);
-      const i3 = pushVertex(f.q[9], f.q[10], f.q[11], f.n[0], f.n[1], f.n[2], 0, 0, color);
+      const i0 = pushVertex(f.q[0]!, f.q[1]!, f.q[2]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      const i1 = pushVertex(f.q[3]!, f.q[4]!, f.q[5]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      const i2 = pushVertex(f.q[6]!, f.q[7]!, f.q[8]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
+      const i3 = pushVertex(f.q[9]!, f.q[10]!, f.q[11]!, f.n[0]!, f.n[1]!, f.n[2]!, hex);
       indices.push(i0, i1, i2, i0, i2, i3);
     }
   };
@@ -342,8 +332,8 @@ export function buildChunkTier(
     let cx = 0;
     let cz = 0;
     for (let i = 0; i < n; i++) {
-      const x = dequantizeX(b.verts[i * 2]);
-      const z = dequantizeY(b.verts[i * 2 + 1]);
+      const x = dequantizeX(b.verts[i * 2]!);
+      const z = dequantizeY(b.verts[i * 2 + 1]!);
       ring[i] = { x, z };
       cx += x;
       cz += z;
@@ -356,81 +346,82 @@ export function buildChunkTier(
     const areaM2 = footprintAreaM2(ring);
     const [lng, lat] = unproject(cx, cz);
     const district = districtAt(lng, lat);
-    const style = restyleForDistrict(resolveStyle(b.style, b.heightM, areaM2), b.heightM, areaM2, district);
+    const style = restyleForDistrict(
+      resolveStyle(b.style, b.heightM, areaM2),
+      b.heightM,
+      areaM2,
+      district,
+    );
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
     const forceFlat = district === 'canary' || (district === 'city' && b.heightM > 14);
     const terraceDistrict =
-      district === 'islington' || district === 'kensington' || district === 'south' || district === 'westend';
+      district === 'islington' ||
+      district === 'kensington' ||
+      district === 'south' ||
+      district === 'westend';
     const roof =
       !forceFlat &&
       terraceDistrict &&
       (style === STYLE_TERRACE || style === STYLE_HOUSE) &&
       b.heightM <= 16 &&
       storedRoof === ROOF_FLAT
-        ? ROOF_GABLED
+        ? 1
         : storedRoof;
-    const pal = paletteFor(style, district);
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
-    const palColor = pal[seed % pal.length];
     const osmWall = fromRgb565(b.wall565);
     const osmRoof = fromRgb565(b.roof565);
-    const base =
-      osmWall !== null && !isGenericWallPaint(osmWall)
-        ? jitterColor(new THREE.Color(osmWall), seed, 0.04)
-        : jitterColor(palColor, seed, 0.16);
-    const wallBottomColor = base.clone().lerp(AO_DARK, 0.08);
-    const roofColor = osmRoof ? new THREE.Color(osmRoof) : roofTint(style, roof);
-    const slice = facadeSlice(style, district);
+    const wallOsm = osmWall !== null && !isGenericWallPaint(osmWall) ? osmWall : null;
+    const baseHex = pal.wallHex(style, district, cx, cz, seed, wallOsm);
+    const wallBottomHex = pal.mixHex(baseHex, pal.AO_DARK, 0.1);
+    const pitchedKind = roof !== ROOF_FLAT;
+    const roofHex = osmRoof
+      ? pal.clampRoofColour(osmRoof)
+      : pal.roofHex(style, pitchedKind && b.heightM <= 22, seed);
     const vScale = extrusionScale(style, b.heightM, district);
     const heightWorld = b.heightM * METERS_TO_WORLD * vScale;
-    const shopM = style === STYLE_RETAIL ? Math.min(4.2, b.heightM * 0.38) : 0;
+    const shopM = style === STYLE_RETAIL ? Math.min(4.0, b.heightM * 0.36) : 0;
     const shopWorld = shopM * METERS_TO_WORLD * vScale;
     const plinthWorld =
-      shopWorld > 0.02 ? 0 : Math.min(1.15 * METERS_TO_WORLD * vScale, heightWorld * 0.18);
-    const corniceWorld = Math.min(0.75 * METERS_TO_WORLD * vScale, heightWorld * 0.12);
-    const corniceMix =
-      district === 'westminster' || district === 'westend'
-        ? 0.52
-        : district === 'kensington'
-          ? 0.4
-          : style === STYLE_HOUSE || style === STYLE_TERRACE
-            ? 0.16
-            : district === 'shoreditch' || district === 'eastend'
-              ? 0.1
-              : 0.4;
-    const corniceColor = base.clone().lerp(CORNICE, corniceMix);
-    const floorWorld = slice.floorM * METERS_TO_WORLD * vScale;
+      shopWorld > 0.02 ? 0 : Math.min(0.95 * METERS_TO_WORLD * vScale, heightWorld * 0.14);
+    const corniceWorld = Math.min(0.7 * METERS_TO_WORLD * vScale, heightWorld * 0.1);
+    const corniceHex = pal.mixHex(
+      baseHex,
+      pal.CORNICE,
+      style === STYLE_HOUSE || style === STYLE_TERRACE ? 0.22 : 0.45,
+    );
     const podium = wantPodium(style, b.heightM, areaM2, district);
     const podiumWorld = podium ? Math.min(15 * METERS_TO_WORLD * vScale, heightWorld * 0.14) : 0;
     const shaftRing = podium ? insetRing(ring, cx, cz, district === 'canary' ? 0.42 : 0.58) : ring;
+
+    let longestI = 0;
+    let longestM = 0;
+    let secondI = 0;
+    let secondM = 0;
+    for (let i = 0; i < n; i++) {
+      const a = ring[i]!;
+      const bp = ring[(i + 1) % n]!;
+      const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
+      if (edgeM > longestM) {
+        secondI = longestI;
+        secondM = longestM;
+        longestM = edgeM;
+        longestI = i;
+      } else if (edgeM > secondM) {
+        secondM = edgeM;
+        secondI = i;
+      }
+    }
 
     const emitRingWalls = (
       useRing: { x: number; z: number }[],
       y0: number,
       y1: number,
-      opts: { plinth: boolean; shop: boolean; cornice: boolean; doors: boolean },
+      opts: { plinth: boolean; shop: boolean; cornice: boolean; doors: boolean; windows: boolean },
     ) => {
       const count = useRing.length;
-      let longestI = 0;
-      let longestM = 0;
       for (let i = 0; i < count; i++) {
-        const a = useRing[i];
-        const bp = useRing[(i + 1) % count];
-        const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
-        if (edgeM > longestM) {
-          longestM = edgeM;
-          longestI = i;
-        }
-      }
-
-      let cumMeters = 0;
-      for (let i = 0; i < count; i++) {
-        const a = useRing[i];
-        const bp = useRing[(i + 1) % count];
-        const edgeLenMeters = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
-        const uStart = cumMeters / slice.uPeriodM;
-        const uEnd = (cumMeters + edgeLenMeters) / slice.uPeriodM;
-        cumMeters += edgeLenMeters;
+        const a = useRing[i]!;
+        const bp = useRing[(i + 1) % count]!;
         const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
         const dx = bp.x - a.x;
         const dz = bp.z - a.z;
@@ -438,65 +429,32 @@ export function buildChunkTier(
         const candZ = dx * (y1 - y0);
         const flip = candX * nx + candZ * nz < 0;
 
-        const emitQuad = (
-          qy0: number,
-          qy1: number,
-          v0: number,
-          v1: number,
-          c0: THREE.Color,
-          c1: THREE.Color,
-          inset = 0,
-        ) => {
-          const ax = a.x + nx * inset;
-          const az = a.z + nz * inset;
-          const bx = bp.x + nx * inset;
-          const bz = bp.z + nz * inset;
-          const iBottomA = pushVertex(ax, qy0, az, nx, 0, nz, uStart, v0, c0);
-          const iBottomB = pushVertex(bx, qy0, bz, nx, 0, nz, uEnd, v0, c0);
-          const iTopA = pushVertex(ax, qy1, az, nx, 0, nz, uStart, v1, c1);
-          const iTopB = pushVertex(bx, qy1, bz, nx, 0, nz, uEnd, v1, c1);
+        const emitQuad = (qy0: number, qy1: number, c0: number, c1: number, alongN = 0) => {
+          const ax = a.x + nx * alongN;
+          const az = a.z + nz * alongN;
+          const bx = bp.x + nx * alongN;
+          const bz = bp.z + nz * alongN;
+          const iBottomA = pushVertex(ax, qy0, az, nx, 0, nz, c0);
+          const iBottomB = pushVertex(bx, qy0, bz, nx, 0, nz, c0);
+          const iTopA = pushVertex(ax, qy1, az, nx, 0, nz, c1);
+          const iTopB = pushVertex(bx, qy1, bz, nx, 0, nz, c1);
           if (!flip) indices.push(iBottomA, iBottomB, iTopB, iBottomA, iTopB, iTopA);
           else indices.push(iBottomA, iTopB, iBottomB, iBottomA, iTopA, iTopB);
-        };
-
-        const emitStoreys = (sy0: number, sy1: number, c0: THREE.Color, c1: THREE.Color) => {
-          const span = sy1 - sy0;
-          if (span <= 1e-5) return;
-          let y = sy0;
-          let remaining = span / floorWorld;
-          while (remaining > 0.05 && y < sy1 - 1e-5) {
-            const take = Math.min(slice.rows, remaining);
-            const yNext = Math.min(sy1, y + take * floorWorld);
-            const { v0, v1 } = facadeVForFloors(style, take, district);
-            const t0 = (y - sy0) / span;
-            const t1 = (yNext - sy0) / span;
-            emitQuad(y, yNext, v0, v1, c0.clone().lerp(c1, t0), c0.clone().lerp(c1, t1));
-            remaining -= take;
-            y = yNext;
-          }
         };
 
         const plinthTop = opts.plinth ? y0 + plinthWorld : y0;
         const wallTop = Math.max(plinthTop, y1 - (opts.cornice ? corniceWorld : 0));
         if (opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85) {
-          const shopUv = facadeVForFloors(style, 1, district);
-          emitQuad(
-            y0,
-            y0 + shopWorld,
-            shopUv.v0,
-            shopUv.v1,
-            wallBottomColor.clone().lerp(SHOP_GLOW, 0.55),
-            SHOP_GLOW,
-          );
-          emitStoreys(y0 + shopWorld, wallTop, base, base);
+          emitQuad(y0, y0 + shopWorld, pal.SHOPFRONT, pal.SHOPFRONT);
+          emitQuad(y0 + shopWorld, wallTop, wallBottomHex, baseHex);
         } else if (opts.plinth && plinthWorld > 0.01) {
-          emitQuad(y0, plinthTop, 0, 0, wallBottomColor, wallBottomColor);
-          emitStoreys(plinthTop, wallTop, wallBottomColor, base);
+          emitQuad(y0, plinthTop, wallBottomHex, wallBottomHex);
+          emitQuad(plinthTop, wallTop, wallBottomHex, baseHex);
         } else {
-          emitStoreys(y0, wallTop, wallBottomColor, base);
+          emitQuad(y0, wallTop, wallBottomHex, baseHex);
         }
         if (opts.cornice && corniceWorld > 0.008 && wallTop < y1) {
-          emitQuad(wallTop, y1, 0, 0, corniceColor, corniceColor, 0.28 * METERS_TO_WORLD);
+          emitQuad(wallTop, y1, corniceHex, corniceHex, 0.22 * METERS_TO_WORLD);
         }
 
         const wantDoor =
@@ -505,50 +463,70 @@ export function buildChunkTier(
           longestM >= 4.2 &&
           (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_RETAIL);
         if (wantDoor) {
-          const doorW = Math.min(1.35 * METERS_TO_WORLD, Math.hypot(dx, dz) * 0.24);
-          const doorH = Math.min(2.4 * METERS_TO_WORLD * vScale, (y1 - y0) * 0.58);
+          const doorW = Math.min(1.2 * METERS_TO_WORLD, Math.hypot(dx, dz) * 0.22);
+          const doorH = Math.min(2.3 * METERS_TO_WORLD * vScale, (y1 - y0) * 0.55);
           const mx = (a.x + bp.x) / 2;
           const mz = (a.z + bp.z) / 2;
-          const ox = nx * 0.04 * METERS_TO_WORLD;
-          const oz = nz * 0.04 * METERS_TO_WORLD;
-          const tx = dx / (Math.hypot(dx, dz) || 1);
-          const tz = dz / (Math.hypot(dx, dz) || 1);
+          const ox = nx * 0.05 * METERS_TO_WORLD;
+          const oz = nz * 0.05 * METERS_TO_WORLD;
+          const elen = Math.hypot(dx, dz) || 1;
+          const tx = dx / elen;
+          const tz = dz / elen;
           const hx = (tx * doorW) / 2;
           const hz = (tz * doorW) / 2;
-          const door = DOOR_PAINTS[seed % DOOR_PAINTS.length];
-          const d0 = pushVertex(mx - hx + ox, y0, mz - hz + oz, nx, 0, nz, 0, 0, door);
-          const d1 = pushVertex(mx + hx + ox, y0, mz + hz + oz, nx, 0, nz, 0, 0, door);
-          const d2 = pushVertex(mx + hx + ox, y0 + doorH, mz + hz + oz, nx, 0, nz, 0, 0, door);
-          const d3 = pushVertex(mx - hx + ox, y0 + doorH, mz - hz + oz, nx, 0, nz, 0, 0, door);
+          const door = pal.doorHex(seed);
+          const d0 = pushVertex(mx - hx + ox, y0, mz - hz + oz, nx, 0, nz, door);
+          const d1 = pushVertex(mx + hx + ox, y0, mz + hz + oz, nx, 0, nz, door);
+          const d2 = pushVertex(mx + hx + ox, y0 + doorH, mz + hz + oz, nx, 0, nz, door);
+          const d3 = pushVertex(mx - hx + ox, y0 + doorH, mz - hz + oz, nx, 0, nz, door);
           if (!flip) indices.push(d0, d1, d2, d0, d2, d3);
           else indices.push(d0, d2, d1, d0, d3, d2);
+        }
+
+        if (opts.windows && scratch) {
+          const isFace = i === longestI || (major && i === secondI);
+          if (isFace)
+            emitFacadeWindows(scratch, a, bp, nx, nz, y0, y1, style, major, shopWorld, vScale);
         }
       }
     };
 
     if (podium) {
-      emitRingWalls(ring, 0, podiumWorld, { plinth: true, shop: false, cornice: true, doors: true });
-      emitRingWalls(shaftRing, podiumWorld, heightWorld, { plinth: false, shop: false, cornice: true, doors: false });
+      emitRingWalls(ring, 0, podiumWorld, {
+        plinth: true,
+        shop: false,
+        cornice: true,
+        doors: true,
+        windows: true,
+      });
+      emitRingWalls(shaftRing, podiumWorld, heightWorld, {
+        plinth: false,
+        shop: false,
+        cornice: true,
+        doors: false,
+        windows: true,
+      });
     } else {
       emitRingWalls(ring, 0, heightWorld, {
         plinth: shopWorld <= 0.02,
         shop: shopWorld > 0.02,
         cornice: true,
         doors: true,
+        windows: true,
       });
     }
 
     const roofRing = shaftRing;
     const axis = principalAxis(roofRing, cx, cz);
     const widthM = (axis.maxPerp * 2) / METERS_TO_WORLD;
-    const pitched = !forceFlat && roof !== ROOF_FLAT && b.heightM <= 22 && widthM < 28 && n <= 12;
+    const pitched = !forceFlat && pitchedKind && b.heightM <= 22 && widthM < 28 && n <= 12;
     const riseM = pitched ? Math.min(8.5, Math.max(2.4, widthM * 0.36)) : 0;
     const riseWorld = riseM * METERS_TO_WORLD * vScale;
     const eavesY = heightWorld;
 
     const roofYAt = (p: { x: number; z: number }): number => {
       if (!pitched) return eavesY;
-      if (roof === ROOF_GABLED) {
+      if (roof === 1) {
         const d = Math.abs((p.x - cx) * axis.px + (p.z - cz) * axis.pz);
         return eavesY + riseWorld * (1 - Math.min(1, d / axis.maxPerp));
       }
@@ -558,14 +536,19 @@ export function buildChunkTier(
       return eavesY + riseWorld * (1 - Math.min(1, d / maxD));
     };
 
-    const emitRoof = (useRing: { x: number; z: number }[], yAt: (p: { x: number; z: number }) => number, color: THREE.Color) => {
+    const emitRoof = (
+      useRing: { x: number; z: number }[],
+      yAt: (p: { x: number; z: number }) => number,
+      hex: number,
+    ) => {
       for (let t = 0; t < b.indices.length; t += 3) {
-        const i0 = b.indices[t];
-        let i1 = b.indices[t + 1];
-        let i2 = b.indices[t + 2];
+        const i0 = b.indices[t]!;
+        let i1 = b.indices[t + 1]!;
+        let i2 = b.indices[t + 2]!;
         const p0 = useRing[i0];
         const p1 = useRing[i1];
         const p2 = useRing[i2];
+        if (!p0 || !p1 || !p2) continue;
         const y0 = yAt(p0);
         let y1 = yAt(p1);
         let y2 = yAt(p2);
@@ -593,47 +576,122 @@ export function buildChunkTier(
         nx /= len;
         ny /= len;
         nz /= len;
-        const q0 = useRing[i0];
-        const q1 = useRing[i1];
-        const q2 = useRing[i2];
-        const v0 = pushVertex(q0.x, yAt(q0), q0.z, nx, ny, nz, 0, 0, color);
-        const v1 = pushVertex(q1.x, yAt(q1), q1.z, nx, ny, nz, 0, 0, color);
-        const v2 = pushVertex(q2.x, yAt(q2), q2.z, nx, ny, nz, 0, 0, color);
+        const q0 = useRing[i0]!;
+        const q1 = useRing[i1]!;
+        const q2 = useRing[i2]!;
+        const v0 = pushVertex(q0.x, yAt(q0), q0.z, nx, ny, nz, hex);
+        const v1 = pushVertex(q1.x, yAt(q1), q1.z, nx, ny, nz, hex);
+        const v2 = pushVertex(q2.x, yAt(q2), q2.z, nx, ny, nz, hex);
         indices.push(v0, v1, v2);
       }
     };
 
-    if (podium) emitRoof(ring, () => podiumWorld, roofColor.clone().lerp(AO_DARK, 0.12));
-    emitRoof(roofRing, roofYAt, roofColor);
+    if (podium) emitRoof(ring, () => podiumWorld, pal.mixHex(roofHex, pal.AO_DARK, 0.18));
+    emitRoof(roofRing, roofYAt, roofHex);
+
+    const wantParapet = !pitched && (major || areaM2 > 220) && b.heightM >= 10 && n <= 24;
+    if (wantParapet) {
+      const lip = 0.9 * METERS_TO_WORLD;
+      const inset = 0.35 * METERS_TO_WORLD;
+      const thick = 0.28 * METERS_TO_WORLD;
+      const count = roofRing.length;
+      for (let i = 0; i < count; i++) {
+        const a = roofRing[i]!;
+        const bp = roofRing[(i + 1) % count]!;
+        const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
+        const ax = a.x - nx * inset;
+        const az = a.z - nz * inset;
+        const bx = bp.x - nx * inset;
+        const bz = bp.z - nz * inset;
+        const y0 = eavesY;
+        const y1 = eavesY + lip;
+        const i0 = pushVertex(ax, y0, az, nx, 0, nz, roofHex);
+        const i1 = pushVertex(bx, y0, bz, nx, 0, nz, roofHex);
+        const i2 = pushVertex(bx, y1, bz, nx, 0, nz, pal.CORNICE);
+        const i3 = pushVertex(ax, y1, az, nx, 0, nz, pal.CORNICE);
+        indices.push(i0, i1, i2, i0, i2, i3);
+        const ox = nx * thick;
+        const oz = nz * thick;
+        const c0 = pushVertex(ax - ox, y1, az - oz, 0, 1, 0, pal.CORNICE);
+        const c1 = pushVertex(bx - ox, y1, bz - oz, 0, 1, 0, pal.CORNICE);
+        const c2 = pushVertex(bx, y1, bz, 0, 1, 0, pal.CORNICE);
+        const c3 = pushVertex(ax, y1, az, 0, 1, 0, pal.CORNICE);
+        indices.push(c0, c1, c2, c0, c2, c3);
+      }
+    }
 
     const ridgeY = eavesY + riseWorld;
     if (pitched && (style === STYLE_HOUSE || style === STYLE_TERRACE) && areaM2 < 480) {
-      const along = ((hashBuildingIndex(b.heightM, b.chunkId, b.verts, 97, cx, cz) - 48) / 97) * axis.maxPerp * 0.5;
-      pushBox(
-        cx + axis.ax * along,
-        ridgeY - 0.5 * METERS_TO_WORLD,
-        cz + axis.az * along,
-        1.15 * METERS_TO_WORLD,
-        2.6 * METERS_TO_WORLD * vScale,
-        1.15 * METERS_TO_WORLD,
-        CHIMNEY_COLOR,
-      );
-    }
-
-    if ((style === STYLE_OFFICE || style === STYLE_TOWER || style === STYLE_APARTMENTS) && b.heightM >= 12 && areaM2 > 160) {
-      const s = 3.2 * METERS_TO_WORLD;
-      pushBox(cx, eavesY, cz, s, 2.2 * METERS_TO_WORLD * vScale, s * 0.7, HVAC_COLOR);
-      if (areaM2 > 320) {
+      const count = areaM2 > 140 ? 3 : 1;
+      for (let k = 0; k < count; k++) {
+        const along = ((k + 1) / (count + 1) - 0.5) * axis.maxPerp * 1.4;
         pushBox(
-          cx + axis.ax * s * 1.4,
-          eavesY,
-          cz + axis.az * s * 1.4,
-          s * 0.7,
-          1.6 * METERS_TO_WORLD * vScale,
-          s * 0.5,
-          HVAC_COLOR,
+          cx + axis.ax * along,
+          ridgeY - 0.4 * METERS_TO_WORLD,
+          cz + axis.az * along,
+          0.9 * METERS_TO_WORLD,
+          2.2 * METERS_TO_WORLD * vScale,
+          0.9 * METERS_TO_WORLD,
+          pal.CHIMNEY,
         );
       }
+    }
+
+    if (
+      scratch &&
+      !pitched &&
+      (style === STYLE_OFFICE || style === STYLE_TOWER || style === STYLE_APARTMENTS) &&
+      b.heightM >= 12 &&
+      areaM2 > 180
+    ) {
+      const yaw = Math.atan2(axis.ax, axis.az);
+      const s = Math.min(5.5, Math.sqrt(areaM2) * 0.12) * METERS_TO_WORLD;
+      pushRooftopMatrix(
+        scratch,
+        cx,
+        eavesY,
+        cz,
+        s * 1.1,
+        2.4 * METERS_TO_WORLD * vScale,
+        s * 0.75,
+        yaw,
+      );
+      if (areaM2 > 320) {
+        pushRooftopMatrix(
+          scratch,
+          cx + axis.ax * s * 1.6,
+          eavesY,
+          cz + axis.az * s * 1.6,
+          s * 0.7,
+          1.5 * METERS_TO_WORLD * vScale,
+          s * 0.5,
+          yaw,
+        );
+      }
+      if (areaM2 > 500 && major) {
+        pushRooftopMatrix(
+          scratch,
+          cx - axis.px * s * 0.9,
+          eavesY,
+          cz - axis.pz * s * 0.9,
+          s * 0.45,
+          0.55 * METERS_TO_WORLD,
+          s * 0.45,
+          yaw,
+        );
+      }
+    }
+
+    if (scratch) {
+      scratch.picks.push({
+        x: cx,
+        z: cz,
+        heightWorld,
+        heightM: b.heightM,
+        areaM2,
+        style,
+        district,
+      });
     }
   }
 
@@ -642,18 +700,132 @@ export function buildChunkTier(
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
   geometry.computeBoundingSphere();
 
   const mesh = new THREE.Mesh(geometry);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   mesh.userData.chunkId = chunkId;
   mesh.userData.major = major;
   return mesh;
 }
 
-function buildMergedPolyMesh(polys: CityPoly[], color: number, y: number): THREE.Mesh | null {
+function emitFacadeWindows(
+  scratch: CityScratch,
+  a: { x: number; z: number },
+  bp: { x: number; z: number },
+  nx: number,
+  nz: number,
+  y0: number,
+  y1: number,
+  style: number,
+  major: boolean,
+  shopWorld: number,
+  vScale: number,
+): void {
+  const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
+  const spanY = y1 - y0;
+  const heightM = spanY / METERS_TO_WORLD;
+  if (edgeM < 5.2 || heightM < 7.2) return;
+
+  const winStart = y0 + (shopWorld > 0.02 ? shopWorld : 0.85 * METERS_TO_WORLD * vScale);
+  const winEnd = y1 - 0.7 * METERS_TO_WORLD * vScale;
+  if (winEnd - winStart < 2.6 * METERS_TO_WORLD) return;
+
+  const pitchU = major ? 3.3 : 3.7;
+  const pitchV = 3.25 * vScale;
+  const winW = (major ? 1.35 : 1.12) * METERS_TO_WORLD;
+  const winH = (major ? 1.65 : 1.4) * METERS_TO_WORLD * Math.min(vScale, 1.8);
+  const marginU = 0.85;
+  const usableU = edgeM - marginU * 2;
+  if (usableU < winW / METERS_TO_WORLD) return;
+
+  let cols = Math.floor(usableU / pitchU);
+  let rows = Math.floor((winEnd - winStart) / (pitchV * METERS_TO_WORLD));
+  cols = Math.max(2, Math.min(cols, major ? 7 : 4));
+  rows = Math.max(2, Math.min(rows, major ? 10 : 3));
+  if (!major) {
+    cols = Math.min(cols, 3);
+    rows = Math.min(rows, 2);
+  }
+  if (style === STYLE_TOWER) {
+    cols = Math.min(cols, 6);
+    rows = Math.min(rows, 8);
+  }
+  const maxCount = major ? 36 : 8;
+  if (cols * rows > maxCount) {
+    rows = Math.max(2, Math.floor(maxCount / cols));
+  }
+
+  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
+  const tx = (bp.x - a.x) / elen;
+  const tz = (bp.z - a.z) / elen;
+  const inset = 0.14 * METERS_TO_WORLD;
+  const u0 = marginU * METERS_TO_WORLD + winW / 2;
+  const uSpan = elen - 2 * (marginU * METERS_TO_WORLD);
+  const vSpan = winEnd - winStart;
+
+  for (let r = 0; r < rows; r++) {
+    const y = winStart + ((r + 0.5) / rows) * vSpan;
+    for (let c = 0; c < cols; c++) {
+      const u = u0 + ((c + 0.5) / cols) * (uSpan - winW);
+      const x = a.x + tx * u - nx * inset;
+      const z = a.z + tz * u - nz * inset;
+      pushWindowMatrix(scratch, x, y, z, nx, nz, winW, winH);
+    }
+  }
+}
+
+export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | null {
+  const count = Math.floor(scratch.windows.length / 16);
+  if (count === 0) return null;
+  const geo = new THREE.PlaneGeometry(1, 1);
+  const mat = new THREE.MeshLambertMaterial({
+    color: pal.WINDOW,
+    side: THREE.FrontSide,
+    fog: true,
+  });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < count; i++) {
+    m.fromArray(scratch.windows, i * 16);
+    mesh.setMatrixAt(i, m);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+export function buildRooftopMesh(scratch: CityScratch): THREE.InstancedMesh | null {
+  const count = Math.floor(scratch.rooftops.length / 16);
+  if (count === 0) return null;
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mat = new THREE.MeshLambertMaterial({ color: pal.HVAC, fog: true });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < count; i++) {
+    m.fromArray(scratch.rooftops, i * 16);
+    mesh.setMatrixAt(i, m);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+function buildMergedPolyMesh(
+  polys: CityPoly[],
+  color: number,
+  y: number,
+  opts: { receiveShadow?: boolean; doubleSide?: boolean } = {},
+): THREE.Mesh | null {
   let totalVerts = 0;
   let totalTris = 0;
   for (const p of polys) {
@@ -670,91 +842,228 @@ function buildMergedPolyMesh(polys: CityPoly[], color: number, y: number): THREE
   for (const p of polys) {
     const n = p.verts.length / 2;
     for (let i = 0; i < n; i++) {
-      positions[vOff++] = dequantizeX(p.verts[i * 2]);
+      positions[vOff++] = dequantizeX(p.verts[i * 2]!);
       positions[vOff++] = y;
-      positions[vOff++] = dequantizeY(p.verts[i * 2 + 1]);
+      positions[vOff++] = dequantizeY(p.verts[i * 2 + 1]!);
     }
-    for (let i = 0; i < p.indices.length; i++) indices[iOff++] = p.indices[i] + vertBase;
+    for (let i = 0; i < p.indices.length; i++) indices[iOff++] = p.indices[i]! + vertBase;
     vertBase += n;
   }
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  // Flat unlit ground decal — DoubleSide sidesteps earcut/offline winding entirely.
-  const material = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
-  return new THREE.Mesh(geometry, material);
+  const material = new THREE.MeshLambertMaterial({
+    color,
+    side: opts.doubleSide === false ? THREE.FrontSide : THREE.DoubleSide,
+    fog: true,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = opts.receiveShadow !== false;
+  mesh.castShadow = false;
+  return mesh;
 }
 
 export function buildWater(cityData: CityData): THREE.Mesh | null {
-  return buildMergedPolyMesh(cityData.water, 0x5a92b8, 0.05);
+  return buildMergedPolyMesh(cityData.water, pal.WATER, WATER_Y);
 }
 
-export function buildParks(cityData: CityData): THREE.Mesh | null {
-  return buildMergedPolyMesh(cityData.parks, 0x4a9a52, 0.1);
+function parkCentroid(
+  park: CityPoly,
+): { x: number; z: number; ring: { x: number; z: number }[]; areaM2: number } | null {
+  const n = park.verts.length / 2;
+  if (n < 3) return null;
+  const ring = new Array<{ x: number; z: number }>(n);
+  let cx = 0;
+  let cz = 0;
+  for (let i = 0; i < n; i++) {
+    const x = dequantizeX(park.verts[i * 2]!);
+    const z = dequantizeY(park.verts[i * 2 + 1]!);
+    ring[i] = { x, z };
+    cx += x;
+    cz += z;
+  }
+  cx /= n;
+  cz /= n;
+  let acc = 0;
+  for (let i = 0; i < n; i++) {
+    const a = ring[i]!;
+    const b = ring[(i + 1) % n]!;
+    acc += a.x * b.z - b.x * a.z;
+  }
+  const areaM2 = (Math.abs(acc) * 0.5) / (METERS_TO_WORLD * METERS_TO_WORLD);
+  return { x: cx, z: cz, ring, areaM2 };
 }
 
-/** Low-poly canopy blobs on parks — the X-post street clip's toy-city trees. */
+export function buildParks(cityData: CityData): THREE.Group | null {
+  const grass = buildMergedPolyMesh(cityData.parks, pal.PARK, PARK_Y);
+  if (!grass) return null;
+  const group = new THREE.Group();
+  group.add(grass);
+
+  const pathPos: number[] = [];
+  const pathIdx: number[] = [];
+  const halfW = 2.4 * METERS_TO_WORLD;
+  for (const park of cityData.parks) {
+    const info = parkCentroid(park);
+    if (!info || info.areaM2 < 18_000) continue;
+    const { ring, x: cx, z: cz } = info;
+    let maxI = 0;
+    let maxD = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const d = Math.hypot(ring[i]!.x - cx, ring[i]!.z - cz);
+      if (d > maxD) {
+        maxD = d;
+        maxI = i;
+      }
+    }
+    const a = ring[maxI]!;
+    const b = ring[(maxI + Math.floor(ring.length / 2)) % ring.length]!;
+    const pts = [
+      { x: a.x * 0.72 + cx * 0.28, z: a.z * 0.72 + cz * 0.28 },
+      { x: cx, z: cz },
+      { x: b.x * 0.72 + cx * 0.28, z: b.z * 0.72 + cz * 0.28 },
+    ];
+    const ribbon = buildRibbonGeometry(pts, halfW, PARK_Y + 0.015 * METERS_TO_WORLD);
+    const base = pathPos.length / 3;
+    for (const v of ribbon.positions) pathPos.push(v);
+    for (const i of ribbon.indices) pathIdx.push(i + base);
+  }
+  if (pathPos.length > 0) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pathPos, 3));
+    g.setIndex(pathIdx);
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(
+      g,
+      new THREE.MeshLambertMaterial({ color: pal.PARK_PATH, side: THREE.DoubleSide, fog: true }),
+    );
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
+}
+
+function mulberry(h: number): number {
+  return (Math.imul(h, 1103515245) + 12345) | 0;
+}
+
+/** Instanced low-poly trees in parks and along major streets. */
 export function buildParkTrees(cityData: CityData): THREE.Group | null {
   const dummy = new THREE.Object3D();
-  const spots: { x: number; z: number; scale: number }[] = [];
+  const spots: { x: number; z: number; scale: number; shade: number }[] = [];
+
   for (const park of cityData.parks) {
-    const n = park.verts.length / 2;
-    if (n < 3) continue;
-    const ring = new Array<{ x: number; z: number }>(n);
-    let cx = 0;
-    let cz = 0;
-    for (let i = 0; i < n; i++) {
-      const x = dequantizeX(park.verts[i * 2]);
-      const z = dequantizeY(park.verts[i * 2 + 1]);
-      ring[i] = { x, z };
-      cx += x;
-      cz += z;
-    }
-    cx /= n;
-    cz /= n;
-    let acc = 0;
-    for (let i = 0; i < n; i++) {
-      const a = ring[i];
-      const b = ring[(i + 1) % n];
-      acc += a.x * b.z - b.x * a.z;
-    }
-    const areaM2 = Math.abs(acc) * 0.5 / (METERS_TO_WORLD * METERS_TO_WORLD);
-    if (areaM2 < 90) continue;
-    const count = Math.min(10, Math.max(1, Math.round(areaM2 / 900)));
-    let h = Math.imul(n + 1, 2654435761) ^ park.verts[0];
-    for (let t = 0; t < count; t++) {
-      h = Math.imul(h, 1103515245) + 12345;
+    const info = parkCentroid(park);
+    if (!info || info.areaM2 < 90) continue;
+    const count = Math.min(48, Math.max(2, Math.round(info.areaM2 / 1400)));
+    let h = Math.imul(info.ring.length + 1, 2654435761) ^ park.verts[0]!;
+    for (let t = 0; t < count && spots.length < TREE_MAX; t++) {
+      h = mulberry(h);
       const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
       const rad =
-        Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(areaM2) * METERS_TO_WORLD * 0.22;
+        Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.28;
       spots.push({
-        x: cx + Math.cos(ang) * rad,
-        z: cz + Math.sin(ang) * rad,
-        scale: 4.5 + ((h >>> 16) & 7) * 0.55,
+        x: info.x + Math.cos(ang) * rad,
+        z: info.z + Math.sin(ang) * rad,
+        scale: 5.2 + ((h >>> 16) & 7) * 0.45,
+        shade: (h >>> 20) % 3,
       });
     }
   }
+
+  const streetSpacing = [22, 28];
+  for (const road of cityData.roads as CityRoad[]) {
+    if (road.tier > 1 || spots.length >= TREE_MAX) continue;
+    const pts = roadPts(road);
+    if (!pts) continue;
+    const spacing = streetSpacing[road.tier]! * METERS_TO_WORLD;
+    const offset =
+      (ROAD_WIDTHS_M[road.tier]! / 2 + SIDEWALK_M[road.tier]! * 0.72) * METERS_TO_WORLD;
+    let travelled = 0;
+    let nextAt = spacing * (0.4 + (road.pts[0]! % 79) / 200);
+    let sign = road.pts[0]! % 2 === 0 ? 1 : -1;
+    let h = road.pts[0]! ^ 0x9e3779b9;
+    for (let i = 0; i < pts.length - 1 && spots.length < TREE_MAX; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const px = -dz / len;
+      const pz = dx / len;
+      while (nextAt <= travelled + len && spots.length < TREE_MAX) {
+        const t = (nextAt - travelled) / len;
+        h = mulberry(h);
+        if (((h >>> 8) & 7) !== 0) {
+          spots.push({
+            x: a.x + dx * t + px * offset * sign,
+            z: a.z + dz * t + pz * offset * sign,
+            scale: 4.2 + ((h >>> 16) & 5) * 0.35,
+            shade: (h >>> 22) % 3,
+          });
+        }
+        nextAt += spacing;
+        sign = -sign;
+      }
+      travelled += len;
+    }
+  }
+
   if (spots.length === 0) return null;
-  const canopyMat = new THREE.MeshLambertMaterial({ color: 0x3f9148, flatShading: true });
-  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a30 });
-  const canopies = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), canopyMat, spots.length);
-  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.2, 1, 5), trunkMat, spots.length);
+
+  const canopyGeos = pal.TREE_CANOPY.map(
+    (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true, fog: true }),
+  );
+  const counts = [0, 0, 0];
+  for (const s of spots) counts[s.shade]! += 1;
+  const canopies: THREE.InstancedMesh[] = [];
+  for (let shade = 0; shade < 3; shade++) {
+    if (counts[shade]! <= 0) continue;
+    const mesh = new THREE.InstancedMesh(
+      new THREE.IcosahedronGeometry(1, 0),
+      canopyGeos[shade]!,
+      counts[shade]!,
+    );
+    mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    canopies[shade] = mesh;
+  }
+  const cursor = [0, 0, 0];
+  const trunkMat = new THREE.MeshLambertMaterial({ color: pal.TREE_TRUNK, fog: true });
+  const trunks = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.16, 0.22, 1, 5),
+    trunkMat,
+    spots.length,
+  );
+  trunks.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  trunks.castShadow = true;
+  trunks.frustumCulled = false;
+
   for (let i = 0; i < spots.length; i++) {
-    const s = spots[i];
+    const s = spots[i]!;
     const r = s.scale * METERS_TO_WORLD;
-    dummy.position.set(s.x, r * 0.85, s.z);
-    dummy.scale.set(r, r * 0.72, r);
+    dummy.position.set(s.x, r * 0.95, s.z);
+    dummy.scale.set(r, r * 0.78, r);
+    dummy.rotation.set(0, ((s.shade + i) * 0.7) % (Math.PI * 2), 0);
     dummy.updateMatrix();
-    canopies.setMatrixAt(i, dummy.matrix);
+    const ci = cursor[s.shade]!;
+    canopies[s.shade]!.setMatrixAt(ci, dummy.matrix);
+    cursor[s.shade] = ci + 1;
+    dummy.rotation.set(0, 0, 0);
     dummy.position.set(s.x, r * 0.28, s.z);
-    dummy.scale.set(r * 0.22, r * 0.55, r * 0.22);
+    dummy.scale.set(r * 0.18, r * 0.55, r * 0.18);
     dummy.updateMatrix();
     trunks.setMatrixAt(i, dummy.matrix);
   }
   const group = new THREE.Group();
-  group.add(trunks, canopies);
+  group.add(trunks);
+  for (const c of canopies) if (c) group.add(c);
   return group;
 }
 
@@ -762,23 +1071,17 @@ function buildRibbonGeometry(
   ptsWorld: { x: number; z: number }[],
   halfWidthWorld: number,
   y: number,
-): { positions: number[]; uvs: number[]; indices: number[] } {
+): { positions: number[]; indices: number[] } {
   const positions: number[] = [];
-  const uvs: number[] = [];
   const indices: number[] = [];
-  const uScale = 1 / (ROAD_DASH_M * METERS_TO_WORLD);
-  let travelled = 0;
   for (let i = 0; i < ptsWorld.length - 1; i++) {
-    const a = ptsWorld[i];
-    const bp = ptsWorld[i + 1];
+    const a = ptsWorld[i]!;
+    const bp = ptsWorld[i + 1]!;
     const dx = bp.x - a.x;
     const dz = bp.z - a.z;
     const len = Math.hypot(dx, dz) || 1;
     const px = (-dz / len) * halfWidthWorld;
     const pz = (dx / len) * halfWidthWorld;
-    const u0 = travelled * uScale;
-    const u1 = (travelled + len) * uScale;
-    travelled += len;
     const base = positions.length / 3;
     positions.push(
       a.x + px,
@@ -794,48 +1097,155 @@ function buildRibbonGeometry(
       y,
       bp.z + pz,
     );
-    uvs.push(u0, 1, u0, 0, u1, 0, u1, 1);
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
-  return { positions, uvs, indices };
+  return { positions, indices };
 }
 
 function roadPts(road: CityRoad): { x: number; z: number }[] | null {
   const n = road.pts.length / 2;
   if (n < 2) return null;
   const pts = new Array<{ x: number; z: number }>(n);
-  for (let i = 0; i < n; i++) pts[i] = { x: dequantizeX(road.pts[i * 2]), z: dequantizeY(road.pts[i * 2 + 1]) };
+  for (let i = 0; i < n; i++)
+    pts[i] = { x: dequantizeX(road.pts[i * 2]!), z: dequantizeY(road.pts[i * 2 + 1]!) };
   return pts;
 }
 
+function appendRibbon(
+  dstPos: number[],
+  dstIdx: number[],
+  pts: { x: number; z: number }[],
+  halfW: number,
+  y: number,
+): void {
+  const r = buildRibbonGeometry(pts, halfW, y);
+  const base = dstPos.length / 3;
+  for (const v of r.positions) dstPos.push(v);
+  for (const i of r.indices) dstIdx.push(i + base);
+}
+
+function addCrosswalk(
+  pos: number[],
+  idx: number[],
+  x: number,
+  z: number,
+  tx: number,
+  tz: number,
+  roadHalf: number,
+): void {
+  const nx = -tz;
+  const nz = tx;
+  const bars = 5;
+  const barW = 0.45 * METERS_TO_WORLD;
+  const gap = 0.7 * METERS_TO_WORLD;
+  const start = -((bars - 1) / 2) * gap;
+  for (let i = 0; i < bars; i++) {
+    const along = start + i * gap;
+    const cx = x + tx * along;
+    const cz = z + tz * along;
+    const hx = nx * roadHalf * 0.78;
+    const hz = nz * roadHalf * 0.78;
+    const wx = tx * barW * 0.5;
+    const wz = tz * barW * 0.5;
+    const base = pos.length / 3;
+    pos.push(
+      cx - hx - wx,
+      MARK_Y + 0.002,
+      cz - hz - wz,
+      cx + hx - wx,
+      MARK_Y + 0.002,
+      cz + hz - wz,
+      cx + hx + wx,
+      MARK_Y + 0.002,
+      cz + hz + wz,
+      cx - hx + wx,
+      MARK_Y + 0.002,
+      cz - hz + wz,
+    );
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+}
+
 /** One group per tier so minor streets can hide independently at low zoom. */
-export function buildRoads(cityData: CityData, roadTexture: THREE.Texture): THREE.Group | null {
+export function buildRoads(cityData: CityData): THREE.Group | null {
   const group = new THREE.Group();
-  const sidewalkMat = new THREE.MeshBasicMaterial({
-    color: SIDEWALK_COLOR,
+  const sidewalkMat = new THREE.MeshLambertMaterial({
+    color: pal.PAVEMENT,
     side: THREE.DoubleSide,
+    fog: true,
   });
+  const asphaltMat = new THREE.MeshLambertMaterial({
+    color: pal.ASPHALT,
+    side: THREE.DoubleSide,
+    fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const markMat = new THREE.MeshLambertMaterial({
+    color: pal.MARKING,
+    side: THREE.DoubleSide,
+    fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+
+  const markPos: number[] = [];
+  const markIdx: number[] = [];
+
   for (let tier = 0; tier <= 2; tier++) {
     const walkPos: number[] = [];
     const walkIdx: number[] = [];
     const asphPos: number[] = [];
-    const asphUv: number[] = [];
     const asphIdx: number[] = [];
-    const halfCarriage = (ROAD_WIDTHS_M[tier] * METERS_TO_WORLD) / 2;
-    const halfWalk = halfCarriage + SIDEWALK_M[tier] * METERS_TO_WORLD;
+    const halfCarriage = (ROAD_WIDTHS_M[tier]! * METERS_TO_WORLD) / 2;
+    const halfWalk = halfCarriage + SIDEWALK_M[tier]! * METERS_TO_WORLD;
     for (const road of cityData.roads as CityRoad[]) {
       if (road.tier !== tier) continue;
       const pts = roadPts(road);
       if (!pts) continue;
-      const walk = buildRibbonGeometry(pts, halfWalk, SIDEWALK_Y);
-      const walkBase = walkPos.length / 3;
-      for (const v of walk.positions) walkPos.push(v);
-      for (const i of walk.indices) walkIdx.push(i + walkBase);
-      const asph = buildRibbonGeometry(pts, halfCarriage, ROAD_Y);
-      const asphBase = asphPos.length / 3;
-      for (const v of asph.positions) asphPos.push(v);
-      for (const v of asph.uvs) asphUv.push(v);
-      for (const i of asph.indices) asphIdx.push(i + asphBase);
+      appendRibbon(walkPos, walkIdx, pts, halfWalk, SIDEWALK_Y);
+      appendRibbon(asphPos, asphIdx, pts, halfCarriage, ROAD_Y);
+      if (tier <= 1) {
+        appendRibbon(markPos, markIdx, pts, 0.12 * METERS_TO_WORLD, MARK_Y);
+        if (tier === 0 && pts.length >= 2) {
+          const a = pts[0]!;
+          const b = pts[1]!;
+          let dx = b.x - a.x;
+          let dz = b.z - a.z;
+          const len = Math.hypot(dx, dz) || 1;
+          dx /= len;
+          dz /= len;
+          addCrosswalk(
+            markPos,
+            markIdx,
+            a.x + dx * 2.5 * METERS_TO_WORLD,
+            a.z + dz * 2.5 * METERS_TO_WORLD,
+            dx,
+            dz,
+            halfCarriage,
+          );
+          if (pts.length >= 3) {
+            const c = pts[pts.length - 2]!;
+            const d = pts[pts.length - 1]!;
+            let ex = d.x - c.x;
+            let ez = d.z - c.z;
+            const el = Math.hypot(ex, ez) || 1;
+            ex /= el;
+            ez /= el;
+            addCrosswalk(
+              markPos,
+              markIdx,
+              d.x - ex * 2.5 * METERS_TO_WORLD,
+              d.z - ez * 2.5 * METERS_TO_WORLD,
+              ex,
+              ez,
+              halfCarriage,
+            );
+          }
+        }
+      }
     }
     if (asphPos.length === 0 && walkPos.length === 0) continue;
     const tierGroup = new THREE.Group();
@@ -846,47 +1256,56 @@ export function buildRoads(cityData: CityData, roadTexture: THREE.Texture): THRE
       g.setIndex(walkIdx);
       g.computeVertexNormals();
       g.computeBoundingSphere();
-      tierGroup.add(new THREE.Mesh(g, sidewalkMat));
+      const mesh = new THREE.Mesh(g, sidewalkMat);
+      mesh.receiveShadow = true;
+      tierGroup.add(mesh);
     }
     if (asphPos.length > 0) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(asphPos, 3));
-      g.setAttribute('uv', new THREE.Float32BufferAttribute(asphUv, 2));
       g.setIndex(asphIdx);
       g.computeVertexNormals();
       g.computeBoundingSphere();
-      const mat = new THREE.MeshLambertMaterial({
-        map: roadTexture,
-        side: THREE.DoubleSide,
-        polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
-      });
-      tierGroup.add(new THREE.Mesh(g, mat));
+      const mesh = new THREE.Mesh(g, asphaltMat);
+      mesh.receiveShadow = true;
+      tierGroup.add(mesh);
     }
     group.add(tierGroup);
+  }
+
+  if (markPos.length > 0) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(markPos, 3));
+    g.setIndex(markIdx);
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(g, markMat);
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 1;
+    group.add(mesh);
   }
   return group.children.length > 0 ? group : null;
 }
 
-const LAMP_MAX = 18000;
-const LAMP_SPACING_M = [30, 38];
+const LAMP_MAX = 12000;
+const LAMP_SPACING_M = [34, 42];
 
-/** Instanced lamp posts along primary/secondary kerbs — visible at neighbourhood zoom and closer. */
+/** Instanced lamp posts along primary/secondary kerbs — unlit street furniture. */
 export function buildStreetLamps(cityData: CityData): THREE.Group | null {
   const spots: { x: number; z: number }[] = [];
   for (const road of cityData.roads as CityRoad[]) {
     if (road.tier > 1) continue;
     const pts = roadPts(road);
     if (!pts) continue;
-    const spacing = LAMP_SPACING_M[road.tier] * METERS_TO_WORLD;
-    const offset = (ROAD_WIDTHS_M[road.tier] / 2 + SIDEWALK_M[road.tier] * 0.55) * METERS_TO_WORLD;
+    const spacing = LAMP_SPACING_M[road.tier]! * METERS_TO_WORLD;
+    const offset =
+      (ROAD_WIDTHS_M[road.tier]! / 2 + SIDEWALK_M[road.tier]! * 0.55) * METERS_TO_WORLD;
     let travelled = 0;
-    let nextAt = spacing * (0.35 + (road.pts[0] % 97) / 200);
-    let sign = road.pts[0] % 2 === 0 ? 1 : -1;
+    let nextAt = spacing * (0.35 + (road.pts[0]! % 97) / 200);
+    let sign = road.pts[0]! % 2 === 0 ? 1 : -1;
     for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
       const dx = b.x - a.x;
       const dz = b.z - a.z;
       const len = Math.hypot(dx, dz) || 1;
@@ -905,25 +1324,27 @@ export function buildStreetLamps(cityData: CityData): THREE.Group | null {
   }
   if (spots.length === 0) return null;
 
-  const poleH = 6.8 * METERS_TO_WORLD;
-  const poleW = 0.18 * METERS_TO_WORLD;
+  const poleH = 6.2 * METERS_TO_WORLD;
+  const poleW = 0.16 * METERS_TO_WORLD;
   const poleGeo = new THREE.BoxGeometry(poleW, poleH, poleW);
   poleGeo.translate(0, poleH / 2, 0);
-  const headGeo = new THREE.BoxGeometry(poleW * 3.2, poleW * 1.6, poleW * 3.2);
-  headGeo.translate(0, poleH + poleW * 0.4, 0);
-  const poleMat = new THREE.MeshLambertMaterial({ color: 0x1a1c24 });
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xffd089 });
+  const headGeo = new THREE.BoxGeometry(poleW * 2.4, poleW * 1.3, poleW * 2.4);
+  headGeo.translate(0, poleH + poleW * 0.3, 0);
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x3a3c42, fog: true });
+  const headMat = new THREE.MeshLambertMaterial({ color: 0x4a4c52, fog: true });
   const poles = new THREE.InstancedMesh(poleGeo, poleMat, spots.length);
   const heads = new THREE.InstancedMesh(headGeo, headMat, spots.length);
   const dummy = new THREE.Object3D();
   for (let i = 0; i < spots.length; i++) {
-    dummy.position.set(spots[i].x, 0, spots[i].z);
+    dummy.position.set(spots[i]!.x, 0, spots[i]!.z);
     dummy.updateMatrix();
     poles.setMatrixAt(i, dummy.matrix);
     heads.setMatrixAt(i, dummy.matrix);
   }
   poles.instanceMatrix.needsUpdate = true;
   heads.instanceMatrix.needsUpdate = true;
+  poles.castShadow = true;
+  heads.castShadow = true;
   poles.frustumCulled = false;
   heads.frustumCulled = false;
   const group = new THREE.Group();
@@ -931,31 +1352,9 @@ export function buildStreetLamps(cityData: CityData): THREE.Group | null {
   return group;
 }
 
+/** Daytime city: no neon TfL overlays. Kept as an empty group so call sites stay stable. */
 export function buildTubeLines(): THREE.Group {
-  const group = new THREE.Group();
-  const halfW = (TUBE_WIDTH_M * METERS_TO_WORLD) / 2;
-  for (const line of TUBE_LINES) {
-    const pts = line.points.map((p) => {
-      const w = project(p);
-      return { x: w.x, z: w.y };
-    });
-    const { positions, indices } = buildRibbonGeometry(pts, halfW, TUBE_Y);
-    if (positions.length === 0) continue;
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    geometry.computeBoundingSphere();
-    const material = new THREE.MeshBasicMaterial({
-      color: line.color,
-      transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    group.add(new THREE.Mesh(geometry, material));
-  }
-  return group;
+  return new THREE.Group();
 }
 
 export function buildGround(): THREE.Mesh {
@@ -963,13 +1362,17 @@ export function buildGround(): THREE.Mesh {
   const marginY = WORLD.height * 0.3;
   const geometry = new THREE.PlaneGeometry(WORLD.width + marginX * 2, WORLD.height + marginY * 2);
   geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({ color: 0xbdb6a8 });
+  const material = new THREE.MeshLambertMaterial({ color: pal.GROUND, fog: true });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(WORLD.width / 2, 0, WORLD.height / 2);
+  mesh.receiveShadow = true;
   return mesh;
 }
 
-export function buildHubGlows(glowTexture: THREE.Texture): { group: THREE.Group; sprites: Map<HubId, THREE.Sprite> } {
+export function buildHubGlows(glowTexture: THREE.Texture): {
+  group: THREE.Group;
+  sprites: Map<HubId, THREE.Sprite>;
+} {
   const group = new THREE.Group();
   const sprites = new Map<HubId, THREE.Sprite>();
   const size = HUB_GLOW_SIZE_M * METERS_TO_WORLD;
@@ -980,7 +1383,7 @@ export function buildHubGlows(glowTexture: THREE.Texture): { group: THREE.Group;
       map: glowTexture,
       color: HUB_GLOW_COLOR,
       transparent: true,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.35,
       depthWrite: false,
     });
     const sprite = new THREE.Sprite(material);
@@ -992,3 +1395,21 @@ export function buildHubGlows(glowTexture: THREE.Texture): { group: THREE.Group;
   return { group, sprites };
 }
 
+export function nearestPick(
+  picks: BuildingPick[],
+  x: number,
+  z: number,
+  maxDist: number,
+): BuildingPick | null {
+  let best: BuildingPick | null = null;
+  let bestD = maxDist * maxDist;
+  for (let i = 0; i < picks.length; i++) {
+    const p = picks[i]!;
+    const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best;
+}

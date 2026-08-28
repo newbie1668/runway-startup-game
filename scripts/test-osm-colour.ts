@@ -7,6 +7,7 @@ import {
   STYLE_HOUSE,
   STYLE_INDUSTRIAL,
   STYLE_OFFICE,
+  STYLE_RETAIL,
   STYLE_TERRACE,
   STYLE_TOWER,
   classifyBuilding,
@@ -26,6 +27,7 @@ import {
   resolveWallColour,
   toRgb565,
 } from '../lib/game/render3d/osmColour';
+import { clampWallColour, isConfettiHue, paletteFor, wallHex } from '../lib/game/render3d/palette';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -44,7 +46,10 @@ check('parses hex and named CSS colours', () => {
 });
 
 check('prefers explicit colour over material', () => {
-  assert.equal(resolveWallColour({ 'building:colour': '#717E87', 'building:material': 'glass' }), 0x717e87);
+  assert.equal(
+    resolveWallColour({ 'building:colour': '#717E87', 'building:material': 'glass' }),
+    0x717e87,
+  );
   assert.equal(resolveWallColour({ 'building:material': 'brick' }), 0xb85c3a);
   assert.equal(resolveRoofColour({ 'roof:material': 'slate' }), 0x6a7080);
 });
@@ -66,6 +71,27 @@ check('window UVs cover a full storey row, not a stretched sliver', () => {
   assert.ok(terrace.v1 - terrace.v0 > 0.18, `terrace span ${terrace.v1 - terrace.v0}`);
   const tower = facadeVForFloors(STYLE_TOWER, 8);
   assert.ok(tower.v1 - tower.v0 > 0.18, `tower span ${tower.v1 - tower.v0}`);
+});
+
+check('muted London palette has no confetti hues', () => {
+  assert.equal(isConfettiHue(0x00ff88), true);
+  assert.equal(isConfettiHue(0xff00ff), true);
+  assert.equal(isConfettiHue(0x00e5ff), true);
+  assert.equal(isConfettiHue(0xc9ae86), false);
+  assert.equal(clampWallColour(0xff00aa), null);
+  const brick = clampWallColour(0xb53931);
+  assert.ok(brick !== null);
+  assert.equal(isConfettiHue(brick!), false);
+  const w = wallHex(STYLE_TERRACE, 'islington', 10, 10, 12345, null);
+  assert.equal(isConfettiHue(w), false);
+  for (const d of ['canary', 'city', 'westminster', 'shoreditch', 'south'] as const) {
+    for (const hex of paletteFor(STYLE_TERRACE, d))
+      assert.equal(isConfettiHue(hex), false, hex.toString(16));
+    for (const hex of paletteFor(STYLE_TOWER, d))
+      assert.equal(isConfettiHue(hex), false, hex.toString(16));
+    for (const hex of paletteFor(STYLE_RETAIL, d))
+      assert.equal(isConfettiHue(hex), false, hex.toString(16));
+  }
 });
 
 check('generic OSM material / pale greys are not treated as unique paints', () => {
@@ -101,7 +127,9 @@ check('Canary Wharf restyles mid-rises to glass, Shoreditch to warehouses', () =
 });
 
 check('towers extrude taller than houses', () => {
-  assert.ok(extrusionScale(STYLE_TOWER, 200, 'canary') > extrusionScale(STYLE_TERRACE, 12, 'kensington'));
+  assert.ok(
+    extrusionScale(STYLE_TOWER, 200, 'canary') > extrusionScale(STYLE_TERRACE, 12, 'kensington'),
+  );
   assert.equal(extrusionScale(STYLE_TOWER, 200, 'canary'), TOWER_HEIGHT_SCALE);
   assert.equal(extrusionScale(STYLE_TERRACE, 10, 'inner'), HEIGHT_SCALE);
 });
