@@ -31,7 +31,7 @@ import {
 import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
-import type { MapRenderer, Scene } from '@/lib/game/render';
+import type { IMapRenderer, Scene } from '@/lib/game/scene';
 import type {
   ActionId,
   DilemmaEffectId,
@@ -108,7 +108,9 @@ export function GameApp() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rendererRef = useRef<MapRenderer | null>(null);
+  const rendererRef = useRef<IMapRenderer | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const onMapReady = useCallback(() => setMapReady(true), []);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -363,7 +365,11 @@ export function GameApp() {
   // ----------------------------------------------------------------------------
 
   return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-[#070c1a] text-slate-200 md:flex-row">
+    <div
+      className={`flex h-dvh w-full flex-col overflow-hidden md:flex-row ${
+        screen === 'play' ? 'bg-[#070c1a] text-slate-200' : 'bg-[#8ec5f0] text-slate-800'
+      }`}
+    >
       {/* Map side */}
       <div
         className={`relative ${
@@ -372,7 +378,27 @@ export function GameApp() {
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
-        <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} />
+        <MapCanvas
+          scene={scene}
+          rendererRef={rendererRef}
+          onHit={onHit}
+          onReady={onMapReady}
+        />
+
+        {!mapReady && (
+          <div
+            className="absolute inset-0 z-40 flex items-center justify-center bg-[#070c1a]/92 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div className="px-6 text-center">
+              <p className="text-xs font-black tracking-[0.5em] text-sky-300">RUNWAY</p>
+              <p className="mt-3 text-lg font-bold text-slate-200">Laying out London…</p>
+              <p className="mt-1 text-sm text-slate-500">Buildings, streets, skyline</p>
+            </div>
+          </div>
+        )}
 
         {/* Map chrome */}
         {screen === 'play' && game && (
@@ -409,18 +435,18 @@ export function GameApp() {
 
         {/* Title screen */}
         {screen === 'title' && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-gradient-to-b from-[#070c1a]/78 via-[#070c1a]/55 to-[#070c1a]/85 p-6">
-            <div className="w-full max-w-xl text-center">
-              <p className="text-xs font-black tracking-[0.5em] text-sky-300">
+          <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
+            <div className="w-full max-w-xl rounded-3xl bg-white/90 px-6 py-8 text-center shadow-2xl shadow-slate-900/20 backdrop-blur-md md:px-10">
+              <p className="text-xs font-black tracking-[0.5em] text-sky-800">
                 LONDON STARTUP MAP PRESENTS
               </p>
               <h1 className="mt-3 bg-gradient-to-br from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-7xl font-black tracking-tight text-transparent drop-shadow-sm md:text-8xl">
                 RUNWAY
               </h1>
-              <p className="mx-auto mt-4 max-w-md rounded-xl bg-[#070c1a]/80 px-3 py-2 text-base leading-relaxed text-slate-300 md:bg-transparent md:p-0">
+              <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-slate-600">
                 Found a startup on a living map of London. Spend your focus, work the events scene,
                 out-raise your rivals — and reach a{' '}
-                <span className="font-bold text-amber-300">
+                <span className="font-bold text-amber-600">
                   {UNICORN_TARGET.compactLabel} valuation
                 </span>{' '}
                 before the money runs out.
@@ -435,7 +461,7 @@ export function GameApp() {
                 {save && (
                   <button
                     onClick={continueSave}
-                    className="w-64 rounded-2xl border border-white/20 px-6 py-3 text-base font-bold text-slate-200 transition hover:bg-white/5 active:scale-[0.98]"
+                    className="w-64 rounded-2xl border border-slate-300 bg-white px-6 py-3 text-base font-bold text-slate-800 transition hover:bg-slate-50 active:scale-[0.98]"
                   >
                     Continue — week {save.week}, {save.companyName}
                   </button>
@@ -443,7 +469,7 @@ export function GameApp() {
               </div>
               <p className="mt-8 text-xs text-slate-500">
                 Best with sound on 🔊 · built end-to-end by{' '}
-                <span className="font-bold text-slate-400">Fable</span>
+                <span className="font-bold text-slate-600">Fable</span>
                 {' as a what-if: the startup map, but you\u2019re on it.'}
               </p>
             </div>
@@ -465,12 +491,13 @@ export function GameApp() {
             onHub={(hubId) => {
               setHubChoice(hubId);
               sfx.play('click');
+              rendererRef.current?.focusHub(hubId);
             }}
             onRollName={rollName}
             onToHq={() => {
               setSetupStep('hq');
               sfx.play('confirm');
-              rendererRef.current?.fitAll();
+              rendererRef.current?.fitOverview();
             }}
             onBack={() => {
               if (setupStep === 'hq') setSetupStep('identity');

@@ -28,11 +28,18 @@ export const WORLD = {
   height: (LAT_MAX - LAT_MIN) * 1000,
 };
 
+// 1 world unit ≈ 111.32 m (see WORLD comment above); world units per metre.
+export const METERS_TO_WORLD = 1000 / 111320;
+
 export function project([lng, lat]: LngLat): WorldPoint {
   return {
     x: (lng - LON_MIN) * 1000 * LAT_COS,
     y: (LAT_MAX - lat) * 1000,
   };
+}
+
+export function unproject(x: number, y: number): LngLat {
+  return [LON_MIN + x / (1000 * LAT_COS), LAT_MAX - y / 1000];
 }
 
 // ---------------------------------------------------------------------------
@@ -274,19 +281,76 @@ export const AREA_LABELS: readonly AreaLabel[] = [
   { text: 'STRATFORD', at: [0.0, 51.5435] },
 ] as const;
 
-export type LandmarkKind = 'eye' | 'shard' | 'bigben' | 'bttower' | 'stpauls' | 'o2';
+export type LandmarkKind =
+  | 'eye'
+  | 'shard'
+  | 'bigben'
+  | 'bttower'
+  | 'stpauls'
+  | 'o2'
+  | 'gherkin'
+  | 'towerbridge'
+  | 'walkie'
+  | 'grater'
+  | 'canadasq'
+  | 'battersea'
+  | 'bishop'
+  | 'heron'
+  | 'tower42'
+  | 'abbey'
+  | 'oldstreet'
+  | 'westminsterbr'
+  | 'lambethbr'
+  | 'waterloobr'
+  | 'blackfriarsbr'
+  | 'londonbr'
+  | 'millennium'
+  | 'albertbr'
+  | 'hungerford'
+  | 'towerlondon'
+  | 'buckingham'
+  | 'monument';
 
 export interface Landmark {
   kind: LandmarkKind;
   name: string;
   at: LngLat;
+  /** Skip generic OSM extrusions within this radius so the silhouette isn't doubled. */
+  exclusionM?: number;
+  /**
+   * Extra Y rotation (radians) applied when instancing the baked mesh.
+   * Bridge decks are modelled along local +X; set this so +X crosses the Thames.
+   */
+  yaw?: number;
 }
 
 export const LANDMARKS: readonly Landmark[] = [
-  { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033] },
-  { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045] },
-  { kind: 'bigben', name: 'Big Ben', at: [-0.1246, 51.5007] },
-  { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215] },
-  { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138] },
-  { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029] },
+  { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90, yaw: 0.12 },
+  { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },
+  { kind: 'bigben', name: 'Palace of Westminster', at: [-0.1246, 51.5007], exclusionM: 160 },
+  { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215], exclusionM: 70 },
+  { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138], exclusionM: 110 },
+  { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029], exclusionM: 220 },
+  { kind: 'gherkin', name: 'The Gherkin', at: [-0.0803, 51.5145], exclusionM: 80 },
+  { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0754, 51.5055], exclusionM: 90 },
+  { kind: 'walkie', name: 'Walkie Talkie', at: [-0.0837, 51.5114], exclusionM: 80 },
+  { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 90 },
+  { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 110 },
+  { kind: 'battersea', name: 'Battersea Power Station', at: [-0.1446, 51.4819], exclusionM: 180 },
+  { kind: 'bishop', name: '22 Bishopsgate', at: [-0.083, 51.5144], exclusionM: 90 },
+  { kind: 'heron', name: 'Heron Tower', at: [-0.081, 51.5162], exclusionM: 80 },
+  { kind: 'tower42', name: 'Tower 42', at: [-0.0838, 51.5152], exclusionM: 70 },
+  { kind: 'abbey', name: 'Westminster Abbey', at: [-0.1273, 51.4994], exclusionM: 90 },
+  { kind: 'oldstreet', name: 'Old Street Roundabout', at: [-0.0877, 51.5256], exclusionM: 90 },
+  { kind: 'westminsterbr', name: 'Westminster Bridge', at: [-0.1218, 51.5008], exclusionM: 50, yaw: 0 },
+  { kind: 'lambethbr', name: 'Lambeth Bridge', at: [-0.123, 51.4945], exclusionM: 50, yaw: 0.08 },
+  { kind: 'waterloobr', name: 'Waterloo Bridge', at: [-0.1172, 51.5084], exclusionM: 50, yaw: 1.15 },
+  { kind: 'blackfriarsbr', name: 'Blackfriars Bridge', at: [-0.1044, 51.5096], exclusionM: 50, yaw: Math.PI / 2 },
+  { kind: 'londonbr', name: 'London Bridge', at: [-0.0877, 51.5079], exclusionM: 50, yaw: Math.PI / 2 },
+  { kind: 'millennium', name: 'Millennium Bridge', at: [-0.0985, 51.5104], exclusionM: 45, yaw: Math.PI / 2 },
+  { kind: 'albertbr', name: 'Albert Bridge', at: [-0.1668, 51.4824], exclusionM: 55, yaw: 0.85 },
+  { kind: 'hungerford', name: 'Hungerford Bridge', at: [-0.1201, 51.5062], exclusionM: 45, yaw: 0.45 },
+  { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 110 },
+  { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 160 },
+  { kind: 'monument', name: 'The Monument', at: [-0.0861, 51.5102], exclusionM: 40 },
 ] as const;

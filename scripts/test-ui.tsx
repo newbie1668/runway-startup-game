@@ -47,9 +47,12 @@ console.log('RUNWAY UI regression tests');
 
 check('title and setup use the full mobile viewport when no sidebar exists', () => {
   const html = renderToStaticMarkup(<GameApp />);
-  const canvasAt = html.indexOf('<canvas');
-  assert.ok(canvasAt > 0, 'title screen should render the London map canvas');
-  const paneAt = html.lastIndexOf('<div class="', canvasAt);
+  // `data-map-shell` is the first JSX attribute on the map shell div, so the
+  // shell itself never renders as `<div class="` — searching backward from
+  // it lands on the enclosing pane div instead.
+  const shellAt = html.indexOf('data-map-shell');
+  assert.ok(shellAt > 0, 'title screen should render the map shell');
+  const paneAt = html.lastIndexOf('<div class="', shellAt);
   const paneTag = html.slice(paneAt, html.indexOf('>', paneAt) + 1);
   assert.match(
     paneTag,
@@ -57,6 +60,17 @@ check('title and setup use the full mobile viewport when no sidebar exists', () 
     'title map pane should take the full remaining mobile viewport',
   );
   assert.doesNotMatch(paneTag, /h-\[44dvh\]/, '44dvh is reserved for the in-game split view');
+  assert.equal(
+    (html.match(/<canvas/g) ?? []).length,
+    2,
+    'map shell should render exactly two stacked canvases',
+  );
+  assert.match(html, /Laying out London/);
+  assert.match(html, /aria-busy="true"/);
+  assert.match(
+    html,
+    /aria-label="Illustrated London startup neighbourhood map; use the neighbourhood selector to choose an HQ"/,
+  );
 });
 
 check('identity setup is a labelled, top-reachable dialog', () => {
@@ -128,8 +142,8 @@ check('the London game uses pounds consistently for its unicorn goal', () => {
 
 check('the mobile hero keeps its copy readable and sound control named', () => {
   const html = renderToStaticMarkup(<GameApp />);
-  assert.match(html, /bg-\[#070c1a\]\/80/);
-  assert.match(html, /md:bg-transparent/);
+  assert.match(html, /bg-white\/90/);
+  assert.match(html, /backdrop-blur-md/);
   assert.match(html, /aria-label="Mute sound"/);
 });
 
