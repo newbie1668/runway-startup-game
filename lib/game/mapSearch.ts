@@ -20,7 +20,7 @@ export interface PlaceHit {
 
 const LANDMARK_VIEW_H: Record<string, number> = {
   towerbridge: 2.45,
-  eye: 2.4,
+  eye: 3.15,
   hungerford: 2.6,
   buckingham: 2.4,
   canadasq: 4.4,

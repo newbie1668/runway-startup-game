@@ -76,7 +76,7 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     return { at: hit.at, viewH: 2.45, azimuth: Math.PI / 2 - 0.32 };
   }
   if (hit.kind === 'eye') {
-    return { at: hit.at, viewH: 2.4, azimuth: -Math.PI / 2 };
+    return { at: hit.at, viewH: 3.15, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'buckingham') {
     return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
