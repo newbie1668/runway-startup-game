@@ -8,9 +8,13 @@ import {
   STYLE_OFFICE,
   STYLE_TERRACE,
   bayCountForEdge,
+  restyleForDistrict,
+  STYLE_APARTMENTS,
   wantBayWindows,
 } from '../lib/game/render3d/buildingStyle';
-import { polylineDashes } from '../lib/game/render3d/streetMarks';
+import { polylineDashes, segmentEdgeOffsets } from '../lib/game/render3d/streetMarks';
+import { chamferRing } from '../lib/game/render3d/footprint';
+import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import { METERS_TO_WORLD } from '../lib/game/geo';
 
 let passed = 0;
@@ -56,6 +60,35 @@ check('offline search finds Shard, Shoreditch, Hyde Park', () => {
   assert.ok(shore.some((h) => /shoreditch/i.test(h.label)));
   const park = searchPlaces('hyde');
   assert.ok(park.some((h) => h.label === 'Hyde Park' && h.kind === 'park'));
+});
+
+check('West End 4–6 storey terraces keep bays (not restyled to office)', () => {
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westend'), STYLE_APARTMENTS);
+  assert.equal(wantBayWindows(8, 18, STYLE_APARTMENTS), true);
+});
+
+check('chamfer turns a rectangle into eight vertices', () => {
+  const r = chamferRing(
+    [
+      { x: 0, z: 0 },
+      { x: 10, z: 0 },
+      { x: 10, z: 6 },
+      { x: 0, z: 6 },
+    ],
+    1,
+  );
+  assert.equal(r.length, 8);
+  assert.ok(r.every((p) => p.x >= -1e-9 && p.x <= 10 + 1e-9));
+});
+
+check('road edge offsets sit on both kerbs', () => {
+  const edges = segmentEdgeOffsets({ x: 0, z: 0 }, { x: 10, z: 0 }, 2);
+  assert.ok(Math.abs(edges.left[0]!.z - 2) < 1e-9);
+  assert.ok(Math.abs(edges.right[0]!.z + 2) < 1e-9);
+});
+
+check('isometric pitch does not tilt with zoom', () => {
+  assert.equal(CameraRig.pitchDeg(), ISO_PITCH_DEG);
 });
 
 check('London clock and climate stay offline', () => {

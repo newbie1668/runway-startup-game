@@ -273,8 +273,11 @@ export function restyleForDistrict(
     case 'westend':
       if (heightM >= 48) return STYLE_TOWER;
       if (heightM >= 14 && style === STYLE_HOUSE) return STYLE_TERRACE;
+      // Keep 4–6 storey Fitzrovia / West End terraces as residences so Kansas
+      // bay windows survive at the default street camera. Only true mid-rises
+      // become office plates.
       if (
-        heightM >= 18 &&
+        heightM >= 24 &&
         heightM < 48 &&
         (style === STYLE_APARTMENTS || style === STYLE_TERRACE)
       ) {

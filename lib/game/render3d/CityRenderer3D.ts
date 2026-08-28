@@ -7,8 +7,8 @@
  * camera-agnostic MapOverlay onto the 2D overlay canvas via `rig.worldToScreen`.
  * Streams the city in over multiple frames once london-city.bin has decoded.
  *
- * Look: daytime SFSIM — matte Lambert, one warm sun with a camera-following
- * shadow frustum, solid-colour façades, geometric window insets.
+ * Look: daytime SFSIM — matte Lambert, one warm sun, hard shadows,
+ * solid-colour façades, locked isometric orthographic camera.
  */
 
 import * as THREE from 'three';
@@ -25,6 +25,7 @@ import {
   buildParks,
   buildRoads,
   buildRooftopMesh,
+  buildFacadeSigns,
   buildStreetLamps,
   buildTubeLines,
   buildWater,
@@ -49,9 +50,9 @@ const BUILD_JOBS_PER_FRAME = 2;
 const BUILD_JOBS_WHILE_LOADING = 10;
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 
-/** Fitzrovia / Charlotte St — cream and brick terraces. */
+/** Fitzrovia / Charlotte St — cream and brick terraces, toy isometric height. */
 const HERO_AT = [-0.1358, 51.5196] as const;
-const HERO_VIEW_HEIGHT = 0.95;
+const HERO_VIEW_HEIGHT = 1.92;
 
 /** Close cameras on bake-time noticed towers (lng/lat from OSM rings). */
 const NOTICED_LOOK: Record<
@@ -80,6 +81,9 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (hit.kind === 'buckingham') {
     return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
   }
+  if (hit.kind === 'stpauls') {
+    return { at: hit.at, viewH: 2.35, azimuth: 0.72 };
+  }
   if (hit.kind === 'hungerford') {
     return { at: hit.at, viewH: 2.6, azimuth: -Math.PI / 2 };
   }
@@ -95,7 +99,7 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     hit.kind === 'heron' ||
     hit.kind === 'tower42'
   ) {
-    return { at: hit.at, viewH: 4.4, azimuth: 0.42 };
+    return { at: hit.at, viewH: 2.65, azimuth: 0.42 };
   }
   if (hit.kind === 'westminsterbr' || hit.kind === 'lambethbr' || hit.kind === 'albertbr') {
     return { at: hit.at, viewH: 1.35, azimuth: 0 };
@@ -126,7 +130,6 @@ export class CityRenderer3D implements IMapRenderer {
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene3d = new THREE.Scene();
-  private readonly fog: THREE.Fog;
   private readonly rig = new CameraRig();
   private readonly overlay: MapOverlay;
   private readonly isCoarsePointer: boolean;
@@ -175,7 +178,6 @@ export class CityRenderer3D implements IMapRenderer {
   private selected: BuildingPick | null = null;
   private readonly beamGroup = new THREE.Group();
   private readonly buildingMeshes: THREE.Object3D[] = [];
-  private readonly cardPos = new THREE.Vector3();
 
   private disposed = false;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
@@ -208,19 +210,18 @@ export class CityRenderer3D implements IMapRenderer {
       Math.min(window.devicePixelRatio || 1, this.isCoarsePointer ? 1.5 : 2),
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.16;
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(SKY, 1);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
-    this.fog = new THREE.Fog(SKY, 22, 110);
-    this.scene3d.fog = this.fog;
+    this.scene3d.fog = null;
     this.scene3d.background = new THREE.Color(SKY);
 
-    this.hemi = new THREE.HemisphereLight(0xdce8f2, 0xd0c4b0, 0.86);
-    const amb = new THREE.AmbientLight(0xf4efe6, 0.4);
-    this.sun = new THREE.DirectionalLight(0xfff1d4, 1.38);
+    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.3);
+    const amb = new THREE.AmbientLight(0xe8e0d4, 0.12);
+    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.68);
     this.sun.castShadow = true;
     const mapSize = this.isCoarsePointer ? 1024 : 2048;
     this.sun.shadow.mapSize.set(mapSize, mapSize);
@@ -247,26 +248,26 @@ export class CityRenderer3D implements IMapRenderer {
 
     this.beamGroup.visible = false;
     const beamMat = new THREE.MeshBasicMaterial({
-      color: 0x7ec8ff,
+      color: 0xffe566,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.42,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.15, 1, 18, 1, true), beamMat);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.12, 1, 20, 1, true), beamMat);
     beam.position.y = 0.5;
     beam.name = 'shaft';
     beam.renderOrder = 12;
     const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xe8f6ff,
+      color: 0xfff6b0,
       transparent: true,
       opacity: 0.55,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.28, 1, 10, 1, true), coreMat);
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 1, 12, 1, true), coreMat);
     core.position.y = 0.5;
     core.name = 'core';
     core.renderOrder = 13;
@@ -360,6 +361,8 @@ export class CityRenderer3D implements IMapRenderer {
       }
       const roofs = buildRooftopMesh(this.scratch);
       if (roofs) this.cityGroup.add(roofs);
+      const signs = buildFacadeSigns(this.scratch);
+      if (signs) this.cityGroup.add(signs);
     });
     jobs.push(() => {
       const roadGroup = buildRoads(data);
@@ -457,9 +460,9 @@ export class CityRenderer3D implements IMapRenderer {
       this.beamGroup.visible = false;
       return;
     }
-    const r = 0.028;
-    const h = Math.max(4.2, pick.heightWorld * 8 + 3.4);
-    this.beamGroup.position.set(pick.x, pick.heightWorld, pick.z);
+    const r = Math.max(0.045, Math.sqrt(pick.areaM2) * METERS_TO_WORLD * 0.38);
+    const h = Math.max(pick.heightWorld * 1.45 + 1.8, 3.6);
+    this.beamGroup.position.set(pick.x, 0, pick.z);
     const shaft = this.beamGroup.getObjectByName('shaft') as THREE.Mesh | undefined;
     const core = this.beamGroup.getObjectByName('core') as THREE.Mesh | undefined;
     if (shaft) {
@@ -483,44 +486,76 @@ export class CityRenderer3D implements IMapRenderer {
     return nearestPick(this.scratch.picks, pt.x, pt.z, 0.85);
   }
 
+  private nearbyLabels(pick: BuildingPick): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const p of this.scratch.picks) {
+      if (p === pick) continue;
+      const d = Math.hypot(p.x - pick.x, p.z - pick.z);
+      if (d > 0.48 || d < 0.015) continue;
+      const label = USE_LABEL[p.style] ?? 'Building';
+      if (seen.has(label)) continue;
+      seen.add(label);
+      out.push(label);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
   private drawBuildingCard(ctx: CanvasRenderingContext2D, pick: BuildingPick): void {
-    this.cardPos.set(pick.x, pick.heightWorld + 0.12, pick.z).project(this.rig.camera);
-    if (this.cardPos.z > 1) return;
-    const screenX = ((this.cardPos.x + 1) / 2) * this.cssW;
-    const screenY = ((1 - this.cardPos.y) / 2) * this.cssH;
-    const name = USE_LABEL[pick.style] ?? STYLE_LABEL[pick.style] ?? 'Building';
+    const name = pick.label || USE_LABEL[pick.style] || STYLE_LABEL[pick.style] || 'Building';
     const area = `${Math.round(pick.areaM2).toLocaleString('en-GB')} m²`;
+    const nearby = this.nearbyLabels(pick);
     const lines = [
       name,
-      `${area} · ${Math.round(pick.heightM)} m · ${DISTRICT_LABEL[pick.district]}`,
+      pick.address,
+      `${Math.round(pick.heightM)} m · ${area} · ${DISTRICT_LABEL[pick.district]}`,
       'OpenStreetMap',
     ];
     ctx.save();
-    ctx.font = '700 12px ui-sans-serif, system-ui';
+    ctx.font = '700 13px ui-sans-serif, system-ui';
     const w0 = Math.max(
       ctx.measureText(lines[0]!).width,
       ctx.measureText(lines[1]!).width,
       ctx.measureText(lines[2]!).width,
+      ctx.measureText(lines[3]!).width,
     );
-    const bw = w0 + 22;
-    const bh = 60;
-    const bx = Math.min(Math.max(screenX - bw / 2, 8), this.cssW - bw - 8);
-    const by = Math.min(Math.max(screenY - bh - 14, 8), this.cssH - bh - 8);
+    const pillW = nearby.reduce((w, s) => w + ctx.measureText(s).width + 18, 0);
+    const bw = Math.max(w0, pillW) + 24;
+    const bh = 88 + (nearby.length ? 22 : 0);
+    const bx = 14;
+    const by = this.cssH - bh - 48;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 12);
+    ctx.roundRect(bx, by, bw, bh, 14);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#1e293b';
     ctx.textAlign = 'left';
-    ctx.fillText(lines[0]!, bx + 11, by + 18);
+    ctx.fillText(lines[0]!, bx + 12, by + 18);
     ctx.font = '500 11px ui-sans-serif, system-ui';
     ctx.fillStyle = '#334155';
-    ctx.fillText(lines[1]!, bx + 11, by + 36);
+    ctx.fillText(lines[1]!, bx + 12, by + 36);
+    ctx.fillText(lines[2]!, bx + 12, by + 52);
     ctx.fillStyle = '#64748b';
-    ctx.fillText(lines[2]!, bx + 11, by + 51);
+    ctx.fillText(lines[3]!, bx + 12, by + 68);
+    if (nearby.length) {
+      let px = bx + 12;
+      const py = by + 78;
+      ctx.font = '600 10px ui-sans-serif, system-ui';
+      for (const pill of nearby) {
+        const pw = ctx.measureText(pill).width + 14;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.12)';
+        ctx.beginPath();
+        ctx.roundRect(px, py, pw, 16, 8);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillText(pill, px + 7, py + 12);
+        px += pw + 6;
+      }
+    }
     ctx.restore();
   }
 
@@ -558,7 +593,7 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   private syncRig(): void {
-    this.rig.update(this.cam, this.minZoom, this.heroAzimuth);
+    this.rig.update(this.cam, this.heroAzimuth);
   }
 
   private clampCamera(): void {
@@ -598,7 +633,6 @@ export class CityRenderer3D implements IMapRenderer {
       this.fitOverview();
       return;
     }
-    const look = heroLook();
     const hero = project(look.at);
     let viewH = look.viewH;
     if (view === 'mid' || view === 'default') viewH = 8.5;
@@ -696,10 +730,6 @@ export class CityRenderer3D implements IMapRenderer {
     }
     this.syncRig();
     this.updateSunShadow();
-
-    const dist = this.rig.getDistance();
-    this.fog.near = dist * 7;
-    this.fog.far = dist * 24;
 
     const minorThreshold = this.isCoarsePointer ? 5.5 : 4.8;
     const minorVisible = this.cam.zoom >= minorThreshold;

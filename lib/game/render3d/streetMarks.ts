@@ -8,6 +8,8 @@ import { METERS_TO_WORLD } from '../geo';
 export const DASH_LENGTH_M = 4.4;
 export const DASH_GAP_M = 3.6;
 export const DASH_WIDTH_M = 0.55;
+/** Crisp kerb-edge stripes, slightly thinner than the centre dashes. */
+export const EDGE_WIDTH_M = 0.22;
 
 export interface PolyPoint {
   x: number;
@@ -65,4 +67,30 @@ export function polylineDashes(
     }
   }
   return out;
+}
+
+/**
+ * Parallel copies of segment AB, inset toward the carriageway centre by
+ * `inset` world units. Used for white edge lines along both kerbs.
+ */
+export function segmentEdgeOffsets(
+  a: PolyPoint,
+  b: PolyPoint,
+  inset: number,
+): { left: [PolyPoint, PolyPoint]; right: [PolyPoint, PolyPoint] } {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const len = Math.hypot(dx, dz) || 1;
+  const px = (-dz / len) * inset;
+  const pz = (dx / len) * inset;
+  return {
+    left: [
+      { x: a.x + px, z: a.z + pz },
+      { x: b.x + px, z: b.z + pz },
+    ],
+    right: [
+      { x: a.x - px, z: a.z - pz },
+      { x: b.x - px, z: b.z - pz },
+    ],
+  };
 }

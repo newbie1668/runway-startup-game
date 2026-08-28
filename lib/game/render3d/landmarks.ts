@@ -282,7 +282,7 @@ function buildShard(): THREE.Group {
   bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   bodyGeo.setIndex(indices);
   bodyGeo.computeVertexNormals();
-  group.add(new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: 0x6a8498 })));
+  group.add(new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: 0x3d5668 })));
 
   const mullion = glowMat(0xf4f8fc);
   for (const p of basePts) addCylinderBetween(group, p, apex, m(2.1), mullion);

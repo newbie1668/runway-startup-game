@@ -35,6 +35,8 @@ export const HVAC_BLUE = 0x3a5080;
 export const HVAC_RED = 0x8a3834;
 export const HVAC_BLACK = 0x2a3038;
 export const SHOPFRONT = 0x3c372f;
+export const AWNING = 0xc45c4a;
+export const SIGN_BOARD = 0x2a3340;
 export const CORNICE = 0xe4dccb;
 export const AO_DARK = 0x6a5e50;
 export const HVAC = 0x4a5060;
@@ -365,6 +367,45 @@ export function wallHex(
 
 export function doorHex(seed: number): number {
   return DOORS[seed % DOORS.length]!;
+}
+
+const STREETS: Record<DistrictId, readonly string[]> = {
+  canary: ['Bank St', 'Canada Sq', 'Churchill Pl'],
+  city: ['Bishopsgate', 'Moorgate', 'Cheapside', 'Lombard St'],
+  westminster: ['Victoria St', 'Horseferry Rd', 'Marsham St'],
+  westend: ['Charlotte St', 'Fitzroy St', 'Goodge St', 'Rathbone Pl'],
+  kensington: ['Kensington High St', 'Holland Park Ave', "Earl's Court Rd"],
+  camden: ['Camden High St', 'Parkway', 'Delancey St'],
+  islington: ['Upper St', 'Essex Rd', 'Liverpool Rd'],
+  shoreditch: ['Curtain Rd', 'Old St', 'Great Eastern St'],
+  eastend: ['Brick Ln', 'Whitechapel Rd', 'Commercial St'],
+  southbank: ['The Cut', 'Stamford St', 'Belvedere Rd'],
+  battersea: ['Queenstown Rd', 'Battersea Park Rd', 'Falcon Rd'],
+  greenwich: ['Greenwich High Rd', 'Creek Rd', 'Trafalgar Rd'],
+  south: ['Brixton Rd', 'Coldharbour Ln', 'Acre Ln'],
+  stratford: ['Stratford High St', 'Westfield Ave', 'Montfichet Rd'],
+  inner: ['City Rd', 'Goswell Rd', 'Pentonville Rd'],
+};
+
+const SIGN_NAMES = [
+  'CHARLOTTE',
+  'FITZROY',
+  'SOHO',
+  'OXFORD',
+  'BOROUGH',
+  'HATTON',
+  'CURTAIN',
+  'CANAL',
+] as const;
+
+export function streetAddress(district: DistrictId, seed: number): string {
+  const streets = STREETS[district];
+  const n = 2 + (seed % 178);
+  return `${n} ${streets[seed % streets.length]!}`;
+}
+
+export function facadeSignName(seed: number): string {
+  return SIGN_NAMES[seed % SIGN_NAMES.length]!;
 }
 
 export function mixHex(a: number, b: number, t: number): number {

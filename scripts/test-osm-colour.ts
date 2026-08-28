@@ -131,7 +131,8 @@ check('Canary Wharf restyles mid-rises to glass, Shoreditch to warehouses', () =
   assert.equal(restyleForDistrict(STYLE_APARTMENTS, 40, 800, 'canary'), STYLE_TOWER);
   assert.equal(restyleForDistrict(STYLE_TERRACE, 16, 300, 'shoreditch'), STYLE_INDUSTRIAL);
   assert.equal(restyleForDistrict(STYLE_HOUSE, 12, 180, 'kensington'), STYLE_TERRACE);
-  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westminster'), STYLE_OFFICE);
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westminster'), STYLE_APARTMENTS);
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 28, 400, 'westminster'), STYLE_OFFICE);
 });
 
 check('street-front windows skip terrace party walls and tiny edges', () => {
