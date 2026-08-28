@@ -88,8 +88,24 @@ check('road edge offsets sit on both kerbs', () => {
   assert.ok(Math.abs(edges.right[0]!.z + 2) < 1e-9);
 });
 
-check('isometric pitch does not tilt with zoom', () => {
+check('isometric zoom scales the frustum and does not tilt pitch', () => {
+  const rig = new CameraRig();
+  rig.setViewport(1280, 720);
+  rig.update({ x: 40, y: 30, zoom: 400 });
+  const pitch = rig.camera.rotation.x;
+  const topWide = rig.camera.top;
+  const isoRad = (ISO_PITCH_DEG * Math.PI) / 180;
+  rig.update({ x: 40, y: 30, zoom: 800 });
+  assert.ok(
+    rig.camera.top < topWide * 0.55,
+    `zoom in should shrink the ortho frustum (top ${rig.camera.top} vs ${topWide})`,
+  );
+  assert.ok(Math.abs(rig.camera.rotation.x - pitch) < 1e-8, 'pitch must stay locked while zooming');
   assert.equal(CameraRig.pitchDeg(), ISO_PITCH_DEG);
+  assert.ok(
+    Math.abs(Math.abs(rig.camera.rotation.x) - isoRad) < 0.02,
+    `camera pitch should stay near ${ISO_PITCH_DEG}°`,
+  );
 });
 
 check('London clock and climate stay offline', () => {

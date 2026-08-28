@@ -7,8 +7,8 @@
  * camera-agnostic MapOverlay onto the 2D overlay canvas via `rig.worldToScreen`.
  * Streams the city in over multiple frames once london-city.bin has decoded.
  *
- * Look: daytime SFSIM — matte Lambert, one warm sun, hard shadows,
- * solid-colour façades, locked isometric orthographic camera.
+ * Look: daytime SFSIM — matte Lambert, one warm sun, no projected
+ * shadows, solid-colour façades, locked isometric orthographic camera.
  */
 
 import * as THREE from 'three';
@@ -64,7 +64,7 @@ const NOTICED_LOOK: Record<
   wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
 };
 
-/** Warm afternoon sun from the south-west, ~30° elevation — long façade shadows. */
+/** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
 const SUN_DIR = new THREE.Vector3(-0.84, 0.5, 0.78).normalize();
 
 function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: number } {
@@ -139,7 +139,7 @@ export class CityRenderer3D implements IMapRenderer {
     return { x: p.x, y: p.y, zoom: 80 };
   })();
   private minZoom = 2;
-  private maxZoom = 880;
+  private maxZoom = 2200;
   private cssW = 0;
   private cssH = 0;
   private heroAzimuth = heroLook().azimuth;
@@ -213,23 +213,19 @@ export class CityRenderer3D implements IMapRenderer {
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(SKY, 1);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.BasicShadowMap;
+    this.renderer.shadowMap.enabled = false;
 
     this.scene3d.fog = null;
     this.scene3d.background = new THREE.Color(SKY);
 
-    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.42);
-    const amb = new THREE.AmbientLight(0xe8e0d4, 0.12);
-    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.68);
-    this.sun.castShadow = true;
-    const mapSize = this.isCoarsePointer ? 1024 : 2048;
-    this.sun.shadow.mapSize.set(mapSize, mapSize);
-    this.sun.shadow.bias = -0.00028;
-    this.sun.shadow.normalBias = 0.04;
-    this.sun.shadow.camera.near = 2;
-    this.sun.shadow.camera.far = 140;
-    this.sunTarget.position.set(WORLD.width / 2, 0, WORLD.height / 2);
+    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.55);
+    const amb = new THREE.AmbientLight(0xe8e0d4, 0.18);
+    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.35);
+    this.sun.castShadow = false;
+    const originX = WORLD.width / 2;
+    const originZ = WORLD.height / 2;
+    this.sunTarget.position.set(originX, 0, originZ);
+    this.sun.position.set(originX + SUN_DIR.x * 120, SUN_DIR.y * 120, originZ + SUN_DIR.z * 120);
     this.sun.target = this.sunTarget;
     this.scene3d.add(this.hemi, amb, this.sun, this.sunTarget);
     this.overlay.atmosphere = 'day';
@@ -315,15 +311,6 @@ export class CityRenderer3D implements IMapRenderer {
     }, 2000);
   };
 
-  private enableShadows(root: THREE.Object3D, cast: boolean, receive: boolean): void {
-    root.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.castShadow = cast;
-        obj.receiveShadow = receive;
-      }
-    });
-  }
-
   private onCityData(data: CityData): void {
     if (this.disposed) return;
     this.scratch = createScratch();
@@ -405,7 +392,6 @@ export class CityRenderer3D implements IMapRenderer {
         const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(p.x, 0, p.y);
         if (landmark.yaw) group.rotation.y += landmark.yaw;
-        this.enableShadows(group, true, true);
         this.cityGroup.add(group);
       });
     }
@@ -415,7 +401,6 @@ export class CityRenderer3D implements IMapRenderer {
         if (!prefab) return;
         const group = instantiateNoticed(prefab);
         group.position.set(entry.x, 0, entry.z);
-        this.enableShadows(group, true, true);
         this.cityGroup.add(group);
       });
     }
@@ -435,23 +420,6 @@ export class CityRenderer3D implements IMapRenderer {
     if (this.readyNotified || this.disposed) return;
     this.readyNotified = true;
     this.onReady();
-  }
-
-  private updateSunShadow(): void {
-    const dist = this.rig.getDistance();
-    const extent = Math.max(10, Math.min(130, dist * 1.7));
-    this.sunTarget.position.set(this.cam.x, 0, this.cam.y);
-    this.sun.position.set(this.cam.x + SUN_DIR.x * 90, SUN_DIR.y * 90, this.cam.y + SUN_DIR.z * 90);
-    const cam = this.sun.shadow.camera;
-    cam.left = -extent;
-    cam.right = extent;
-    cam.top = extent;
-    cam.bottom = -extent;
-    cam.near = 2;
-    cam.far = 200;
-    cam.updateProjectionMatrix();
-    this.sunTarget.updateMatrixWorld();
-    this.sun.updateMatrixWorld();
   }
 
   private placeBeam(pick: BuildingPick | null): void {
@@ -672,11 +640,17 @@ export class CityRenderer3D implements IMapRenderer {
     this.syncRig();
   }
 
-  /** Kansas street-camera: user input is pan only. Search and `?look=` still frame via lookAt. */
+  /** Scale the orthographic frustum around the cursor. Pitch stays locked. */
   zoomAt(sx: number, sy: number, factor: number): void {
-    void sx;
-    void sy;
-    void factor;
+    this.syncRig();
+    const before = this.rig.groundUnproject(sx, sy);
+    this.cam.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.cam.zoom * factor));
+    this.syncRig();
+    const after = this.rig.groundUnproject(sx, sy);
+    this.cam.x += before.x - after.x;
+    this.cam.y += before.y - after.y;
+    this.clampCamera();
+    this.syncRig();
   }
 
   getCamera(): CameraState {
@@ -724,7 +698,6 @@ export class CityRenderer3D implements IMapRenderer {
       this.fitAll();
     }
     this.syncRig();
-    this.updateSunShadow();
 
     const minorThreshold = this.isCoarsePointer ? 5.5 : 4.8;
     const minorVisible = this.cam.zoom >= minorThreshold;

@@ -385,15 +385,15 @@ export function GameApp() {
 
   return (
     <div
-      className={`flex h-dvh w-full flex-col overflow-hidden md:flex-row ${
-        screen === 'play' ? 'bg-[#070c1a] text-slate-200' : 'bg-[#c5d4e4] text-slate-800'
+      className={`relative flex h-dvh w-full flex-col overflow-hidden bg-[#c5d4e4] text-slate-800 ${
+        screen === 'play' ? 'md:block' : ''
       }`}
     >
       {/* Map side */}
       <div
         className={`relative ${
           screen === 'play'
-            ? 'h-[44dvh] min-h-64 flex-none md:h-full md:flex-1'
+            ? 'h-[44dvh] min-h-64 flex-none md:absolute md:inset-0 md:h-full'
             : 'min-h-0 flex-1 md:h-full'
         }`}
       >
@@ -428,16 +428,17 @@ export function GameApp() {
             onClick={toggleMute}
             title="Toggle sound (M)"
             aria-label={muted ? 'Turn sound on' : 'Mute sound'}
-            className="absolute top-3 right-3 z-30 rounded-full border border-white/55 bg-white/45 px-3 py-2 text-base text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur-xl transition hover:bg-white/60"
+            className={`absolute top-3 z-30 rounded-full border border-white/55 bg-white/45 px-3 py-2 text-base text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur-xl transition hover:bg-white/60 ${
+              screen === 'play' ? 'right-3 md:right-[min(26.4rem,calc(38vw+1.35rem))]' : 'right-3'
+            }`}
           >
             {muted ? '🔇' : '🔊'}
           </button>
         )}
 
         {screen === 'play' && (
-          <div className="pointer-events-none absolute bottom-2 left-1/2 hidden -translate-x-1/2 rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
-            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan
-              {force2d ? ', scroll to zoom' : ''}
+          <div className="pointer-events-none absolute bottom-2 left-1/2 hidden -translate-x-1/2 rounded-lg border border-white/55 bg-white/45 px-2.5 py-1 text-[10.5px] font-semibold text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-xl md:left-[calc((100%-min(24.8rem,38vw))/2)] md:block">
+            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
           </div>
         )}
 
@@ -530,9 +531,13 @@ export function GameApp() {
         )}
       </div>
 
-      {/* Control panel */}
+      {/* Control panel — glass overlay on desktop so the map stays full-bleed. */}
       {screen === 'play' && game && (
-        <aside className="min-h-0 flex-1 overflow-y-auto border-t border-white/10 bg-[#0a0f22] md:h-full md:w-[398px] md:flex-none md:border-t-0 md:border-l">
+        <aside
+          data-game-hud="panel"
+          aria-label="Game controls"
+          className="min-h-0 flex-1 overflow-y-auto border-t border-white/55 bg-white/45 text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur-xl md:absolute md:top-3 md:right-3 md:bottom-3 md:z-20 md:w-[min(24.8rem,38vw)] md:flex-none md:rounded-2xl md:border md:border-white/55"
+        >
           <Sidebar
             game={game}
             onAction={act}

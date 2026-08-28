@@ -69,7 +69,7 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
   return (
     <>
       <aside
-        className={`pointer-events-auto absolute top-3 left-3 z-30 hidden w-52 rounded-2xl px-3.5 py-3 md:block ${GLASS}`}
+        className={`pointer-events-none absolute top-3 left-3 z-30 hidden w-52 rounded-2xl px-3.5 py-3 md:block ${GLASS}`}
         data-city-hud="pane"
       >
         <p className="text-[13px] font-semibold tracking-wide text-slate-800">
@@ -120,7 +120,11 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
 
       <div
         ref={boxRef}
-        className="pointer-events-auto absolute top-3 right-14 left-14 z-30 mx-auto max-w-xl md:right-auto md:left-1/2 md:w-[min(42rem,calc(100%-22rem))] md:-translate-x-1/2"
+        className={`pointer-events-none absolute top-3 right-14 left-14 z-30 mx-auto max-w-xl md:right-auto md:left-1/2 md:-translate-x-1/2 ${
+          screen === 'play'
+            ? 'md:w-[min(36rem,calc(100%-52rem))]'
+            : 'md:w-[min(42rem,calc(100%-22rem))]'
+        }`}
         data-city-hud="search"
       >
         <label className="sr-only" htmlFor="city-search">
@@ -147,11 +151,11 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
               fly(hits[0]);
             }
           }}
-          className={`h-10 w-full rounded-full px-4 text-[13px] font-medium text-slate-800 outline-none placeholder:text-slate-500 ${GLASS}`}
+          className={`pointer-events-auto h-10 w-full rounded-full px-4 text-[13px] font-medium text-slate-800 outline-none placeholder:text-slate-500 ${GLASS}`}
         />
         {open && query.trim() && (
           <ul
-            className={`mt-1.5 max-h-64 overflow-auto rounded-2xl py-1 ${GLASS}`}
+            className={`pointer-events-auto mt-1.5 max-h-64 overflow-auto rounded-2xl py-1 ${GLASS}`}
             role="listbox"
             aria-label="Search results"
           >

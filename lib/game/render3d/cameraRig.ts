@@ -1,9 +1,8 @@
 /**
  * RUNWAY — 3D camera rig.
  *
- * Orthographic isometric lock: pan on the ground plane, no tilt, orbit, or
- * user zoom. Search / `?look=` still change the frustum via lookAt.
- * Parallel lines stay parallel the way the SFSIM street-camera does.
+ * Orthographic isometric lock: pan on the ground plane, no tilt or orbit.
+ * Zoom scales the frustum only, so parallel lines stay parallel.
  *
  * Ground plane = XZ; world `(x, y)` -> three `(x, 0, y)`, so north = -Z.
  */
