@@ -1036,7 +1036,7 @@ function emitBayWindows(
   const count = bayCountForEdge(edgeM);
   const tx = (bp.x - a.x) / elen;
   const tz = (bp.z - a.z) / elen;
-  const depth = (style === STYLE_APARTMENTS ? 0.95 : 1.35) * METERS_TO_WORLD;
+  const depth = (style === STYLE_APARTMENTS || style === STYLE_OFFICE ? 1.45 : 2.15) * METERS_TO_WORLD;
   const bayW = Math.min(2.6 * METERS_TO_WORLD, elen / (count + 0.6));
   const sill = y0 + (shopWorld > 0.02 ? shopWorld : 0.55 * METERS_TO_WORLD * vScale);
   const head = y1 - 0.45 * METERS_TO_WORLD * vScale;
@@ -1595,7 +1595,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
       spots.push({
         x: info.x + Math.cos(ang) * rad,
         z: info.z + Math.sin(ang) * rad,
-        scale: 9.2 + ((h >>> 16) & 7) * 0.7,
+        scale: 14.5 + ((h >>> 16) & 7) * 0.9,
         shade: (h >>> 20) % 3,
         cluster: false,
       });
@@ -1648,7 +1648,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
             spots.push({
               x: sx,
               z: sz,
-              scale: 7.2 + ((h >>> 16) & 5) * 0.45,
+              scale: 12.4 + ((h >>> 16) & 5) * 0.7,
               shade: (h >>> 22) % 3,
               cluster: true,
             });

@@ -39,10 +39,11 @@ check('dashed centre lines leave gaps', () => {
   assert.ok(painted > total * 0.35, 'dashes should still read as a centre line');
 });
 
-check('terrace street fronts get bay windows; offices do not', () => {
+check('terrace and street-scale office fronts get bay windows; towers do not', () => {
   assert.equal(wantBayWindows(8, 10, STYLE_TERRACE), true);
   assert.equal(wantBayWindows(8, 10, STYLE_HOUSE), true);
-  assert.equal(wantBayWindows(8, 10, STYLE_OFFICE), false);
+  assert.equal(wantBayWindows(8, 10, STYLE_OFFICE), true);
+  assert.equal(wantBayWindows(8, 30, STYLE_OFFICE), false);
   assert.equal(wantBayWindows(16, 10, STYLE_TERRACE), false);
   assert.equal(wantBayWindows(28, 12, STYLE_TERRACE), true);
   assert.equal(bayCountForEdge(8), 1);

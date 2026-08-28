@@ -219,7 +219,7 @@ export class CityRenderer3D implements IMapRenderer {
     this.scene3d.fog = null;
     this.scene3d.background = new THREE.Color(SKY);
 
-    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.3);
+    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.42);
     const amb = new THREE.AmbientLight(0xe8e0d4, 0.12);
     this.sun = new THREE.DirectionalLight(0xfff3dc, 1.68);
     this.sun.castShadow = true;

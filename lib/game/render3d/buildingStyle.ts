@@ -180,9 +180,12 @@ export function wantFacadeWindows(edgeM: number, heightM: number, style: number)
  * whole terrace row. The 13.5–20 m band is usually depth / party wall.
  */
 export function wantBayWindows(edgeM: number, heightM: number, style: number): boolean {
-  if (style !== STYLE_HOUSE && style !== STYLE_TERRACE && style !== STYLE_APARTMENTS) {
-    return false;
-  }
+  const residential =
+    style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_APARTMENTS;
+  // Converted West End terraces are often tagged office in OSM; they still
+  // carry Georgian bays at street height.
+  const streetOffice = style === STYLE_OFFICE && heightM <= 22;
+  if (!residential && !streetOffice) return false;
   if (heightM < 7 || heightM > 22) return false;
   if (edgeM >= 6.2 && edgeM <= 13.5) return true;
   if ((style === STYLE_TERRACE || style === STYLE_APARTMENTS) && edgeM >= 20 && edgeM <= 55) {

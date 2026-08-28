@@ -28,8 +28,8 @@ export const ASPHALT = 0x3c3e42;
 export const PAVEMENT = 0xd6d2c8;
 export const MARKING = 0xf3f3ef;
 /** Blue-tinted glass rectangles — Kansas civic/street read, not black holes. */
-export const WINDOW = 0x4a6078;
-export const BAY_GLASS = 0x2c3d52;
+export const WINDOW = 0x3a5470;
+export const BAY_GLASS = 0x1c2c40;
 /** Roof clutter — Kansas HVAC blocks in charcoal / blue / red. */
 export const HVAC_BLUE = 0x3a5080;
 export const HVAC_RED = 0x8a3834;
@@ -44,7 +44,7 @@ export const PLANT_ROOM = 0x5a5e66;
 export const HATCH = 0x3a3c42;
 export const CHIMNEY = 0x4a322c;
 
-export const TREE_CANOPY = [0x5a7a48, 0x6a8a54, 0x4e6e40] as const;
+export const TREE_CANOPY = [0x6f9a4e, 0x81ac5c, 0x5e8a42] as const;
 export const TREE_TRUNK = 0x5a4636;
 
 export const ROOF_SLATE = 0x5a6270;
