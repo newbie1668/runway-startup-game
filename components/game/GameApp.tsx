@@ -385,7 +385,7 @@ export function GameApp() {
       >
         <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onReady={onMapReady} />
 
-        {!mapReady && (
+        {!mapReady && !hideChrome && (
           <div
             className="absolute inset-0 z-40 flex items-center justify-center bg-[#070c1a]/92 backdrop-blur-sm"
             role="status"

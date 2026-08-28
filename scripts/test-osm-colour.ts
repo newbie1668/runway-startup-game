@@ -16,6 +16,7 @@ import {
   facadeVForFloors,
   resolveStyle,
   restyleForDistrict,
+  wantFacadeWindows,
   TOWER_HEIGHT_SCALE,
   HEIGHT_SCALE,
 } from '../lib/game/render3d/buildingStyle';
@@ -27,7 +28,14 @@ import {
   resolveWallColour,
   toRgb565,
 } from '../lib/game/render3d/osmColour';
-import { clampWallColour, isConfettiHue, paletteFor, wallHex } from '../lib/game/render3d/palette';
+import {
+  clampWallColour,
+  isConfettiHue,
+  paletteFor,
+  rgbToHsl,
+  roofHex,
+  wallHex,
+} from '../lib/game/render3d/palette';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -124,6 +132,30 @@ check('Canary Wharf restyles mid-rises to glass, Shoreditch to warehouses', () =
   assert.equal(restyleForDistrict(STYLE_TERRACE, 16, 300, 'shoreditch'), STYLE_INDUSTRIAL);
   assert.equal(restyleForDistrict(STYLE_HOUSE, 12, 180, 'kensington'), STYLE_TERRACE);
   assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westminster'), STYLE_OFFICE);
+});
+
+check('street-front windows skip terrace party walls and tiny edges', () => {
+  assert.equal(wantFacadeWindows(6, 10, STYLE_TERRACE), true);
+  assert.equal(wantFacadeWindows(22, 10, STYLE_TERRACE), false);
+  assert.equal(wantFacadeWindows(2.5, 10, STYLE_TERRACE), false);
+  assert.equal(wantFacadeWindows(4, 4, STYLE_HOUSE), false);
+  assert.equal(wantFacadeWindows(18, 30, STYLE_OFFICE), true);
+});
+
+check('pitched and terrace roofs stay muted brown/slate, not confetti', () => {
+  for (let seed = 0; seed < 24; seed++) {
+    const hex = roofHex(STYLE_TERRACE, true, seed);
+    assert.equal(isConfettiHue(hex), false, hex.toString(16));
+    const { s, l } = rgbToHsl(hex);
+    assert.ok(s <= 0.45, `roof sat ${s}`);
+    assert.ok(l <= 0.55, `roof light ${l}`);
+  }
+});
+
+check('West End terraces mix cream with stock brick, not only stucco', () => {
+  const pal = paletteFor(STYLE_TERRACE, 'westend');
+  assert.ok(pal.includes(0xefe6d4));
+  assert.ok(pal.includes(0xc9ae86));
 });
 
 check('towers extrude taller than houses', () => {

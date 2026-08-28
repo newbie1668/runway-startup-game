@@ -20,12 +20,12 @@ import {
 /** Pale overcast sky — fog, clear colour, and the 2D canvas CSS gradient all match. */
 export const SKY = 0xc5d4e4;
 export const GROUND = 0xb7b2a6;
-export const PARK = 0x6a8660;
-export const PARK_PATH = 0xd5cfc2;
-export const WATER = 0x6a86a0;
-export const WATER_BANK = 0x8aa0b2;
-export const ASPHALT = 0x6e7074;
-export const PAVEMENT = 0xc6c2b8;
+export const PARK = 0x6e8a5c;
+export const PARK_PATH = 0xddd6c6;
+export const WATER = 0x6b8498;
+export const WATER_BANK = 0x8fa4b4;
+export const ASPHALT = 0x5a5c60;
+export const PAVEMENT = 0xd6d2c8;
 export const MARKING = 0xf3f3ef;
 export const WINDOW = 0x1a2230;
 export const SHOPFRONT = 0x3c372f;
@@ -224,8 +224,10 @@ export function paletteFor(style: number, district: DistrictId): readonly number
     case 'westend':
     case 'kensington':
       if (style === STYLE_TOWER) return CHARCOAL;
-      if (style === STYLE_HOUSE || style === STYLE_TERRACE) return GEORGIAN_CREAM;
-      return GEORGIAN_CREAM;
+      if (style === STYLE_HOUSE || style === STYLE_TERRACE) {
+        return [...GEORGIAN_CREAM, ...STOCK_YELLOW.slice(0, 4), ...VICTORIAN_RED.slice(0, 2)];
+      }
+      return [...GEORGIAN_CREAM, ...PORTLAND.slice(0, 3)];
     case 'islington':
       if (style === STYLE_TOWER) return CHARCOAL;
       if (style === STYLE_TERRACE || style === STYLE_HOUSE) {
@@ -272,16 +274,21 @@ export function paletteFor(style: number, district: DistrictId): readonly number
 }
 
 export function roofHex(style: number, pitched: boolean, seed: number): number {
-  if (pitched) {
-    if (style === STYLE_HOUSE) return seed % 4 === 0 ? ROOF_TERRACOTTA : ROOF_BROWN;
-    return seed % 3 === 0 ? ROOF_TERRACOTTA : ROOF_BROWN;
+  if (pitched || style === STYLE_HOUSE || style === STYLE_TERRACE) {
+    if (seed % 5 === 0) return ROOF_TERRACOTTA;
+    if (seed % 4 === 0) return ROOF_SLATE;
+    return ROOF_BROWN;
   }
   if (style === STYLE_INDUSTRIAL) return ROOF_METAL;
   if (style === STYLE_OFFICE || style === STYLE_TOWER)
     return seed % 3 === 0 ? ROOF_CHARCOAL : ROOF_SLATE;
-  if (style === STYLE_RETAIL && seed % 5 === 0) return ROOF_TERRACOTTA;
-  if (style === STYLE_APARTMENTS) return seed % 4 === 0 ? ROOF_BROWN : ROOF_SLATE;
-  return seed % 5 === 0 ? ROOF_BROWN : ROOF_SLATE;
+  if (style === STYLE_RETAIL && seed % 4 === 0) return ROOF_TERRACOTTA;
+  if (style === STYLE_APARTMENTS) {
+    if (seed % 3 === 0) return ROOF_BROWN;
+    if (seed % 5 === 0) return ROOF_TERRACOTTA;
+    return ROOF_SLATE;
+  }
+  return seed % 4 === 0 ? ROOF_BROWN : ROOF_SLATE;
 }
 
 /** ~55 m cells: a terrace row shares a family, the next block can shift. */

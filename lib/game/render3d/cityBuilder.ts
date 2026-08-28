@@ -34,6 +34,7 @@ import {
   restyleForDistrict,
   districtAt,
   extrusionScale,
+  wantFacadeWindows,
   wantPodium,
   type DistrictId,
 } from './buildingStyle';
@@ -45,17 +46,19 @@ export const CHUNK_COLS = 8;
 export const CHUNK_ROWS = 6;
 export const CHUNK_COUNT = CHUNK_COLS * CHUNK_ROWS;
 
-export const WINDOW_MAX = 520_000;
-export const TREE_MAX = 28_000;
+export const WINDOW_MAX = 720_000;
+export const TREE_MAX = 36_000;
+export const GROVE_MAX = 2_400;
 export const ROOFTOP_MAX = 24_000;
 
-const ROAD_WIDTHS_M = [13, 9, 5.5];
-const SIDEWALK_M = [3.2, 2.5, 1.8];
-const ROAD_Y = 0.16;
-const SIDEWALK_Y = 0.09;
-const MARK_Y = 0.175;
+const ROAD_WIDTHS_M = [14, 9.5, 5.8];
+const SIDEWALK_M = [3.6, 2.8, 2.0];
+const ROAD_Y = 0.12;
+const SIDEWALK_Y = 0.2;
+const MARK_Y = 0.135;
 const PARK_Y = 0.08;
 const WATER_Y = 0.04;
+const WATER_BANK_Y = 0.055;
 
 const HUB_GLOW_COLOR = 0xb8d4e8;
 export const HUB_GLOW_PLAYER_COLOR = 0xf0c56a;
@@ -215,7 +218,7 @@ function pushWindowMatrix(
   const hw = Math.cos(yaw / 2);
   tmpQuat.set(0, hy, 0, hw);
   tmpPos.set(x, y, z);
-  tmpScale.set(w, h, 1);
+  tmpScale.set(w, h, Math.max(0.12 * METERS_TO_WORLD, 0.004));
   tmpMat.compose(tmpPos, tmpQuat, tmpScale);
   const e = tmpMat.elements;
   for (let i = 0; i < 16; i++) scratch.windows.push(e[i]!);
@@ -386,20 +389,13 @@ export function buildChunkTier(
 
     let longestI = 0;
     let longestM = 0;
-    let secondI = 0;
-    let secondM = 0;
     for (let i = 0; i < n; i++) {
       const a = ring[i]!;
       const bp = ring[(i + 1) % n]!;
       const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
       if (edgeM > longestM) {
-        secondI = longestI;
-        secondM = longestM;
         longestM = edgeM;
         longestI = i;
-      } else if (edgeM > secondM) {
-        secondM = edgeM;
-        secondI = i;
       }
     }
 
@@ -475,8 +471,9 @@ export function buildChunkTier(
         }
 
         if (opts.windows && scratch) {
-          const isFace = i === longestI || (major && i === secondI);
-          if (isFace)
+          const edgeLenM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
+          const spanM = (y1 - y0) / METERS_TO_WORLD;
+          if (wantFacadeWindows(edgeLenM, spanM, style))
             emitFacadeWindows(scratch, a, bp, nx, nz, y0, y1, style, major, shopWorld, vScale);
         }
       }
@@ -597,7 +594,7 @@ export function buildChunkTier(
     if (podium) emitRoof(ring, () => podiumWorld, pal.mixHex(roofHex, pal.AO_DARK, 0.18));
     emitRoof(roofRing, roofYAt, roofHex);
 
-    const wantParapet = !pitched && (major || areaM2 > 220) && b.heightM >= 10 && n <= 24;
+    const wantParapet = !pitched && (major || areaM2 > 140) && b.heightM >= 8 && n <= 24;
     if (wantParapet) {
       const lip = 0.9 * METERS_TO_WORLD;
       const inset = 0.35 * METERS_TO_WORLD;
@@ -736,41 +733,41 @@ function emitFacadeWindows(
   const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
   const spanY = y1 - y0;
   const heightM = spanY / METERS_TO_WORLD;
-  if (edgeM < 5.2 || heightM < 7.2) return;
+  if (!wantFacadeWindows(edgeM, heightM, style)) return;
 
-  const winStart = y0 + (shopWorld > 0.02 ? shopWorld : 0.85 * METERS_TO_WORLD * vScale);
-  const winEnd = y1 - 0.7 * METERS_TO_WORLD * vScale;
-  if (winEnd - winStart < 2.6 * METERS_TO_WORLD) return;
+  const winStart = y0 + (shopWorld > 0.02 ? shopWorld : 0.7 * METERS_TO_WORLD * vScale);
+  const winEnd = y1 - 0.55 * METERS_TO_WORLD * vScale;
+  if (winEnd - winStart < 1.6 * METERS_TO_WORLD) return;
 
-  const pitchU = major ? 3.3 : 3.7;
-  const pitchV = 3.25 * vScale;
-  const winW = (major ? 1.55 : 1.35) * METERS_TO_WORLD;
-  const winH = (major ? 1.85 : 1.65) * METERS_TO_WORLD * Math.min(vScale, 1.8);
-  const marginU = 0.85;
+  const pitchU = major ? 2.55 : 2.7;
+  const pitchV = 2.8 * vScale;
+  const winW = (major ? 2.05 : 1.9) * METERS_TO_WORLD;
+  const winH = (major ? 2.4 : 2.2) * METERS_TO_WORLD * Math.min(vScale, 1.8);
+  const marginU = 0.5;
   const usableU = edgeM - marginU * 2;
   if (usableU < winW / METERS_TO_WORLD) return;
 
-  let cols = Math.floor(usableU / pitchU);
-  let rows = Math.floor((winEnd - winStart) / (pitchV * METERS_TO_WORLD));
-  cols = Math.max(2, Math.min(cols, major ? 7 : 4));
-  rows = Math.max(2, Math.min(rows, major ? 10 : 3));
-  if (!major) {
-    cols = Math.min(cols, 3);
-    rows = Math.min(rows, 2);
+  let cols = Math.max(1, Math.floor(usableU / pitchU));
+  let rows = Math.max(1, Math.floor((winEnd - winStart) / (pitchV * METERS_TO_WORLD)));
+  cols = Math.min(cols, major ? 9 : 5);
+  rows = Math.min(rows, major ? 12 : 4);
+  if (style === STYLE_HOUSE || style === STYLE_TERRACE) {
+    cols = Math.min(cols, 4);
+    rows = Math.min(rows, 4);
   }
   if (style === STYLE_TOWER) {
-    cols = Math.min(cols, 6);
-    rows = Math.min(rows, 8);
+    cols = Math.min(cols, 7);
+    rows = Math.min(rows, 10);
   }
-  const maxCount = major ? 36 : 8;
+  const maxCount = major ? 48 : 16;
   if (cols * rows > maxCount) {
-    rows = Math.max(2, Math.floor(maxCount / cols));
+    rows = Math.max(1, Math.floor(maxCount / cols));
   }
 
   const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
   const tx = (bp.x - a.x) / elen;
   const tz = (bp.z - a.z) / elen;
-  const inset = -0.05 * METERS_TO_WORLD;
+  const inset = -0.08 * METERS_TO_WORLD;
   const u0 = marginU * METERS_TO_WORLD + winW / 2;
   const uSpan = elen - 2 * (marginU * METERS_TO_WORLD);
   const vSpan = winEnd - winStart;
@@ -790,13 +787,13 @@ export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | nul
   const count = Math.floor(scratch.windows.length / 16);
   if (count === 0) return null;
   const geo = new THREE.PlaneGeometry(1, 1);
-  const mat = new THREE.MeshLambertMaterial({
+  const mat = new THREE.MeshBasicMaterial({
     color: pal.WINDOW,
     side: THREE.DoubleSide,
     fog: true,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
   });
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -895,8 +892,43 @@ function buildMergedPolyMesh(
   return mesh;
 }
 
-export function buildWater(cityData: CityData): THREE.Mesh | null {
-  return buildMergedPolyMesh(cityData.water, pal.WATER, WATER_Y);
+export function buildWater(cityData: CityData): THREE.Object3D | null {
+  const water = buildMergedPolyMesh(cityData.water, pal.WATER, WATER_Y);
+  if (!water) return null;
+  const group = new THREE.Group();
+  group.add(water);
+
+  const bankPos: number[] = [];
+  const bankIdx: number[] = [];
+  const halfW = 3.4 * METERS_TO_WORLD;
+  for (const poly of cityData.water) {
+    const n = poly.verts.length / 2;
+    if (n < 3) continue;
+    const pts: { x: number; z: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      pts.push({ x: dequantizeX(poly.verts[i * 2]!), z: dequantizeY(poly.verts[i * 2 + 1]!) });
+    }
+    pts.push(pts[0]!);
+    appendRibbon(bankPos, bankIdx, pts, halfW, WATER_BANK_Y);
+  }
+  if (bankPos.length > 0) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(bankPos, 3));
+    g.setIndex(bankIdx);
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(
+      g,
+      new THREE.MeshLambertMaterial({
+        color: pal.WATER_BANK,
+        side: THREE.DoubleSide,
+        fog: true,
+      }),
+    );
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
 }
 
 function parkCentroid(
@@ -926,15 +958,169 @@ function parkCentroid(
   return { x: cx, z: cz, ring, areaM2 };
 }
 
+function parkShadeAt(
+  x: number,
+  z: number,
+  base: THREE.Color,
+  dark: THREE.Color,
+  lite: THREE.Color,
+): THREE.Color {
+  const h = Math.imul(Math.round(x * 22), 374761393) ^ Math.imul(Math.round(z * 22), 668265263);
+  const u = ((h >>> 0) % 1000) / 1000;
+  return u < 0.32 ? dark : u > 0.7 ? lite : base;
+}
+
+function emitParkTriangle(
+  positions: number[],
+  colors: number[],
+  indices: number[],
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+  y: number,
+  depth: number,
+  base: THREE.Color,
+  dark: THREE.Color,
+  lite: THREE.Color,
+): void {
+  const areaWorld = Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az)) * 0.5;
+  const areaM2 = areaWorld / (METERS_TO_WORLD * METERS_TO_WORLD);
+  if (depth < 2 && areaM2 > 1600) {
+    const mx = (ax + bx + cx) / 3;
+    const mz = (az + bz + cz) / 3;
+    emitParkTriangle(
+      positions,
+      colors,
+      indices,
+      ax,
+      az,
+      bx,
+      bz,
+      mx,
+      mz,
+      y,
+      depth + 1,
+      base,
+      dark,
+      lite,
+    );
+    emitParkTriangle(
+      positions,
+      colors,
+      indices,
+      bx,
+      bz,
+      cx,
+      cz,
+      mx,
+      mz,
+      y,
+      depth + 1,
+      base,
+      dark,
+      lite,
+    );
+    emitParkTriangle(
+      positions,
+      colors,
+      indices,
+      cx,
+      cz,
+      ax,
+      az,
+      mx,
+      mz,
+      y,
+      depth + 1,
+      base,
+      dark,
+      lite,
+    );
+    return;
+  }
+  const push = (x: number, z: number): number => {
+    const c = parkShadeAt(x, z, base, dark, lite);
+    const i = positions.length / 3;
+    positions.push(x, y, z);
+    colors.push(c.r, c.g, c.b);
+    return i;
+  };
+  const i0 = push(ax, az);
+  const i1 = push(bx, bz);
+  const i2 = push(cx, cz);
+  indices.push(i0, i1, i2);
+}
+
+function buildParkGrass(cityData: CityData): THREE.Mesh | null {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  const base = new THREE.Color(pal.PARK);
+  const dark = new THREE.Color(pal.PARK).offsetHSL(0.02, 0.06, -0.11);
+  const lite = new THREE.Color(pal.PARK).offsetHSL(-0.03, -0.04, 0.1);
+  for (const p of cityData.parks) {
+    const n = p.verts.length / 2;
+    if (n < 3) continue;
+    const ring: { x: number; z: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      ring.push({ x: dequantizeX(p.verts[i * 2]!), z: dequantizeY(p.verts[i * 2 + 1]!) });
+    }
+    for (let t = 0; t + 2 < p.indices.length; t += 3) {
+      const a = ring[p.indices[t]!]!;
+      const b = ring[p.indices[t + 1]!]!;
+      const c = ring[p.indices[t + 2]!]!;
+      if (!a || !b || !c) continue;
+      emitParkTriangle(
+        positions,
+        colors,
+        indices,
+        a.x,
+        a.z,
+        b.x,
+        b.z,
+        c.x,
+        c.z,
+        PARK_Y,
+        0,
+        base,
+        dark,
+        lite,
+      );
+    }
+  }
+  if (indices.length === 0) return null;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshLambertMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      fog: true,
+    }),
+  );
+  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  return mesh;
+}
+
 export function buildParks(cityData: CityData): THREE.Group | null {
-  const grass = buildMergedPolyMesh(cityData.parks, pal.PARK, PARK_Y, { vary: true });
+  const grass = buildParkGrass(cityData);
   if (!grass) return null;
   const group = new THREE.Group();
   group.add(grass);
 
   const pathPos: number[] = [];
   const pathIdx: number[] = [];
-  const halfW = 2.4 * METERS_TO_WORLD;
+  const halfW = 2.8 * METERS_TO_WORLD;
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
     if (!info || info.areaM2 < 18_000) continue;
@@ -955,7 +1141,7 @@ export function buildParks(cityData: CityData): THREE.Group | null {
       { x: cx, z: cz },
       { x: b.x * 0.72 + cx * 0.28, z: b.z * 0.72 + cz * 0.28 },
     ];
-    const ribbon = buildRibbonGeometry(pts, halfW, PARK_Y + 0.015 * METERS_TO_WORLD);
+    const ribbon = buildRibbonGeometry(pts, halfW, PARK_Y + 0.012);
     const base = pathPos.length / 3;
     for (const v of ribbon.positions) pathPos.push(v);
     for (const i of ribbon.indices) pathIdx.push(i + base);
@@ -984,11 +1170,12 @@ function mulberry(h: number): number {
 export function buildParkTrees(cityData: CityData): THREE.Group | null {
   const dummy = new THREE.Object3D();
   const spots: { x: number; z: number; scale: number; shade: number }[] = [];
+  const groves: { x: number; z: number; scale: number; shade: number }[] = [];
 
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
     if (!info || info.areaM2 < 90) continue;
-    const count = Math.min(48, Math.max(2, Math.round(info.areaM2 / 1400)));
+    const count = Math.min(80, Math.max(3, Math.round(info.areaM2 / 900)));
     let h = Math.imul(info.ring.length + 1, 2654435761) ^ park.verts[0]!;
     for (let t = 0; t < count && spots.length < TREE_MAX; t++) {
       h = mulberry(h);
@@ -998,9 +1185,24 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
       spots.push({
         x: info.x + Math.cos(ang) * rad,
         z: info.z + Math.sin(ang) * rad,
-        scale: 5.2 + ((h >>> 16) & 7) * 0.45,
+        scale: 9.2 + ((h >>> 16) & 7) * 0.7,
         shade: (h >>> 20) % 3,
       });
+    }
+    if (info.areaM2 > 8_000) {
+      const groveCount = Math.min(36, Math.max(2, Math.round(info.areaM2 / 12_000)));
+      for (let t = 0; t < groveCount && groves.length < GROVE_MAX; t++) {
+        h = mulberry(h);
+        const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
+        const rad =
+          Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.32;
+        groves.push({
+          x: info.x + Math.cos(ang) * rad,
+          z: info.z + Math.sin(ang) * rad,
+          scale: 70 + ((h >>> 16) & 15) * 3.2,
+          shade: (h >>> 20) % 3,
+        });
+      }
     }
   }
 
@@ -1031,7 +1233,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
           spots.push({
             x: a.x + dx * t + px * offset * sign,
             z: a.z + dz * t + pz * offset * sign,
-            scale: 4.2 + ((h >>> 16) & 5) * 0.35,
+            scale: 7.2 + ((h >>> 16) & 5) * 0.45,
             shade: (h >>> 22) % 3,
           });
         }
@@ -1090,9 +1292,45 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
     dummy.updateMatrix();
     trunks.setMatrixAt(i, dummy.matrix);
   }
+  trunks.instanceMatrix.needsUpdate = true;
+  for (const c of canopies) if (c) c.instanceMatrix.needsUpdate = true;
+
   const group = new THREE.Group();
   group.add(trunks);
   for (const c of canopies) if (c) group.add(c);
+
+  if (groves.length > 0) {
+    const groveCounts = [0, 0, 0];
+    for (const g of groves) groveCounts[g.shade]! += 1;
+    const groveCursor = [0, 0, 0];
+    for (let shade = 0; shade < 3; shade++) {
+      if (groveCounts[shade]! <= 0) continue;
+      const mesh = new THREE.InstancedMesh(
+        new THREE.IcosahedronGeometry(1, 0),
+        canopyGeos[shade]!,
+        groveCounts[shade]!,
+      );
+      mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.userData.grove = true;
+      mesh.visible = false;
+      for (let i = 0; i < groves.length; i++) {
+        const s = groves[i]!;
+        if (s.shade !== shade) continue;
+        const r = s.scale * METERS_TO_WORLD;
+        dummy.rotation.set(0, (i * 0.51) % (Math.PI * 2), 0);
+        dummy.position.set(s.x, r * 0.42, s.z);
+        dummy.scale.set(r, r * 0.38, r);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(groveCursor[shade]!, dummy.matrix);
+        groveCursor[shade]! += 1;
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      group.add(mesh);
+    }
+  }
   return group;
 }
 
@@ -1164,16 +1402,16 @@ function addCrosswalk(
 ): void {
   const nx = -tz;
   const nz = tx;
-  const bars = 5;
-  const barW = 0.45 * METERS_TO_WORLD;
-  const gap = 0.7 * METERS_TO_WORLD;
+  const bars = 6;
+  const barW = 0.85 * METERS_TO_WORLD;
+  const gap = 1.05 * METERS_TO_WORLD;
   const start = -((bars - 1) / 2) * gap;
   for (let i = 0; i < bars; i++) {
     const along = start + i * gap;
     const cx = x + tx * along;
     const cz = z + tz * along;
-    const hx = nx * roadHalf * 0.78;
-    const hz = nz * roadHalf * 0.78;
+    const hx = nx * roadHalf * 0.82;
+    const hz = nz * roadHalf * 0.82;
     const wx = tx * barW * 0.5;
     const wz = tz * barW * 0.5;
     const base = pos.length / 3;
@@ -1193,6 +1431,31 @@ function addCrosswalk(
     );
     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
+}
+
+function offsetPolyline(
+  pts: { x: number; z: number }[],
+  offset: number,
+): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    let tx: number;
+    let tz: number;
+    if (i === 0) {
+      tx = pts[1]!.x - p.x;
+      tz = pts[1]!.z - p.z;
+    } else if (i === pts.length - 1) {
+      tx = p.x - pts[i - 1]!.x;
+      tz = p.z - pts[i - 1]!.z;
+    } else {
+      tx = pts[i + 1]!.x - pts[i - 1]!.x;
+      tz = pts[i + 1]!.z - pts[i - 1]!.z;
+    }
+    const len = Math.hypot(tx, tz) || 1;
+    out.push({ x: p.x + (-tz / len) * offset, z: p.z + (tx / len) * offset });
+  }
+  return out;
 }
 
 /** One group per tier so minor streets can hide independently at low zoom. */
@@ -1229,15 +1492,17 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
     const asphPos: number[] = [];
     const asphIdx: number[] = [];
     const halfCarriage = (ROAD_WIDTHS_M[tier]! * METERS_TO_WORLD) / 2;
-    const halfWalk = halfCarriage + SIDEWALK_M[tier]! * METERS_TO_WORLD;
+    const walkHalf = (SIDEWALK_M[tier]! * METERS_TO_WORLD) / 2;
+    const walkOffset = halfCarriage + walkHalf;
     for (const road of cityData.roads as CityRoad[]) {
       if (road.tier !== tier) continue;
       const pts = roadPts(road);
       if (!pts) continue;
-      appendRibbon(walkPos, walkIdx, pts, halfWalk, SIDEWALK_Y);
+      appendRibbon(walkPos, walkIdx, offsetPolyline(pts, walkOffset), walkHalf, SIDEWALK_Y);
+      appendRibbon(walkPos, walkIdx, offsetPolyline(pts, -walkOffset), walkHalf, SIDEWALK_Y);
       appendRibbon(asphPos, asphIdx, pts, halfCarriage, ROAD_Y);
       if (tier <= 1) {
-        appendRibbon(markPos, markIdx, pts, 0.12 * METERS_TO_WORLD, MARK_Y);
+        appendRibbon(markPos, markIdx, pts, 0.42 * METERS_TO_WORLD, MARK_Y);
         if (tier === 0 && pts.length >= 2) {
           const a = pts[0]!;
           const b = pts[1]!;
@@ -1287,6 +1552,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       g.computeBoundingSphere();
       const mesh = new THREE.Mesh(g, sidewalkMat);
       mesh.receiveShadow = true;
+      mesh.castShadow = true;
       tierGroup.add(mesh);
     }
     if (asphPos.length > 0) {

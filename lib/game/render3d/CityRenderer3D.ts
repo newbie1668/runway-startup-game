@@ -53,8 +53,8 @@ const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 const HERO_AT = [-0.1358, 51.5196] as const;
 const HERO_VIEW_HEIGHT = 0.95;
 
-/** Warm afternoon sun from the south-west, ~38° elevation. */
-const SUN_DIR = new THREE.Vector3(-0.72, 0.62, 0.82).normalize();
+/** Warm afternoon sun from the south-west, ~30° elevation — long façade shadows. */
+const SUN_DIR = new THREE.Vector3(-0.84, 0.5, 0.78).normalize();
 
 function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: number } {
   const look = new URLSearchParams(window.location.search).get('look');
@@ -133,7 +133,7 @@ export class CityRenderer3D implements IMapRenderer {
   private lastTier2Visible: boolean | null = null;
   private lastLampsVisible: boolean | null = null;
   private treeGroup: THREE.Object3D | null = null;
-  private lastTreesVisible: boolean | null = null;
+  private lastGrovesVisible: boolean | null = null;
   private windowMesh: THREE.InstancedMesh | null = null;
   private lastWindowsVisible: boolean | null = null;
   private landmarkPrefabs = new Map<LandmarkKind, THREE.Object3D>();
@@ -180,7 +180,7 @@ export class CityRenderer3D implements IMapRenderer {
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.16;
     this.renderer.setClearColor(SKY, 1);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -189,14 +189,14 @@ export class CityRenderer3D implements IMapRenderer {
     this.scene3d.fog = this.fog;
     this.scene3d.background = new THREE.Color(SKY);
 
-    this.hemi = new THREE.HemisphereLight(0xdce8f2, 0xd0c4b0, 0.92);
-    const amb = new THREE.AmbientLight(0xf4efe6, 0.48);
-    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.22);
+    this.hemi = new THREE.HemisphereLight(0xdce8f2, 0xd0c4b0, 0.86);
+    const amb = new THREE.AmbientLight(0xf4efe6, 0.4);
+    this.sun = new THREE.DirectionalLight(0xfff1d4, 1.38);
     this.sun.castShadow = true;
     const mapSize = this.isCoarsePointer ? 1024 : 2048;
     this.sun.shadow.mapSize.set(mapSize, mapSize);
-    this.sun.shadow.bias = -0.00035;
-    this.sun.shadow.normalBias = 0.035;
+    this.sun.shadow.bias = -0.00028;
+    this.sun.shadow.normalBias = 0.04;
     this.sun.shadow.camera.near = 2;
     this.sun.shadow.camera.far = 140;
     this.sunTarget.position.set(WORLD.width / 2, 0, WORLD.height / 2);
@@ -220,22 +220,22 @@ export class CityRenderer3D implements IMapRenderer {
     const beamMat = new THREE.MeshBasicMaterial({
       color: 0x7ec8ff,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.38,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 1, 16, 1, true), beamMat);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.15, 1, 16, 1, true), beamMat);
     beam.position.y = 0.5;
     beam.name = 'shaft';
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xb8e0ff,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.7,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.18, 0.32, 24), ringMat);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1.12, 24), ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.name = 'ring';
     this.beamGroup.add(beam, ring);
@@ -353,7 +353,7 @@ export class CityRenderer3D implements IMapRenderer {
     jobs.push(() => {
       const trees = buildParkTrees(data);
       if (trees) {
-        trees.visible = false;
+        trees.visible = true;
         this.treeGroup = trees;
         this.cityGroup.add(trees);
       }
@@ -403,9 +403,9 @@ export class CityRenderer3D implements IMapRenderer {
 
   private updateSunShadow(): void {
     const dist = this.rig.getDistance();
-    const extent = Math.max(8, Math.min(88, dist * 1.4));
+    const extent = Math.max(10, Math.min(130, dist * 1.7));
     this.sunTarget.position.set(this.cam.x, 0, this.cam.y);
-    this.sun.position.set(this.cam.x + SUN_DIR.x * 70, SUN_DIR.y * 70, this.cam.y + SUN_DIR.z * 70);
+    this.sun.position.set(this.cam.x + SUN_DIR.x * 90, SUN_DIR.y * 90, this.cam.y + SUN_DIR.z * 90);
     const cam = this.sun.shadow.camera;
     cam.left = -extent;
     cam.right = extent;
@@ -424,8 +424,8 @@ export class CityRenderer3D implements IMapRenderer {
       this.beamGroup.visible = false;
       return;
     }
-    const r = Math.max(0.22, Math.sqrt(pick.areaM2) * METERS_TO_WORLD * 0.22);
-    const h = Math.max(2.4, pick.heightWorld * 2.4 + 1.6);
+    const r = Math.max(0.16, Math.sqrt(pick.areaM2) * METERS_TO_WORLD * 0.55);
+    const h = Math.max(3.2, pick.heightWorld * 3.4 + 2.4);
     this.beamGroup.position.set(pick.x, 0, pick.z);
     const shaft = this.beamGroup.getObjectByName('shaft') as THREE.Mesh | undefined;
     const ring = this.beamGroup.getObjectByName('ring') as THREE.Mesh | undefined;
@@ -660,12 +660,16 @@ export class CityRenderer3D implements IMapRenderer {
       if (this.lampGroup) this.lampGroup.visible = lampsVisible;
       this.lastLampsVisible = lampsVisible;
     }
-    const treesVisible = true;
-    if (treesVisible !== this.lastTreesVisible) {
-      if (this.treeGroup) this.treeGroup.visible = treesVisible;
-      this.lastTreesVisible = treesVisible;
+    const grovesVisible = this.cam.zoom < 18;
+    if (grovesVisible !== this.lastGrovesVisible) {
+      if (this.treeGroup) {
+        this.treeGroup.traverse((obj) => {
+          if (obj.userData.grove) obj.visible = grovesVisible;
+        });
+      }
+      this.lastGrovesVisible = grovesVisible;
     }
-    const windowsVisible = this.cam.zoom >= 10;
+    const windowsVisible = this.cam.zoom >= 7;
     if (windowsVisible !== this.lastWindowsVisible) {
       if (this.windowMesh) this.windowMesh.visible = windowsVisible;
       this.lastWindowsVisible = windowsVisible;
@@ -685,7 +689,7 @@ export class CityRenderer3D implements IMapRenderer {
     }
 
     if (this.beamGroup.visible) {
-      const pulse = 0.22 + 0.08 * Math.sin(t * 0.004);
+      const pulse = 0.32 + 0.12 * Math.sin(t * 0.004);
       const shaft = this.beamGroup.getObjectByName('shaft') as THREE.Mesh | undefined;
       if (shaft && shaft.material instanceof THREE.MeshBasicMaterial)
         shaft.material.opacity = pulse;
