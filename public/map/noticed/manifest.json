@@ -1,358 +1,391 @@
 {
-  "generatedAt": "2026-08-27T17:27:51.516Z",
+  "generatedAt": "2026-08-28T18:01:18.756Z",
   "hash": "a36ac8679a70",
+  "baker": "three",
   "files": [
     {
       "id": "hampton-tower",
       "name": "Hampton Tower",
       "file": "hampton-tower.glb",
-      "bytes": 11212,
+      "bytes": 9172,
       "x": 154.22371210112382,
       "z": 50.96836000000167,
       "exclusionM": 41,
       "heightM": 221,
-      "photo": false
+      "photo": false,
+      "shape": "slab"
     },
     {
       "id": "one-park-drive",
       "name": "One Park Drive",
       "file": "one-park-drive.glb",
-      "bytes": 120764,
+      "bytes": 31928,
       "x": 155.6087185201672,
       "z": 49.7314877094972,
       "exclusionM": 40,
       "heightM": 205,
-      "photo": true
+      "photo": true,
+      "shape": "cylinder"
     },
     {
       "id": "citi",
       "name": "Citi",
       "file": "citi.glb",
-      "bytes": 8512,
+      "bytes": 6984,
       "x": 153.75642563922938,
       "z": 48.06673333333341,
       "exclusionM": 67,
       "heightM": 200,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "hsbc-uk",
       "name": "HSBC UK",
       "file": "hsbc-uk.glb",
-      "bytes": 13752,
+      "bytes": 11280,
       "x": 154.11126194646823,
       "z": 46.56594285714227,
       "exclusionM": 53,
       "heightM": 200,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "newfoundland-quay",
       "name": "Newfoundland Quay",
       "file": "newfoundland-quay.glb",
-      "bytes": 10616,
+      "bytes": 14072,
       "x": 149.34759022817076,
       "z": 47.72701111111073,
       "exclusionM": 45,
       "heightM": 189,
-      "photo": true
+      "photo": true,
+      "shape": "twist"
     },
     {
       "id": "harcourt-tower",
       "name": "Harcourt Tower",
       "file": "harcourt-tower.glb",
-      "bytes": 9904,
+      "bytes": 8104,
       "x": 153.3608149938352,
       "z": 51.148450000000345,
       "exclusionM": 40,
       "heightM": 182,
-      "photo": false
+      "photo": false,
+      "shape": "slab"
     },
     {
       "id": "bagshaw-building-wardian-east",
       "name": "Bagshaw Building (Wardian East)",
       "file": "bagshaw-building-wardian-east.glb",
-      "bytes": 7996,
+      "bytes": 8568,
       "x": 151.14295564101428,
       "z": 50.26157999999867,
       "exclusionM": 40,
       "heightM": 179,
-      "photo": false
+      "photo": false,
+      "shape": "taper"
     },
     {
       "id": "40-charter-street",
       "name": "40 Charter Street",
       "file": "40-charter-street.glb",
-      "bytes": 117192,
+      "bytes": 96680,
       "x": 157.28624390859534,
       "z": 50.02420747126431,
       "exclusionM": 42,
       "heightM": 173,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "8-bishopsgate",
       "name": "8 Bishopsgate",
       "file": "8-bishopsgate.glb",
-      "bytes": 17676,
+      "bytes": 23800,
       "x": 112.97536002750083,
       "z": 38.11319500000003,
       "exclusionM": 63,
       "heightM": 166,
-      "photo": true
+      "photo": true,
+      "shape": "stepped"
     },
     {
       "id": "hobart-building-wardian-west",
       "name": "Hobart Building (Wardian West)",
       "file": "hobart-building-wardian-west.glb",
-      "bytes": 9360,
+      "bytes": 9996,
       "x": 150.84737324124603,
       "z": 50.57278571428522,
       "exclusionM": 40,
       "heightM": 163,
-      "photo": true
+      "photo": true,
+      "shape": "taper"
     },
     {
       "id": "barclays",
       "name": "Barclays",
       "file": "barclays.glb",
-      "bytes": 21564,
+      "bytes": 17728,
       "x": 155.9731707307555,
       "z": 46.81667692307639,
       "exclusionM": 71,
       "heightM": 156,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "south-bank-tower",
       "name": "South Bank Tower",
       "file": "south-bank-tower.glb",
-      "bytes": 19008,
+      "bytes": 31940,
       "x": 98.23683619927066,
       "z": 44.35156818181792,
       "exclusionM": 40,
       "heightM": 155,
-      "photo": true
+      "photo": true,
+      "shape": "cylinder"
     },
     {
       "id": "jp-morgan",
       "name": "JP Morgan",
       "file": "jp-morgan.glb",
-      "bytes": 11160,
+      "bytes": 9152,
       "x": 152.05697520655025,
       "z": 49.14555999999948,
       "exclusionM": 77,
       "heightM": 153,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "40-bank-street",
       "name": "40 Bank Street",
       "file": "40-bank-street.glb",
-      "bytes": 10560,
+      "bytes": 8636,
       "x": 152.8200252891405,
       "z": 49.45636666666707,
       "exclusionM": 54,
       "heightM": 153,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "one-thames-quay",
       "name": "One Thames Quay",
       "file": "one-thames-quay.glb",
-      "bytes": 9268,
+      "bytes": 9924,
       "x": 157.50996064278746,
       "z": 52.16045714285705,
       "exclusionM": 42,
       "heightM": 150,
-      "photo": false
+      "photo": false,
+      "shape": "taper"
     },
     {
       "id": "uncle-elephant-and-castle",
       "name": "UNCLE Elephant & Castle",
       "file": "uncle-elephant-and-castle.glb",
-      "bytes": 11972,
+      "bytes": 12820,
       "x": 101.11585037962824,
       "z": 59.477881818182254,
       "exclusionM": 40,
       "heightM": 147,
-      "photo": true
+      "photo": true,
+      "shape": "taper"
     },
     {
       "id": "carrara-tower",
       "name": "Carrara Tower",
       "file": "carrara-tower.glb",
-      "bytes": 15704,
+      "bytes": 12904,
       "x": 105.07155771957389,
       "z": 22.82271176470583,
       "exclusionM": 46,
       "heightM": 147,
-      "photo": false
+      "photo": false,
+      "shape": "slab"
     },
     {
       "id": "charrington-tower",
       "name": "Charrington Tower",
       "file": "charrington-tower.glb",
-      "bytes": 52108,
+      "bytes": 71132,
       "x": 161.5689786439662,
       "z": 45.07836712328751,
       "exclusionM": 40,
       "heightM": 144,
-      "photo": true
+      "photo": true,
+      "shape": "stepped"
     },
     {
       "id": "the-stratford",
       "name": "The Stratford",
       "file": "the-stratford.glb",
-      "bytes": 13156,
+      "bytes": 17612,
       "x": 160.19408573302266,
       "z": 6.655346153845169,
       "exclusionM": 50,
       "heightM": 143,
-      "photo": true
+      "photo": true,
+      "shape": "stepped"
     },
     {
       "id": "maine-tower",
       "name": "Maine Tower",
       "file": "maine-tower.glb",
-      "bytes": 9232,
+      "bytes": 7552,
       "x": 152.44902336371845,
       "z": 52.72617142857022,
       "exclusionM": 40,
       "heightM": 134,
-      "photo": true
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "atlas-building",
       "name": "Atlas Building",
       "file": "atlas-building.glb",
-      "bytes": 18968,
+      "bytes": 25696,
       "x": 110.02604102480977,
       "z": 24.5720863636362,
       "exclusionM": 42,
       "heightM": 134,
-      "photo": true
+      "photo": true,
+      "shape": "stepped"
     },
     {
       "id": "halo",
       "name": "Halo",
       "file": "halo.glb",
-      "bytes": 20236,
+      "bytes": 31880,
       "x": 160.90405828896198,
       "z": 16.951516666665906,
       "exclusionM": 40,
       "heightM": 133,
-      "photo": true
+      "photo": true,
+      "shape": "cylinder"
     },
     {
       "id": "valencia-tower",
       "name": "Valencia Tower",
       "file": "valencia-tower.glb",
-      "bytes": 18980,
+      "bytes": 15608,
       "x": 105.67793757577911,
       "z": 23.101372727272075,
       "exclusionM": 50,
       "heightM": 128,
-      "photo": false
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "novotel-london-canary-wharf",
       "name": "Novotel London Canary Wharf",
       "file": "novotel-london-canary-wharf.glb",
-      "bytes": 13796,
+      "bytes": 11368,
       "x": 150.40281330655748,
       "z": 50.79422857142798,
       "exclusionM": 40,
       "heightM": 128,
-      "photo": false
+      "photo": true,
+      "shape": "slab"
     },
     {
       "id": "willis-towers-watson",
       "name": "Willis Towers Watson",
       "file": "willis-towers-watson.glb",
-      "bytes": 30680,
+      "bytes": 41776,
       "x": 114.19417832200045,
       "z": 39.168674999999645,
       "exclusionM": 48,
       "heightM": 125,
-      "photo": true
+      "photo": true,
+      "shape": "stepped"
     },
     {
       "id": "stratosphere-tower",
       "name": "Stratosphere Tower",
       "file": "stratosphere-tower.glb",
-      "bytes": 10536,
+      "bytes": 11364,
       "x": 164.58928009258204,
       "z": 11.784511111111032,
       "exclusionM": 40,
       "heightM": 125,
-      "photo": false
+      "photo": true,
+      "shape": "taper"
     },
     {
       "id": "one-the-elephant",
       "name": "One The Elephant",
       "file": "one-the-elephant.glb",
-      "bytes": 10576,
+      "bytes": 11360,
       "x": 101.74071422301586,
       "z": 58.49668888888794,
       "exclusionM": 40,
       "heightM": 124,
-      "photo": false
+      "photo": true,
+      "shape": "taper"
     },
     {
       "id": "cromwell-tower",
       "name": "Cromwell Tower",
       "file": "cromwell-tower.glb",
-      "bytes": 12476,
+      "bytes": 10244,
       "x": 107.21250548058447,
       "z": 31.455491666665242,
       "exclusionM": 40,
       "heightM": 123,
-      "photo": false
+      "photo": true,
+      "shape": "brutalist"
     },
     {
       "id": "lauderdale-tower",
       "name": "Lauderdale Tower",
       "file": "lauderdale-tower.glb",
-      "bytes": 15764,
+      "bytes": 12924,
       "x": 104.73702567754643,
       "z": 32.12507058823423,
       "exclusionM": 40,
       "heightM": 123,
-      "photo": false
+      "photo": true,
+      "shape": "brutalist"
     },
     {
       "id": "chelsea-waterfront-tower-west",
       "name": "Chelsea Waterfront - Tower West",
       "file": "chelsea-waterfront-tower-west.glb",
-      "bytes": 13248,
+      "bytes": 14276,
       "x": 53.07711110914791,
       "z": 74.54170769230637,
       "exclusionM": 40,
       "heightM": 121,
-      "photo": false
+      "photo": false,
+      "shape": "taper"
     },
     {
       "id": "gladwin-tower",
       "name": "Gladwin Tower",
       "file": "gladwin-tower.glb",
-      "bytes": 13212,
+      "bytes": 10760,
       "x": 85.23586288336188,
       "z": 70.50088461538395,
       "exclusionM": 40,
       "heightM": 121,
-      "photo": false
+      "photo": false,
+      "shape": "slab"
     },
     {
       "id": "vertus-10-george-street",
       "name": "Vertus - 10 George Street",
       "file": "vertus-10-george-street.glb",
-      "bytes": 17756,
+      "bytes": 14560,
       "x": 156.65775989324288,
       "z": 49.8742399999994,
       "exclusionM": 44,
       "heightM": 121,
-      "photo": false
+      "photo": false,
+      "shape": "slab"
     }
   ]
 }

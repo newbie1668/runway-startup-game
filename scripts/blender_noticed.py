@@ -1,13 +1,17 @@
 """
-Bake noticed-tower GLBs from OSM rings + photo/OSM colours.
+Bake noticed-tower GLBs from OSM rings + photo/OSM colours + silhouette bands.
 
 Invoked by bake-noticed.ts:
   blender --background --python scripts/blender_noticed.py -- /path/to/job.json
+
+`bands` / `circular` are computed in TypeScript (noticedFeatures.ts) so Blender
+and the three.js fallback baker stay in sync.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -30,20 +34,46 @@ def clear_scene() -> None:
             block.remove(item)
 
 
-def inset_ring(ring: list[tuple[float, float]], factor: float) -> list[tuple[float, float]]:
-    if factor >= 0.98:
-        return ring
+def lift_wall(wall: tuple[float, float, float], min_l: float = 0.32) -> tuple[float, float, float]:
+    mx, mn = max(wall), min(wall)
+    l = (mx + mn) / 2
+    if l >= min_l:
+        return wall
+    scale = min_l / max(l, 0.04)
+    return (min(1.0, wall[0] * scale), min(1.0, wall[1] * scale), min(1.0, wall[2] * scale))
+
+
+def transform_ring(
+    ring: list[tuple[float, float]], scale: float, yaw_deg: float
+) -> list[tuple[float, float]]:
     cx = sum(p[0] for p in ring) / len(ring)
     cy = sum(p[1] for p in ring) / len(ring)
-    return [(cx + (x - cx) * factor, cy + (y - cy) * factor) for x, y in ring]
+    rad = math.radians(yaw_deg)
+    c, s = math.cos(rad), math.sin(rad)
+    out: list[tuple[float, float]] = []
+    for x, y in ring:
+        dx, dy = (x - cx) * scale, (y - cy) * scale
+        out.append((cx + dx * c - dy * s, cy + dx * s + dy * c))
+    return out
 
 
-def make_window_image(name: str, wall: tuple[float, float, float], seed: int) -> bpy.types.Image:
-    w = h = 256
+def circularize(ring: list[tuple[float, float]], n: int = 28) -> list[tuple[float, float]]:
+    cx = sum(p[0] for p in ring) / len(ring)
+    cy = sum(p[1] for p in ring) / len(ring)
+    r = max(math.hypot(x - cx, y - cy) for x, y in ring)
+    return [
+        (cx + math.cos((i / n) * math.tau) * r, cy + math.sin((i / n) * math.tau) * r)
+        for i in range(n)
+    ]
+
+
+def make_window_image(name: str, wall: tuple[float, float, float], seed: int, glass: bool) -> bpy.types.Image:
+    w = 128
+    h = 256
     img = bpy.data.images.new(name, width=w, height=h, alpha=False)
     px = [0.0] * (w * h * 4)
-    wr, wg, wb = wall
-    col_w, row_h = 16, 12
+    wr, wg, wb = lift_wall(wall)
+    col_w, row_h = (12, 10) if glass else (16, 14)
     for y in range(h):
         for x in range(w):
             i = (y * w + x) * 4
@@ -53,10 +83,11 @@ def make_window_image(name: str, wall: tuple[float, float, float], seed: int) ->
             else:
                 cell = (x // col_w) * 31 + (y // row_h) * 17 + seed
                 lit = (cell * 1103515245 + 12345) & 0x7FFFFFFF
-                if (lit % 10) > 5:
-                    px[i], px[i + 1], px[i + 2] = 1.0, 0.84, 0.52
+                if (lit % 10) > 6:
+                    # Daytime sky reflection, not tungsten night glow.
+                    px[i], px[i + 1], px[i + 2] = 0.59, 0.66, 0.72
                 else:
-                    px[i], px[i + 1], px[i + 2] = 0.10, 0.14, 0.20
+                    px[i], px[i + 1], px[i + 2] = 0.16, 0.20, 0.26
             px[i + 3] = 1.0
     img.pixels = px
     img.pack()
@@ -69,7 +100,7 @@ def make_material(name: str, wall: tuple[float, float, float], seed: int, glass:
     nt = mat.node_tree
     bsdf = nt.nodes.get("Principled BSDF")
     tex = nt.nodes.new("ShaderNodeTexImage")
-    tex.image = make_window_image(f"{name}-win", wall, seed)
+    tex.image = make_window_image(f"{name}-win", wall, seed, glass)
     tex.location = (-400, 0)
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     if "Roughness" in bsdf.inputs:
@@ -170,6 +201,14 @@ def export_glb(obj: bpy.types.Object, path: Path) -> None:
     )
 
 
+def default_bands() -> list[dict]:
+    return [
+        {"t0": 0.0, "t1": 0.14, "scale": 1.0, "yawDeg": 0},
+        {"t0": 0.14, "t1": 0.88, "scale": 0.88, "yawDeg": 0},
+        {"t0": 0.88, "t1": 1.0, "scale": 0.62, "yawDeg": 0},
+    ]
+
+
 def build_one(job: dict, out_dir: Path) -> None:
     ring = [(float(p[0]), float(p[1])) for p in job["ring"]]
     height = float(job["heightWorld"])
@@ -178,23 +217,24 @@ def build_one(job: dict, out_dir: Path) -> None:
     glass = bool(job.get("glass", True))
     seed = int(job.get("seed", 1))
     name = job["id"]
+    if job.get("circular"):
+        ring = circularize(ring)
+    bands = job.get("bands") or default_bands()
 
     wall_mat = make_material(f"{name}-wall", wall, seed, glass)
     roof_mat = make_roof_material(f"{name}-roof", roof)
 
     parts: list[bpy.types.Object] = []
-    # Podium / shaft / crown so tall towers aren't one extruded slab.
-    bands = [(0.0, 0.14, 1.0), (0.14, 0.88, 0.88), (0.88, 1.0, 0.62)]
-    if height < 0.9:
-        bands = [(0.0, 1.0, 1.0)]
-    for i, (t0, t1, scale) in enumerate(bands):
-        z0 = height * t0
-        h = height * (t1 - t0)
-        solid = extrude_solid(inset_ring(ring, scale), z0, h, f"{name}-{i}")
+    if height < 0.9 and not job.get("bands"):
+        bands = [{"t0": 0.0, "t1": 1.0, "scale": 1.0, "yawDeg": 0}]
+    for i, band in enumerate(bands):
+        z0 = height * float(band["t0"])
+        h = height * (float(band["t1"]) - float(band["t0"]))
+        scaled = transform_ring(ring, float(band.get("scale", 1)), float(band.get("yawDeg", 0)))
+        solid = extrude_solid(scaled, z0, h, f"{name}-{i}")
         obj = bm_to_object(solid, f"{name}-{i}")
         obj.data.materials.append(wall_mat)
         obj.data.materials.append(roof_mat)
-        # Roof faces (upward) get the roof slot.
         for poly in obj.data.polygons:
             poly.material_index = 1 if poly.normal.z > 0.6 else 0
         parts.append(obj)
@@ -214,7 +254,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     clear_scene()
     for building in payload["buildings"]:
-        print(f"  blender: {building['id']}")
+        print(f"  blender: {building['id']} ({building.get('shape', 'slab')})")
         build_one(building, out_dir)
 
 

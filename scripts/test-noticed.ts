@@ -2,6 +2,16 @@
  * Noticed-tower factory helpers — offline, no DOM.
  */
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { makeMatteLambert } from '../lib/game/render3d/matteGltf';
+import {
+  bandsForShape,
+  featuresFromText,
+  isCircularShape,
+  liftRgb,
+  resolveShape,
+} from './noticedFeatures';
+import { buildNoticedGroup } from './noticedMesh';
 import {
   isUsefulName,
   slugify,
@@ -44,6 +54,98 @@ check('uniqueSlug disambiguates', () => {
   const used = new Set<string>();
   assert.equal(uniqueSlug('tower', used), 'tower');
   assert.equal(uniqueSlug('tower', used), 'tower-2');
+});
+
+check('named London silhouettes match the skyline', () => {
+  assert.equal(resolveShape('newfoundland-quay', 'Newfoundland Quay', ''), 'twist');
+  assert.equal(resolveShape('one-park-drive', 'One Park Drive', ''), 'cylinder');
+  assert.equal(resolveShape('cromwell-tower', 'Cromwell Tower', ''), 'brutalist');
+  assert.equal(resolveShape('8-bishopsgate', '8 Bishopsgate', ''), 'stepped');
+  assert.equal(resolveShape('bagshaw-building-wardian-east', 'Wardian', ''), 'taper');
+  assert.equal(resolveShape('hsbc-uk', 'HSBC UK', ''), 'slab');
+});
+
+check('wiki intro text can fill in unknown towers', () => {
+  assert.equal(featuresFromText('a twisted residential tower on the quay'), 'twist');
+  assert.equal(featuresFromText('brutalist concrete Barbican slab'), 'brutalist');
+  assert.equal(featuresFromText('a cylindrical glass residential tower'), 'cylinder');
+});
+
+check('named silhouettes win over a misleading extract', () => {
+  assert.equal(
+    resolveShape('one-park-drive', 'One Park Drive', 'The twisted cylindrical brutalist tower'),
+    'cylinder',
+  );
+});
+
+check('twist bands yaw further up the shaft', () => {
+  const bands = bandsForShape('twist');
+  assert.ok(bands[0]!.yawDeg < bands[bands.length - 1]!.yawDeg);
+  assert.equal(bands[bands.length - 1]!.t1, 1);
+  assert.equal(isCircularShape('cylinder'), true);
+  assert.equal(isCircularShape('twist'), false);
+});
+
+check('liftRgb raises crushed photo samples', () => {
+  const lifted = liftRgb([0.05, 0.06, 0.07]);
+  assert.ok(lifted[0] > 0.25);
+});
+
+check('makeMatteLambert keeps noticed albedo maps', () => {
+  const data = new Uint8Array([10, 80, 160, 255]);
+  const tex = new THREE.DataTexture(data, 1, 1);
+  tex.needsUpdate = true;
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex, metalness: 0.4 }),
+  );
+  const root = new THREE.Group();
+  root.add(mesh);
+  makeMatteLambert(root, { keepMaps: true });
+  const mat = mesh.material as THREE.MeshLambertMaterial;
+  assert.ok(mat.map, 'expected albedo map to survive');
+  assert.equal(mat.color.getHex(), 0xffffff);
+});
+
+check('makeMatteLambert still drops maps on landmarks', () => {
+  const data = new Uint8Array([250, 250, 250, 255]);
+  const tex = new THREE.DataTexture(data, 1, 1);
+  tex.needsUpdate = true;
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex }),
+  );
+  makeMatteLambert(mesh);
+  const mat = mesh.material as THREE.MeshLambertMaterial;
+  assert.equal(mat.map, null);
+  assert.equal(mat.color.getHex(), 0x7a92a4);
+});
+
+check('taper baker shrinks the crown relative to the podium', () => {
+  const ring: Array<[number, number]> = [
+    [-0.2, -0.2],
+    [0.2, -0.2],
+    [0.2, 0.2],
+    [-0.2, 0.2],
+  ];
+  const group = buildNoticedGroup({
+    id: 'taper-test',
+    ring,
+    heightWorld: 2,
+    wall: [0.5, 0.55, 0.6],
+    roof: [0.3, 0.32, 0.34],
+    glass: true,
+    seed: 1,
+    shape: 'taper',
+  });
+  const podium = group.getObjectByName('taper-test-0') as THREE.Mesh;
+  const crown = group.getObjectByName('taper-test-3') as THREE.Mesh;
+  assert.ok(podium && crown, 'expected podium and crown bands');
+  const pod = new THREE.Box3().setFromObject(podium);
+  const top = new THREE.Box3().setFromObject(crown);
+  const podW = pod.max.x - pod.min.x;
+  const topW = top.max.x - top.min.x;
+  assert.ok(topW < podW * 0.75, `crown ${topW} should be narrower than podium ${podW}`);
 });
 
 console.log(`\nAll ${passed} noticed-factory checks passed.`);
