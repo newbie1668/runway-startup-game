@@ -436,7 +436,8 @@ export function GameApp() {
 
         {screen === 'play' && (
           <div className="pointer-events-none absolute bottom-2 left-1/2 hidden -translate-x-1/2 rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
-            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
+            🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan
+              {force2d ? ', scroll to zoom' : ''}
           </div>
         )}
 

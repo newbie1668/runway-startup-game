@@ -214,7 +214,7 @@ export class CityRenderer3D implements IMapRenderer {
     this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(SKY, 1);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.BasicShadowMap;
 
     this.scene3d.fog = null;
     this.scene3d.background = new THREE.Color(SKY);
@@ -672,16 +672,11 @@ export class CityRenderer3D implements IMapRenderer {
     this.syncRig();
   }
 
+  /** Kansas street-camera: user input is pan only. Search and `?look=` still frame via lookAt. */
   zoomAt(sx: number, sy: number, factor: number): void {
-    this.syncRig();
-    const before = this.rig.groundUnproject(sx, sy);
-    this.cam.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.cam.zoom * factor));
-    this.syncRig();
-    const after = this.rig.groundUnproject(sx, sy);
-    this.cam.x += before.x - after.x;
-    this.cam.y += before.y - after.y;
-    this.clampCamera();
-    this.syncRig();
+    void sx;
+    void sy;
+    void factor;
   }
 
   getCamera(): CameraState {
