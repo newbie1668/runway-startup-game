@@ -22,6 +22,7 @@ import {
 import { fromRgb565, isGenericWallPaint } from './osmColour';
 import {
   ROOF_FLAT,
+  ROOF_GABLED,
   STYLE_HOUSE,
   STYLE_OFFICE,
   STYLE_APARTMENTS,
@@ -354,19 +355,9 @@ export function buildChunkTier(
     );
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
     const forceFlat = district === 'canary' || (district === 'city' && b.heightM > 14);
-    const terraceDistrict =
-      district === 'islington' ||
-      district === 'kensington' ||
-      district === 'south' ||
-      district === 'westend';
-    const roof =
-      !forceFlat &&
-      terraceDistrict &&
-      (style === STYLE_TERRACE || style === STYLE_HOUSE) &&
-      b.heightM <= 16 &&
-      storedRoof === ROOF_FLAT
-        ? 1
-        : storedRoof;
+    const forceGable =
+      !forceFlat && (style === STYLE_TERRACE || style === STYLE_HOUSE) && b.heightM <= 16;
+    const roof = forceGable && storedRoof === ROOF_FLAT ? ROOF_GABLED : storedRoof;
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
     const osmWall = fromRgb565(b.wall565);
     const osmRoof = fromRgb565(b.roof565);
@@ -526,7 +517,7 @@ export function buildChunkTier(
 
     const roofYAt = (p: { x: number; z: number }): number => {
       if (!pitched) return eavesY;
-      if (roof === 1) {
+      if (roof === ROOF_GABLED) {
         const d = Math.abs((p.x - cx) * axis.px + (p.z - cz) * axis.pz);
         return eavesY + riseWorld * (1 - Math.min(1, d / axis.maxPerp));
       }
@@ -736,8 +727,8 @@ function emitFacadeWindows(
 
   const pitchU = major ? 3.3 : 3.7;
   const pitchV = 3.25 * vScale;
-  const winW = (major ? 1.35 : 1.12) * METERS_TO_WORLD;
-  const winH = (major ? 1.65 : 1.4) * METERS_TO_WORLD * Math.min(vScale, 1.8);
+  const winW = (major ? 1.55 : 1.35) * METERS_TO_WORLD;
+  const winH = (major ? 1.85 : 1.65) * METERS_TO_WORLD * Math.min(vScale, 1.8);
   const marginU = 0.85;
   const usableU = edgeM - marginU * 2;
   if (usableU < winW / METERS_TO_WORLD) return;
@@ -784,7 +775,7 @@ export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | nul
   const geo = new THREE.PlaneGeometry(1, 1);
   const mat = new THREE.MeshLambertMaterial({
     color: pal.WINDOW,
-    side: THREE.FrontSide,
+    side: THREE.DoubleSide,
     fog: true,
     polygonOffset: true,
     polygonOffsetFactor: -2,

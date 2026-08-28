@@ -403,7 +403,7 @@ export class CityRenderer3D implements IMapRenderer {
 
   private updateSunShadow(): void {
     const dist = this.rig.getDistance();
-    const extent = Math.max(6, Math.min(42, dist * 1.05));
+    const extent = Math.max(8, Math.min(88, dist * 1.4));
     this.sunTarget.position.set(this.cam.x, 0, this.cam.y);
     this.sun.position.set(this.cam.x + SUN_DIR.x * 70, SUN_DIR.y * 70, this.cam.y + SUN_DIR.z * 70);
     const cam = this.sun.shadow.camera;
@@ -411,8 +411,8 @@ export class CityRenderer3D implements IMapRenderer {
     cam.right = extent;
     cam.top = extent;
     cam.bottom = -extent;
-    cam.near = 4;
-    cam.far = 130;
+    cam.near = 2;
+    cam.far = 200;
     cam.updateProjectionMatrix();
     this.sunTarget.updateMatrixWorld();
     this.sun.updateMatrixWorld();
@@ -660,7 +660,7 @@ export class CityRenderer3D implements IMapRenderer {
       if (this.lampGroup) this.lampGroup.visible = lampsVisible;
       this.lastLampsVisible = lampsVisible;
     }
-    const treesVisible = this.cam.zoom >= 8;
+    const treesVisible = true;
     if (treesVisible !== this.lastTreesVisible) {
       if (this.treeGroup) this.treeGroup.visible = treesVisible;
       this.lastTreesVisible = treesVisible;

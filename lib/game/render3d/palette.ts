@@ -20,7 +20,7 @@ import {
 /** Pale overcast sky — fog, clear colour, and the 2D canvas CSS gradient all match. */
 export const SKY = 0xc5d4e4;
 export const GROUND = 0xb7b2a6;
-export const PARK = 0x7d966c;
+export const PARK = 0x6a8660;
 export const PARK_PATH = 0xd5cfc2;
 export const WATER = 0x6a86a0;
 export const WATER_BANK = 0x8aa0b2;
@@ -39,11 +39,11 @@ export const CHIMNEY = 0x4a322c;
 export const TREE_CANOPY = [0x5a7a48, 0x6a8a54, 0x4e6e40] as const;
 export const TREE_TRUNK = 0x5a4636;
 
-export const ROOF_SLATE = 0x4a5060;
-export const ROOF_CHARCOAL = 0x3a3c42;
-export const ROOF_BROWN = 0x4a3a32;
-export const ROOF_TERRACOTTA = 0x8a5a48;
-export const ROOF_METAL = 0x4c5056;
+export const ROOF_SLATE = 0x5a6270;
+export const ROOF_CHARCOAL = 0x42464e;
+export const ROOF_BROWN = 0x5c4538;
+export const ROOF_TERRACOTTA = 0x9a6450;
+export const ROOF_METAL = 0x5a5e64;
 
 const STOCK_YELLOW = [
   0xc9ae86, 0xc2a478, 0xd4be98, 0xb8966a, 0xc8b090, 0xa88860, 0xd0b890, 0xb8a078,
@@ -273,14 +273,15 @@ export function paletteFor(style: number, district: DistrictId): readonly number
 
 export function roofHex(style: number, pitched: boolean, seed: number): number {
   if (pitched) {
-    if (style === STYLE_HOUSE) return seed % 5 === 0 ? ROOF_TERRACOTTA : ROOF_BROWN;
-    return seed % 7 === 0 ? ROOF_BROWN : ROOF_SLATE;
+    if (style === STYLE_HOUSE) return seed % 4 === 0 ? ROOF_TERRACOTTA : ROOF_BROWN;
+    return seed % 3 === 0 ? ROOF_TERRACOTTA : ROOF_BROWN;
   }
   if (style === STYLE_INDUSTRIAL) return ROOF_METAL;
   if (style === STYLE_OFFICE || style === STYLE_TOWER)
     return seed % 3 === 0 ? ROOF_CHARCOAL : ROOF_SLATE;
-  if (style === STYLE_RETAIL && seed % 6 === 0) return ROOF_TERRACOTTA;
-  return ROOF_SLATE;
+  if (style === STYLE_RETAIL && seed % 5 === 0) return ROOF_TERRACOTTA;
+  if (style === STYLE_APARTMENTS) return seed % 4 === 0 ? ROOF_BROWN : ROOF_SLATE;
+  return seed % 5 === 0 ? ROOF_BROWN : ROOF_SLATE;
 }
 
 /** ~55 m cells: a terrace row shares a family, the next block can shift. */
