@@ -82,6 +82,22 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   assert.ok(walkYM < 12, `walkway must sit level, height ${walkYM.toFixed(1)} m`);
   assert.ok(walkZM > 60, `walkway must span both towers, length ${walkZM.toFixed(0)} m`);
   assert.ok(bridge.getObjectByName('portal'), 'Gothic portal on the tower face');
+  const deckAt = LANDMARK_DECK_Y;
+  let blocking = 0;
+  bridge.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    if (obj.name === 'deck' || obj.name === 'apron') return;
+    const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+    if (!(mat && 'color' in mat)) return;
+    const hex = (mat as THREE.MeshLambertMaterial).color.getHex();
+    if (hex === ASPHALT || hex === 0xd8dce0 || hex === 0x2f62b8 || hex === 0x243040) return;
+    const b = new THREE.Box3().setFromObject(obj);
+    const inX = b.min.x < 4 * METERS_TO_WORLD && b.max.x > -4 * METERS_TO_WORLD;
+    const inY = b.min.y < deckAt + 8 * METERS_TO_WORLD && b.max.y > deckAt - 1 * METERS_TO_WORLD;
+    const inZ = b.min.z < 40 * METERS_TO_WORLD && b.max.z > -40 * METERS_TO_WORLD;
+    if (inX && inY && inZ) blocking += 1;
+  });
+  assert.equal(blocking, 0, `stone still fills the roadway portal (${blocking} meshes)`);
   let tubes = 0;
   let hangers = 0;
   bridge.traverse((obj) => {
