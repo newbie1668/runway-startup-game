@@ -67,6 +67,7 @@ check('title and setup use the full mobile viewport when no sidebar exists', () 
     'map shell should render exactly two stacked canvases',
   );
   assert.match(html, /Laying out London/);
+  assert.match(html, /data-map-ready="0"/);
   assert.match(html, /aria-busy="true"/);
   assert.match(
     html,

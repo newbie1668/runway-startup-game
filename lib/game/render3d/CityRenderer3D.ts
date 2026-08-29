@@ -54,23 +54,21 @@ import {
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
-import { aabbHitsKeep, CITYSTREET_AT, inKeepDisk, meshBudget, type KeepDisk } from './lookClip';
+import {
+  aabbHitsKeep,
+  buildJobsThisFrame,
+  CITYSTREET_AT,
+  inKeepDisk,
+  meshBudget,
+  type BuildJobKind,
+  type KeepDisk,
+} from './lookClip';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
 
 const CITY_BIN_URL = '/map/london-city.bin';
-const BUILD_JOBS_PER_FRAME = 2;
-/** Drain faster while the loading overlay is up — the player isn't watching a half-built city. */
-const BUILD_JOBS_WHILE_LOADING = 16;
-/**
- * Keep-disk cameras still extrude every stock plate inside the disk. Six
- * jobs in one frame packed leftover chunks with water, parks, and roads
- * and Aw Snapped the first view=mid. One upload per frame. Do not skip
- * keep-disk stock to save GPU.
- */
-const BUILD_JOBS_WHILE_LOADING_WIDE = 1;
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 
 /** Fitzrovia / Charlotte St — cream and brick terraces, toy isometric height. */
@@ -171,7 +169,7 @@ function viewParam(): string | null {
   return new URLSearchParams(window.location.search).get('view');
 }
 
-type BuildJob = () => void;
+type BuildJob = { kind: BuildJobKind; run: () => void };
 
 export class CityRenderer3D implements IMapRenderer {
   private readonly cityCanvas: HTMLCanvasElement;
@@ -430,8 +428,11 @@ export class CityRenderer3D implements IMapRenderer {
     const chunkJobs: BuildJob[] = [];
     const restJobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
-    const pushNoticed = (entry: NoticedEntry, into: BuildJob[]): void => {
-      into.push(() => {
+    const enqueue = (into: BuildJob[], kind: BuildJobKind, run: () => void): void => {
+      into.push({ kind, run });
+    };
+    const pushNoticed = (entry: NoticedEntry, into: BuildJob[], kind: BuildJobKind): void => {
+      enqueue(into, kind, () => {
         const prefab = this.noticedPrefabs.get(entry.id) ?? null;
         if (!prefab && !isUniqueNoticedId(entry.id)) return;
         const group = instantiateNoticed(entry, prefab);
@@ -439,8 +440,12 @@ export class CityRenderer3D implements IMapRenderer {
         this.cityGroup.add(group);
       });
     };
-    const pushLandmark = (landmark: (typeof LANDMARKS)[number], into: BuildJob[]): void => {
-      into.push(() => {
+    const pushLandmark = (
+      landmark: (typeof LANDMARKS)[number],
+      into: BuildJob[],
+      kind: BuildJobKind,
+    ): void => {
+      enqueue(into, kind, () => {
         const p = project(landmark.at);
         const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(p.x, 0, p.y);
@@ -461,21 +466,21 @@ export class CityRenderer3D implements IMapRenderer {
       return inKeep(p.x, p.y);
     };
     for (const entry of this.noticedEntries) {
-      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs);
+      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs, 'hero');
     }
     for (const landmark of LANDMARKS) {
-      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs);
+      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs, 'hero');
     }
-    coverJobs.push(() => {
+    enqueue(coverJobs, 'cover', () => {
       const mesh = buildWater(data, keep);
       if (mesh) this.cityGroup.add(mesh);
     });
-    coverJobs.push(() => {
+    enqueue(coverJobs, 'cover', () => {
       const mesh = buildParks(data, keep);
       if (mesh) this.cityGroup.add(mesh);
     });
     if (!budget.skipTrees) {
-      coverJobs.push(() => {
+      enqueue(coverJobs, 'cover', () => {
         const trees = buildParkTrees(data, keep);
         if (trees) {
           trees.visible = true;
@@ -483,7 +488,7 @@ export class CityRenderer3D implements IMapRenderer {
         }
       });
     }
-    coverJobs.push(() => {
+    enqueue(coverJobs, 'cover', () => {
       const roadGroup = buildRoads(data, keep, !budget.skipRoadMarks);
       if (roadGroup) {
         this.cityGroup.add(roadGroup);
@@ -495,18 +500,18 @@ export class CityRenderer3D implements IMapRenderer {
     });
     for (const landmark of LANDMARKS) {
       if (lookLandmarkKinds.has(landmark.kind)) continue;
-      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs);
+      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs, 'rest');
     }
     if (!budget.skipNoticedStock) {
       for (const entry of this.noticedEntries) {
         if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
-          pushNoticed(entry, restJobs);
+          pushNoticed(entry, restJobs, 'rest');
         }
       }
       for (const entry of this.noticedEntries) {
         if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
         if (!inKeep(entry.x, entry.z)) continue;
-        pushNoticed(entry, restJobs);
+        pushNoticed(entry, restJobs, 'rest');
       }
     }
     const chunkWork: { chunkId: number; major: boolean; dist: number }[] = [];
@@ -528,7 +533,7 @@ export class CityRenderer3D implements IMapRenderer {
     }
     chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
     for (const job of chunkWork) {
-      chunkJobs.push(() => {
+      enqueue(chunkJobs, 'chunk', () => {
         const mesh = buildChunkTier(
           data,
           job.chunkId,
@@ -546,7 +551,7 @@ export class CityRenderer3D implements IMapRenderer {
       });
     }
     if (!budget.skipWindows) {
-      restJobs.push(() => {
+      enqueue(restJobs, 'rest', () => {
         const windows = buildWindowMesh(this.scratch);
         if (windows) {
           windows.visible = false;
@@ -560,7 +565,7 @@ export class CityRenderer3D implements IMapRenderer {
       });
     }
     if (!budget.skipLamps) {
-      restJobs.push(() => {
+      enqueue(restJobs, 'rest', () => {
         const lamps = buildStreetLamps(data);
         if (lamps) {
           lamps.visible = false;
@@ -579,17 +584,24 @@ export class CityRenderer3D implements IMapRenderer {
 
   private drainBuildQueue(): void {
     const keepLoad = meshBudget().chunkKeepM != null;
-    const budget = this.readyNotified
-      ? BUILD_JOBS_PER_FRAME
-      : keepLoad
-        ? BUILD_JOBS_WHILE_LOADING_WIDE
-        : BUILD_JOBS_WHILE_LOADING;
-    for (let i = 0; i < budget && this.buildQueue.length > 0; i++) {
+    const head = this.buildQueue[0];
+    if (!head) {
+      if (this.cityStreamed) this.markReady();
+      return;
+    }
+    const n = buildJobsThisFrame({
+      ready: this.readyNotified,
+      keepDisk: keepLoad,
+      kind: head.kind,
+    });
+    let i = 0;
+    while (i < n && this.buildQueue.length > 0 && this.buildQueue[0]!.kind === head.kind) {
       try {
-        this.buildQueue.shift()!();
+        this.buildQueue.shift()!.run();
       } catch {
         // One mesh job must not stall the rest of London.
       }
+      i += 1;
     }
     if (this.cityStreamed && this.buildQueue.length === 0) this.markReady();
   }

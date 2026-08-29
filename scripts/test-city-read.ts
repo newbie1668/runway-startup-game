@@ -88,6 +88,9 @@ import {
   inKeepDisk,
   meshBudgetFromSearch,
   CITYSTREET_AT,
+  buildJobsThisFrame,
+  drainBuildJobKinds,
+  BUILD_JOBS_WHILE_LOADING_KEEP,
   type KeepDisk,
 } from '../lib/game/render3d/lookClip';
 
@@ -1336,6 +1339,31 @@ check('wide-view mesh budget clips the city; close looks stay full', () => {
   assert.equal(buck.skipAntialias, true);
   assert.equal(buck.skipRoadMarks, true);
   assert.equal(buck.skipMinorChunks, false);
+});
+
+check('keep-disk drain finishes; cover never packs with chunks', () => {
+  assert.equal(BUILD_JOBS_WHILE_LOADING_KEEP, 6);
+  assert.equal(buildJobsThisFrame({ ready: false, keepDisk: true, kind: 'chunk' }), 6);
+  assert.equal(buildJobsThisFrame({ ready: false, keepDisk: true, kind: 'cover' }), 1);
+  assert.equal(buildJobsThisFrame({ ready: false, keepDisk: false, kind: 'chunk' }), 16);
+  assert.equal(buildJobsThisFrame({ ready: true, keepDisk: true, kind: 'chunk' }), 2);
+  assert.equal(buildJobsThisFrame({ ready: true, keepDisk: true, kind: 'cover' }), 1);
+  const kinds = [
+    ...Array(10).fill('chunk' as const),
+    'cover' as const,
+    'cover' as const,
+    'cover' as const,
+    'rest' as const,
+  ];
+  const frames = drainBuildJobKinds(kinds, { keepDisk: true });
+  for (const frame of frames) {
+    assert.equal(new Set(frame).size, 1, `mixed kinds in one frame: ${frame.join(',')}`);
+  }
+  const coverFrames = frames.filter((f) => f[0] === 'cover');
+  assert.equal(coverFrames.length, 3);
+  assert.ok(coverFrames.every((f) => f.length === 1));
+  assert.equal(frames[0]?.length, 6);
+  assert.equal(frames[0]?.[0], 'chunk');
 });
 
 check('view=mid keep-disk does not tessellate the whole 23 km map', () => {

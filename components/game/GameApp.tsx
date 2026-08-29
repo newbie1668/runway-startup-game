@@ -396,6 +396,7 @@ export function GameApp() {
             ? 'h-[44dvh] min-h-64 flex-none md:absolute md:inset-0 md:h-full'
             : 'min-h-0 flex-1 md:h-full'
         }`}
+        data-map-ready={mapReady ? '1' : '0'}
       >
         <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onReady={onMapReady} />
 

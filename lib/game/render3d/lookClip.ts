@@ -94,6 +94,51 @@ export function meshBudget(): MeshBudget {
   return meshBudgetFromSearch(query());
 }
 
+/**
+ * Keep-disk cameras still extrude every stock plate inside the disk.
+ * 7583632 drained one job per frame: overlay sat on "Laying out London"
+ * because each job also paid a full scene render. bea5d21 used six and
+ * citystreet painted. Cover (water / parks / roads) still uploads one
+ * mesh per frame so leftover chunk slots cannot pack those with chunks
+ * and Aw Snap the first view=mid. Do not skip keep-disk stock. Do not
+ * park-carpet.
+ */
+export type BuildJobKind = 'hero' | 'chunk' | 'cover' | 'rest';
+
+export const BUILD_JOBS_PER_FRAME = 2;
+export const BUILD_JOBS_WHILE_LOADING = 16;
+export const BUILD_JOBS_WHILE_LOADING_KEEP = 6;
+
+export function buildJobsThisFrame(args: {
+  ready: boolean;
+  keepDisk: boolean;
+  kind: BuildJobKind;
+}): number {
+  if (args.kind === 'cover') return 1;
+  if (args.ready) return BUILD_JOBS_PER_FRAME;
+  if (args.keepDisk) return BUILD_JOBS_WHILE_LOADING_KEEP;
+  return BUILD_JOBS_WHILE_LOADING;
+}
+
+/** Group a queued kind list into per-frame drains. Same kind only. */
+export function drainBuildJobKinds(
+  kinds: readonly BuildJobKind[],
+  opts: { keepDisk: boolean },
+): BuildJobKind[][] {
+  const q = kinds.slice();
+  const frames: BuildJobKind[][] = [];
+  while (q.length > 0) {
+    const kind = q[0]!;
+    const n = buildJobsThisFrame({ ready: false, keepDisk: opts.keepDisk, kind });
+    const frame: BuildJobKind[] = [];
+    while (frame.length < n && q.length > 0 && q[0] === kind) {
+      frame.push(q.shift()!);
+    }
+    frames.push(frame);
+  }
+  return frames;
+}
+
 export function inKeepDisk(x: number, z: number, keep: KeepDisk | null, pad = 0): boolean {
   if (!keep) return true;
   const dx = x - keep.x;
