@@ -82,8 +82,8 @@ const MARK_Y = 0.155;
 export const PARK_Y = 0.028;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
-/** Longest-edge split so OSM fans are a lawn, not a 2 km crumpled tent. */
-const MAX_PARK_EDGE = 120 * METERS_TO_WORLD;
+/** Regular lawn tiles. OSM fans (even split) still read as tents. */
+const PARK_CELL = 32 * METERS_TO_WORLD;
 
 function landmarkExclusionAt(x: number, z: number): number | null {
   for (const landmark of LANDMARKS) {
@@ -1666,103 +1666,184 @@ function parkShadeAt(
   dark: THREE.Color,
   lite: THREE.Color,
 ): THREE.Color {
-  // Smooth field so a 120 m triangle does not Gouraud-crease like hashed verts.
+  // One sample per cell. High-frequency hashes on fan verts were the creases.
   const u =
-    0.5 + 0.3 * Math.sin(x * 18.7 + z * 9.4) + 0.18 * Math.sin(x * 6.2 - z * 21.1);
+    0.5 + 0.26 * Math.sin(x * 9.4 + z * 5.1) + 0.14 * Math.sin(x * 3.7 - z * 8.2);
   if (u < 0.4) return dark;
   if (u > 0.6) return lite;
   return base;
 }
 
-function emitParkTriangle(
+function emitParkVerts(
   positions: number[],
   colors: number[],
   indices: number[],
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  cx: number,
-  cz: number,
+  verts: { x: number; z: number }[],
+  y: number,
+  shade: THREE.Color,
+): void {
+  const cross =
+    (verts[1]!.x - verts[0]!.x) * (verts[2]!.z - verts[0]!.z) -
+    (verts[1]!.z - verts[0]!.z) * (verts[2]!.x - verts[0]!.x);
+  const order = cross < 0 ? [0, 2, 1] : [0, 1, 2];
+  const base = positions.length / 3;
+  for (const i of order) {
+    const v = verts[i]!;
+    positions.push(v.x, y, v.z);
+    colors.push(shade.r, shade.g, shade.b);
+  }
+  indices.push(base, base + 1, base + 2);
+}
+
+function emitParkQuad(
+  positions: number[],
+  colors: number[],
+  indices: number[],
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+  y: number,
+  shade: THREE.Color,
+): void {
+  emitParkVerts(
+    positions,
+    colors,
+    indices,
+    [
+      { x: x0, z: z0 },
+      { x: x1, z: z0 },
+      { x: x1, z: z1 },
+    ],
+    y,
+    shade,
+  );
+  emitParkVerts(
+    positions,
+    colors,
+    indices,
+    [
+      { x: x0, z: z0 },
+      { x: x1, z: z1 },
+      { x: x0, z: z1 },
+    ],
+    y,
+    shade,
+  );
+}
+
+function ringHitsKeep(ring: { x: number; z: number }[], keep: KeepDisk | null): boolean {
+  if (!keep) return true;
+  const pad = 80 * METERS_TO_WORLD;
+  for (const p of ring) {
+    if (inKeepDisk(p.x, p.z, keep, pad)) return true;
+  }
+  return false;
+}
+
+function fillParkGrid(
+  positions: number[],
+  colors: number[],
+  indices: number[],
+  ring: { x: number; z: number }[],
+  water: { x: number; z: number }[][],
   y: number,
   base: THREE.Color,
   dark: THREE.Color,
   lite: THREE.Color,
-): void {
-  // FrontSide needs +Y winding. OSM fans are mixed; DoubleSide z-fought GROUND.
-  if ((bx - ax) * (cz - az) - (bz - az) * (cx - ax) < 0) {
-    const tx = bx;
-    const tz = bz;
-    bx = cx;
-    bz = cz;
-    cx = tx;
-    cz = tz;
+  keep: KeepDisk | null,
+): number {
+  let minx = Infinity;
+  let maxx = -Infinity;
+  let minz = Infinity;
+  let maxz = -Infinity;
+  for (const p of ring) {
+    if (p.x < minx) minx = p.x;
+    if (p.x > maxx) maxx = p.x;
+    if (p.z < minz) minz = p.z;
+    if (p.z > maxz) maxz = p.z;
   }
-  const push = (x: number, z: number): number => {
-    const c = parkShadeAt(x, z, base, dark, lite);
-    const i = positions.length / 3;
-    positions.push(x, y, z);
-    colors.push(c.r, c.g, c.b);
-    return i;
-  };
-  const i0 = push(ax, az);
-  const i1 = push(bx, bz);
-  const i2 = push(cx, cz);
-  indices.push(i0, i1, i2);
+  if (!(maxx > minx && maxz > minz)) return 0;
+  let added = 0;
+  for (let x0 = minx; x0 < maxx; x0 += PARK_CELL) {
+    const x1 = x0 + PARK_CELL;
+    for (let z0 = minz; z0 < maxz; z0 += PARK_CELL) {
+      const z1 = z0 + PARK_CELL;
+      const cx = (x0 + x1) * 0.5;
+      const cz = (z0 + z1) * 0.5;
+      if (!pointInRing(cx, cz, ring)) continue;
+      if (keep && !inKeepDisk(cx, cz, keep)) continue;
+      if (pointOverWater(cx, cz, water)) continue;
+      if (
+        landmarkExclusionAt(cx, cz) !== null ||
+        landmarkExclusionAt(x0, z0) !== null ||
+        landmarkExclusionAt(x1, z0) !== null ||
+        landmarkExclusionAt(x1, z1) !== null ||
+        landmarkExclusionAt(x0, z1) !== null
+      ) {
+        continue;
+      }
+      if (triangleHitsExclusion(x0, z0, x1, z0, x1, z1)) continue;
+      if (triangleHitsExclusion(x0, z0, x1, z1, x0, z1)) continue;
+      emitParkQuad(
+        positions,
+        colors,
+        indices,
+        x0,
+        z0,
+        x1,
+        z1,
+        y,
+        parkShadeAt(cx, cz, base, dark, lite),
+      );
+      added += 1;
+    }
+  }
+  return added;
 }
 
-function emitParkFan(
+function emitOsmParkTris(
   positions: number[],
   colors: number[],
   indices: number[],
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  cx: number,
-  cz: number,
+  ring: { x: number; z: number }[],
+  park: CityPoly,
+  water: { x: number; z: number }[][],
   y: number,
   base: THREE.Color,
   dark: THREE.Color,
   lite: THREE.Color,
   keep: KeepDisk | null,
 ): void {
-  const stack = [ax, az, bx, bz, cx, cz];
-  while (stack.length >= 6) {
-    cz = stack.pop()!;
-    cx = stack.pop()!;
-    bz = stack.pop()!;
-    bx = stack.pop()!;
-    az = stack.pop()!;
-    ax = stack.pop()!;
-    const ab = Math.hypot(bx - ax, bz - az);
-    const bc = Math.hypot(cx - bx, cz - bz);
-    const ca = Math.hypot(ax - cx, az - cz);
-    const longest = Math.max(ab, bc, ca);
-    if (longest > MAX_PARK_EDGE) {
-      if (ab >= bc && ab >= ca) {
-        const mx = (ax + bx) * 0.5;
-        const mz = (az + bz) * 0.5;
-        stack.push(ax, az, mx, mz, cx, cz, mx, mz, bx, bz, cx, cz);
-      } else if (bc >= ca) {
-        const mx = (bx + cx) * 0.5;
-        const mz = (bz + cz) * 0.5;
-        stack.push(ax, az, bx, bz, mx, mz, ax, az, mx, mz, cx, cz);
-      } else {
-        const mx = (cx + ax) * 0.5;
-        const mz = (cz + az) * 0.5;
-        stack.push(ax, az, bx, bz, mx, mz, mx, mz, bx, bz, cx, cz);
-      }
-      continue;
-    }
-    if (triangleHitsExclusion(ax, az, bx, bz, cx, cz)) continue;
+  for (let t = 0; t + 2 < park.indices.length; t += 3) {
+    const a = ring[park.indices[t]!]!;
+    const b = ring[park.indices[t + 1]!]!;
+    const c = ring[park.indices[t + 2]!]!;
+    if (!a || !b || !c) continue;
+    const mx = (a.x + b.x + c.x) / 3;
+    const mz = (a.z + b.z + c.z) / 3;
+    const longest = Math.max(
+      Math.hypot(a.x - b.x, a.z - b.z),
+      Math.hypot(b.x - c.x, b.z - c.z),
+      Math.hypot(c.x - a.x, c.z - a.z),
+    );
+    if (longest > 50 * METERS_TO_WORLD) continue;
+    if (triangleHitsExclusion(a.x, a.z, b.x, b.z, c.x, c.z)) continue;
+    if (pointOverWater(mx, mz, water)) continue;
     if (
       keep &&
-      (!inKeepDisk(ax, az, keep) || !inKeepDisk(bx, bz, keep) || !inKeepDisk(cx, cz, keep))
+      (!inKeepDisk(a.x, a.z, keep) || !inKeepDisk(b.x, b.z, keep) || !inKeepDisk(c.x, c.z, keep))
     ) {
       continue;
     }
-    emitParkTriangle(positions, colors, indices, ax, az, bx, bz, cx, cz, y, base, dark, lite);
+    emitParkVerts(
+      positions,
+      colors,
+      indices,
+      [a, b, c],
+      y,
+      parkShadeAt(mx, mz, base, dark, lite),
+    );
   }
 }
 
@@ -1773,6 +1854,7 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
   const base = new THREE.Color(0x6ea84c);
   const dark = new THREE.Color(0x5a9340);
   const lite = new THREE.Color(0x88bf5e);
+  const water = waterRings(cityData);
   for (const p of cityData.parks) {
     const n = p.verts.length / 2;
     if (n < 3) continue;
@@ -1780,28 +1862,33 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
     for (let i = 0; i < n; i++) {
       ring.push({ x: dequantizeX(p.verts[i * 2]!), z: dequantizeY(p.verts[i * 2 + 1]!) });
     }
-    for (let t = 0; t + 2 < p.indices.length; t += 3) {
-      const a = ring[p.indices[t]!]!;
-      const b = ring[p.indices[t + 1]!]!;
-      const c = ring[p.indices[t + 2]!]!;
-      if (!a || !b || !c) continue;
-      emitParkFan(
-        positions,
-        colors,
-        indices,
-        a.x,
-        a.z,
-        b.x,
-        b.z,
-        c.x,
-        c.z,
-        PARK_Y,
-        base,
-        dark,
-        lite,
-        keep,
-      );
-    }
+    if (!ringHitsKeep(ring, keep)) continue;
+    const tiled = fillParkGrid(
+      positions,
+      colors,
+      indices,
+      ring,
+      water,
+      PARK_Y,
+      base,
+      dark,
+      lite,
+      keep,
+    );
+    if (tiled > 0) continue;
+    emitOsmParkTris(
+      positions,
+      colors,
+      indices,
+      ring,
+      p,
+      water,
+      PARK_Y,
+      base,
+      dark,
+      lite,
+      keep,
+    );
   }
   if (indices.length === 0) return null;
   const geometry = new THREE.BufferGeometry();

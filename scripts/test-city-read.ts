@@ -422,11 +422,14 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
   assert.ok(PARK_Y < 0.05 && PARK_Y < ROAD_Y, `park carpet too high (${PARK_Y})`);
   const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
   const at = project(buck.at);
+  const hyde = project([-0.169, 51.5075]);
   let garden = 0;
   let north = 0;
   let parkTris = 0;
   let lifted = 0;
   let longEdge = 0;
+  let hydeSkinny = 0;
+  let hydeTris = 0;
   parks!.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
     const pos = obj.geometry.getAttribute('position');
@@ -447,18 +450,29 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
       const i0 = idx.getX(t)!;
       const i1 = idx.getX(t + 1)!;
       const i2 = idx.getX(t + 2)!;
-      const e = Math.max(
-        Math.hypot(pos.getX(i0) - pos.getX(i1), pos.getZ(i0) - pos.getZ(i1)),
-        Math.hypot(pos.getX(i1) - pos.getX(i2), pos.getZ(i1) - pos.getZ(i2)),
-        Math.hypot(pos.getX(i2) - pos.getX(i0), pos.getZ(i2) - pos.getZ(i0)),
-      );
-      if (e > 130 * METERS_TO_WORLD) longEdge += 1;
+      const e01 = Math.hypot(pos.getX(i0) - pos.getX(i1), pos.getZ(i0) - pos.getZ(i1));
+      const e12 = Math.hypot(pos.getX(i1) - pos.getX(i2), pos.getZ(i1) - pos.getZ(i2));
+      const e20 = Math.hypot(pos.getX(i2) - pos.getX(i0), pos.getZ(i2) - pos.getZ(i0));
+      const longest = Math.max(e01, e12, e20);
+      const shortest = Math.min(e01, e12, e20) || 1;
+      if (longest > 50 * METERS_TO_WORLD) longEdge += 1;
+      const mx = (pos.getX(i0) + pos.getX(i1) + pos.getX(i2)) / 3;
+      const mz = (pos.getZ(i0) + pos.getZ(i1) + pos.getZ(i2)) / 3;
+      if (Math.hypot(mx - hyde.x, mz - hyde.y) < 700 * METERS_TO_WORLD) {
+        hydeTris += 1;
+        if (longest / shortest > 3.2) hydeSkinny += 1;
+      }
     }
   });
   assert.equal(lifted, 0, `park verts not on the carpet (${lifted})`);
-  assert.equal(longEdge, 0, `${longEdge} grass triangles still span > 130 m`);
+  assert.equal(longEdge, 0, `${longEdge} grass triangles still span > 50 m`);
   assert.ok(garden > 80, `palace gardens / Green Park missing lawn (${garden} verts)`);
   assert.ok(north > 40, `Green Park north of the palace missing (${north} verts)`);
+  assert.ok(hydeTris > 80, `Hyde Park lawn missing (${hydeTris} tris)`);
+  assert.ok(
+    hydeSkinny / hydeTris < 0.08,
+    `Hyde still has fan tents (${hydeSkinny}/${hydeTris} skinny tris)`,
+  );
   assert.ok(parkTris > 8_000 && parkTris < 80_000, `park triangulation ${parkTris} looks subdivided`);
 });
 
