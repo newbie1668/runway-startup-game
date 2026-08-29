@@ -299,3 +299,22 @@ export function rectRing(w: number, d: number): Array<[number, number]> {
 export function metersToWorld(meters: number): number {
   return meters * METERS_TO_WORLD;
 }
+
+export function uniquePlanRing(id: UniqueNoticedId): Array<[number, number]> {
+  switch (id) {
+    case 'charrington-tower':
+      return ellipseRing(metersToWorld(16), metersToWorld(12));
+    case 'one-park-drive':
+      return ellipseRing(metersToWorld(15), metersToWorld(15));
+    case 'newfoundland-quay':
+      return ellipseRing(metersToWorld(14), metersToWorld(12));
+    case 'hsbc-uk':
+      return rectRing(metersToWorld(47), metersToWorld(47));
+    case 'citi':
+      return rectRing(metersToWorld(50), metersToWorld(48));
+    default: {
+      const _exhaustive: never = id;
+      return _exhaustive;
+    }
+  }
+}

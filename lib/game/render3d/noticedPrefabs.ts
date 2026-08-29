@@ -10,8 +10,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { NOTICED_BAKE_HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
-import { makeMatteLambert, makeUnlitBasic } from './matteGltf';
-import { isUniqueNoticedId } from './uniqueNoticed';
+import { METERS_TO_WORLD } from '../geo';
+import { makeMatteLambert } from './matteGltf';
+import { buildUniqueNoticed, isUniqueNoticedId, uniquePlanRing } from './uniqueNoticed';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -21,6 +22,7 @@ export interface NoticedEntry {
   x: number;
   z: number;
   exclusionM: number;
+  heightM: number;
 }
 
 interface NoticedManifest {
@@ -31,6 +33,7 @@ interface NoticedManifest {
     x: number;
     z: number;
     exclusionM: number;
+    heightM?: number;
   }>;
 }
 
@@ -55,7 +58,6 @@ export async function loadNoticedPrefabs(): Promise<{
       try {
         const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
         makeMatteLambert(gltf.scene, { keepMaps: true });
-        if (isUniqueNoticedId(file.id)) makeUnlitBasic(gltf.scene);
         prefabs.set(file.id, gltf.scene);
         entries.push({
           id: file.id,
@@ -63,6 +65,7 @@ export async function loadNoticedPrefabs(): Promise<{
           x: file.x,
           z: file.z,
           exclusionM: file.exclusionM,
+          heightM: file.heightM ?? 120,
         });
       } catch {
         // OSM extrusion remains for this footprint.
@@ -72,7 +75,18 @@ export async function loadNoticedPrefabs(): Promise<{
   return { entries, prefabs };
 }
 
-export function instantiateNoticed(prefab: THREE.Object3D): THREE.Group {
+export function instantiateNoticed(entry: NoticedEntry, prefab: THREE.Object3D): THREE.Group {
+  if (isUniqueNoticedId(entry.id)) {
+    const built = buildUniqueNoticed({
+      id: entry.id,
+      heightWorld: entry.heightM * METERS_TO_WORLD * NOTICED_BAKE_HEIGHT_SCALE,
+      ring: uniquePlanRing(entry.id),
+    });
+    if (built) {
+      built.scale.y = TOWER_HEIGHT_SCALE / NOTICED_BAKE_HEIGHT_SCALE;
+      return built;
+    }
+  }
   const clone = prefab.clone(true);
   const group = clone instanceof THREE.Group ? clone : new THREE.Group();
   if (!(clone instanceof THREE.Group)) group.add(clone);

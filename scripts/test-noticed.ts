@@ -16,6 +16,7 @@ import {
   tintForShape,
 } from './noticedFeatures';
 import { buildNoticedGroup } from './noticedMesh';
+import { instantiateNoticed } from '../lib/game/render3d/noticedPrefabs';
 import { ellipseRing, metersToWorld, UNIQUE_NOTICED_IDS } from '../lib/game/render3d/uniqueNoticed';
 import {
   isUsefulName,
@@ -319,6 +320,29 @@ check('named Canary towers get photo-true unique meshes, not baker costumes', ()
   });
   assert.ok(citi.getObjectByName('citi-notch'), 'notched crown');
   assert.equal(UNIQUE_NOTICED_IDS.length, 5);
+});
+
+check('runtime instantiate uses the unique mesh, not the stepped GLB costume', () => {
+  const dummy = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshLambertMaterial({ color: 0x445566 }),
+  );
+  dummy.name = 'charrington-tower-0';
+  const prefab = new THREE.Group();
+  prefab.add(dummy);
+  const group = instantiateNoticed(
+    {
+      id: 'charrington-tower',
+      name: 'Charrington Tower',
+      x: 0,
+      z: 0,
+      exclusionM: 40,
+      heightM: 144,
+    },
+    prefab,
+  );
+  assert.ok(group.getObjectByName('charrington-tower-peel'));
+  assert.equal(group.getObjectByName('charrington-tower-0'), undefined);
 });
 
 console.log(`\nAll ${passed} noticed-factory checks passed.`);

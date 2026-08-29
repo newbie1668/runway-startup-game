@@ -425,7 +425,7 @@ export class CityRenderer3D implements IMapRenderer {
       jobs.push(() => {
         const prefab = this.noticedPrefabs.get(entry.id);
         if (!prefab) return;
-        const group = instantiateNoticed(prefab);
+        const group = instantiateNoticed(entry, prefab);
         group.position.set(entry.x, 0, entry.z);
         this.cityGroup.add(group);
       });
