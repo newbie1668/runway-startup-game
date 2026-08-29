@@ -115,9 +115,9 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     return { at: hit.at, viewH: 2.55, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'buckingham') {
-    // From the north-east: east facade still reads, Green Park is the foreground
-    // lawn. Due-east only showed the Mall parade ground (OSM gravel, not park).
-    return { at: hit.at, viewH: 3.15, azimuth: (Math.PI * 3) / 4 };
+    // From the Mall: Victoria Memorial in front of the 21-bay east front.
+    // Slightly north of due east keeps Green Park in frame.
+    return { at: hit.at, viewH: 3.55, azimuth: Math.PI / 2 + 0.22 };
   }
   if (hit.kind === 'stpauls' || hit.kind === 'britishmuseum') {
     return { at: hit.at, viewH: 2.35, azimuth: 0.72 };

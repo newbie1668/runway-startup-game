@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { METERS_TO_WORLD } from '../geo';
 import type { LandmarkKind } from '../geo';
 import { HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
-import { PARK_Y } from './cityBuilder';
+import { PARK_Y, ROAD_Y } from './cityBuilder';
 import { ASPHALT } from './palette';
 
 /** Name used to find the rotating wheel sub-group for the frame()-driven spin. */
@@ -1415,77 +1415,257 @@ function buildBuckingham(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'buckingham';
   const portland = new THREE.MeshBasicMaterial({ color: 0xeee4d4, fog: true });
-  const cream = new THREE.MeshBasicMaterial({ color: 0xe2d4bc, fog: true });
-  const rust = new THREE.MeshBasicMaterial({ color: 0xd0c4ae, fog: true });
-  const slate = new THREE.MeshBasicMaterial({ color: 0x5a6270, fog: true });
-  const dark = new THREE.MeshBasicMaterial({ color: 0x3a3228, fog: true });
+  const cream = new THREE.MeshBasicMaterial({ color: 0xe8dcc8, fog: true });
+  const rust = new THREE.MeshBasicMaterial({ color: 0xd4c6b0, fog: true });
+  const slate = new THREE.MeshBasicMaterial({ color: 0x3e4450, fog: true });
+  const dark = new THREE.MeshBasicMaterial({ color: 0x243040, fog: true });
+  const pane = new THREE.MeshBasicMaterial({ color: 0x1c2834, fog: true });
+  const pale = new THREE.MeshBasicMaterial({ color: 0xddd4c4, fog: true });
+  const gilt = emissiveMaterial(0xc9a24a);
   const gold = emissiveMaterial(0xc45a3a);
 
-  // West private garden + north apron toward Green Park. The east Mall
-  // parade is gravel in OSM; without these plates look=buckingham is dirt.
+  // West private garden + north apron toward Green Park. Keep off the Mall.
   addLawn(group, m(150), m(120), m(-95), m(-10), 0x6ea84c);
   addLawn(group, m(90), m(70), m(-40), m(-20), 0x5a9340);
   addLawn(group, m(110), m(85), m(8), m(-95), 0x6ea84c);
   addLawn(group, m(70), m(55), m(48), m(-70), 0x88bf5e);
 
-  // Solid body. Four wings around a hole is the courtyard doughnut in the still.
-  const ns = m(108);
-  const ew = m(92);
-  const bodyH = h(23);
-  addBox(group, ew, bodyH, ns, portland, 0, 0, 0);
-  const roof = addBox(group, ew + m(5), m(3.4), ns + m(5), slate, 0, bodyH, 0);
-  roof.name = 'palace-roof';
+  // Aston Webb east front: 21 bays along Z, facing +X (the Mall). Origin is
+  // the quadrangle, not a filled office plate. No pitched hip on this elevation.
+  const frontLen = m(110);
+  const bay = frontLen / 21;
+  const wallT = m(15);
+  const eastFace = m(50);
+  const wallCx = eastFace - wallT / 2;
+  const wallH = h(24);
+  const atticH = h(5.4);
+  const eastInner = eastFace - wallT;
+  const courtW = m(58);
+  const courtD = m(64);
+  const wingT = m(17);
+  const westInner = eastInner - courtW;
+  const westOuter = westInner - wingT;
+  const westCx = westInner - wingT / 2;
+  const wingH = h(20);
+  const westH = h(18);
+  const northZ = -(courtD / 2 + wingT / 2);
+  const southZ = courtD / 2 + wingT / 2;
+  const wingSpanX = eastInner - westOuter;
+  const wingCx = (eastInner + westOuter) / 2;
 
-  const frontT = m(16);
-  const frontH = h(32);
-  const eastX = ew / 2 + frontT / 2 - m(4);
-  const east = addBox(group, frontT, frontH, ns, portland, eastX, 0, 0);
+  const court = addBox(group, courtW, 0.04, courtD, pale, (eastInner + westInner) / 2, PARK_Y, 0);
+  court.name = 'quadrangle';
+
+  const east = addBox(group, wallT, wallH, frontLen, portland, wallCx, 0, 0);
   east.name = 'east-front';
-  addBox(group, frontT + m(2), h(6), ns, cream, eastX, frontH, 0);
-  addBox(group, frontT + m(5), m(2.6), ns + m(3), slate, eastX, frontH + h(6), 0);
-  addBox(group, frontT + m(1), h(1.8), ns + m(1), rust, eastX + m(1), h(4), 0);
+  const attic = addBox(group, wallT * 0.94, atticH, frontLen, cream, wallCx, wallH, 0);
+  attic.name = 'palace-attic';
+  const roof = addBox(
+    group,
+    wallT - m(2.4),
+    m(0.7),
+    frontLen - m(4),
+    slate,
+    wallCx,
+    wallH + atticH,
+    0,
+  );
+  roof.name = 'palace-roof';
+  const cornice = addBox(
+    group,
+    m(3.4),
+    m(1.5),
+    frontLen + m(3),
+    cream,
+    eastFace + m(1.1),
+    wallH - m(0.4),
+    0,
+  );
+  cornice.name = 'palace-cornice';
+  addBox(group, m(2.8), h(3.4), frontLen + m(1.5), rust, eastFace + m(0.7), 0, 0);
 
-  for (const z of [-m(47), m(47)]) {
-    addBox(group, frontT + m(8), frontH + h(6), m(20), portland, eastX + m(3), 0, z);
-    addBox(group, frontT + m(10), m(2.4), m(22), slate, eastX + m(3), frontH + h(6), z);
-    addBox(group, m(3.4), h(5.5), m(4.4), rust, eastX + m(3), frontH + h(7), z);
+  for (let i = 0; i <= 21; i++) {
+    const z = (i - 10.5) * bay;
+    const pil = addBox(group, m(2.6), wallH * 0.94, m(2.1), cream, eastFace + m(1.2), h(1.2), z);
+    pil.name = 'palace-pilaster';
+    const post = addBox(
+      group,
+      m(1.1),
+      h(2.6),
+      m(1.1),
+      cream,
+      eastFace + m(0.9),
+      wallH + atticH,
+      z,
+    );
+    post.name = 'palace-baluster';
+  }
+  addBox(group, m(1.4), m(0.7), frontLen + m(2), cream, eastFace + m(1.0), wallH + atticH + h(2.4), 0);
+
+  const pavilionW = bay * 3.2;
+  for (const z of [-(frontLen / 2) + pavilionW / 2, frontLen / 2 - pavilionW / 2]) {
+    addBox(group, wallT + m(4.5), wallH + h(2.2), pavilionW, portland, wallCx + m(2.2), 0, z);
+    addBox(
+      group,
+      wallT + m(3.2),
+      atticH + h(1.2),
+      pavilionW - m(1),
+      cream,
+      wallCx + m(1.6),
+      wallH + h(2.2),
+      z,
+    );
   }
 
-  addBox(group, m(12), h(22), m(38), rust, eastX + m(10), h(5), 0);
-  const balcony = addBox(group, m(14), m(1.3), m(40), portland, eastX + m(12), h(20), 0);
+  const centreW = bay * 3.3;
+  const centreOut = m(8);
+  addBox(
+    group,
+    wallT + centreOut,
+    wallH + h(1.6),
+    centreW,
+    portland,
+    wallCx + centreOut / 2,
+    0,
+    0,
+  );
+  const balcony = addBox(
+    group,
+    m(6.5),
+    m(1.15),
+    centreW * 0.92,
+    cream,
+    eastFace + centreOut + m(1.6),
+    h(12.4),
+    0,
+  );
   balcony.name = 'balcony';
-  for (let i = 0; i < 6; i++) {
-    const z = (i - 2.5) * m(5.8);
+  addBox(group, m(0.55), m(2.2), centreW * 0.9, dark, eastFace + centreOut + m(4.4), h(13.4), 0);
+  const colH = h(12.5);
+  for (let i = 0; i < 4; i++) {
+    const z = (i - 1.5) * m(4.4);
     const col = new THREE.Mesh(
-      baseAtGround(new THREE.CylinderGeometry(m(1.2), m(1.35), h(15), 8), h(15)),
-      portland,
+      baseAtGround(new THREE.CylinderGeometry(m(1.45), m(1.6), colH, 10), colH),
+      cream,
     );
     col.name = 'column';
-    col.position.set(eastX + m(15), h(5.5), z);
+    col.position.set(eastFace + centreOut + m(1.2), h(3.2), z);
     group.add(col);
   }
-  addGablePediment(group, m(40), h(10), m(12), portland, eastX + m(10), h(24), 0);
+  addGablePediment(
+    group,
+    centreW + m(4),
+    h(9),
+    m(7),
+    portland,
+    eastFace + centreOut * 0.35,
+    wallH + h(1.2),
+    0,
+  );
 
-  const eastFace = eastX + frontT / 2 + m(0.35);
-  addWindowGrid(group, ns - m(24), h(18), 17, 3, eastFace, h(6), 0, 'x', 0x2a3c4c);
-  addWindowGrid(group, m(14), h(9), 3, 2, eastFace + m(0.2), h(7), m(-47), 'x', 0x2a3c4c);
-  addWindowGrid(group, m(14), h(9), 3, 2, eastFace + m(0.2), h(7), m(47), 'x', 0x2a3c4c);
-  addWindowGrid(group, ew * 0.72, h(12), 11, 2, 0, h(5), -ns / 2 - m(0.35), 'z', 0x2a3c4c);
-  addWindowGrid(group, ew * 0.72, h(12), 11, 2, 0, h(5), ns / 2 + m(0.35), 'z', 0x2a3c4c);
-
-  for (let i = 0; i < 9; i++) {
-    addBox(group, m(2.8), h(5), m(3.6), rust, m(8), bodyH + m(3.4), (i - 4) * m(11));
+  for (let i = 0; i < 21; i++) {
+    const z = (i - 10) * bay;
+    const centre = i >= 9 && i <= 11;
+    addBox(
+      group,
+      m(0.7),
+      centre ? h(5.2) : h(3.6),
+      m(2.5),
+      pane,
+      eastFace + m(0.55),
+      centre ? h(3.6) : h(4.4),
+      z,
+    ).name = 'palace-bay';
+    addBox(group, m(0.7), h(4.4), m(2.6), pane, eastFace + m(0.55), h(13.2), z).name = 'palace-bay';
+    addBox(group, m(0.55), h(2.1), m(1.8), pane, eastFace + m(0.4), wallH + h(1.4), z).name =
+      'palace-bay';
   }
 
+  const north = addBox(group, wingSpanX, wingH, wingT, portland, wingCx, 0, northZ);
+  north.name = 'palace-north-wing';
+  addBox(group, wingSpanX - m(1.5), h(3.4), wingT * 0.92, cream, wingCx, wingH, northZ);
+  addBox(group, wingSpanX - m(3), m(0.6), wingT - m(3), slate, wingCx, wingH + h(3.4), northZ);
+  const south = addBox(group, wingSpanX, wingH, wingT, portland, wingCx, 0, southZ);
+  south.name = 'palace-south-wing';
+  addBox(group, wingSpanX - m(1.5), h(3.4), wingT * 0.92, cream, wingCx, wingH, southZ);
+  addBox(group, wingSpanX - m(3), m(0.6), wingT - m(3), slate, wingCx, wingH + h(3.4), southZ);
+  const west = addBox(group, wingT, westH, courtD, portland, westCx, 0, 0);
+  west.name = 'palace-west-wing';
+  addBox(group, wingT * 0.92, h(3.2), courtD - m(1.5), cream, westCx, westH, 0);
+  addBox(group, wingT - m(3), m(0.6), courtD - m(3), slate, westCx, westH + h(3.2), 0);
+
+  addWindowGrid(
+    group,
+    wingSpanX - m(12),
+    h(12),
+    12,
+    2,
+    wingCx,
+    h(4.5),
+    northZ - wingT / 2 - m(0.35),
+    'z',
+  );
+  addWindowGrid(
+    group,
+    wingSpanX - m(12),
+    h(12),
+    12,
+    2,
+    wingCx,
+    h(4.5),
+    southZ + wingT / 2 + m(0.35),
+    'z',
+  );
+  addWindowGrid(group, courtD - m(10), h(11), 9, 2, westOuter - m(0.35), h(4), 0, 'x');
+
+  const flagH = h(14);
   const flag = new THREE.Mesh(
-    baseAtGround(new THREE.CylinderGeometry(m(0.4), m(0.4), h(16), 6), h(16)),
+    baseAtGround(new THREE.CylinderGeometry(m(0.35), m(0.35), flagH, 6), flagH),
     dark,
   );
-  flag.position.set(eastX + m(10), h(24) + h(10), 0);
+  flag.position.set(eastFace + m(1.2), wallH + atticH, 0);
   group.add(flag);
-  const cloth = new THREE.Mesh(new THREE.BoxGeometry(m(4.6), m(2.4), m(0.18)), gold);
-  cloth.position.set(eastX + m(12.4), h(24) + h(10) + h(12), 0);
+  const cloth = new THREE.Mesh(new THREE.BoxGeometry(m(4.4), m(2.2), m(0.16)), gold);
+  cloth.position.set(eastFace + m(3.4), wallH + atticH + flagH * 0.78, 0);
   group.add(cloth);
+
+  const memX = eastFace + m(82);
+  const mall = addBox(group, m(78), 0.05, m(28), pale, eastFace + m(41), ROAD_Y, 0);
+  mall.name = 'mall-axis';
+  const forecourt = new THREE.Mesh(
+    new THREE.CylinderGeometry(m(36), m(36), 0.05, 32),
+    pale,
+  );
+  forecourt.position.set(memX, ROAD_Y + 0.03, 0);
+  forecourt.name = 'mall-forecourt';
+  group.add(forecourt);
+
+  const memorial = new THREE.Group();
+  memorial.name = 'victoria-memorial';
+  memorial.position.set(memX, 0, 0);
+  group.add(memorial);
+  const drum = (r: number, hh: number, y: number, mat: THREE.Material, segs = 24): THREE.Mesh => {
+    const mesh = new THREE.Mesh(
+      baseAtGround(new THREE.CylinderGeometry(r, r + m(1.2), hh, segs), hh),
+      mat,
+    );
+    mesh.position.set(0, y, 0);
+    memorial.add(mesh);
+    return mesh;
+  };
+  drum(m(22), h(1.4), ROAD_Y, pale, 28);
+  drum(m(15), h(1.6), ROAD_Y + h(1.4), cream, 24);
+  drum(m(9), h(2.2), ROAD_Y + h(3.0), portland, 20);
+  const shaftH = h(16);
+  const shaft = new THREE.Mesh(
+    baseAtGround(new THREE.CylinderGeometry(m(2.2), m(2.8), shaftH, 16), shaftH),
+    cream,
+  );
+  shaft.position.set(0, ROAD_Y + h(5.2), 0);
+  memorial.add(shaft);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(m(3.4), 12, 10), gilt);
+  orb.position.set(0, ROAD_Y + h(5.2) + shaftH + m(2.2), 0);
+  memorial.add(orb);
   return group;
 }
 

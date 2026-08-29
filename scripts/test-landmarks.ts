@@ -332,7 +332,7 @@ check('Buckingham Palace carries MeshBasic garden lawns, not a dirt moat', () =>
   assert.ok(north >= 1, 'north Green Park apron missing');
 });
 
-check('Buckingham east front is a Portland palace, not a courtyard doughnut', () => {
+check('Buckingham east front is a 21-bay Portland palace, not a barn', () => {
   const palace = build('buckingham');
   const east = palace.getObjectByName('east-front');
   assert.ok(east instanceof THREE.Mesh, 'named Mall facade');
@@ -346,27 +346,74 @@ check('Buckingham east front is a Portland palace, not a courtyard doughnut', ()
     r > 180 && g > 160 && b > 140 && r > b + 20,
     `Portland not slate (${hex.toString(16)})`,
   );
+  const eastBox = new THREE.Box3().setFromObject(east);
+  const frontNS = (eastBox.max.z - eastBox.min.z) / METERS_TO_WORLD;
+  const frontEW = (eastBox.max.x - eastBox.min.x) / METERS_TO_WORLD;
+  assert.ok(frontNS > 100, `east front must read as 21-bay width, got ${frontNS.toFixed(0)} m`);
+  assert.ok(frontEW < 22, `east front is a wall, not an office plate (${frontEW.toFixed(0)} m)`);
+  assert.ok(palace.getObjectByName('palace-attic'), 'attic storey behind a parapet');
+  assert.ok(palace.getObjectByName('palace-cornice'), 'projecting cornice');
   const roof = palace.getObjectByName('palace-roof');
-  assert.ok(roof instanceof THREE.Mesh, 'slate roof over the whole footprint');
+  assert.ok(roof instanceof THREE.Mesh, 'flat lid on the east range');
   const rb = new THREE.Box3().setFromObject(roof);
-  assert.ok(
+  const roofH = (rb.max.y - rb.min.y) / METERS_TO_WORLD;
+  const roofEW = (rb.max.x - rb.min.x) / METERS_TO_WORLD;
+  const roofNS = (rb.max.z - rb.min.z) / METERS_TO_WORLD;
+  assert.ok(roofH < 2.2, `east roof must be a flat lid, not a hip (${roofH.toFixed(1)} m)`);
+  assert.ok(roofEW < 20, `roof must not span the courtyard (${roofEW.toFixed(0)} m E-W)`);
+  assert.ok(roofNS > 90, `roof follows the east front, got ${roofNS.toFixed(0)} m`);
+  assert.equal(
     rb.containsPoint(new THREE.Vector3(0, rb.min.y + 0.002, 0)),
-    'roof must cover the court',
+    false,
+    'pitched slab over the quadrangle is the barn silhouette',
   );
-  assert.ok((rb.max.x - rb.min.x) / METERS_TO_WORLD > 80, 'roof span east-west');
-  assert.ok((rb.max.z - rb.min.z) / METERS_TO_WORLD > 90, 'roof span north-south');
+  let courtFill = 0;
+  palace.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    if (
+      obj.name === 'lawn' ||
+      obj.name === 'quadrangle' ||
+      obj.name === 'mall-axis' ||
+      obj.name === 'mall-forecourt'
+    )
+      return;
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.max.y - box.min.y < 6 * METERS_TO_WORLD * HEIGHT_SCALE) return;
+    if (box.containsPoint(new THREE.Vector3(0, 8 * METERS_TO_WORLD * HEIGHT_SCALE, 0))) {
+      courtFill += 1;
+    }
+  });
+  assert.equal(courtFill, 0, `quadrangle is still filled (${courtFill} masses)`);
+  assert.ok(palace.getObjectByName('palace-north-wing'), 'north range');
+  assert.ok(palace.getObjectByName('palace-south-wing'), 'south range');
+  assert.ok(palace.getObjectByName('palace-west-wing'), 'west range');
+  assert.ok(palace.getObjectByName('quadrangle'), 'open court');
   const ped = palace.getObjectByName('pediment');
   assert.ok(ped instanceof THREE.Mesh, 'central pediment on the Mall');
   assert.notEqual(ped.geometry.type, 'ConeGeometry', 'pediment must not be a cone nub');
   assert.ok(palace.getObjectByName('balcony'), 'centre balcony');
   let columns = 0;
   let cones = 0;
+  let pilasters = 0;
+  let bays = 0;
   palace.traverse((obj) => {
     if (obj.name === 'column') columns += 1;
+    if (obj.name === 'palace-pilaster') pilasters += 1;
+    if (obj.name === 'palace-bay') bays += 1;
     if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
   });
   assert.ok(columns >= 4, `portico columns, got ${columns}`);
+  assert.ok(pilasters >= 20, `pilaster order, got ${pilasters}`);
+  assert.ok(bays >= 60, `21 bays × 3 storeys, got ${bays}`);
   assert.equal(cones, 0, 'no cone nubs on the palace');
+  const memorial = palace.getObjectByName('victoria-memorial');
+  assert.ok(memorial, 'Victoria Memorial on the Mall axis');
+  assert.ok(
+    memorial.position.x > 70 * METERS_TO_WORLD,
+    `memorial must sit east of the front, x=${(memorial.position.x / METERS_TO_WORLD).toFixed(0)} m`,
+  );
+  assert.ok(palace.getObjectByName('mall-forecourt'), 'circular monument paving');
+  assert.ok(palace.getObjectByName('mall-axis'), 'Mall axis');
   const dummy = new THREE.Group();
   dummy.name = 'costume';
   dummy.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 2)));
@@ -375,6 +422,7 @@ check('Buckingham east front is a Portland palace, not a courtyard doughnut', ()
   const live = instantiateLandmark('buckingham', prefabs);
   assert.equal(live.getObjectByName('costume'), undefined);
   assert.ok(live.getObjectByName('east-front'));
+  assert.ok(live.getObjectByName('victoria-memorial'));
 });
 
 check('One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box', () => {
