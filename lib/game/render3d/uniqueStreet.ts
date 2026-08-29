@@ -49,6 +49,7 @@ export const POULTRY_GLASS = 0x2a4050;
 export const POULTRY_SHOP = 0x3a322c;
 export const POULTRY_ROOF = 0x5a625c;
 export const POULTRY_GRANITE = 0x6a6e6a;
+export const POULTRY_WELL = 0x1a1a22;
 
 /** Lutyens Midland Bank / The Ned. Portland, rusticated base, dark mansard. */
 export const NED_STONE = 0xe6dfd0;
@@ -67,8 +68,10 @@ export const MAG_STONE = 0xddd4c4;
 export const MAG_MANSARD = 0x6a4538;
 export const MAG_PLINTH = 0x8a8074;
 
-/** Sheppard Robson 1 Old Jewry: three interlocking Portland blocks, bronze fins. */
+/** Sheppard Robson 1 Old Jewry: three interlocking Portland blocks, bronze portal. */
 export const JEWRY_STONE = 0xe4ddd0;
+export const JEWRY_MID = 0xc8b49a;
+export const JEWRY_HIGH = 0xdcd4c6;
 export const JEWRY_GLASS = 0x243440;
 export const JEWRY_BRONZE = 0x8a6240;
 export const JEWRY_SHOP = 0x3a3834;
@@ -156,6 +159,19 @@ export type StreetEmit = {
   ) => [number, number];
 };
 
+export type StreetRoofEmit = {
+  ring: StreetPt[];
+  plan: PlanMetrics;
+  heightWorld: number;
+  emitRoof: (ring: StreetPt[], yAt: (p: StreetPt) => number, hex: number) => void;
+  insetRing: (ring: StreetPt[], cx: number, cz: number, scale: number) => StreetPt[];
+  pushBox: StreetEmit['pushBox'];
+  pushVertex: StreetEmit['pushVertex'];
+  pushTri: StreetEmit['pushTri'];
+  pushOrientedBox: StreetEmit['pushOrientedBox'];
+  outwardNormal: StreetEmit['outwardNormal'];
+};
+
 type Edge = {
   i: number;
   a: StreetPt;
@@ -191,17 +207,6 @@ function edgesOf(ctx: StreetEmit, ring: StreetPt[]): Edge[] {
     });
   }
   return out;
-}
-
-function longestEdges(ring: StreetPt[], take: number): number[] {
-  const n = ring.length;
-  const ranked = Array.from({ length: n }, (_, i) => {
-    const a = ring[i]!;
-    const b = ring[(i + 1) % n]!;
-    return { i, len: Math.hypot(b.x - a.x, b.z - a.z) };
-  });
-  ranked.sort((a, b) => b.len - a.len);
-  return ranked.slice(0, take).map((e) => e.i);
 }
 
 function emitWallQuad(
@@ -341,64 +346,31 @@ function pushDome(
   }
 }
 
-function emitMullions(
+function pushDisk(
   ctx: StreetEmit,
-  e: Edge,
-  y0: number,
-  y1: number,
-  count: number,
-  depth: number,
+  cx: number,
+  y: number,
+  cz: number,
+  radius: number,
   hex: number,
+  segs = 20,
 ): void {
-  const h = y1 - y0;
-  if (h < m(1.2) || count < 2) return;
-  const along = Math.min(m(0.32), e.len * 0.04);
-  for (let i = 1; i < count; i++) {
-    const t = i / count;
-    ctx.pushOrientedBox(
-      e.a.x + (e.b.x - e.a.x) * t + e.nx * (depth * 0.55),
-      y0,
-      e.a.z + (e.b.z - e.a.z) * t + e.nz * (depth * 0.55),
-      along,
-      h,
-      depth,
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
-      hex,
-    );
+  const c = ctx.pushVertex(cx, y, cz, 0, 1, 0, hex);
+  const rim: number[] = [];
+  for (let i = 0; i < segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    rim.push(ctx.pushVertex(cx + Math.cos(a) * radius, y, cz + Math.sin(a) * radius, 0, 1, 0, hex));
+  }
+  for (let i = 0; i < segs; i++) {
+    ctx.pushTri(c, rim[i]!, rim[(i + 1) % segs]!);
   }
 }
 
-/**
- * Projecting stone course + recessed glazed slot with mullions.
- * Flat paint stripes are a fail; this is 3D reveal depth.
- */
-function emitRevealedStorey(
-  ctx: StreetEmit,
-  ring: StreetPt[],
-  y0: number,
-  y1: number,
-  stone: number,
-  glass: number,
-): void {
-  const span = y1 - y0;
-  const sill = span * 0.16;
-  const head = span * 0.18;
-  const glassY0 = y0 + sill;
-  const glassY1 = y1 - head;
-  emitWallBand(ctx, ring, y0, glassY0, stone, m(0.55));
-  emitWallBand(ctx, ring, glassY0, glassY1, glass, -m(0.85));
-  emitWallBand(ctx, ring, glassY1, y1, stone, m(0.7));
-  for (const e of edgesOf(ctx, ring)) {
-    if (e.len / METERS_TO_WORLD < 8) continue;
-    const bays = Math.max(3, Math.min(9, Math.round(e.len / METERS_TO_WORLD / 4.2)));
-    emitMullions(ctx, e, glassY0, glassY1, bays, m(1.15), stone);
-  }
+function edgePoint(e: Edge, t: number): StreetPt {
+  return { x: e.a.x + (e.b.x - e.a.x) * t, z: e.a.z + (e.b.z - e.a.z) * t };
 }
 
-/** Ground arcade: piers + lintel, no wall in the bay (opening, not a painted slot). */
+/** Arcade openings sit in the wall plane. Oriented boxes along OSM edges stick through corners. */
 function emitArcade(
   ctx: StreetEmit,
   ring: StreetPt[],
@@ -406,126 +378,44 @@ function emitArcade(
   y1: number,
   stone: number,
 ): void {
-  const lintelH = Math.min(m(1.1), (y1 - y0) * 0.22);
+  const lintelH = Math.min(m(1.1), (y1 - y0) * 0.2);
   for (const e of edgesOf(ctx, ring)) {
     const edgeM = e.len / METERS_TO_WORLD;
     if (edgeM < 9) {
       emitWallQuad(ctx, e.a.x, e.a.z, e.b.x, e.b.z, y0, y1, e.nx, e.nz, stone);
       continue;
     }
-    const bays = Math.max(3, Math.min(7, Math.round(edgeM / 6.2)));
-    const pierW = Math.min(m(1.7), e.len / (bays * 3.2));
-    const depth = m(1.9);
-    for (let b = 0; b <= bays; b++) {
-      const t = b / bays;
-      ctx.pushOrientedBox(
-        e.a.x + (e.b.x - e.a.x) * t + e.nx * (depth / 2),
+    const bays = Math.max(3, Math.min(6, Math.round(edgeM / 7)));
+    const pierT = Math.min(0.14, 1.6 / edgeM);
+    for (let b = 0; b < bays; b++) {
+      const t0 = b / bays;
+      const t1 = (b + 1) / bays;
+      const left = edgePoint(e, t0);
+      const leftIn = edgePoint(e, t0 + pierT);
+      const rightIn = edgePoint(e, t1 - pierT);
+      const right = edgePoint(e, t1);
+      emitWallQuad(ctx, left.x, left.z, leftIn.x, leftIn.z, y0, y1 - lintelH, e.nx, e.nz, stone);
+      emitWallQuad(
+        ctx,
+        rightIn.x,
+        rightIn.z,
+        right.x,
+        right.z,
         y0,
-        e.a.z + (e.b.z - e.a.z) * t + e.nz * (depth / 2),
-        pierW,
-        y1 - y0 - lintelH,
-        depth,
-        e.tx,
-        e.tz,
+        y1 - lintelH,
         e.nx,
         e.nz,
         stone,
       );
     }
-    ctx.pushOrientedBox(
-      (e.a.x + e.b.x) / 2 + e.nx * (depth / 2),
-      y1 - lintelH,
-      (e.a.z + e.b.z) / 2 + e.nz * (depth / 2),
-      e.len * 0.96,
-      lintelH,
-      depth * 1.12,
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
-      POULTRY_GRANITE,
-    );
+    emitWallQuad(ctx, e.a.x, e.a.z, e.b.x, e.b.z, y1 - lintelH, y1, e.nx, e.nz, POULTRY_GRANITE);
   }
 }
 
-function emitProwArch(ctx: StreetEmit, apex: StreetPt, H: number): void {
-  const dirx = ctx.plan.cx - apex.x;
-  const dirz = ctx.plan.cz - apex.z;
-  const dlen = Math.hypot(dirx, dirz) || 1;
-  const ox = -dirx / dlen;
-  const oz = -dirz / dlen;
-  const px = -oz;
-  const pz = ox;
-  const archH = H * 0.38;
-  const half = m(2.6);
-  const depth = m(2.4);
-  const pierW = m(1.35);
-  ctx.pushOrientedBox(
-    apex.x + ox * (depth / 2) - px * (half - pierW / 2),
-    0,
-    apex.z + oz * (depth / 2) - pz * (half - pierW / 2),
-    pierW,
-    archH,
-    depth,
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_PINK,
-  );
-  ctx.pushOrientedBox(
-    apex.x + ox * (depth / 2) + px * (half - pierW / 2),
-    0,
-    apex.z + oz * (depth / 2) + pz * (half - pierW / 2),
-    pierW,
-    archH,
-    depth,
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_BUFF,
-  );
-  ctx.pushOrientedBox(
-    apex.x + ox * (depth / 2),
-    archH * 0.78,
-    apex.z + oz * (depth / 2),
-    half * 2,
-    archH * 0.22,
-    depth,
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_BUFF,
-  );
-  ctx.pushOrientedBox(
-    apex.x + ox * m(0.4),
-    archH * 0.12,
-    apex.z + oz * m(0.4),
-    half * 1.15,
-    archH * 0.62,
-    m(0.45),
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_GLASS,
-  );
-  const vH = H * 0.16;
-  ctx.pushOrientedBox(
-    apex.x + ox * m(0.9),
-    archH,
-    apex.z + oz * m(0.9),
-    m(3.4),
-    vH,
-    m(1.6),
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_GLASS,
-  );
+/** Courtyard well stays inside the plate. A forced 10 m radius punches the facade. */
+export function poultryWellR(plan: PlanMetrics): number {
+  const fitM = Math.min(plan.minRM, plan.maxPerpM, plan.maxAlongM) * 0.72;
+  return Math.min(fitM, 12) * METERS_TO_WORLD;
 }
 
 function emitAnnularRoof(
@@ -551,122 +441,80 @@ function emitAnnularRoof(
   }
 }
 
+/** Map each outer edge onto the well circle. Skip verts already inside so concave spikes cannot form. */
+function emitAnnularRoofRadial(
+  ctx: StreetRoofEmit,
+  outer: StreetPt[],
+  wellR: number,
+  y: number,
+  hex: number,
+): void {
+  const { cx, cz } = ctx.plan;
+  const pad = m(0.4);
+  const n = outer.length;
+  for (let i = 0; i < n; i++) {
+    const a = outer[i]!;
+    const b = outer[(i + 1) % n]!;
+    const ra = Math.hypot(a.x - cx, a.z - cz);
+    const rb = Math.hypot(b.x - cx, b.z - cz);
+    if (ra <= wellR + pad || rb <= wellR + pad) continue;
+    const iax = cx + ((a.x - cx) / ra) * wellR;
+    const iaz = cz + ((a.z - cz) / ra) * wellR;
+    const ibx = cx + ((b.x - cx) / rb) * wellR;
+    const ibz = cz + ((b.z - cz) / rb) * wellR;
+    const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
+    const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
+    const i2 = ctx.pushVertex(ibx, y, ibz, 0, 1, 0, hex);
+    const i3 = ctx.pushVertex(iax, y, iaz, 0, 1, 0, hex);
+    ctx.pushTri(i0, i1, i2);
+    ctx.pushTri(i0, i2, i3);
+  }
+}
+
+function emitInPlanePortal(
+  ctx: StreetEmit,
+  e: Edge,
+  y0: number,
+  y1: number,
+  frame: number,
+  glass: number,
+): void {
+  const jamb = 0.04;
+  const t0 = 0.36;
+  const t1 = 0.64;
+  const head = Math.min(m(0.75), (y1 - y0) * 0.2);
+  const left = edgePoint(e, t0);
+  const leftIn = edgePoint(e, t0 + jamb);
+  const rightIn = edgePoint(e, t1 - jamb);
+  const right = edgePoint(e, t1);
+  emitWallQuad(ctx, left.x, left.z, leftIn.x, leftIn.z, y0, y1, e.nx, e.nz, frame);
+  emitWallQuad(ctx, rightIn.x, rightIn.z, right.x, right.z, y0, y1, e.nx, e.nz, frame);
+  emitWallQuad(ctx, left.x, left.z, right.x, right.z, y1 - head, y1, e.nx, e.nz, frame);
+  emitWallQuad(ctx, leftIn.x, leftIn.z, rightIn.x, rightIn.z, y0, y1 - head, e.nx, e.nz, glass);
+}
+
+function porticoPoint(e: Edge, t: number, out: number): StreetPt {
+  return {
+    x: e.a.x + (e.b.x - e.a.x) * t + e.nx * out,
+    z: e.a.z + (e.b.z - e.a.z) * t + e.nz * out,
+  };
+}
+
 function emitPoultryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
-  const arcadeH = H * 0.24;
-  const inner = insetRingTowardCentroid(ctx.ring, cx, cz, m(3.6));
+  const arcadeH = H * 0.22;
   emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_BUFF);
-  emitWallBand(ctx, inner, 0, arcadeH, POULTRY_SHOP, 0);
-  const storeys = 3;
-  const storeyH = (H - arcadeH) / storeys;
-  for (let s = 0; s < storeys; s++) {
-    const y0 = arcadeH + s * storeyH;
-    const stone = s % 2 === 0 ? POULTRY_BUFF : POULTRY_PINK;
-    emitRevealedStorey(ctx, ctx.ring, y0, y0 + storeyH, stone, POULTRY_GLASS);
-  }
-  for (const i of longestEdges(ctx.ring, 2)) {
-    const e = edgesOf(ctx, ctx.ring)[i];
-    if (!e || e.len / METERS_TO_WORLD < 18) continue;
-    const midX = (e.a.x + e.b.x) / 2;
-    const midZ = (e.a.z + e.b.z) / 2;
-    const wedgeH = H * 0.38;
-    ctx.pushOrientedBox(
-      midX + e.nx * m(-0.4),
-      arcadeH,
-      midZ + e.nz * m(-0.4),
-      Math.min(e.len * 0.32, m(16)),
-      wedgeH,
-      m(2.4),
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
-      POULTRY_GLASS,
-    );
-  }
-  const wellR = Math.max(m(7.5), Math.min(ctx.plan.minRM, 14) * 0.5 * METERS_TO_WORLD);
-  pushCylinder(ctx, cx, 0, cz, wellR, H, 0x1a1a22, 20, false);
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2;
-    ctx.pushBox(
-      cx + Math.cos(a) * wellR * 0.92,
-      H * 0.28,
-      cz + Math.sin(a) * wellR * 0.92,
-      m(1.6),
-      m(2.4),
-      m(0.45),
-      k % 2 === 0 ? 0x3a7a9a : 0xd4c24a,
-    );
-  }
+  emitWallBand(ctx, ctx.ring, arcadeH, H, POULTRY_BUFF, 0);
+  const wellR = poultryWellR(ctx.plan);
+  pushCylinder(ctx, cx, 0, cz, wellR, H, POULTRY_WELL, 20, false);
+  pushDisk(ctx, cx, m(0.35), cz, wellR * 0.98, POULTRY_WELL, 20);
   const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-  emitProwArch(ctx, apex, H);
   const drumR = m(6.4);
-  const drumY0 = H * 0.36;
-  const drumH = H * 1.12;
+  const drumY0 = H * 0.22;
+  const drumH = H * 1.18;
   pushCylinder(ctx, apex.x, drumY0, apex.z, drumR, drumH, POULTRY_PINK, 20, true);
-  pushCylinder(ctx, apex.x, drumY0 + drumH, apex.z, drumR * 0.7, m(2.6), POULTRY_BUFF, 16, true);
-  const clockY = drumY0 + drumH * 0.55;
-  const dirx = cx - apex.x;
-  const dirz = cz - apex.z;
-  const dlen = Math.hypot(dirx, dirz) || 1;
-  const ox = -dirx / dlen;
-  const oz = -dirz / dlen;
-  const px = -oz;
-  const pz = ox;
-  ctx.pushOrientedBox(
-    apex.x + ox * (drumR + m(0.15)),
-    clockY - m(1.6),
-    apex.z + oz * (drumR + m(0.15)),
-    m(3.2),
-    m(3.2),
-    m(0.35),
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_GLASS,
-  );
-  ctx.pushOrientedBox(
-    apex.x - ox * (drumR + m(0.15)),
-    clockY - m(1.6),
-    apex.z - oz * (drumR + m(0.15)),
-    m(3.2),
-    m(3.2),
-    m(0.35),
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_GLASS,
-  );
-  const deckY = drumY0 + drumH * 0.82;
-  ctx.pushOrientedBox(
-    apex.x + px * (drumR + m(2.1)),
-    deckY,
-    apex.z + pz * (drumR + m(2.1)),
-    m(6.4),
-    m(0.55),
-    m(2.6),
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_BUFF,
-  );
-  ctx.pushOrientedBox(
-    apex.x - px * (drumR + m(2.1)),
-    deckY,
-    apex.z - pz * (drumR + m(2.1)),
-    m(6.4),
-    m(0.55),
-    m(2.6),
-    px,
-    pz,
-    ox,
-    oz,
-    POULTRY_BUFF,
-  );
+  pushCylinder(ctx, apex.x, drumY0 + drumH, apex.z, drumR * 0.62, m(2.8), POULTRY_BUFF, 14, true);
 }
 
 function emitNedWalls(ctx: StreetEmit): void {
@@ -675,208 +523,70 @@ function emitNedWalls(ctx: StreetEmit): void {
   const bodyH = H * 0.72;
   const { cx, cz } = ctx.plan;
   emitWallBand(ctx, ctx.ring, 0, rustH, NED_RUST, 0);
-  for (const t of [0.28, 0.55, 0.82]) {
-    emitWallBand(ctx, ctx.ring, rustH * t, rustH * t + m(0.45), NED_STONE, m(0.55));
-  }
   emitWallBand(ctx, ctx.ring, rustH, bodyH, NED_STONE, 0);
-  const long = new Set(longestEdges(ctx.ring, 3));
-  for (const e of edgesOf(ctx, ctx.ring)) {
-    if (!long.has(e.i) || e.len / METERS_TO_WORLD < 14) continue;
-    const bays = Math.max(4, Math.min(8, Math.round(e.len / METERS_TO_WORLD / 6.5)));
-    const pierW = m(1.35);
-    const depth = m(1.7);
-    for (let b = 0; b <= bays; b++) {
-      const t = b / bays;
-      ctx.pushOrientedBox(
-        e.a.x + (e.b.x - e.a.x) * t + e.nx * (depth / 2),
-        rustH,
-        e.a.z + (e.b.z - e.a.z) * t + e.nz * (depth / 2),
-        pierW,
-        bodyH - rustH,
-        depth,
-        e.tx,
-        e.tz,
-        e.nx,
-        e.nz,
-        NED_STONE,
-      );
-    }
-    const winW = Math.min(m(2.8), (e.len / (bays + 1)) * 0.62);
-    const winH = (bodyH - rustH) * 0.42;
-    for (let b = 0; b < bays; b++) {
-      const t = (b + 0.5) / bays;
-      ctx.pushOrientedBox(
-        e.a.x + (e.b.x - e.a.x) * t + e.nx * m(-0.7),
-        rustH + (bodyH - rustH) * 0.22,
-        e.a.z + (e.b.z - e.a.z) * t + e.nz * m(-0.7),
-        winW,
-        winH,
-        m(1.4),
-        e.tx,
-        e.tz,
-        e.nx,
-        e.nz,
-        NED_GLASS,
-      );
-    }
-  }
-  emitWallBand(ctx, ctx.ring, bodyH, H, NED_MANSARD, m(-0.4));
+  const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
+  emitWallBand(ctx, eaves, bodyH, H, NED_MANSARD, 0);
   const well = insetRingTowardCentroid(ctx.ring, cx, cz, m(8.5));
-  emitWallBand(ctx, well, rustH, H * 0.9, NED_RUST, 0);
+  emitWallBand(ctx, well, rustH, H, NED_RUST, 0);
 }
 
 function emitWalbrookWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   emitWallBand(ctx, ctx.ring, 0, H, WALBROOK_STONE, 0);
   const e = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len)[0];
-  if (e && e.len / METERS_TO_WORLD >= 10) {
-    const colH = H * 0.62;
-    for (const t of [0.22, 0.5, 0.78]) {
-      pushCylinder(
-        ctx,
-        e.a.x + (e.b.x - e.a.x) * t + e.nx * m(1.1),
-        0,
-        e.a.z + (e.b.z - e.a.z) * t + e.nz * m(1.1),
-        m(0.55),
-        colH,
-        WALBROOK_DRUM,
-        10,
-        true,
-      );
-    }
-    ctx.pushOrientedBox(
-      (e.a.x + e.b.x) / 2 + e.nx * m(1.1),
-      colH,
-      (e.a.z + e.b.z) / 2 + e.nz * m(1.1),
-      e.len * 0.62,
-      m(0.7),
-      m(2.2),
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
-      WALBROOK_STONE,
-    );
+  if (!e || e.len / METERS_TO_WORLD < 10) return;
+  const colH = H * 0.62;
+  for (const t of [0.22, 0.5, 0.78]) {
+    const p = porticoPoint(e, t, m(1.1));
+    pushCylinder(ctx, p.x, 0, p.z, m(0.55), colH, WALBROOK_DRUM, 10, true);
   }
 }
 
 function emitMagistratesWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
-  emitWallBand(ctx, ctx.ring, 0, H * 0.16, MAG_PLINTH, m(0.35));
+  const { cx, cz } = ctx.plan;
+  emitWallBand(ctx, ctx.ring, 0, H * 0.16, MAG_PLINTH, 0);
   emitWallBand(ctx, ctx.ring, H * 0.16, H * 0.68, MAG_STONE, 0);
+  const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.4));
+  emitWallBand(ctx, eaves, H * 0.68, H, MAG_MANSARD, 0);
   const e = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len)[0];
-  if (e && e.len / METERS_TO_WORLD >= 12) {
-    const colH = H * 0.42;
-    for (let i = 0; i < 4; i++) {
-      const t = (i + 0.5) / 4;
-      pushCylinder(
-        ctx,
-        e.a.x + (e.b.x - e.a.x) * t + e.nx * m(1.2),
-        H * 0.16,
-        e.a.z + (e.b.z - e.a.z) * t + e.nz * m(1.2),
-        m(0.48),
-        colH,
-        MAG_STONE,
-        10,
-        true,
-      );
-    }
-    ctx.pushOrientedBox(
-      (e.a.x + e.b.x) / 2 + e.nx * m(-0.6),
-      H * 0.28,
-      (e.a.z + e.b.z) / 2 + e.nz * m(-0.6),
-      e.len * 0.72,
-      H * 0.18,
-      m(1.1),
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
-      0x3a5470,
-    );
+  if (!e || e.len / METERS_TO_WORLD < 12) return;
+  const colH = H * 0.42;
+  for (let i = 0; i < 4; i++) {
+    const p = porticoPoint(e, (i + 0.5) / 4, m(1.2));
+    pushCylinder(ctx, p.x, H * 0.16, p.z, m(0.48), colH, MAG_STONE, 10, true);
   }
-  emitWallBand(ctx, ctx.ring, H * 0.68, H, MAG_MANSARD, m(-0.5));
 }
 
 function emitOldJewryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
-  const shopH = H * 0.12;
+  const hA = H * 0.38;
+  const hB = H * 0.72;
   const ranked = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len);
-  emitWallBand(ctx, ctx.ring, 0, shopH, JEWRY_SHOP, 0);
-  emitWallBand(ctx, ctx.ring, shopH, H * 0.42, JEWRY_STONE, 0);
   const e0 = ranked[0];
-  const e1 = ranked[1];
-  const e2 = ranked[2];
+  const e1 = ranked[1] ?? e0;
+  const portalI = e0?.i ?? -1;
+  for (const e of edgesOf(ctx, ctx.ring)) {
+    if (e.i === portalI) {
+      const left = edgePoint(e, 0);
+      const p0 = edgePoint(e, 0.36);
+      const p1 = edgePoint(e, 0.64);
+      const right = edgePoint(e, 1);
+      emitWallQuad(ctx, left.x, left.z, p0.x, p0.z, 0, hA, e.nx, e.nz, JEWRY_STONE);
+      emitInPlanePortal(ctx, e, 0, hA * 0.72, JEWRY_BRONZE, JEWRY_GLASS);
+      emitWallQuad(ctx, p1.x, p1.z, right.x, right.z, 0, hA, e.nx, e.nz, JEWRY_STONE);
+      emitWallQuad(ctx, e.a.x, e.a.z, e.b.x, e.b.z, hA * 0.72, hA, e.nx, e.nz, JEWRY_STONE);
+      continue;
+    }
+    emitWallQuad(ctx, e.a.x, e.a.z, e.b.x, e.b.z, 0, hA, e.nx, e.nz, JEWRY_STONE);
+  }
   if (e0) {
-    const away = {
-      x: (e0.a.x + e0.b.x) / 2 - e0.nx * m(22),
-      z: (e0.a.z + e0.b.z) / 2 - e0.nz * m(22),
-    };
-    const blockB = scaleToward(ctx.ring, away.x, away.z, 0.72);
-    emitWallBand(ctx, blockB, H * 0.42, H * 0.74, JEWRY_STONE, 0);
-    ctx.pushOrientedBox(
-      (e0.a.x + e0.b.x) / 2 + e0.nx * m(-0.6),
-      H * 0.48,
-      (e0.a.z + e0.b.z) / 2 + e0.nz * m(-0.6),
-      Math.min(e0.len * 0.42, m(12)),
-      H * 0.18,
-      m(1.8),
-      e0.tx,
-      e0.tz,
-      e0.nx,
-      e0.nz,
-      JEWRY_GLASS,
-    );
+    const mid = { x: (e0.a.x + e0.b.x) / 2, z: (e0.a.z + e0.b.z) / 2 };
+    emitWallBand(ctx, scaleToward(ctx.ring, mid.x, mid.z, 0.55), 0, hB, JEWRY_MID, 0);
   }
   if (e1) {
-    const away = {
-      x: (e1.a.x + e1.b.x) / 2 - e1.nx * m(18),
-      z: (e1.a.z + e1.b.z) / 2 - e1.nz * m(18),
-    };
-    const blockC = scaleToward(ctx.ring, away.x, away.z, 0.55);
-    emitWallBand(ctx, blockC, H * 0.74, H, JEWRY_STONE, 0);
-    ctx.pushOrientedBox(
-      (e1.a.x + e1.b.x) / 2 + e1.nx * m(-0.5),
-      H * 0.78,
-      (e1.a.z + e1.b.z) / 2 + e1.nz * m(-0.5),
-      Math.min(e1.len * 0.38, m(9)),
-      H * 0.14,
-      m(1.6),
-      e1.tx,
-      e1.tz,
-      e1.nx,
-      e1.nz,
-      JEWRY_GLASS,
-    );
-  }
-  const portal = e2 ?? e0;
-  if (portal) {
-    ctx.pushOrientedBox(
-      (portal.a.x + portal.b.x) / 2 + portal.nx * m(1.1),
-      0,
-      (portal.a.z + portal.b.z) / 2 + portal.nz * m(1.1),
-      m(5.2),
-      shopH + m(1.2),
-      m(2.2),
-      portal.tx,
-      portal.tz,
-      portal.nx,
-      portal.nz,
-      JEWRY_BRONZE,
-    );
-    ctx.pushOrientedBox(
-      (portal.a.x + portal.b.x) / 2 + portal.nx * m(0.4),
-      m(0.3),
-      (portal.a.z + portal.b.z) / 2 + portal.nz * m(0.4),
-      m(3.4),
-      shopH * 0.82,
-      m(1.4),
-      portal.tx,
-      portal.tz,
-      portal.nx,
-      portal.nz,
-      JEWRY_GLASS,
-    );
+    const mid = { x: (e1.a.x + e1.b.x) / 2, z: (e1.a.z + e1.b.z) / 2 };
+    emitWallBand(ctx, scaleToward(ctx.ring, mid.x, mid.z, 0.38), 0, H, JEWRY_HIGH, 0);
   }
 }
 
@@ -885,96 +595,28 @@ function emitMansionWalls(ctx: StreetEmit): void {
   const rustH = H * 0.28;
   const bodyH = H * 0.78;
   emitWallBand(ctx, ctx.ring, 0, rustH, MANSION_RUST, 0);
-  for (const t of [0.22, 0.5, 0.78]) {
-    emitWallBand(ctx, ctx.ring, rustH * t, rustH * t + m(0.38), MANSION_STONE, m(0.45));
-  }
   emitWallBand(ctx, ctx.ring, rustH, bodyH, MANSION_STONE, 0);
-  emitWallBand(ctx, ctx.ring, bodyH, H, MANSION_STONE, m(-0.25));
+  emitWallBand(ctx, ctx.ring, bodyH, H, MANSION_STONE, 0);
   const e = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len)[0];
   if (!e || e.len / METERS_TO_WORLD < 16) return;
   const colH = bodyH - rustH;
   const colR = m(0.62);
+  const out = m(2.1);
   for (let i = 0; i < 6; i++) {
-    const t = (i + 0.7) / 7;
-    pushCylinder(
-      ctx,
-      e.a.x + (e.b.x - e.a.x) * t + e.nx * m(2.1),
-      rustH,
-      e.a.z + (e.b.z - e.a.z) * t + e.nz * m(2.1),
-      colR,
-      colH,
-      MANSION_COLUMN,
-      12,
-      true,
-    );
-    ctx.pushOrientedBox(
-      e.a.x + (e.b.x - e.a.x) * t + e.nx * m(2.1),
-      rustH + colH,
-      e.a.z + (e.b.z - e.a.z) * t + e.nz * m(2.1),
-      m(1.5),
-      m(0.45),
-      m(1.5),
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
-      MANSION_COLUMN,
-    );
+    const p = porticoPoint(e, (i + 0.7) / 7, out);
+    pushCylinder(ctx, p.x, rustH, p.z, colR, colH, MANSION_COLUMN, 12, true);
+    pushCylinder(ctx, p.x, rustH + colH, p.z, colR * 1.35, m(0.4), MANSION_COLUMN, 10, true);
   }
-  const porticoAlong = e.len * 0.72;
-  ctx.pushOrientedBox(
-    (e.a.x + e.b.x) / 2 + e.nx * m(2.1),
-    rustH + colH,
-    (e.a.z + e.b.z) / 2 + e.nz * m(2.1),
-    porticoAlong,
-    m(0.85),
-    m(4.4),
-    e.tx,
-    e.tz,
-    e.nx,
-    e.nz,
-    MANSION_STONE,
-  );
-  const pedH = H * 0.22;
-  ctx.pushOrientedBox(
-    (e.a.x + e.b.x) / 2 + e.nx * m(2.0),
-    rustH + colH + m(0.85),
-    (e.a.z + e.b.z) / 2 + e.nz * m(2.0),
-    porticoAlong,
-    pedH * 0.35,
-    m(4.2),
-    e.tx,
-    e.tz,
-    e.nx,
-    e.nz,
-    MANSION_STONE,
-  );
-  ctx.pushOrientedBox(
-    (e.a.x + e.b.x) / 2 + e.nx * m(2.0),
-    rustH + colH + m(0.85) + pedH * 0.28,
-    (e.a.z + e.b.z) / 2 + e.nz * m(2.0),
-    porticoAlong * 0.62,
-    pedH * 0.38,
-    m(3.4),
-    e.tx,
-    e.tz,
-    e.nx,
-    e.nz,
-    MANSION_STONE,
-  );
-  ctx.pushOrientedBox(
-    (e.a.x + e.b.x) / 2 + e.nx * m(2.0),
-    rustH + colH + m(0.85) + pedH * 0.62,
-    (e.a.z + e.b.z) / 2 + e.nz * m(2.0),
-    porticoAlong * 0.28,
-    pedH * 0.32,
-    m(2.4),
-    e.tx,
-    e.tz,
-    e.nx,
-    e.nz,
-    MANSION_STONE,
-  );
+  const p0 = porticoPoint(e, 0.7 / 7, out);
+  const p5 = porticoPoint(e, 5.7 / 7, out);
+  const yEnt = rustH + colH;
+  emitWallQuad(ctx, p0.x, p0.z, p5.x, p5.z, yEnt, yEnt + m(0.9), e.nx, e.nz, MANSION_STONE);
+  const mid = porticoPoint(e, 0.5, out);
+  const yPeak = yEnt + m(0.9) + H * 0.2;
+  const i0 = ctx.pushVertex(p0.x, yEnt + m(0.9), p0.z, e.nx, 0.15, e.nz, MANSION_STONE);
+  const i1 = ctx.pushVertex(p5.x, yEnt + m(0.9), p5.z, e.nx, 0.15, e.nz, MANSION_STONE);
+  const i2 = ctx.pushVertex(mid.x, yPeak, mid.z, e.nx, 0.35, e.nz, MANSION_STONE);
+  ctx.pushTri(i0, i1, i2);
 }
 
 export function emitStreetUniqueWalls(kind: StreetUniqueId, ctx: StreetEmit): void {
@@ -1006,19 +648,6 @@ export function emitStreetUniqueWalls(kind: StreetUniqueId, ctx: StreetEmit): vo
   return _never;
 }
 
-export type StreetRoofEmit = {
-  ring: StreetPt[];
-  plan: PlanMetrics;
-  heightWorld: number;
-  emitRoof: (ring: StreetPt[], yAt: (p: StreetPt) => number, hex: number) => void;
-  insetRing: (ring: StreetPt[], cx: number, cz: number, scale: number) => StreetPt[];
-  pushBox: StreetEmit['pushBox'];
-  pushVertex: StreetEmit['pushVertex'];
-  pushTri: StreetEmit['pushTri'];
-  pushOrientedBox: StreetEmit['pushOrientedBox'];
-  outwardNormal: StreetEmit['outwardNormal'];
-};
-
 export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
@@ -1034,37 +663,14 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
     outwardNormal: ctx.outwardNormal,
   };
   if (kind === 'no-1-poultry') {
-    const wellR = Math.max(m(7.5), Math.min(ctx.plan.minRM, 14) * 0.5 * METERS_TO_WORLD);
-    const inner = ctx.ring.map((p) => {
-      const dx = p.x - cx;
-      const dz = p.z - cz;
-      const r = Math.hypot(dx, dz) || 1;
-      return { x: cx + (dx / r) * wellR, z: cz + (dz / r) * wellR };
-    });
-    emitAnnularRoof(ctx, ctx.ring, inner, H, POULTRY_ROOF);
-    const pent = ctx.insetRing(ctx.ring, cx, cz, 0.62);
-    emitAnnularRoof(ctx, pent, inner, H + m(2.8), POULTRY_BUFF);
-    const tobler = ctx.insetRing(ctx.ring, cx, cz, 0.18);
-    ctx.emitRoof(tobler, () => H * 0.55, 0xd4c24a);
+    emitAnnularRoofRadial(ctx, ctx.ring, poultryWellR(ctx.plan), H, POULTRY_ROOF);
     return;
   }
   if (kind === 'the-ned') {
-    ctx.emitRoof(
-      ctx.ring,
-      (p) => {
-        const d = Math.hypot(p.x - cx, p.z - cz);
-        let maxD = 1e-6;
-        for (const q of ctx.ring) maxD = Math.max(maxD, Math.hypot(q.x - cx, q.z - cz));
-        return H + m(6.2) * (1 - Math.min(1, d / maxD));
-      },
-      NED_MANSARD,
-    );
-    const well = ctx.insetRing(ctx.ring, cx, cz, 0.42);
-    ctx.emitRoof(well, () => H * 0.55, NED_RUST);
-    for (const s of [-1, 1]) {
-      ctx.pushBox(cx + s * m(8), H + m(4.5), cz + m(4), m(1.6), m(4.8), m(1.6), NED_MANSARD);
-      ctx.pushBox(cx + s * m(8), H + m(4.5), cz - m(4), m(1.6), m(4.8), m(1.6), NED_MANSARD);
-    }
+    const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
+    const well = insetRingTowardCentroid(ctx.ring, cx, cz, m(8.5));
+    emitAnnularRoof(ctx, ctx.ring, eaves, H * 0.72, NED_STONE);
+    emitAnnularRoof(ctx, eaves, well, H, NED_MANSARD);
     return;
   }
   if (kind === 'walbrook') {
@@ -1087,38 +693,28 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
     return;
   }
   if (kind === 'magistrates') {
-    ctx.emitRoof(
-      ctx.ring,
-      (p) => {
-        const d = Math.hypot(p.x - cx, p.z - cz);
-        let maxD = 1e-6;
-        for (const q of ctx.ring) maxD = Math.max(maxD, Math.hypot(q.x - cx, q.z - cz));
-        return H * 0.68 + (H * 0.32 + m(4.2)) * (1 - Math.min(1, d / maxD));
-      },
-      MAG_MANSARD,
-    );
+    const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.4));
+    ctx.emitRoof(ctx.ring, () => H * 0.68, MAG_STONE);
+    ctx.emitRoof(eaves, () => H, MAG_MANSARD);
     return;
   }
   if (kind === 'old-jewry') {
-    ctx.emitRoof(ctx.ring, () => H * 0.42, JEWRY_STONE);
-    ctx.emitRoof(ctx.insetRing(ctx.ring, cx, cz, 0.72), () => H * 0.74, JEWRY_STONE);
-    ctx.emitRoof(ctx.insetRing(ctx.ring, cx, cz, 0.55), () => H, JEWRY_STONE);
+    ctx.emitRoof(ctx.ring, () => H * 0.38, JEWRY_STONE);
+    const ranked = edgesOf(asWall, ctx.ring).sort((a, b) => b.len - a.len);
+    const e0 = ranked[0];
+    const e1 = ranked[1] ?? e0;
+    if (e0) {
+      const mid = { x: (e0.a.x + e0.b.x) / 2, z: (e0.a.z + e0.b.z) / 2 };
+      ctx.emitRoof(scaleToward(ctx.ring, mid.x, mid.z, 0.55), () => H * 0.72, JEWRY_MID);
+    }
+    if (e1) {
+      const mid = { x: (e1.a.x + e1.b.x) / 2, z: (e1.a.z + e1.b.z) / 2 };
+      ctx.emitRoof(scaleToward(ctx.ring, mid.x, mid.z, 0.38), () => H, JEWRY_HIGH);
+    }
     return;
   }
   if (kind === 'mansion-house') {
     ctx.emitRoof(ctx.ring, () => H, MANSION_ROOF);
-    for (let i = 0; i < 5; i++) {
-      const t = (i + 0.5) / 5 - 0.5;
-      ctx.pushBox(
-        cx + ctx.plan.ax * t * m(14),
-        H,
-        cz + ctx.plan.az * t * m(14),
-        m(1.1),
-        m(1.6),
-        m(1.1),
-        MANSION_STONE,
-      );
-    }
     return;
   }
   const _never: never = kind;

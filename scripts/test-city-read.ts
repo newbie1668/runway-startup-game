@@ -29,9 +29,14 @@ import {
 } from '../lib/game/render3d/uniqueStock';
 import {
   JEWRY_BRONZE,
+  JEWRY_HIGH,
+  JEWRY_MID,
   MANSION_COLUMN,
   POULTRY_BUFF,
   POULTRY_PINK,
+  POULTRY_ROOF,
+  POULTRY_WELL,
+  poultryWellR,
   streetUniqueAt,
 } from '../lib/game/render3d/uniqueStreet';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
@@ -956,16 +961,57 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
+  let wellR = 8 * METERS_TO_WORLD;
+  let poultryMaxR = 40 * METERS_TO_WORLD;
+  let poultryCx = poultryAt.x;
+  let poultryCz = poultryAt.y;
+  for (const b of city.buildings) {
+    if (b.chunkId !== chunkId) continue;
+    const n = b.verts.length / 2;
+    const ring: { x: number; z: number }[] = [];
+    let cx = 0;
+    let cz = 0;
+    for (let i = 0; i < n; i++) {
+      const x = dequantizeX(b.verts[i * 2]!);
+      const z = dequantizeY(b.verts[i * 2 + 1]!);
+      ring.push({ x, z });
+      cx += x;
+      cz += z;
+    }
+    cx /= n;
+    cz /= n;
+    const [lng, lat] = unproject(cx, cz);
+    if (streetUniqueAt(lng, lat) !== 'no-1-poultry') continue;
+    const plan = analyzeFootprint(ring, METERS_TO_WORLD);
+    wellR = poultryWellR(plan);
+    poultryCx = plan.cx;
+    poultryCz = plan.cz;
+    poultryMaxR = 0;
+    for (const p of ring) {
+      poultryMaxR = Math.max(poultryMaxR, Math.hypot(p.x - plan.cx, p.z - plan.cz));
+    }
+    break;
+  }
   const pink = new THREE.Color(POULTRY_PINK);
   const buff = new THREE.Color(POULTRY_BUFF);
   const bronze = new THREE.Color(JEWRY_BRONZE);
   const column = new THREE.Color(MANSION_COLUMN);
+  const wellCol = new THREE.Color(POULTRY_WELL);
+  const roofCol = new THREE.Color(POULTRY_ROOF);
+  const jewryMid = new THREE.Color(JEWRY_MID);
+  const jewryHigh = new THREE.Color(JEWRY_HIGH);
   let pinkN = 0;
   let buffN = 0;
   let near = 0;
   let bronzeN = 0;
   let columnN = 0;
+  let holeRoof = 0;
+  let wellFloor = 0;
+  let stickN = 0;
+  let jewryMidN = 0;
+  let jewryHighN = 0;
   const drumKeys = new Set<string>();
+  const stickPad = 8 * METERS_TO_WORLD;
   for (const major of [true, false]) {
     const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
     if (!mesh) continue;
@@ -980,6 +1026,51 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
       const yM = y / METERS_TO_WORLD;
       if (d <= 55 && yM > 38) {
         drumKeys.add(`${x.toFixed(3)},${z.toFixed(3)}`);
+      }
+      const dC = Math.hypot(x - poultryCx, z - poultryCz);
+      const r = colors.getX(i);
+      const g = colors.getY(i);
+      const b = colors.getZ(i);
+      const poultryTint =
+        (Math.abs(r - pink.r) < 0.04 &&
+          Math.abs(g - pink.g) < 0.04 &&
+          Math.abs(b - pink.b) < 0.04) ||
+        (Math.abs(r - buff.r) < 0.04 &&
+          Math.abs(g - buff.g) < 0.04 &&
+          Math.abs(b - buff.b) < 0.04) ||
+        (Math.abs(r - wellCol.r) < 0.05 &&
+          Math.abs(g - wellCol.g) < 0.05 &&
+          Math.abs(b - wellCol.b) < 0.05) ||
+        (Math.abs(r - roofCol.r) < 0.05 &&
+          Math.abs(g - roofCol.g) < 0.05 &&
+          Math.abs(b - roofCol.b) < 0.05);
+      if (poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
+      if (dC < wellR * 0.55 && yM > 8) {
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        if (
+          Math.abs(r - roofCol.r) < 0.05 &&
+          Math.abs(g - roofCol.g) < 0.05 &&
+          Math.abs(b - roofCol.b) < 0.05
+        ) {
+          holeRoof += 1;
+        }
+        if (Math.abs(r - 0.831) < 0.05 && Math.abs(g - 0.761) < 0.05 && Math.abs(b - 0.29) < 0.08) {
+          holeRoof += 1;
+        }
+      }
+      if (dC < wellR * 0.98 && yM < 2) {
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        if (
+          Math.abs(r - wellCol.r) < 0.05 &&
+          Math.abs(g - wellCol.g) < 0.05 &&
+          Math.abs(b - wellCol.b) < 0.05
+        ) {
+          wellFloor += 1;
+        }
       }
       if (d <= 45) {
         near += 1;
@@ -1013,6 +1104,20 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         ) {
           bronzeN += 1;
         }
+        if (
+          Math.abs(r - jewryMid.r) < 0.05 &&
+          Math.abs(g - jewryMid.g) < 0.05 &&
+          Math.abs(b - jewryMid.b) < 0.05
+        ) {
+          jewryMidN += 1;
+        }
+        if (
+          Math.abs(r - jewryHigh.r) < 0.05 &&
+          Math.abs(g - jewryHigh.g) < 0.05 &&
+          Math.abs(b - jewryHigh.b) < 0.05
+        ) {
+          jewryHighN += 1;
+        }
       }
       const dm = Math.hypot(x - mansionAt.x, z - mansionAt.y) / METERS_TO_WORLD;
       if (dm <= 40) {
@@ -1035,7 +1140,14 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     drumKeys.size >= 12,
     `Poultry clock turret is still a box (${drumKeys.size} unique xz above roof)`,
   );
-  assert.ok(bronzeN > 20, `1 Old Jewry bronze fins missing (${bronzeN} verts)`);
+  assert.ok(wellFloor > 12, `Poultry courtyard well floor missing (${wellFloor} verts)`);
+  assert.ok(holeRoof < 12, `Poultry courtyard well is roofed over (${holeRoof} hole verts)`);
+  assert.ok(stickN < 8, `Poultry bands stick through the facade (${stickN} verts)`);
+  assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
+  assert.ok(
+    jewryMidN > 20 && jewryHighN > 20,
+    `1 Old Jewry is not three blocks (mid=${jewryMidN} high=${jewryHighN})`,
+  );
   assert.ok(columnN > 20, `Mansion House portico columns missing (${columnN} verts)`);
 });
 

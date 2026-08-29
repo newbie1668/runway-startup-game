@@ -1086,7 +1086,7 @@ export function buildChunkTier(
             cornice: true,
             doors: s === 0 && !podium,
             windows: stampWindows,
-            stringCourses: s === 0,
+            stringCourses: stampWindows && s === 0,
             ...facadeOpts,
           });
           yPrev = y1;
@@ -1115,7 +1115,7 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: true,
+          stringCourses: stampWindows,
           ...facadeOpts,
         });
         const headRing = insetRing(ring, cx, cz, setSil.shortScale);
@@ -1134,7 +1134,7 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: true,
+          stringCourses: stampWindows,
           ...facadeOpts,
         });
         emitRingWalls(setbackWall1, setbackYA, setbackYB, {
@@ -1162,7 +1162,7 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: true,
+          stringCourses: stampWindows,
           ...facadeOpts,
         });
       } else {
@@ -1172,7 +1172,8 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: massing === 'parapet' || massing === 'slab' || massing === 'sawtooth',
+          stringCourses:
+            stampWindows && (massing === 'parapet' || massing === 'slab' || massing === 'sawtooth'),
           ...facadeOpts,
         });
       }
@@ -1501,20 +1502,6 @@ export function buildChunkTier(
           axis.pz,
           pal.mixHex(roofHex, pal.AO_DARK, k % 2 === 0 ? 0.08 : 0.22),
         );
-      }
-    }
-
-    if (
-      !streetKind &&
-      setSil.kind === 'asymmetric-setback' &&
-      n <= 6 &&
-      plan.minAngleDeg > 82 &&
-      (style === STYLE_OFFICE || style === STYLE_TOWER)
-    ) {
-      const quoin = 3.1 * METERS_TO_WORLD;
-      const quoinH = setbackYA;
-      for (const p of ring) {
-        pushBox(p.x, 0, p.z, quoin, quoinH, quoin, baseHex);
       }
     }
 
