@@ -94,7 +94,7 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
   if (isDeckLandmark(hit.kind) && hit.kind !== 'oldstreet') {
     if (hit.kind === 'towerbridge') {
-      return { at: hit.at, viewH: 2.2, azimuth: Math.PI / 2 - 0.55 };
+      return { at: hit.at, viewH: 2.2, azimuth: Math.PI / 2 };
     }
     const azimuth = hit.kind === 'hungerford' ? -Math.PI / 2 : 0;
     return { at: hit.at, viewH: 1.35, azimuth };

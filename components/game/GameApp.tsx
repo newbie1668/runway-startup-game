@@ -532,7 +532,7 @@ export function GameApp() {
       </div>
 
       {/* Control panel — glass overlay on desktop so the map stays full-bleed. */}
-      {screen === 'play' && game && (
+      {screen === 'play' && game && !hideChrome && (
         <aside
           data-game-hud="panel"
           aria-label="Game controls"
