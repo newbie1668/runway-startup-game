@@ -42,17 +42,23 @@ import {
   restyleForDistrict,
   districtAt,
   extrusionScale,
-  stockMassing,
   wantBayWindows,
   wantFacadeWindows,
   wantPodium,
   bayCountForEdge,
   facadeWindowRhythm,
   type DistrictId,
+  type StockMassing,
 } from './buildingStyle';
 import * as pal from './palette';
 import { DASH_WIDTH_M, polylineDashes } from './streetMarks';
-import { chamferRing, insetRingTowardCentroid } from './footprint';
+import { chamferRing, insetRingTowardCentroid, scaleToward } from './footprint';
+import {
+  analyzeFootprint,
+  uniqueStockRecipe,
+  type UniqueFacade,
+  type UniqueStockRecipe,
+} from './uniqueStock';
 import {
   aabbHitsKeep,
   clipPolylineToKeep,
@@ -271,6 +277,27 @@ export function createScratch(): CityScratch {
 
 function hexColor(hex: number): THREE.Color {
   return tmpColor.setHex(hex);
+}
+
+function massingFromRecipe(recipe: UniqueStockRecipe): StockMassing {
+  switch (recipe.silhouette.kind) {
+    case 'wedge-step':
+    case 'asymmetric-setback':
+    case 'ell':
+      return 'setback';
+    case 'courtyard':
+    case 'mansard-plate':
+      return 'mansard';
+    case 'bar-ridge':
+    case 'gable-row':
+      return recipe.roof.kind === 'hip' ? 'hip' : 'gable';
+    case 'sawtooth':
+      return 'sawtooth';
+    case 'disk':
+      return 'slab';
+  }
+  const _never: never = recipe.silhouette;
+  return _never;
 }
 
 function hashBuildingIndex(
@@ -643,19 +670,23 @@ export function buildChunkTier(
     );
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
-    const massing = stockMassing({
-      style,
-      roof: storedRoof,
+    const plan = analyzeFootprint(ring, METERS_TO_WORLD);
+    const recipe = uniqueStockRecipe({
+      plan,
       heightM: b.heightM,
-      areaM2,
-      district,
-      seed,
+      style,
+      osmRoof: storedRoof,
     });
+    const massing = massingFromRecipe(recipe);
     const osmWall = fromRgb565(b.wall565);
     const osmRoof = fromRgb565(b.roof565);
     const baseHex = pal.wallHex(style, district, cx, cz, seed, osmWall);
     const wallBottomHex = pal.mixHex(baseHex, pal.AO_DARK, 0.1);
-    const pitchedKind = massing === 'gable' || massing === 'hip' || massing === 'mansard';
+    const pitchedKind =
+      recipe.roof.kind === 'gable' ||
+      recipe.roof.kind === 'hip' ||
+      recipe.roof.kind === 'mansard' ||
+      recipe.roof.kind === 'barrel';
     const roofHex = osmRoof
       ? pal.clampRoofColour(osmRoof)
       : pal.roofHex(style, pitchedKind && b.heightM <= 22, seed);
@@ -672,13 +703,18 @@ export function buildChunkTier(
     );
     const podium = wantPodium(style, b.heightM, areaM2, district);
     const podiumWorld = podium ? Math.min(15 * METERS_TO_WORLD * vScale, heightWorld * 0.14) : 0;
+    const keepApex =
+      recipe.silhouette.kind === 'wedge-step' ||
+      recipe.silhouette.kind === 'courtyard' ||
+      recipe.silhouette.kind === 'disk';
     const chamferAmt =
+      !keepApex &&
       (massing === 'slab' || massing === 'parapet' || massing === 'setback') &&
       (style === STYLE_OFFICE || style === STYLE_RETAIL || style === STYLE_TOWER) &&
       n >= 4 &&
       n <= 16 &&
-      seed % 3 !== 1
-        ? (1.55 + (seed % 4) * 0.35) * METERS_TO_WORLD
+      plan.minAngleDeg > 78
+        ? Math.min(2.6, Math.max(1.2, 1.4 + plan.minRM * 0.08)) * METERS_TO_WORLD
         : 0;
     const wallRing = chamferAmt > 0 ? chamferRing(ring, chamferAmt) : ring;
     const shaftRing = podium ? insetRing(ring, cx, cz, district === 'canary' ? 0.42 : 0.58) : ring;
@@ -709,6 +745,7 @@ export function buildChunkTier(
         stringCourses?: boolean;
         hex?: number;
         bottomHex?: number;
+        facade?: UniqueFacade;
       },
     ) => {
       const faceHex = opts.hex ?? baseHex;
@@ -870,7 +907,54 @@ export function buildChunkTier(
 
         if (opts.windows && scratch) {
           const spanM = (y1 - y0) / METERS_TO_WORLD;
-          if (wantBayWindows(edgeLenM, spanM, style)) {
+          const face = opts.facade ?? recipe.facade;
+          if (face.kind === 'ribbon' && edgeLenM >= 6.5 && spanM > 6) {
+            emitRibbonBands(
+              pushOrientedBox,
+              a,
+              bp,
+              nx,
+              nz,
+              y0,
+              y1,
+              face.floors,
+              face.bandRatio,
+              pal.windowHex(seed),
+              pal.mixHex(faceHex, pal.AO_DARK, 0.28),
+            );
+          } else if (face.kind === 'piers' && edgeLenM >= 7 && spanM > 6) {
+            emitPierFacade(
+              scratch,
+              pushOrientedBox,
+              a,
+              bp,
+              nx,
+              nz,
+              y0,
+              y1,
+              face.pitchM,
+              face.depthM,
+              style,
+              major,
+              shopWorld,
+              vScale,
+              seed,
+              faceHex,
+            );
+          } else if (face.kind === 'colonnade' && edgeLenM >= 10 && i === longestI) {
+            emitColonnade(
+              pushOrientedBox,
+              a,
+              bp,
+              nx,
+              nz,
+              y0,
+              y1,
+              face.count,
+              pal.mixHex(faceHex, pal.AO_DARK, 0.35),
+              pal.windowHex(seed),
+            );
+          } else if (wantBayWindows(edgeLenM, spanM, style) && face.kind === 'bays') {
             emitBayWindows(
               scratch,
               pushOrientedBox,
@@ -886,7 +970,7 @@ export function buildChunkTier(
               pal.mixHex(baseHex, pal.CORNICE, 0.12),
               seed,
             );
-          } else if (wantFacadeWindows(edgeLenM, spanM, style)) {
+          } else if (face.kind === 'recess' || wantFacadeWindows(edgeLenM, spanM, style)) {
             emitFacadeWindows(
               scratch,
               pushOrientedBox,
@@ -902,6 +986,7 @@ export function buildChunkTier(
               vScale,
               seed,
               faceHex,
+              face.kind === 'recess' ? face : undefined,
             );
           }
         }
@@ -912,12 +997,32 @@ export function buildChunkTier(
     const glassDark = pal.mixHex(pal.WINDOW, pal.AO_DARK, 0.1);
     const bodyY0 = podium ? podiumWorld : 0;
     const bodySpan = Math.max(heightWorld - bodyY0, 4 * METERS_TO_WORLD);
-    const setbackSteps = massing === 'setback' && b.heightM >= 30 ? 3 : 2;
-    const setbackYA = bodyY0 + bodySpan * (0.38 + ((seed >>> 2) % 7) * 0.022);
+    const setSil = recipe.silhouette;
+    const setbackSteps =
+      setSil.kind === 'asymmetric-setback'
+        ? setSil.tBreaks.length
+        : massing === 'setback' && b.heightM >= 30
+          ? 3
+          : 2;
+    const setT1 =
+      setSil.kind === 'asymmetric-setback' ? setSil.tBreaks[0]! : 0.38 + plan.longestEdgeM / 280;
+    const setT2 =
+      setSil.kind === 'asymmetric-setback' && setSil.tBreaks.length > 2
+        ? setSil.tBreaks[1]!
+        : 0.64 + plan.aspect * 0.03;
+    const setbackYA = bodyY0 + bodySpan * Math.min(0.72, Math.max(0.26, setT1));
     const setbackYB =
-      setbackSteps === 3 ? bodyY0 + bodySpan * (0.64 + ((seed >>> 6) % 5) * 0.02) : heightWorld;
-    const insetM1 = (4.0 + (seed % 5) * 0.7) * METERS_TO_WORLD;
-    const insetM2 = (7.6 + (seed % 4) * 0.8) * METERS_TO_WORLD;
+      setbackSteps >= 3
+        ? bodyY0 + bodySpan * Math.min(0.88, Math.max(setT1 + 0.12, setT2))
+        : heightWorld;
+    const insetM1 =
+      (setSil.kind === 'asymmetric-setback'
+        ? setSil.insetsM[0]!
+        : Math.min(7.2, Math.max(2.4, plan.minRM * 0.2))) * METERS_TO_WORLD;
+    const insetM2 =
+      (setSil.kind === 'asymmetric-setback' && setSil.insetsM[1] !== undefined
+        ? setSil.insetsM[1]
+        : Math.min(12, Math.max(4.2, plan.minRM * 0.38))) * METERS_TO_WORLD;
     const setbackRoof1 = insetRingTowardCentroid(ring, cx, cz, insetM1);
     const setbackRoof2 = insetRingTowardCentroid(ring, cx, cz, insetM2);
     const setbackWall1 =
@@ -925,8 +1030,17 @@ export function buildChunkTier(
     const setbackWall2 =
       chamferAmt > 0 ? chamferRing(setbackRoof2, chamferAmt * 0.4) : setbackRoof2;
     const mansardEaves =
-      bodyY0 + bodySpan * (massing === 'mansard' ? 0.64 + ((seed >>> 3) % 5) * 0.02 : 1);
+      bodyY0 +
+      bodySpan *
+        (setSil.kind === 'mansard-plate'
+          ? setSil.eavesT
+          : setSil.kind === 'courtyard'
+            ? Math.min(0.78, 0.62 + setSil.wellT * 0.2)
+            : massing === 'mansard'
+              ? Math.min(0.76, 0.6 + plan.compactness * 0.12)
+              : 1);
 
+    const facadeOpts = { facade: recipe.facade };
     if (podium) {
       emitRingWalls(wallRing, 0, podiumWorld, {
         plinth: true,
@@ -935,10 +1049,71 @@ export function buildChunkTier(
         doors: true,
         windows: true,
         stringCourses: false,
+        ...facadeOpts,
       });
     }
 
-    if (massing === 'setback') {
+    if (setSil.kind === 'wedge-step') {
+      const apex = ring[setSil.apexIndex] ?? { x: cx, z: cz };
+      let yPrev = bodyY0;
+      for (let s = 0; s < setSil.steps; s++) {
+        const y1 = bodyY0 + bodySpan * setSil.t1[s]!;
+        const stepRing = scaleToward(wallRing, apex.x, apex.z, setSil.scales[s]!);
+        const glassStep = s % 2 === 1;
+        emitRingWalls(s === 0 && !podium ? wallRing : stepRing, yPrev, y1, {
+          plinth: s === 0 && !podium && shopWorld <= 0.02,
+          shop: s === 0 && !podium && shopWorld > 0.02,
+          cornice: true,
+          doors: s === 0 && !podium,
+          windows: true,
+          stringCourses: s === 0,
+          hex: glassStep ? glassHex : undefined,
+          bottomHex: glassStep ? glassHex : undefined,
+          ...facadeOpts,
+        });
+        yPrev = y1;
+      }
+    } else if (setSil.kind === 'disk') {
+      let yPrev = bodyY0;
+      for (let s = 0; s < setSil.bands; s++) {
+        const y1 = bodyY0 + bodySpan * ((s + 1) / setSil.bands);
+        const bandRing = insetRing(ring, cx, cz, setSil.scales[s]!);
+        emitRingWalls(s === 0 && !podium ? wallRing : bandRing, yPrev, y1, {
+          plinth: s === 0 && !podium && shopWorld <= 0.02,
+          shop: s === 0 && !podium && shopWorld > 0.02,
+          cornice: true,
+          doors: s === 0 && !podium,
+          windows: true,
+          stringCourses: false,
+          hex: s > 0 ? glassHex : undefined,
+          bottomHex: s > 0 ? glassHex : undefined,
+          ...facadeOpts,
+        });
+        yPrev = y1;
+      }
+    } else if (setSil.kind === 'ell') {
+      const splitY = bodyY0 + bodySpan * setSil.tBreak;
+      emitRingWalls(podium ? shaftRing : wallRing, bodyY0, splitY, {
+        plinth: !podium && shopWorld <= 0.02,
+        shop: !podium && shopWorld > 0.02,
+        cornice: true,
+        doors: !podium,
+        windows: true,
+        stringCourses: true,
+        ...facadeOpts,
+      });
+      const headRing = insetRing(ring, cx, cz, setSil.shortScale);
+      emitRingWalls(headRing, splitY, heightWorld, {
+        plinth: false,
+        shop: false,
+        cornice: true,
+        doors: false,
+        windows: true,
+        hex: glassHex,
+        bottomHex: glassHex,
+        ...facadeOpts,
+      });
+    } else if (massing === 'setback') {
       emitRingWalls(podium ? shaftRing : wallRing, bodyY0, setbackYA, {
         plinth: !podium && shopWorld <= 0.02,
         shop: !podium && shopWorld > 0.02,
@@ -946,6 +1121,7 @@ export function buildChunkTier(
         doors: !podium,
         windows: true,
         stringCourses: true,
+        ...facadeOpts,
       });
       emitRingWalls(setbackWall1, setbackYA, setbackYB, {
         plinth: false,
@@ -955,8 +1131,9 @@ export function buildChunkTier(
         windows: true,
         hex: glassHex,
         bottomHex: glassHex,
+        ...facadeOpts,
       });
-      if (setbackSteps === 3) {
+      if (setbackSteps >= 3) {
         emitRingWalls(setbackWall2, setbackYB, heightWorld, {
           plinth: false,
           shop: false,
@@ -965,6 +1142,7 @@ export function buildChunkTier(
           windows: true,
           hex: glassDark,
           bottomHex: glassDark,
+          ...facadeOpts,
         });
       }
     } else if (massing === 'mansard') {
@@ -975,6 +1153,7 @@ export function buildChunkTier(
         doors: !podium,
         windows: true,
         stringCourses: true,
+        ...facadeOpts,
       });
     } else {
       emitRingWalls(podium ? shaftRing : wallRing, bodyY0, heightWorld, {
@@ -984,6 +1163,7 @@ export function buildChunkTier(
         doors: !podium,
         windows: true,
         stringCourses: massing === 'parapet' || massing === 'slab' || massing === 'sawtooth',
+        ...facadeOpts,
       });
     }
 
@@ -1150,9 +1330,34 @@ export function buildChunkTier(
     };
 
     if (podium) emitRoof(ring, () => podiumWorld, pal.mixHex(roofHex, pal.AO_DARK, 0.18));
-    if (massing === 'setback') {
+    if (setSil.kind === 'wedge-step') {
+      const apex = ring[setSil.apexIndex] ?? { x: cx, z: cz };
+      for (let s = 0; s < setSil.steps; s++) {
+        const y1 = bodyY0 + bodySpan * setSil.t1[s]!;
+        const stepRing = scaleToward(ring, apex.x, apex.z, setSil.scales[s]!);
+        emitRoof(
+          stepRing,
+          () => y1,
+          s === setSil.steps - 1 ? roofHex : pal.mixHex(roofHex, pal.AO_DARK, 0.12),
+        );
+      }
+    } else if (setSil.kind === 'disk') {
+      for (let s = 0; s < setSil.bands; s++) {
+        const y1 = bodyY0 + bodySpan * ((s + 1) / setSil.bands);
+        const bandRing = insetRing(ring, cx, cz, setSil.scales[s]!);
+        emitRoof(
+          bandRing,
+          () => y1,
+          s === setSil.bands - 1 ? roofHex : pal.mixHex(roofHex, pal.AO_DARK, 0.1),
+        );
+      }
+    } else if (setSil.kind === 'ell') {
+      const splitY = bodyY0 + bodySpan * setSil.tBreak;
+      emitRoof(ring, () => splitY, pal.mixHex(roofHex, pal.AO_DARK, 0.12));
+      emitRoof(insetRing(ring, cx, cz, setSil.shortScale), () => heightWorld, roofHex);
+    } else if (massing === 'setback') {
       emitRoof(podium ? shaftRing : ring, () => setbackYA, pal.mixHex(roofHex, pal.AO_DARK, 0.14));
-      if (setbackSteps === 3) {
+      if (setbackSteps >= 3) {
         emitRoof(setbackRoof1, () => setbackYB, pal.mixHex(roofHex, pal.AO_DARK, 0.08));
         emitRoof(setbackRoof2, () => heightWorld, roofHex);
       } else {
@@ -1164,7 +1369,7 @@ export function buildChunkTier(
 
     const wantParapet =
       !pitched &&
-      (massing === 'slab' || massing === 'parapet' || massing === 'setback') &&
+      recipe.roof.kind === 'parapet' &&
       (major || areaM2 > 140) &&
       b.heightM >= 8 &&
       n <= 24;
@@ -1261,35 +1466,47 @@ export function buildChunkTier(
     }
 
     if (
-      (massing === 'setback' || massing === 'parapet') &&
-      n <= 8 &&
+      setSil.kind === 'asymmetric-setback' &&
+      n <= 6 &&
+      plan.minAngleDeg > 82 &&
       (style === STYLE_OFFICE || style === STYLE_TOWER)
     ) {
       const quoin = 3.1 * METERS_TO_WORLD;
-      const quoinH = massing === 'setback' ? setbackYA : heightWorld;
+      const quoinH = setbackYA;
       for (const p of ring) {
         pushBox(p.x, 0, p.z, quoin, quoinH, quoin, baseHex);
       }
     }
 
-    if (
-      (massing === 'setback' || massing === 'slab' || massing === 'parapet') &&
-      areaM2 > 400 &&
-      b.heightM >= 18 &&
-      n <= 24
-    ) {
-      const pentH = 4.6 * METERS_TO_WORLD;
-      const pentRing = insetRingTowardCentroid(ring, cx, cz, 6.2 * METERS_TO_WORLD);
-      emitRingWalls(pentRing, heightWorld, heightWorld + pentH, {
-        plinth: false,
-        shop: false,
-        cornice: false,
-        doors: false,
-        windows: false,
-        hex: roofHex,
-        bottomHex: roofHex,
-      });
-      emitRoof(pentRing, () => heightWorld + pentH, roofHex);
+    if (recipe.plant && b.heightM >= 16) {
+      const plant = recipe.plant;
+      const pentH = plant.hM * METERS_TO_WORLD;
+      const along = plant.along * plan.maxAlongM * METERS_TO_WORLD;
+      const perp = plant.perp * plan.maxPerpM * METERS_TO_WORLD;
+      const px = cx + plan.ax * along + plan.px * perp;
+      const pz = cz + plan.az * along + plan.pz * perp;
+      pushOrientedBox(
+        px,
+        heightWorld,
+        pz,
+        plant.wM * METERS_TO_WORLD,
+        pentH,
+        plant.dM * METERS_TO_WORLD,
+        plan.ax,
+        plan.az,
+        plan.px,
+        plan.pz,
+        pal.mixHex(roofHex, pal.AO_DARK, 0.08),
+      );
+    }
+
+    if (recipe.turret) {
+      const tp = ring[recipe.turret.vertexIndex];
+      if (tp) {
+        const r = recipe.turret.rM * METERS_TO_WORLD;
+        const h = heightWorld * (1 + recipe.turret.hFrac);
+        pushBox(tp.x, 0, tp.z, r * 2, h, r * 2, pal.mixHex(baseHex, pal.CORNICE, 0.18));
+      }
     }
 
     if (scratch) {
@@ -1402,17 +1619,18 @@ function emitFacadeWindows(
   vScale: number,
   seed: number,
   wallHex: number,
+  recess?: Extract<UniqueFacade, { kind: 'recess' }>,
 ): void {
   const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
   const spanY = y1 - y0;
   const heightM = spanY / METERS_TO_WORLD;
-  if (!wantFacadeWindows(edgeM, heightM, style)) return;
+  if (!recess && !wantFacadeWindows(edgeM, heightM, style)) return;
 
   const winStart = y0 + (shopWorld > 0.02 ? shopWorld : 0.7 * METERS_TO_WORLD * vScale);
   const winEnd = y1 - 0.55 * METERS_TO_WORLD * vScale;
   if (winEnd - winStart < 1.6 * METERS_TO_WORLD) return;
 
-  const rhythm = facadeWindowRhythm(style, major, seed);
+  const rhythm = recess ?? facadeWindowRhythm(style, major, seed);
   const winW = (major ? 2.05 : 1.9) * METERS_TO_WORLD;
   const winH = (major ? 2.4 : 2.2) * METERS_TO_WORLD * Math.min(vScale, 1.8);
   const marginU = 0.5;
@@ -1426,7 +1644,7 @@ function emitFacadeWindows(
   );
   cols = Math.min(cols, rhythm.colCap);
   rows = Math.min(rows, rhythm.rowCap);
-  const maxCount = major ? 48 : 16;
+  const maxCount = recess ? recess.bakeCap : major ? 48 : 16;
   if (cols * rows > maxCount) {
     rows = Math.max(1, Math.floor(maxCount / cols));
   }
@@ -1451,14 +1669,12 @@ function emitFacadeWindows(
     }
   }
 
-  // Baked niches so the front still reads when instanced sashes do not.
-  // Longest street fronts only; cap the count so a City chunk does not explode.
   if (edgeM < 8) return;
-  const depth = 2.9 * METERS_TO_WORLD;
+  const depth = (recess ? 2.1 : 2.9) * METERS_TO_WORLD;
   const paneD = 0.55 * METERS_TO_WORLD;
-  let bakeCols = Math.min(cols, 6);
-  let bakeRows = Math.min(rows, 4);
-  const bakeCap = major ? 16 : 10;
+  let bakeCols = Math.min(cols, recess ? recess.colCap : 6);
+  let bakeRows = Math.min(rows, recess ? Math.min(3, recess.rowCap) : 4);
+  const bakeCap = recess ? recess.bakeCap : major ? 16 : 10;
   while (bakeCols * bakeRows > bakeCap && bakeRows > 1) bakeRows -= 1;
   while (bakeCols * bakeRows > bakeCap && bakeCols > 2) bakeCols -= 1;
   for (let r = 0; r < bakeRows; r++) {
@@ -1483,6 +1699,202 @@ function emitFacadeWindows(
       );
     }
   }
+}
+
+function emitRibbonBands(
+  pushOrientedBox: OrientedBoxFn,
+  a: { x: number; z: number },
+  bp: { x: number; z: number },
+  nx: number,
+  nz: number,
+  y0: number,
+  y1: number,
+  floors: number,
+  bandRatio: number,
+  glass: number,
+  shelf: number,
+): void {
+  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
+  const edgeM = elen / METERS_TO_WORLD;
+  if (edgeM < 6.5) return;
+  const tx = (bp.x - a.x) / elen;
+  const tz = (bp.z - a.z) / elen;
+  const mx = (a.x + bp.x) / 2;
+  const mz = (a.z + bp.z) / 2;
+  const span = y1 - y0;
+  const nFloors = Math.max(2, Math.min(floors, 8));
+  const bandH = (span / nFloors) * bandRatio;
+  const along = elen * 0.9;
+  for (let f = 0; f < nFloors; f++) {
+    const y = y0 + ((f + 0.5) / nFloors) * span - bandH / 2;
+    const depth = 1.15 * METERS_TO_WORLD;
+    pushOrientedBox(
+      mx + nx * (depth / 2),
+      y,
+      mz + nz * (depth / 2),
+      along,
+      bandH,
+      depth,
+      tx,
+      tz,
+      nx,
+      nz,
+      glass,
+    );
+    if (f < nFloors - 1) {
+      const shelfH = Math.min(0.35 * METERS_TO_WORLD, bandH * 0.22);
+      const shelfD = 1.65 * METERS_TO_WORLD;
+      pushOrientedBox(
+        mx + nx * (shelfD / 2),
+        y + bandH,
+        mz + nz * (shelfD / 2),
+        along * 1.02,
+        shelfH,
+        shelfD,
+        tx,
+        tz,
+        nx,
+        nz,
+        shelf,
+      );
+    }
+  }
+}
+
+function emitPierFacade(
+  scratch: CityScratch,
+  pushOrientedBox: OrientedBoxFn,
+  a: { x: number; z: number },
+  bp: { x: number; z: number },
+  nx: number,
+  nz: number,
+  y0: number,
+  y1: number,
+  pitchM: number,
+  depthM: number,
+  style: number,
+  major: boolean,
+  shopWorld: number,
+  vScale: number,
+  seed: number,
+  wallHex: number,
+): void {
+  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
+  const edgeM = elen / METERS_TO_WORLD;
+  const tx = (bp.x - a.x) / elen;
+  const tz = (bp.z - a.z) / elen;
+  const count = Math.max(3, Math.min(10, Math.round(edgeM / pitchM)));
+  const pierW = 0.85 * METERS_TO_WORLD;
+  const depth = depthM * METERS_TO_WORLD;
+  const pierHex = pal.mixHex(wallHex, pal.CORNICE, 0.2);
+  for (let i = 1; i < count; i++) {
+    const t = i / count;
+    const mx = a.x + (bp.x - a.x) * t;
+    const mz = a.z + (bp.z - a.z) * t;
+    pushOrientedBox(
+      mx + nx * (depth / 2),
+      y0,
+      mz + nz * (depth / 2),
+      pierW,
+      y1 - y0,
+      depth,
+      tx,
+      tz,
+      nx,
+      nz,
+      pierHex,
+    );
+  }
+  emitFacadeWindows(
+    scratch,
+    pushOrientedBox,
+    a,
+    bp,
+    nx,
+    nz,
+    y0,
+    y1,
+    style,
+    major,
+    shopWorld,
+    vScale,
+    seed,
+    wallHex,
+    {
+      kind: 'recess',
+      pitchU: pitchM,
+      pitchV: 3.2,
+      colCap: Math.min(6, count),
+      rowCap: 3,
+      bakeCap: 8,
+    },
+  );
+}
+
+function emitColonnade(
+  pushOrientedBox: OrientedBoxFn,
+  a: { x: number; z: number },
+  bp: { x: number; z: number },
+  nx: number,
+  nz: number,
+  y0: number,
+  y1: number,
+  count: number,
+  column: number,
+  glass: number,
+): void {
+  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
+  const tx = (bp.x - a.x) / elen;
+  const tz = (bp.z - a.z) / elen;
+  const nCol = Math.max(3, Math.min(count, 10));
+  const colH = Math.min(y1 - y0, 9.5 * METERS_TO_WORLD);
+  const colW = 1.15 * METERS_TO_WORLD;
+  const depth = 2.2 * METERS_TO_WORLD;
+  for (let i = 0; i < nCol; i++) {
+    const t = (i + 0.5) / nCol;
+    const mx = a.x + (bp.x - a.x) * t;
+    const mz = a.z + (bp.z - a.z) * t;
+    pushOrientedBox(
+      mx + nx * (depth / 2),
+      y0,
+      mz + nz * (depth / 2),
+      colW,
+      colH,
+      depth,
+      tx,
+      tz,
+      nx,
+      nz,
+      column,
+    );
+  }
+  const lintelH = 0.7 * METERS_TO_WORLD;
+  pushOrientedBox(
+    (a.x + bp.x) / 2 + nx * (depth / 2),
+    y0 + colH,
+    (a.z + bp.z) / 2 + nz * (depth / 2),
+    elen * 0.92,
+    lintelH,
+    depth * 1.1,
+    tx,
+    tz,
+    nx,
+    nz,
+    column,
+  );
+  pushOrientedBox(
+    (a.x + bp.x) / 2 + nx * 0.4 * METERS_TO_WORLD,
+    y0 + colH * 0.45,
+    (a.z + bp.z) / 2 + nz * 0.4 * METERS_TO_WORLD,
+    elen * 0.72,
+    colH * 0.55,
+    0.35 * METERS_TO_WORLD,
+    tx,
+    tz,
+    nx,
+    nz,
+    glass,
+  );
 }
 
 export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | null {

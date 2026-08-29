@@ -63,3 +63,72 @@ export function insetRingTowardCentroid(
     z: cz + (p.z - cz) * scale,
   }));
 }
+
+/** Hyatt-style terraces: shrink the plan toward a stand-out vertex. */
+export function scaleToward(
+  ring: readonly RingPt[],
+  px: number,
+  pz: number,
+  scale: number,
+): RingPt[] {
+  return ring.map((p) => ({
+    x: px + (p.x - px) * scale,
+    z: pz + (p.z - pz) * scale,
+  }));
+}
+
+function cross(o: RingPt, a: RingPt, b: RingPt): number {
+  return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
+}
+
+/** Monotone-chain convex hull. Needed to find courtyard notches. */
+export function convexHull(ring: readonly RingPt[]): RingPt[] {
+  if (ring.length < 3) return ring.map((p) => ({ x: p.x, z: p.z }));
+  const pts = ring.map((p) => ({ x: p.x, z: p.z })).sort((a, b) => a.x - b.x || a.z - b.z);
+  const lower: RingPt[] = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+  const upper: RingPt[] = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i]!;
+    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+function distToSegmentM(p: RingPt, a: RingPt, b: RingPt, metersToWorld: number): number {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-16) return Math.hypot(p.x - a.x, p.z - a.z) / metersToWorld;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.z - (a.z + t * dz)) / metersToWorld;
+}
+
+/** Deepest courtyard bite: metres from a hull edge to the farthest interior vertex. */
+export function hullNotchDepthM(
+  ring: readonly RingPt[],
+  hull: readonly RingPt[],
+  metersToWorld: number,
+): number {
+  if (hull.length < 3 || ring.length < 4) return 0;
+  let maxD = 0;
+  for (const p of ring) {
+    let minEdge = Infinity;
+    for (let i = 0; i < hull.length; i++) {
+      const d = distToSegmentM(p, hull[i]!, hull[(i + 1) % hull.length]!, metersToWorld);
+      if (d < minEdge) minEdge = d;
+    }
+    if (minEdge > maxD) maxD = minEdge;
+  }
+  return maxD;
+}

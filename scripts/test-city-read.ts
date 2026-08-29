@@ -14,12 +14,19 @@ import {
   STYLE_INDUSTRIAL,
   bayCountForEdge,
   restyleForDistrict,
+  resolveStyle,
+  districtAt,
   stockMassing,
   STYLE_APARTMENTS,
   wantBayWindows,
 } from '../lib/game/render3d/buildingStyle';
 import { polylineDashes, segmentEdgeOffsets } from '../lib/game/render3d/streetMarks';
-import { chamferRing, insetRingTowardCentroid } from '../lib/game/render3d/footprint';
+import { chamferRing, insetRingTowardCentroid, scaleToward } from '../lib/game/render3d/footprint';
+import {
+  analyzeFootprint,
+  recipeFingerprint,
+  uniqueStockRecipe,
+} from '../lib/game/render3d/uniqueStock';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import {
   LANDMARKS,
@@ -30,6 +37,7 @@ import {
   project,
   thamesCrossingLookKey,
   thamesTangent,
+  unproject,
 } from '../lib/game/geo';
 import {
   splitRoadRuns,
@@ -802,6 +810,128 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
   }
   assert.ok(verts > 2000, `citystreet keep-disk emptied Cheapside (${verts} verts)`);
   assert.ok(tallNear > 4000, `citystreet keep-disk is ground pancakes (${tallNear} tall verts)`);
+});
+
+check('Cheapside stock is unique meshes from each footprint, not one office costume', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const at = project(CITYSTREET_AT);
+  const prints = new Set<string>();
+  const kinds = new Map<string, number>();
+  const facades = new Map<string, number>();
+  let n = 0;
+  for (const b of city.buildings) {
+    const count = b.verts.length / 2;
+    const ring: { x: number; z: number }[] = [];
+    let cx = 0;
+    let cz = 0;
+    for (let i = 0; i < count; i++) {
+      const x = dequantizeX(b.verts[i * 2]!);
+      const z = dequantizeY(b.verts[i * 2 + 1]!);
+      ring.push({ x, z });
+      cx += x;
+      cz += z;
+    }
+    cx /= count;
+    cz /= count;
+    if (Math.hypot(cx - at.x, cz - at.y) / METERS_TO_WORLD > 220) continue;
+    let acc = 0;
+    for (let i = 0; i < count; i++) {
+      const a = ring[i]!;
+      const bp = ring[(i + 1) % count]!;
+      acc += a.x * bp.z - bp.x * a.z;
+    }
+    const areaM2 = (Math.abs(acc) * 0.5) / (METERS_TO_WORLD * METERS_TO_WORLD);
+    const [lng, lat] = unproject(cx, cz);
+    const district = districtAt(lng, lat);
+    const style = restyleForDistrict(
+      resolveStyle(b.style, b.heightM, areaM2),
+      b.heightM,
+      areaM2,
+      district,
+    );
+    if (b.heightM < 12) continue;
+    const plan = analyzeFootprint(ring, METERS_TO_WORLD);
+    const recipe = uniqueStockRecipe({
+      plan,
+      heightM: b.heightM,
+      style,
+      osmRoof: b.roof,
+    });
+    prints.add(recipeFingerprint(recipe));
+    kinds.set(recipe.silhouette.kind, (kinds.get(recipe.silhouette.kind) ?? 0) + 1);
+    facades.set(recipe.facade.kind, (facades.get(recipe.facade.kind) ?? 0) + 1);
+    n += 1;
+  }
+  assert.ok(n > 40, `Cheapside near-field has no mid-rise stock (${n})`);
+  assert.ok(prints.size >= Math.floor(n * 0.55), `stock fingerprints cloned ${prints.size}/${n}`);
+  assert.ok(kinds.size >= 3, `only ${[...kinds.keys()].join(',')} silhouettes on Cheapside`);
+  const dominant = Math.max(...kinds.values());
+  assert.ok(dominant / n < 0.62, `one silhouette still costumes the street (${dominant}/${n})`);
+  assert.ok(facades.size >= 2, `every Cheapside front still shares one façade language`);
+});
+
+check('acute and courtyard plans get stand-out massing, not a shared setback box', () => {
+  const m = METERS_TO_WORLD;
+  const wedge = [
+    { x: 0, z: 0 },
+    { x: 40 * m, z: 0 },
+    { x: 8 * m, z: 28 * m },
+  ];
+  const wedgePlan = analyzeFootprint(wedge, m);
+  const wedgeRecipe = uniqueStockRecipe({
+    plan: wedgePlan,
+    heightM: 28,
+    style: STYLE_OFFICE,
+    osmRoof: 0,
+  });
+  assert.equal(wedgeRecipe.silhouette.kind, 'wedge-step');
+  assert.equal(wedgeRecipe.facade.kind, 'ribbon');
+  assert.ok(scaleToward(wedge, wedge[0]!.x, wedge[0]!.z, 0.5)[1]!.x < wedge[1]!.x);
+
+  const court = [
+    { x: 0, z: 0 },
+    { x: 50 * m, z: 0 },
+    { x: 50 * m, z: 40 * m },
+    { x: 30 * m, z: 40 * m },
+    { x: 30 * m, z: 12 * m },
+    { x: 12 * m, z: 12 * m },
+    { x: 12 * m, z: 40 * m },
+    { x: 0, z: 40 * m },
+  ];
+  const courtRecipe = uniqueStockRecipe({
+    plan: analyzeFootprint(court, m),
+    heightM: 22,
+    style: STYLE_OFFICE,
+    osmRoof: 0,
+  });
+  assert.equal(courtRecipe.silhouette.kind, 'courtyard');
+
+  const plateA = [
+    { x: 0, z: 0 },
+    { x: 24 * m, z: 0 },
+    { x: 24 * m, z: 20 * m },
+    { x: 0, z: 20 * m },
+  ];
+  const plateB = [
+    { x: 0, z: 0 },
+    { x: 48 * m, z: 0 },
+    { x: 48 * m, z: 16 * m },
+    { x: 0, z: 16 * m },
+  ];
+  const a = uniqueStockRecipe({
+    plan: analyzeFootprint(plateA, m),
+    heightM: 32,
+    style: STYLE_OFFICE,
+    osmRoof: 0,
+  });
+  const b = uniqueStockRecipe({
+    plan: analyzeFootprint(plateB, m),
+    heightM: 32,
+    style: STYLE_OFFICE,
+    osmRoof: 0,
+  });
+  assert.notEqual(recipeFingerprint(a), recipeFingerprint(b));
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {
