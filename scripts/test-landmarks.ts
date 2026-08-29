@@ -380,6 +380,11 @@ check('London City Airport is a runway in the docks, not a grey rectangle', () =
   assert.ok(box.min.y > 0.08, `runway must sit above dock water, min.y=${box.min.y.toFixed(3)}`);
   const mat = Array.isArray(runway.material) ? runway.material[0] : runway.material;
   assert.equal(mat.type, 'MeshBasicMaterial', 'runway stays asphalt, not a lit hangar');
+  assert.equal(
+    (mat as THREE.MeshBasicMaterial).polygonOffset,
+    false,
+    'runway polygonOffset buries piano keys at the aerial look',
+  );
   assert.ok(air.getObjectByName('terminal'), 'south-side terminal pier');
   assert.ok(air.getObjectByName('tower'), 'south-side control tower');
   assert.ok(air.getObjectByName('apron'), 'stands south of the runway');
@@ -401,11 +406,17 @@ check('London City Airport is a runway in the docks, not a grey rectangle', () =
     cabBox.min.z < shaftBox.min.z - 6 * METERS_TO_WORLD,
     'cab cantilevers toward the runway',
   );
+  const rwTop = box.max.y;
   let marks = 0;
+  let buried = 0;
   air.traverse((obj) => {
-    if (obj.name === 'runway-mark') marks += 1;
+    if (obj.name !== 'runway-mark' || !(obj instanceof THREE.Mesh)) return;
+    marks += 1;
+    const mb = new THREE.Box3().setFromObject(obj);
+    if (mb.min.y < rwTop - 1e-4) buried += 1;
   });
   assert.ok(marks >= 40, `piano keys / dashes / 09-27, got ${marks}`);
+  assert.equal(buried, 0, `${buried} marks still inside the runway slab`);
   const dlr = air.getObjectByName('dlr')!;
   assert.ok(dlr.position.x < 0, 'DLR at the west end');
   let bridges = 0;

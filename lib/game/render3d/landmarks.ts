@@ -1753,7 +1753,7 @@ function buildAlbertHall(): THREE.Group {
   return group;
 }
 
-/** Chunk 3×5 digit on the runway deck. Rows run along `ax` (approach). */
+/** Chunk 3×5 digit on the runway deck. Rows run along `ax` (approach). `y` is the box centre. */
 function addRunwayDigit(
   group: THREE.Group,
   cells: readonly number[],
@@ -1762,6 +1762,7 @@ function addRunwayDigit(
   ax: number,
   az: number,
   y: number,
+  height: number,
   mat: THREE.Material,
 ): void {
   const col = m(3.6);
@@ -1773,7 +1774,7 @@ function addRunwayDigit(
       if (!cells[r * 3 + c]) continue;
       const along = (2 - r) * row;
       const across = (c - 1) * col;
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(m(3.4), m(0.42), m(4.0)), mat);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(m(3.4), height, m(4.0)), mat);
       mesh.position.set(x + ax * along + px * across, y, z + az * along + pz * across);
       mesh.name = 'runway-mark';
       group.add(mesh);
@@ -1787,11 +1788,14 @@ function buildLcy(): THREE.Group {
   const asphalt = new THREE.MeshBasicMaterial({
     color: ASPHALT,
     fog: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
   });
-  const mark = new THREE.MeshBasicMaterial({ color: 0xe8e6dc, fog: true });
+  const mark = new THREE.MeshBasicMaterial({
+    color: 0xe8e6dc,
+    fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
   const concrete = new THREE.MeshLambertMaterial({ color: 0xc8c4b8 });
   const hall = new THREE.MeshLambertMaterial({ color: 0xece8dc });
   const glass = new THREE.MeshBasicMaterial({ color: 0x3a5468, fog: true });
@@ -1805,7 +1809,11 @@ function buildLcy(): THREE.Group {
   const rwLen = m(1508);
   const rwW = m(30);
   const rwH = m(0.7);
-  const markY = deck + rwH + m(0.05);
+  const markH = m(0.55);
+  // Centre sits fully above the runway slab. A 0.38 m box centred 5 cm
+  // above the deck was half inside the asphalt; polygonOffset on the
+  // ribbon then ate the rest at viewH 10.2.
+  const markY = deck + rwH + markH / 2 + m(0.15);
 
   const runway = new THREE.Mesh(new THREE.BoxGeometry(rwLen, rwH, rwW), asphalt);
   runway.name = 'runway';
@@ -1815,24 +1823,24 @@ function buildLcy(): THREE.Group {
   addBox(group, rwLen, m(0.22), m(10), grass, 0, deck, -m(20));
   addBox(group, rwLen * 0.55, m(0.22), m(14), grass, m(80), deck, m(24));
   for (const z of [-m(14.4), m(14.4)]) {
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(rwLen * 0.98, m(0.32), m(1.6)), mark);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(rwLen * 0.98, markH, m(2.0)), mark);
     edge.name = 'runway-mark';
     edge.position.set(0, markY, z);
     group.add(edge);
   }
   for (let i = -48; i <= 48; i++) {
     if (i % 2 === 0) continue;
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(m(32), m(0.38), m(2.4)), mark);
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(m(40), markH, m(3.2)), mark);
     dash.name = 'runway-mark';
     dash.position.set(i * m(15), markY, 0);
     group.add(dash);
   }
   for (const side of [-1, 1]) {
-    const x0 = side * (rwLen / 2 - m(40));
+    const x0 = side * (rwLen / 2 - m(42));
     for (let i = 0; i < 6; i++) {
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(m(28), m(0.38), m(2.4)), mark);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(m(32), markH, m(3.2)), mark);
       bar.name = 'runway-mark';
-      bar.position.set(x0, markY, (i - 2.5) * m(4.2));
+      bar.position.set(x0, markY, (i - 2.5) * m(4.4));
       group.add(bar);
     }
   }
@@ -1846,13 +1854,13 @@ function buildLcy(): THREE.Group {
   const g09 = new THREE.Group();
   g09.name = 'mark-09';
   group.add(g09);
-  addRunwayDigit(g09, zero, west, -m(8.4), 1, 0, markY, mark);
-  addRunwayDigit(g09, nine, west, m(8.4), 1, 0, markY, mark);
+  addRunwayDigit(g09, zero, west, -m(8.4), 1, 0, markY, markH, mark);
+  addRunwayDigit(g09, nine, west, m(8.4), 1, 0, markY, markH, mark);
   const g27 = new THREE.Group();
   g27.name = 'mark-27';
   group.add(g27);
-  addRunwayDigit(g27, two, east, m(8.4), -1, 0, markY, mark);
-  addRunwayDigit(g27, seven, east, -m(8.4), -1, 0, markY, mark);
+  addRunwayDigit(g27, two, east, m(8.4), -1, 0, markY, markH, mark);
+  addRunwayDigit(g27, seven, east, -m(8.4), -1, 0, markY, markH, mark);
 
   const apron = new THREE.Mesh(new THREE.BoxGeometry(m(560), m(0.45), m(62)), concrete);
   apron.name = 'apron';
