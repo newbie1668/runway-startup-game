@@ -193,15 +193,16 @@ function addGothicPortalFace(
   addBox(group, depth, height, jamb, stone, x, y, z - width / 2);
   addBox(group, depth, height, jamb, stone, x, y, z + width / 2);
   addBox(group, depth, m(2.6), width + jamb, stone, x, y + height - m(1.3), z);
-  const peak = new THREE.Mesh(new THREE.BoxGeometry(depth, width * 0.62, width * 0.78), stone);
+  const cap = Math.min(width * 0.38, m(5.5));
+  const peak = new THREE.Mesh(new THREE.BoxGeometry(depth, cap, cap), stone);
   peak.rotation.x = Math.PI / 4;
-  peak.position.set(x, y + height + m(0.4), z);
+  peak.position.set(x, y + height + m(0.2), z);
   group.add(peak);
   const reveal = new THREE.Mesh(
-    new THREE.BoxGeometry(depth * 0.55, m(2.2), width - jamb * 0.35),
+    new THREE.BoxGeometry(depth * 0.45, m(1.8), Math.min(width * 0.55, m(8))),
     voidMat,
   );
-  reveal.position.set(x, y + height - m(1.1), z);
+  reveal.position.set(x, y + height - m(1.0), z);
   if (name) reveal.name = name;
   group.add(reveal);
 }
@@ -654,7 +655,7 @@ function buildTowerBridge(): THREE.Group {
     for (const xFace of [(shaftW - wallT) / 2, -(shaftW - wallT) / 2]) {
       addGothicPortalFace(
         group,
-        shaftD - pier * 1.2,
+        shaftD - pier * 2.4,
         portalH - m(1.2),
         m(2.2),
         stone,
