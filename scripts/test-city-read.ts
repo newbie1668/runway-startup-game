@@ -974,6 +974,8 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let poultryMaxR = 40 * METERS_TO_WORLD;
   let poultryCx = poultryAt.x;
   let poultryCz = poultryAt.y;
+  let apexX = poultryAt.x;
+  let apexZ = poultryAt.y;
   for (const b of city.buildings) {
     if (b.chunkId !== chunkId) continue;
     const n = b.verts.length / 2;
@@ -996,6 +998,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     poultryCx = plan.cx;
     poultryCz = plan.cz;
     poultryMaxR = 0;
+    const apex = ring[plan.apexIndex] ?? { x: plan.cx, z: plan.cz };
+    apexX = apex.x;
+    apexZ = apex.z;
     for (const p of ring) {
       poultryMaxR = Math.max(poultryMaxR, Math.hypot(p.x - plan.cx, p.z - plan.cz));
     }
@@ -1027,7 +1032,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let poultryClockN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
-  const drumKeys = new Set<string>();
+  const highR: number[] = [];
   const stickPad = 8 * METERS_TO_WORLD;
   for (const major of [true, false]) {
     const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
@@ -1041,9 +1046,6 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
       const z = pos.getZ(i);
       const d = Math.hypot(x - poultryAt.x, z - poultryAt.y) / METERS_TO_WORLD;
       const yM = y / METERS_TO_WORLD;
-      if (d <= 55 && yM > 38) {
-        drumKeys.add(`${x.toFixed(3)},${z.toFixed(3)}`);
-      }
       const dC = Math.hypot(x - poultryCx, z - poultryCz);
       const r = colors.getX(i);
       const g = colors.getY(i);
@@ -1061,6 +1063,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         (Math.abs(r - roofCol.r) < 0.05 &&
           Math.abs(g - roofCol.g) < 0.05 &&
           Math.abs(b - roofCol.b) < 0.05);
+      if (d <= 40 && yM > 36 && poultryTint) {
+        highR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
+      }
       if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
       if (
         dC < wellR * 1.08 &&
@@ -1191,10 +1196,17 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     poultryClockN > 24,
     `Poultry clock faces missing (clock=${poultryClockN}) — blank drum is a fail`,
   );
-  assert.ok(
-    drumKeys.size >= 12,
-    `Poultry clock turret is still a box (${drumKeys.size} unique xz above roof)`,
-  );
+  assert.ok(highR.length > 16, `Poultry prow missing above the wings (${highR.length} high verts)`);
+  {
+    const mean = highR.reduce((a, v) => a + v, 0) / highR.length;
+    const variance = highR.reduce((a, v) => a + (v - mean) ** 2, 0) / highR.length;
+    const std = Math.sqrt(variance);
+    const circ = mean > 0.4 ? 1 - std / mean : 1;
+    assert.ok(
+      circ < 0.72,
+      `Poultry is still a cylinder (circularity=${circ.toFixed(2)}, n=${highR.length})`,
+    );
+  }
   assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);
   assert.ok(holeRoof < 12, `Poultry courtyard well is roofed over (${holeRoof} hole verts)`);
   assert.ok(stickN < 8, `Poultry bands stick through the facade (${stickN} verts)`);
