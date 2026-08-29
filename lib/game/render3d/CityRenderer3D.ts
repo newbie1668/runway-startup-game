@@ -504,7 +504,11 @@ export class CityRenderer3D implements IMapRenderer {
   private drainBuildQueue(): void {
     const budget = this.readyNotified ? BUILD_JOBS_PER_FRAME : BUILD_JOBS_WHILE_LOADING;
     for (let i = 0; i < budget && this.buildQueue.length > 0; i++) {
-      this.buildQueue.shift()!();
+      try {
+        this.buildQueue.shift()!();
+      } catch {
+        // One mesh job must not stall the rest of London.
+      }
     }
     if (this.cityStreamed && this.buildQueue.length === 0) this.markReady();
   }
