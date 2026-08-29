@@ -69,7 +69,6 @@ export const CHUNK_COUNT = CHUNK_COLS * CHUNK_ROWS;
 
 export const WINDOW_MAX = 720_000;
 export const TREE_MAX = 36_000;
-export const GROVE_MAX = 2_400;
 export const ROOFTOP_MAX = 24_000;
 
 const ROAD_WIDTHS_M = [14, 9.5, 5.8];
@@ -79,9 +78,12 @@ const SIDEWALK_M = [3.6, 2.8, 2.0];
 export const ROAD_Y = 0.14;
 const SIDEWALK_Y = 0.09;
 const MARK_Y = 0.155;
-const PARK_Y = 0.11;
+/** Carpet just above GROUND. Not a 12 m plate (0.11 world ≈ Hyde-as-tent). */
+export const PARK_Y = 0.028;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
+/** Longest-edge split so OSM fans are a lawn, not a 2 km crumpled tent. */
+const MAX_PARK_EDGE = 120 * METERS_TO_WORLD;
 
 function landmarkExclusionAt(x: number, z: number): number | null {
   for (const landmark of LANDMARKS) {
@@ -1664,10 +1666,11 @@ function parkShadeAt(
   dark: THREE.Color,
   lite: THREE.Color,
 ): THREE.Color {
-  const h = Math.imul(Math.round(x * 36), 374761393) ^ Math.imul(Math.round(z * 36), 668265263);
-  const u = ((h >>> 0) % 1000) / 1000;
-  if (u < 0.22) return dark;
-  if (u > 0.82) return lite;
+  // Smooth field so a 120 m triangle does not Gouraud-crease like hashed verts.
+  const u =
+    0.5 + 0.3 * Math.sin(x * 18.7 + z * 9.4) + 0.18 * Math.sin(x * 6.2 - z * 21.1);
+  if (u < 0.4) return dark;
+  if (u > 0.6) return lite;
   return base;
 }
 
@@ -1686,6 +1689,15 @@ function emitParkTriangle(
   dark: THREE.Color,
   lite: THREE.Color,
 ): void {
+  // FrontSide needs +Y winding. OSM fans are mixed; DoubleSide z-fought GROUND.
+  if ((bx - ax) * (cz - az) - (bz - az) * (cx - ax) < 0) {
+    const tx = bx;
+    const tz = bz;
+    bx = cx;
+    bz = cz;
+    cx = tx;
+    cz = tz;
+  }
   const push = (x: number, z: number): number => {
     const c = parkShadeAt(x, z, base, dark, lite);
     const i = positions.length / 3;
@@ -1699,13 +1711,68 @@ function emitParkTriangle(
   indices.push(i0, i1, i2);
 }
 
+function emitParkFan(
+  positions: number[],
+  colors: number[],
+  indices: number[],
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+  y: number,
+  base: THREE.Color,
+  dark: THREE.Color,
+  lite: THREE.Color,
+  keep: KeepDisk | null,
+): void {
+  const stack = [ax, az, bx, bz, cx, cz];
+  while (stack.length >= 6) {
+    cz = stack.pop()!;
+    cx = stack.pop()!;
+    bz = stack.pop()!;
+    bx = stack.pop()!;
+    az = stack.pop()!;
+    ax = stack.pop()!;
+    const ab = Math.hypot(bx - ax, bz - az);
+    const bc = Math.hypot(cx - bx, cz - bz);
+    const ca = Math.hypot(ax - cx, az - cz);
+    const longest = Math.max(ab, bc, ca);
+    if (longest > MAX_PARK_EDGE) {
+      if (ab >= bc && ab >= ca) {
+        const mx = (ax + bx) * 0.5;
+        const mz = (az + bz) * 0.5;
+        stack.push(ax, az, mx, mz, cx, cz, mx, mz, bx, bz, cx, cz);
+      } else if (bc >= ca) {
+        const mx = (bx + cx) * 0.5;
+        const mz = (bz + cz) * 0.5;
+        stack.push(ax, az, bx, bz, mx, mz, ax, az, mx, mz, cx, cz);
+      } else {
+        const mx = (cx + ax) * 0.5;
+        const mz = (cz + az) * 0.5;
+        stack.push(ax, az, bx, bz, mx, mz, mx, mz, bx, bz, cx, cz);
+      }
+      continue;
+    }
+    if (triangleHitsExclusion(ax, az, bx, bz, cx, cz)) continue;
+    if (
+      keep &&
+      (!inKeepDisk(ax, az, keep) || !inKeepDisk(bx, bz, keep) || !inKeepDisk(cx, cz, keep))
+    ) {
+      continue;
+    }
+    emitParkTriangle(positions, colors, indices, ax, az, bx, bz, cx, cz, y, base, dark, lite);
+  }
+}
+
 function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE.Mesh | null {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
-  const base = new THREE.Color(0x6b9a4e);
-  const dark = new THREE.Color(0x5a8a42);
-  const lite = new THREE.Color(0x7eab5c);
+  const base = new THREE.Color(0x6ea84c);
+  const dark = new THREE.Color(0x5a9340);
+  const lite = new THREE.Color(0x88bf5e);
   for (const p of cityData.parks) {
     const n = p.verts.length / 2;
     if (n < 3) continue;
@@ -1718,14 +1785,7 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
       const b = ring[p.indices[t + 1]!]!;
       const c = ring[p.indices[t + 2]!]!;
       if (!a || !b || !c) continue;
-      if (triangleHitsExclusion(a.x, a.z, b.x, b.z, c.x, c.z)) continue;
-      if (
-        keep &&
-        (!inKeepDisk(a.x, a.z, keep) || !inKeepDisk(b.x, b.z, keep) || !inKeepDisk(c.x, c.z, keep))
-      ) {
-        continue;
-      }
-      emitParkTriangle(
+      emitParkFan(
         positions,
         colors,
         indices,
@@ -1739,6 +1799,7 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
         base,
         dark,
         lite,
+        keep,
       );
     }
   }
@@ -1756,13 +1817,14 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
     new THREE.MeshBasicMaterial({
       color: 0xffffff,
       vertexColors: true,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       fog: true,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     }),
   );
+  mesh.name = 'grass';
   mesh.receiveShadow = false;
   mesh.castShadow = false;
   return mesh;
@@ -1833,7 +1895,6 @@ export function buildParkTrees(
 ): THREE.Group | null {
   const dummy = new THREE.Object3D();
   const spots: { x: number; z: number; scale: number; shade: number; cluster: boolean }[] = [];
-  const groves: { x: number; z: number; scale: number; shade: number }[] = [];
 
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
@@ -1841,7 +1902,8 @@ export function buildParkTrees(
     if (!inKeepDisk(info.x, info.z, keep, 80 * METERS_TO_WORLD)) continue;
     const count = Math.min(80, Math.max(3, Math.round(info.areaM2 / 900)));
     let h = Math.imul(info.ring.length + 1, 2654435761) ^ park.verts[0]!;
-    for (let t = 0; t < count && spots.length < TREE_MAX; t++) {
+    let placed = 0;
+    for (let t = 0; t < count * 5 && spots.length < TREE_MAX && placed < count; t++) {
       h = mulberry(h);
       const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
       const rad =
@@ -1849,6 +1911,7 @@ export function buildParkTrees(
       const x = info.x + Math.cos(ang) * rad;
       const z = info.z + Math.sin(ang) * rad;
       if (!inKeepDisk(x, z, keep)) continue;
+      if (!pointInRing(x, z, info.ring)) continue;
       if (landmarkExclusionAt(x, z) !== null) continue;
       if (nearLondonCityAirport(x, z)) continue;
       spots.push({
@@ -1858,26 +1921,7 @@ export function buildParkTrees(
         shade: (h >>> 20) % 3,
         cluster: false,
       });
-    }
-    if (info.areaM2 > 8_000) {
-      const groveCount = Math.min(36, Math.max(2, Math.round(info.areaM2 / 12_000)));
-      for (let t = 0; t < groveCount && groves.length < GROVE_MAX; t++) {
-        h = mulberry(h);
-        const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
-        const rad =
-          Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.32;
-        const x = info.x + Math.cos(ang) * rad;
-        const z = info.z + Math.sin(ang) * rad;
-        if (!inKeepDisk(x, z, keep)) continue;
-        if (landmarkExclusionAt(x, z) !== null) continue;
-        if (nearLondonCityAirport(x, z)) continue;
-        groves.push({
-          x,
-          z,
-          scale: 70 + ((h >>> 16) & 15) * 3.2,
-          shade: (h >>> 20) % 3,
-        });
-      }
+      placed += 1;
     }
   }
 
@@ -2020,39 +2064,6 @@ export function buildParkTrees(
   const group = new THREE.Group();
   group.add(trunks);
   for (const c of canopies) if (c) group.add(c);
-
-  if (groves.length > 0) {
-    const groveCounts = [0, 0, 0];
-    for (const g of groves) groveCounts[g.shade]! += 1;
-    const groveCursor = [0, 0, 0];
-    for (let shade = 0; shade < 3; shade++) {
-      if (groveCounts[shade]! <= 0) continue;
-      const mesh = new THREE.InstancedMesh(
-        new THREE.IcosahedronGeometry(1, 0),
-        canopyGeos[shade]!,
-        groveCounts[shade]!,
-      );
-      mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      mesh.frustumCulled = false;
-      mesh.userData.grove = true;
-      mesh.visible = false;
-      for (let i = 0; i < groves.length; i++) {
-        const s = groves[i]!;
-        if (s.shade !== shade) continue;
-        const r = s.scale * METERS_TO_WORLD;
-        dummy.rotation.set(0, (i * 0.51) % (Math.PI * 2), 0);
-        dummy.position.set(s.x, r * 0.42, s.z);
-        dummy.scale.set(r, r * 0.38, r);
-        dummy.updateMatrix();
-        mesh.setMatrixAt(groveCursor[shade]!, dummy.matrix);
-        groveCursor[shade]! += 1;
-      }
-      mesh.instanceMatrix.needsUpdate = true;
-      group.add(mesh);
-    }
-  }
   return group;
 }
 

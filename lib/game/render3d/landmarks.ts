@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { METERS_TO_WORLD } from '../geo';
 import type { LandmarkKind } from '../geo';
 import { HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
+import { PARK_Y } from './cityBuilder';
 import { ASPHALT } from './palette';
 
 /** Name used to find the rotating wheel sub-group for the frame()-driven spin. */
@@ -1533,7 +1534,7 @@ function addLawn(
       polygonOffsetUnits: -1,
     }),
   );
-  mesh.position.set(x, 0.11, z);
+  mesh.position.set(x, PARK_Y, z);
   mesh.name = 'lawn';
   mesh.receiveShadow = false;
   mesh.castShadow = false;
@@ -1547,7 +1548,7 @@ function buildBuckingham(): THREE.Group {
   const stone = new THREE.MeshLambertMaterial({ color: 0xd8d0c0 });
   const dark = new THREE.MeshLambertMaterial({ color: 0x3a3228 });
   const gold = emissiveMaterial(0xc45a3a);
-  const lawnInner = new THREE.MeshBasicMaterial({ color: 0x6b9a4e });
+  const lawnInner = new THREE.MeshBasicMaterial({ color: 0x6ea84c });
 
   // Quadrangle ~110 m N–S (Mall façade) × ~100 m E–W, east front faces +X.
   const facade = m(110);
@@ -1565,10 +1566,10 @@ function buildBuckingham(): THREE.Group {
 
   // West private garden + north apron toward Green Park. The east Mall
   // parade is gravel in OSM; without these plates look=buckingham is dirt.
-  addLawn(group, m(150), m(120), m(-95), m(-10), 0x6b9a4e);
-  addLawn(group, m(90), m(70), m(-40), m(-20), 0x5a8a42);
-  addLawn(group, m(110), m(85), m(8), m(-95), 0x6b9a4e);
-  addLawn(group, m(70), m(55), m(48), m(-70), 0x7eab5c);
+  addLawn(group, m(150), m(120), m(-95), m(-10), 0x6ea84c);
+  addLawn(group, m(90), m(70), m(-40), m(-20), 0x5a9340);
+  addLawn(group, m(110), m(85), m(8), m(-95), 0x6ea84c);
+  addLawn(group, m(70), m(55), m(48), m(-70), 0x88bf5e);
 
   const portH = h(32);
   addBox(group, m(14), portH, m(36), stone, m(51), 0, 0);

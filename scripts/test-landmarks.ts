@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { isDeckLandmark, LANDMARKS, METERS_TO_WORLD } from '../lib/game/geo';
-import { ROAD_Y } from '../lib/game/render3d/cityBuilder';
+import { PARK_Y, ROAD_Y } from '../lib/game/render3d/cityBuilder';
 import { EYE_WHEEL_NAME, LANDMARK_DECK_Y, build } from '../lib/game/render3d/landmarks';
 import { HEIGHT_SCALE } from '../lib/game/render3d/buildingStyle';
 import { ASPHALT } from '../lib/game/render3d/palette';
@@ -283,13 +283,16 @@ check('Buckingham Palace carries MeshBasic garden lawns, not a dirt moat', () =>
   assert.ok(lawns.length >= 3, `expected garden plates, got ${lawns.length}`);
   let west = 0;
   let north = 0;
+  let carpet = 0;
   for (const mesh of lawns) {
     const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
     assert.equal(mat.type, 'MeshBasicMaterial', `${mat.type} would relight the lawn`);
+    if (Math.abs(mesh.position.y - PARK_Y) < 0.002) carpet += 1;
     const box = new THREE.Box3().setFromObject(mesh);
     if (box.min.x < -80 * METERS_TO_WORLD) west += 1;
     if (box.min.z < -60 * METERS_TO_WORLD) north += 1;
   }
+  assert.ok(carpet >= 3, `garden plates must sit on PARK_Y, got ${carpet}`);
   assert.ok(west >= 1, 'west private garden missing');
   assert.ok(north >= 1, 'north Green Park apron missing');
 });

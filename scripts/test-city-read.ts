@@ -37,17 +37,20 @@ import {
   spanEndClearanceM,
   landRibbonVerts,
   buildParks,
+  buildParkTrees,
   buildRoads,
   buildWater,
   buildChunkTier,
   plannedCrosswalks,
   BRIDGE_SPAN_MIN_M,
   CHUNK_COUNT,
+  PARK_Y,
+  ROAD_Y,
   createScratch,
   onLondonCityAirportSpit,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
-import { decodeCity } from '../lib/game/render3d/format';
+import { decodeCity, dequantizeX, dequantizeY } from '../lib/game/render3d/format';
 import { inKeepDisk, meshBudgetFromSearch, type KeepDisk } from '../lib/game/render3d/lookClip';
 
 let passed = 0;
@@ -349,6 +352,12 @@ check('park grass is matte mottled green, not a lit plastic lawn', () => {
         grass += 1;
         const colors = obj.geometry.getAttribute('color');
         assert.ok(colors && colors.count > 12, 'grass needs per-vertex shade');
+        assert.equal(mat.side, THREE.FrontSide, 'DoubleSide grass z-fights GROUND');
+        let green = 0;
+        for (let i = 0; i < Math.min(colors.count, 80); i++) {
+          if (colors.getY(i) > colors.getX(i) && colors.getY(i) > colors.getZ(i)) green += 1;
+        }
+        assert.ok(green > 40, `lawn verts are not green (${green}/80)`);
       }
     }
   });
@@ -410,28 +419,47 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const parks = buildParks(city);
   assert.ok(parks, 'expected park meshes');
+  assert.ok(PARK_Y < 0.05 && PARK_Y < ROAD_Y, `park carpet too high (${PARK_Y})`);
   const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
   const at = project(buck.at);
   let garden = 0;
   let north = 0;
   let parkTris = 0;
+  let lifted = 0;
+  let longEdge = 0;
   parks!.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
     const pos = obj.geometry.getAttribute('position');
     const idx = obj.geometry.getIndex();
     if (idx) parkTris += idx.count / 3;
     if (!pos) return;
+    const isGrass = obj.name === 'grass';
     for (let i = 0; i < pos.count; i++) {
+      if (isGrass && Math.abs(pos.getY(i) - PARK_Y) > 0.004) lifted += 1;
       const dx = pos.getX(i) - at.x;
       const dz = pos.getZ(i) - at.y;
       const d = Math.hypot(dx, dz) / METERS_TO_WORLD;
       if (d > 90 && d < 240) garden += 1;
       if (d > 40 && d < 200 && dz < 0) north += 1;
     }
+    if (!idx || !isGrass) return;
+    for (let t = 0; t + 2 < idx.count; t += 3) {
+      const i0 = idx.getX(t)!;
+      const i1 = idx.getX(t + 1)!;
+      const i2 = idx.getX(t + 2)!;
+      const e = Math.max(
+        Math.hypot(pos.getX(i0) - pos.getX(i1), pos.getZ(i0) - pos.getZ(i1)),
+        Math.hypot(pos.getX(i1) - pos.getX(i2), pos.getZ(i1) - pos.getZ(i2)),
+        Math.hypot(pos.getX(i2) - pos.getX(i0), pos.getZ(i2) - pos.getZ(i0)),
+      );
+      if (e > 130 * METERS_TO_WORLD) longEdge += 1;
+    }
   });
+  assert.equal(lifted, 0, `park verts not on the carpet (${lifted})`);
+  assert.equal(longEdge, 0, `${longEdge} grass triangles still span > 130 m`);
   assert.ok(garden > 80, `palace gardens / Green Park missing lawn (${garden} verts)`);
   assert.ok(north > 40, `Green Park north of the palace missing (${north} verts)`);
-  assert.ok(parkTris > 200 && parkTris < 80_000, `park triangulation ${parkTris} looks subdivided`);
+  assert.ok(parkTris > 8_000 && parkTris < 80_000, `park triangulation ${parkTris} looks subdivided`);
 });
 
 check('zebra crossings sit on junction approaches, not every OSM stub', () => {
@@ -541,6 +569,70 @@ check('LCY spit is not OSM boxes or park mounds on the peninsula', () => {
     }
   });
   assert.equal(grass, 0, `park mounds still sit on the LCY spit (${grass} verts)`);
+});
+
+check('park trees stand on the lawn, not as dirt mounds', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const trees = buildParkTrees(city);
+  assert.ok(trees, 'expected park trees');
+  let groves = 0;
+  const dummy = new THREE.Object3D();
+  const maxCanopyM = { n: 0 };
+  const trunks: { x: number; z: number }[] = [];
+  trees!.traverse((obj) => {
+    if (obj.userData.grove) groves += 1;
+    if (!(obj instanceof THREE.InstancedMesh)) return;
+    for (let i = 0; i < obj.count; i++) {
+      obj.getMatrixAt(i, dummy.matrix);
+      dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+      if (obj.geometry.type === 'CylinderGeometry') {
+        trunks.push({ x: dummy.position.x, z: dummy.position.z });
+      } else {
+        const spanM = dummy.scale.x / METERS_TO_WORLD;
+        if (spanM > maxCanopyM.n) maxCanopyM.n = spanM;
+      }
+    }
+  });
+  assert.equal(groves, 0, 'flattened grove blobs are the fake lawn');
+  assert.ok(maxCanopyM.n > 8 && maxCanopyM.n < 40, `canopy span ${maxCanopyM.n.toFixed(1)} m`);
+
+  const rings: { x: number; z: number }[][] = [];
+  for (const park of city.parks) {
+    const n = park.verts.length / 2;
+    if (n < 3) continue;
+    const ring: { x: number; z: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      ring.push({
+        x: dequantizeX(park.verts[i * 2]!),
+        z: dequantizeY(park.verts[i * 2 + 1]!),
+      });
+    }
+    rings.push(ring);
+  }
+  const inRing = (x: number, z: number, ring: { x: number; z: number }[]): boolean => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i]!.x;
+      const zi = ring[i]!.z;
+      const xj = ring[j]!.x;
+      const zj = ring[j]!.z;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
+  const at = project(buck.at);
+  let onLawn = 0;
+  let onSpit = 0;
+  for (const t of trunks) {
+    if (onLondonCityAirportSpit(t.x, t.z)) onSpit += 1;
+    const d = Math.hypot(t.x - at.x, t.z - at.y) / METERS_TO_WORLD;
+    if (d < 80 || d > 280) continue;
+    if (rings.some((ring) => inRing(t.x, t.z, ring))) onLawn += 1;
+  }
+  assert.equal(onSpit, 0, `trees still planted on the LCY spit (${onSpit})`);
+  assert.ok(onLawn > 8, `no trees on Green Park / palace gardens (${onLawn})`);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

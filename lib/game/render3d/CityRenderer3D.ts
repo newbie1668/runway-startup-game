@@ -208,8 +208,6 @@ export class CityRenderer3D implements IMapRenderer {
   private lastTier2Visible: boolean | null = null;
   private lastMarksVisible: boolean | null = null;
   private lastLampsVisible: boolean | null = null;
-  private treeGroup: THREE.Object3D | null = null;
-  private lastGrovesVisible: boolean | null = null;
   private windowMesh: THREE.InstancedMesh | null = null;
   private lastWindowsVisible: boolean | null = null;
   private landmarkPrefabs = new Map<LandmarkKind, THREE.Object3D>();
@@ -464,7 +462,6 @@ export class CityRenderer3D implements IMapRenderer {
         const trees = buildParkTrees(data, keep);
         if (trees) {
           trees.visible = true;
-          this.treeGroup = trees;
           this.cityGroup.add(trees);
         }
       });
@@ -863,15 +860,6 @@ export class CityRenderer3D implements IMapRenderer {
     if (lampsVisible !== this.lastLampsVisible) {
       if (this.lampGroup) this.lampGroup.visible = lampsVisible;
       this.lastLampsVisible = lampsVisible;
-    }
-    const grovesVisible = this.cam.zoom < 18;
-    if (grovesVisible !== this.lastGrovesVisible) {
-      if (this.treeGroup) {
-        this.treeGroup.traverse((obj) => {
-          if (obj.userData.grove) obj.visible = grovesVisible;
-        });
-      }
-      this.lastGrovesVisible = grovesVisible;
     }
     const windowsVisible = this.cam.zoom >= 7;
     if (windowsVisible !== this.lastWindowsVisible) {
