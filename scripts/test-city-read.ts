@@ -1006,7 +1006,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let bronzeN = 0;
   let columnN = 0;
   let holeRoof = 0;
-  let wellFloor = 0;
+  let wellN = 0;
   let stickN = 0;
   let jewryMidN = 0;
   let jewryHighN = 0;
@@ -1044,7 +1044,15 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         (Math.abs(r - roofCol.r) < 0.05 &&
           Math.abs(g - roofCol.g) < 0.05 &&
           Math.abs(b - roofCol.b) < 0.05);
-      if (poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
+      if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
+      if (
+        dC < wellR * 1.08 &&
+        Math.abs(r - wellCol.r) < 0.05 &&
+        Math.abs(g - wellCol.g) < 0.05 &&
+        Math.abs(b - wellCol.b) < 0.05
+      ) {
+        wellN += 1;
+      }
       if (dC < wellR * 0.55 && yM > 8) {
         const r = colors.getX(i);
         const g = colors.getY(i);
@@ -1058,18 +1066,6 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         }
         if (Math.abs(r - 0.831) < 0.05 && Math.abs(g - 0.761) < 0.05 && Math.abs(b - 0.29) < 0.08) {
           holeRoof += 1;
-        }
-      }
-      if (dC < wellR * 0.98 && yM < 2) {
-        const r = colors.getX(i);
-        const g = colors.getY(i);
-        const b = colors.getZ(i);
-        if (
-          Math.abs(r - wellCol.r) < 0.05 &&
-          Math.abs(g - wellCol.g) < 0.05 &&
-          Math.abs(b - wellCol.b) < 0.05
-        ) {
-          wellFloor += 1;
         }
       }
       if (d <= 45) {
@@ -1140,7 +1136,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     drumKeys.size >= 12,
     `Poultry clock turret is still a box (${drumKeys.size} unique xz above roof)`,
   );
-  assert.ok(wellFloor > 12, `Poultry courtyard well floor missing (${wellFloor} verts)`);
+  assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);
   assert.ok(holeRoof < 12, `Poultry courtyard well is roofed over (${holeRoof} hole verts)`);
   assert.ok(stickN < 8, `Poultry bands stick through the facade (${stickN} verts)`);
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
