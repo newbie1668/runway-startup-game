@@ -397,12 +397,12 @@ export function thamesCrossingLookKey(name: string): string {
 
 export const LANDMARKS: readonly Landmark[] = [
   { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90, yaw: 0.12 },
-  { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },
+  { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 48 },
   { kind: 'bigben', name: 'Palace of Westminster', at: [-0.1246, 51.5007], exclusionM: 160 },
   { kind: 'bttower', name: 'BT Tower', at: [-0.1389, 51.5215], exclusionM: 70 },
   { kind: 'stpauls', name: "St Paul's", at: [-0.0984, 51.5138], exclusionM: 110 },
   { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029], exclusionM: 220 },
-  { kind: 'gherkin', name: 'The Gherkin', at: [-0.0803, 51.5145], exclusionM: 80 },
+  { kind: 'gherkin', name: 'The Gherkin', at: [-0.0803, 51.5145], exclusionM: 40 },
   { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0754, 51.5055], exclusionM: 160 },
   {
     kind: 'lcy',
@@ -412,13 +412,13 @@ export const LANDMARKS: readonly Landmark[] = [
     /** Local +X follows runway 09/27 (~093° true). */
     yaw: -0.052,
   },
-  { kind: 'walkie', name: 'Walkie Talkie', at: [-0.0837, 51.5114], exclusionM: 80 },
-  { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 90 },
+  { kind: 'walkie', name: 'Walkie Talkie', at: [-0.0837, 51.5114], exclusionM: 44 },
+  { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 46 },
   { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 110 },
   { kind: 'battersea', name: 'Battersea Power Station', at: [-0.1446, 51.4819], exclusionM: 180 },
-  { kind: 'bishop', name: '22 Bishopsgate', at: [-0.083, 51.5144], exclusionM: 90 },
-  { kind: 'heron', name: 'Heron Tower', at: [-0.081, 51.5162], exclusionM: 80 },
-  { kind: 'tower42', name: 'Tower 42', at: [-0.0838, 51.5152], exclusionM: 70 },
+  { kind: 'bishop', name: '22 Bishopsgate', at: [-0.083, 51.5144], exclusionM: 46 },
+  { kind: 'heron', name: 'Heron Tower', at: [-0.081, 51.5162], exclusionM: 42 },
+  { kind: 'tower42', name: 'Tower 42', at: [-0.0838, 51.5152], exclusionM: 40 },
   { kind: 'abbey', name: 'Westminster Abbey', at: [-0.1273, 51.4994], exclusionM: 90 },
   { kind: 'oldstreet', name: 'Old Street Roundabout', at: [-0.0877, 51.5256], exclusionM: 90 },
   {

@@ -650,6 +650,35 @@ check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   assert.ok(sloped > 80, `citystreet chunk ${chunkId} has no pitched/mansard slopes (${sloped})`);
 });
 
+check('City skyline punch leaves neighbouring streets', () => {
+  for (const kind of ['gherkin', 'walkie', 'grater', 'bishop', 'heron', 'tower42'] as const) {
+    const landmark = LANDMARKS.find((l) => l.kind === kind);
+    assert.ok(landmark, kind);
+    assert.ok(
+      (landmark.exclusionM ?? 99) <= 50,
+      `${kind} still punches a city block (${landmark.exclusionM} m)`,
+    );
+  }
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const gherkin = LANDMARKS.find((l) => l.kind === 'gherkin')!;
+  const at = project(gherkin.at);
+  const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
+  const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
+  const chunkId = row * CHUNK_COLS + col;
+  const anchors = LANDMARKS.map((l) => {
+    const p = project(l.at);
+    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
+  });
+  let verts = 0;
+  for (const major of [true, false]) {
+    const mesh = buildChunkTier(city, chunkId, major, anchors, createScratch());
+    if (!mesh) continue;
+    verts += mesh.geometry.getAttribute('position')?.count ?? 0;
+  }
+  assert.ok(verts > 2000, `Gherkin neighbourhood emptied by punch (${verts} verts)`);
+});
+
 check('look=citystreet sits on stock, not inside a landmark punch-hole', () => {
   const at = project([-0.0905, 51.5134]);
   for (const landmark of LANDMARKS) {

@@ -1452,20 +1452,20 @@ function emitFacadeWindows(
   // Baked niches so the front still reads when instanced sashes do not.
   // Longest street fronts only; cap the count so a City chunk does not explode.
   if (edgeM < 8) return;
-  let bakeCols = Math.min(cols, 5);
-  let bakeRows = Math.min(rows, 3);
-  const bakeCap = major ? 12 : 8;
+  const depth = 2.9 * METERS_TO_WORLD;
+  const paneD = 0.55 * METERS_TO_WORLD;
+  let bakeCols = Math.min(cols, 6);
+  let bakeRows = Math.min(rows, 4);
+  const bakeCap = major ? 16 : 10;
   while (bakeCols * bakeRows > bakeCap && bakeRows > 1) bakeRows -= 1;
   while (bakeCols * bakeRows > bakeCap && bakeCols > 2) bakeCols -= 1;
-  const depth = 1.85 * METERS_TO_WORLD;
-  const paneD = 0.45 * METERS_TO_WORLD;
   for (let r = 0; r < bakeRows; r++) {
     const y = winStart + ((r + 0.5) / bakeRows) * vSpan - winH / 2;
     for (let c = 0; c < bakeCols; c++) {
       const u = u0 + ((c + 0.5) / bakeCols) * (uSpan - winW);
       const mx = a.x + tx * u + nx * (depth / 2);
       const mz = a.z + tz * u + nz * (depth / 2);
-      pushOrientedBox(mx, y, mz, winW * 1.12, winH, depth, tx, tz, nx, nz, frame);
+      pushOrientedBox(mx, y, mz, winW * 1.28, winH * 1.08, depth, tx, tz, nx, nz, frame);
       pushOrientedBox(
         a.x + tx * u + nx * (depth + paneD / 2),
         y + winH * 0.14,
