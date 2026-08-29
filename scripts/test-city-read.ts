@@ -30,6 +30,7 @@ import {
   walkAcrossWater,
   buildCrossingSpans,
   riverCrossingSpans,
+  countLandRibbonsOverWater,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
@@ -190,6 +191,18 @@ check('river crossings drop wet OSM and stitch a land-to-land span', () => {
   assert.equal(stubs.length, 2, 'a single land vertex on each bank still makes an approach stub');
   assert.ok(stubs.every((r) => r.pts.length >= 2));
 
+  const bankToBank = [
+    { x: 0, z: 0 },
+    { x: 3, z: 0 },
+  ];
+  const channel = (x: number) => x > 0.5 && x < 2.5;
+  const broken = splitRoadRuns(bankToBank, channel);
+  assert.equal(broken.length, 2, 'dry nodes on each bank still split at the channel');
+  assert.ok(
+    broken.every((r) => r.pts.every((p) => !channel(p.x))),
+    'land ribbons must not keep channel samples',
+  );
+
   const far = walkAcrossWater({ x: 0, z: 0, dx: 1, dz: 0, tier: 0 }, (x) => x > 0.5 && x < 1.6);
   assert.ok(far && far.x > 1.6, 'walk should step onto the far bank');
   const crossings = buildCrossingSpans(
@@ -270,6 +283,13 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
   const keys = extra.map((c) => thamesCrossingLookKey(c.name));
   assert.equal(new Set(keys).size, keys.length);
   assert.ok(keys.includes('chelseabr') && keys.includes('vauxhallbr'));
+  assert.equal(
+    countLandRibbonsOverWater(
+      decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)),
+    ),
+    0,
+    'OSM land ribbons must not span a water channel',
+  );
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

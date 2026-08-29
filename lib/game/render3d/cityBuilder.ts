@@ -1986,6 +1986,73 @@ function shorelinePoint(
 }
 
 /**
+ * OSM often puts dry nodes on each bank and none in the channel. Vertex-only
+ * wet tests then draw the whole land→land segment as a road (sidewalk tan,
+ * miter spikes at the abutment). Sample the edge; a long water run is a span.
+ */
+function waterChannelOnEdge(
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+  overWater: (x: number, z: number) => boolean,
+): { first: { x: number; z: number }; last: { x: number; z: number } } | null {
+  const dist = Math.hypot(b.x - a.x, b.z - a.z);
+  const minWater = BRIDGE_SPAN_MIN_M * METERS_TO_WORLD;
+  if (dist < minWater) return null;
+  const step = CROSSING_STEP_M * METERS_TO_WORLD;
+  const ux = (b.x - a.x) / dist;
+  const uz = (b.z - a.z) / dist;
+  let runFirst: { x: number; z: number } | null = null;
+  let runLast: { x: number; z: number } | null = null;
+  let run = 0;
+  let bestRun = 0;
+  let bestFirst: { x: number; z: number } | null = null;
+  let bestLast: { x: number; z: number } | null = null;
+  for (let t = 0; t <= dist; t += step) {
+    const p = { x: a.x + ux * t, z: a.z + uz * t };
+    if (overWater(p.x, p.z)) {
+      run += step;
+      if (!runFirst) runFirst = p;
+      runLast = p;
+      if (run > bestRun) {
+        bestRun = run;
+        bestFirst = runFirst;
+        bestLast = runLast;
+      }
+    } else {
+      run = 0;
+      runFirst = null;
+    }
+  }
+  if (bestRun < minWater || !bestFirst || !bestLast) return null;
+  return { first: bestFirst, last: bestLast };
+}
+
+/** Insert wet markers on dry→dry edges that actually cross a channel. */
+function polylineWithWaterBreaks(
+  pts: { x: number; z: number }[],
+  overWater: (x: number, z: number) => boolean,
+): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    if (i > 0) {
+      const prev = pts[i - 1]!;
+      if (!overWater(prev.x, prev.z) && !overWater(p.x, p.z)) {
+        const ch = waterChannelOnEdge(prev, p, overWater);
+        if (ch) {
+          out.push(ch.first);
+          if (Math.hypot(ch.last.x - ch.first.x, ch.last.z - ch.first.z) > METERS_TO_WORLD) {
+            out.push(ch.last);
+          }
+        }
+      }
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+/**
  * Land ribbons only. Wet vertices are dropped — OSM ways over water are
  * spaghetti and explode into abutment triangles when mitred onto the bank.
  * `riverCrossingSpans` draws one clean land-to-land asphalt ribbon instead.
@@ -1995,13 +2062,14 @@ export function splitRoadRuns(
   overWater: (x: number, z: number) => boolean,
 ): RoadRun[] {
   if (pts.length < 2) return [];
-  const wet = pts.map((p) => overWater(p.x, p.z));
+  const seq = polylineWithWaterBreaks(pts, overWater);
+  const wet = seq.map((p) => overWater(p.x, p.z));
   const groups: { start: number; end: number; wet: boolean }[] = [];
   let i = 0;
-  while (i < pts.length) {
+  while (i < seq.length) {
     const w = wet[i]!;
     let j = i + 1;
-    while (j < pts.length && wet[j] === w) j += 1;
+    while (j < seq.length && wet[j] === w) j += 1;
     groups.push({ start: i, end: j, wet: w });
     i = j;
   }
@@ -2011,11 +2079,11 @@ export function splitRoadRuns(
     if (run.wet) continue;
     const headWet = g > 0 && groups[g - 1]!.wet;
     const tailWet = g + 1 < groups.length && groups[g + 1]!.wet;
-    const slice = pts.slice(run.start, run.end);
+    const slice = seq.slice(run.start, run.end);
     let outPts: { x: number; z: number }[] = [];
     if (slice.length === 1) {
       const land = slice[0]!;
-      const wetPt = headWet ? pts[run.start - 1]! : tailWet ? pts[run.end]! : null;
+      const wetPt = headWet ? seq[run.start - 1]! : tailWet ? seq[run.end]! : null;
       if (!wetPt) continue;
       const dx = land.x - wetPt.x;
       const dz = land.z - wetPt.z;
@@ -2029,17 +2097,34 @@ export function splitRoadRuns(
     } else if (slice.length >= 2) {
       outPts = slice.slice();
       if (headWet) {
-        const shore = shorelinePoint(pts[run.start]!, pts[run.start - 1]!, overWater);
+        const shore = shorelinePoint(seq[run.start]!, seq[run.start - 1]!, overWater);
         if (shore) outPts = [shore, ...outPts];
       }
       if (tailWet) {
-        const shore = shorelinePoint(pts[run.end - 1]!, pts[run.end]!, overWater);
+        const shore = shorelinePoint(seq[run.end - 1]!, seq[run.end]!, overWater);
         if (shore) outPts = [...outPts, shore];
       }
     }
     if (outPts.length >= 2) out.push({ pts: outPts, span: false });
   }
   return out;
+}
+
+/** OSM land ribbons that still span a channel. Zero after the edge split. */
+export function countLandRibbonsOverWater(cityData: CityData): number {
+  const rings = waterRings(cityData);
+  const over = (x: number, z: number) => pointOverWater(x, z, rings);
+  let n = 0;
+  for (const road of cityData.roads as CityRoad[]) {
+    const pts = roadPts(road);
+    if (!pts) continue;
+    for (const run of splitRoadRuns(pts, over)) {
+      for (let i = 0; i < run.pts.length - 1; i++) {
+        if (waterChannelOnEdge(run.pts[i]!, run.pts[i + 1]!, over)) n += 1;
+      }
+    }
+  }
+  return n;
 }
 
 export type RoadApproach = {
