@@ -2096,10 +2096,12 @@ export function buildParks(cityData: CityData, keep: KeepDisk | null = null): TH
       { x: cx, z: cz },
       { x: b.x * 0.72 + cx * 0.28, z: b.z * 0.72 + cz * 0.28 },
     ];
-    const ribbon = buildRibbonGeometry(pts, halfW, PARK_Y + 0.012);
-    const base = pathPos.length / 3;
-    for (const v of ribbon.positions) pathPos.push(v);
-    for (const i of ribbon.indices) pathIdx.push(i + base);
+    for (const run of clipPolylineToKeep(pts, keep)) {
+      const ribbon = buildRibbonGeometry(run, halfW, PARK_Y + 0.012);
+      const base = pathPos.length / 3;
+      for (const v of ribbon.positions) pathPos.push(v);
+      for (const i of ribbon.indices) pathIdx.push(i + base);
+    }
   }
   if (pathPos.length > 0) {
     const g = new THREE.BufferGeometry();

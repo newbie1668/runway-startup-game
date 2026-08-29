@@ -679,7 +679,7 @@ check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
   const hero = project([-0.1358, 51.5196]);
   const keep: KeepDisk = { x: hero.x, z: hero.y, r: 1600 * METERS_TO_WORLD };
   const pad = 120 * METERS_TO_WORLD;
-  const tally = (root: THREE.Object3D | null) => {
+  const tally = (root: THREE.Object3D | null, disk: KeepDisk) => {
     let verts = 0;
     let outside = 0;
     if (!root) return { verts, outside };
@@ -689,17 +689,17 @@ check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
       if (!pos) return;
       for (let i = 0; i < pos.count; i++) {
         verts += 1;
-        if (!inKeepDisk(pos.getX(i), pos.getZ(i), keep, pad)) outside += 1;
+        if (!inKeepDisk(pos.getX(i), pos.getZ(i), disk, pad)) outside += 1;
       }
     });
     return { verts, outside };
   };
-  const roads = tally(buildRoads(city, keep));
+  const roads = tally(buildRoads(city, keep), keep);
   assert.ok(roads.verts > 800, `mid-view neighbourhood has no streets (${roads.verts} verts)`);
   assert.equal(roads.outside, 0, `road verts leak outside the keep-disk (${roads.outside})`);
-  const parks = tally(buildParks(city, keep));
+  const parks = tally(buildParks(city, keep), keep);
   assert.equal(parks.outside, 0, `park verts leak outside the keep-disk (${parks.outside})`);
-  const water = tally(buildWater(city, keep));
+  const water = tally(buildWater(city, keep), keep);
   assert.equal(water.outside, 0, `water verts leak outside the keep-disk (${water.outside})`);
   const eyeAt = project(LANDMARKS.find((l) => l.kind === 'eye')!.at);
   const eyeKeep: KeepDisk = { x: eyeAt.x, z: eyeAt.y, r: 1800 * METERS_TO_WORLD };
@@ -713,14 +713,17 @@ check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
   assert.ok(eyeWaterVerts > 40, `look=eye keep-disk lost the Thames (${eyeWaterVerts} verts)`);
   const buckAt = project(LANDMARKS.find((l) => l.kind === 'buckingham')!.at);
   const buckKeep: KeepDisk = { x: buckAt.x, z: buckAt.y, r: 1600 * METERS_TO_WORLD };
-  const buckParks = tally(buildParks(city, buckKeep));
-  assert.ok(buckParks.verts > 80, `look=buckingham keep-disk lost Green Park (${buckParks.verts} verts)`);
+  const buckParks = tally(buildParks(city, buckKeep), buckKeep);
+  assert.ok(
+    buckParks.verts > 80,
+    `look=buckingham keep-disk lost Green Park (${buckParks.verts} verts)`,
+  );
   assert.equal(
     buckParks.outside,
     0,
     `Buckingham park verts leak outside the keep-disk (${buckParks.outside})`,
   );
-  const unclipped = tally(buildParks(city));
+  const unclipped = tally(buildParks(city), buckKeep);
   assert.ok(
     buckParks.verts < unclipped.verts,
     `Buckingham parks still tessellate the whole map (${buckParks.verts} vs ${unclipped.verts})`,
