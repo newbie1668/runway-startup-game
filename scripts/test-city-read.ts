@@ -394,6 +394,14 @@ check('open ground is a matte green carpet, not beige dirt paving', () => {
   assert.equal(mat.type, 'MeshBasicMaterial', `${mat.type} still lights the dirt`);
   const c = new THREE.Color(GROUND);
   assert.ok(c.g > c.r && c.g > c.b, `GROUND ${GROUND.toString(16)} is not green`);
+  const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
+  const at = project(buck.at);
+  const keep: KeepDisk = { x: at.x, z: at.y, r: 1600 * METERS_TO_WORLD };
+  const clipped = buildGround(keep);
+  const box = new THREE.Box3().setFromObject(clipped);
+  const spanM = (box.max.x - box.min.x) / METERS_TO_WORLD;
+  assert.ok(spanM < 3600, `look=buckingham ground still citywide (${spanM.toFixed(0)} m)`);
+  assert.ok(spanM > 2800, `look=buckingham ground vanished (${spanM.toFixed(0)} m)`);
 });
 
 check('view=mid does not paint kerb ribbons across the city', () => {
@@ -657,6 +665,12 @@ check('wide-view mesh budget clips the city; close looks stay full', () => {
   assert.equal(close.skipRoadMarks, false);
   const street = meshBudgetFromSearch(new URLSearchParams('look=citystreet'));
   assert.equal(street.skipRoadMarks, false);
+  const buck = meshBudgetFromSearch(new URLSearchParams('look=buckingham'));
+  assert.equal(buck.chunkKeepM, 1600);
+  assert.equal(buck.skipTrees, true);
+  assert.equal(buck.skipAntialias, true);
+  assert.equal(buck.skipRoadMarks, true);
+  assert.equal(buck.skipMinorChunks, false);
 });
 
 check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
@@ -697,6 +711,20 @@ check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
     if (pos) eyeWaterVerts += pos.count;
   });
   assert.ok(eyeWaterVerts > 40, `look=eye keep-disk lost the Thames (${eyeWaterVerts} verts)`);
+  const buckAt = project(LANDMARKS.find((l) => l.kind === 'buckingham')!.at);
+  const buckKeep: KeepDisk = { x: buckAt.x, z: buckAt.y, r: 1600 * METERS_TO_WORLD };
+  const buckParks = tally(buildParks(city, buckKeep));
+  assert.ok(buckParks.verts > 80, `look=buckingham keep-disk lost Green Park (${buckParks.verts} verts)`);
+  assert.equal(
+    buckParks.outside,
+    0,
+    `Buckingham park verts leak outside the keep-disk (${buckParks.outside})`,
+  );
+  const unclipped = tally(buildParks(city));
+  assert.ok(
+    buckParks.verts < unclipped.verts,
+    `Buckingham parks still tessellate the whole map (${buckParks.verts} vs ${unclipped.verts})`,
+  );
 });
 
 check('LCY spit is not OSM boxes or park mounds on the peninsula', () => {

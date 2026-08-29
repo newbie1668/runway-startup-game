@@ -1904,6 +1904,12 @@ function fillParkGrid(
     if (p.z < minz) minz = p.z;
     if (p.z > maxz) maxz = p.z;
   }
+  if (keep) {
+    minx = Math.max(minx, keep.x - keep.r);
+    maxx = Math.min(maxx, keep.x + keep.r);
+    minz = Math.max(minz, keep.z - keep.r);
+    maxz = Math.min(maxz, keep.z + keep.r);
+  }
   if (!(maxx > minx && maxz > minz)) return 0;
   let added = 0;
   for (let x0 = minx; x0 < maxx; x0 += cell) {
@@ -3489,15 +3495,25 @@ export function buildTubeLines(): THREE.Group {
   return new THREE.Group();
 }
 
-export function buildGround(): THREE.Mesh {
-  const marginX = WORLD.width * 0.3;
-  const marginY = WORLD.height * 0.3;
-  const geometry = new THREE.PlaneGeometry(WORLD.width + marginX * 2, WORLD.height + marginY * 2);
-  geometry.rotateX(-Math.PI / 2);
+export function buildGround(keep: KeepDisk | null = null): THREE.Mesh {
   const material = new THREE.MeshBasicMaterial({
     color: pal.GROUND,
     fog: true,
   });
+  if (keep) {
+    const size = keep.r * 2;
+    const geometry = new THREE.PlaneGeometry(size, size);
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = 'ground';
+    mesh.position.set(keep.x, 0, keep.z);
+    mesh.receiveShadow = false;
+    return mesh;
+  }
+  const marginX = WORLD.width * 0.3;
+  const marginY = WORLD.height * 0.3;
+  const geometry = new THREE.PlaneGeometry(WORLD.width + marginX * 2, WORLD.height + marginY * 2);
+  geometry.rotateX(-Math.PI / 2);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'ground';
   mesh.position.set(WORLD.width / 2, 0, WORLD.height / 2);

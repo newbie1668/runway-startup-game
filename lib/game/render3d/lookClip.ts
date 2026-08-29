@@ -1,8 +1,10 @@
 /**
  * Playtime mesh budget. Wide cameras (view=mid, look=eye, look=lcy) used to
  * tessellate the whole city — water, parks, roads, chunks — then draw it at
- * once and Aw Snap. Close looks still get the full neighbourhood around the
- * camera. Wide looks clip cover meshes to a keep-disk and skip garnish.
+ * once and Aw Snap. look=buckingham sits in Hyde / Green Park / St James's:
+ * the unclipped lawn grid fills the frustum with green, then Chrome error 9
+ * before the palace job paints. Clip that look the same way as view=mid.
+ * Other close looks still get the neighbourhood around the camera.
  * Minor chunks stay on: they are the terraces / houses. Skipping them made
  * view=mid a field of typed office boxes.
  */
@@ -62,6 +64,9 @@ export function meshBudgetFromSearch(q: URLSearchParams | null): MeshBudget {
   }
   if (look === 'lcy') {
     return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 2200 };
+  }
+  if (look === 'buckingham') {
+    return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 1600 };
   }
   if (wide) {
     return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 1600 };

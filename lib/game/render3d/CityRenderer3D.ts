@@ -192,6 +192,7 @@ export class CityRenderer3D implements IMapRenderer {
   private laidOut = false;
 
   private readonly cityGroup = new THREE.Group();
+  private groundMesh: THREE.Mesh;
   private readonly buildingMaterial: THREE.MeshLambertMaterial;
   private readonly glowTexture: THREE.Texture;
   private readonly hemi: THREE.HemisphereLight;
@@ -278,8 +279,8 @@ export class CityRenderer3D implements IMapRenderer {
     this.scene3d.add(this.hemi, amb, this.sun, this.sunTarget);
     this.overlay.atmosphere = 'day';
 
-    const ground = buildGround();
-    this.scene3d.add(ground);
+    this.groundMesh = buildGround();
+    this.scene3d.add(this.groundMesh);
     this.scene3d.add(buildTubeLines());
 
     this.glowTexture = createGlowSpriteTexture();
@@ -407,6 +408,15 @@ export class CityRenderer3D implements IMapRenderer {
             r: budget.chunkKeepM * METERS_TO_WORLD,
           }
         : null;
+    if (keep) {
+      this.scene3d.remove(this.groundMesh);
+      this.groundMesh.geometry.dispose();
+      const oldMat = this.groundMesh.material;
+      if (Array.isArray(oldMat)) oldMat.forEach((m) => m.dispose());
+      else oldMat.dispose();
+      this.groundMesh = buildGround(keep);
+      this.scene3d.add(this.groundMesh);
+    }
     const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
     const heroJobs: BuildJob[] = [];
     const coverJobs: BuildJob[] = [];
