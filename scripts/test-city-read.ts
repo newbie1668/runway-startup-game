@@ -388,12 +388,16 @@ check('park grass is matte mottled green, not a lit plastic lawn', () => {
   assert.ok(grass >= 1, 'grass mesh must use vertex colours');
 });
 
-check('open ground is a matte green carpet, not beige dirt paving', () => {
+check('open ground is urban paving, not a citywide lawn', () => {
   const ground = buildGround();
   const mat = ground.material as THREE.MeshBasicMaterial;
   assert.equal(mat.type, 'MeshBasicMaterial', `${mat.type} still lights the dirt`);
   const c = new THREE.Color(GROUND);
-  assert.ok(c.g > c.r && c.g > c.b, `GROUND ${GROUND.toString(16)} is not green`);
+  assert.ok(
+    !(c.g > c.r + 0.04 && c.g > c.b + 0.04),
+    `GROUND ${GROUND.toString(16)} still reads as park lawn`,
+  );
+  assert.ok(c.g < 0.48 && c.r < 0.52, `GROUND ${GROUND.toString(16)} is still beige dirt`);
   const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
   const at = project(buck.at);
   const keep: KeepDisk = { x: at.x, z: at.y, r: 1600 * METERS_TO_WORLD };
@@ -601,7 +605,7 @@ check('City offices mass as setbacks or mansards, not forced slabs', () => {
 check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-  const at = project([-0.082, 51.5132]);
+  const at = project([-0.0905, 51.5134]);
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
@@ -613,6 +617,7 @@ check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   for (const major of [true, false]) {
     const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
     if (!mesh) continue;
+    assert.equal(mesh.frustumCulled, false, 'chunk frustum cull empties close zoom');
     const colors = mesh.geometry.getAttribute('color');
     const normals = mesh.geometry.getAttribute('normal');
     assert.ok(colors, `chunk ${chunkId} major=${major} needs vertex colours`);
@@ -643,6 +648,19 @@ check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   assert.ok(verts > 2000, `citystreet chunk ${chunkId} empty (${verts})`);
   assert.equal(confetti, 0, `HVAC confetti still in chunk ${chunkId} (${confetti})`);
   assert.ok(sloped > 80, `citystreet chunk ${chunkId} has no pitched/mansard slopes (${sloped})`);
+});
+
+check('look=citystreet sits on stock, not inside a landmark punch-hole', () => {
+  const at = project([-0.0905, 51.5134]);
+  for (const landmark of LANDMARKS) {
+    const p = project(landmark.at);
+    const d = Math.hypot(at.x - p.x, at.y - p.y) / METERS_TO_WORLD;
+    const r = landmark.exclusionM ?? 80;
+    assert.ok(
+      d > r + 40,
+      `citystreet camera is inside ${landmark.kind} exclusion (${d.toFixed(0)} m vs ${r} m)`,
+    );
+  }
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {

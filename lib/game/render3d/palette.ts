@@ -20,7 +20,8 @@ import { isGenericWallPaint } from './osmColour';
 
 /** Pale overcast sky — fog, clear colour, and the 2D canvas CSS gradient all match. */
 export const SKY = 0xc5d4e4;
-export const GROUND = 0x739456;
+/** Block interiors / unbuilt land. Parks stay PARK green; this is paving, not lawn. */
+export const GROUND = 0x6a6860;
 export const PARK = 0x6ea84c;
 export const PARK_PATH = 0xddd6c6;
 export const WATER = 0x6b8498;

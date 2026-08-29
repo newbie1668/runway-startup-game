@@ -2074,18 +2074,18 @@ function buildLcy(): THREE.Group {
   const rib = new THREE.MeshLambertMaterial({ color: 0xb4b0a6 });
   addBox(group, m(2.2), shaftH, m(17.4), rib, tx, 0, tz);
   addBox(group, m(17.4), shaftH, m(2.2), rib, tx, 0, tz);
-  const cabH = h(18);
+  const cabH = h(22);
   const cabBot = shaftH;
-  const cabZ = tz - m(12);
-  const tower = addBox(group, m(46), cabH, m(34), cab, tx, cabBot, cabZ);
+  const cabZ = tz - m(26);
+  const tower = addBox(group, m(92), cabH, m(56), cab, tx, cabBot, cabZ);
   tower.name = 'tower';
-  const glassH = cabH * 0.58;
-  const glassBot = cabBot + cabH * 0.2;
-  addBox(group, m(47.4), glassH, m(32), glass, tx, glassBot, cabZ);
-  addBox(group, m(44), glassH, m(35.6), glass, tx, glassBot, cabZ);
-  addBox(group, m(26), cabH * 0.42, m(9), glass, tx, glassBot + glassH * 0.12, cabZ - m(18));
-  addBox(group, m(50), m(2.4), m(38), hall, tx, cabBot + cabH, cabZ);
-  addBox(group, m(2.2), h(16), m(2.2), steel, tx, cabBot + cabH + m(2.4), cabZ);
+  const glassH = cabH * 0.62;
+  const glassBot = cabBot + cabH * 0.16;
+  addBox(group, m(94), glassH, m(52), glass, tx, glassBot, cabZ);
+  addBox(group, m(88), glassH, m(58), glass, tx, glassBot, cabZ);
+  addBox(group, m(40), cabH * 0.5, m(16), glass, tx, glassBot + glassH * 0.08, cabZ - m(28));
+  addBox(group, m(96), m(3.2), m(60), hall, tx, cabBot + cabH, cabZ);
+  addBox(group, m(3.2), h(18), m(3.2), steel, tx, cabBot + cabH + m(3.2), cabZ);
 
   const jet = addBox(group, m(48), m(8), m(22), concrete, m(280), deck, m(78));
   jet.name = 'jetcentre';

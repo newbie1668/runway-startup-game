@@ -81,7 +81,7 @@ const MARK_Y = 0.155;
 export const PARK_Y = 0.028;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
-/** Regular lawn tiles. Smaller gardens need a tighter grid or beige GROUND shows. */
+/** Regular lawn tiles. Smaller gardens need a tighter grid or paving GROUND shows. */
 function parkCellWorld(areaM2: number): number {
   if (areaM2 >= 15_000) return 32 * METERS_TO_WORLD;
   return 12 * METERS_TO_WORLD;
@@ -887,6 +887,7 @@ export function buildChunkTier(
           } else if (wantFacadeWindows(edgeLenM, spanM, style)) {
             emitFacadeWindows(
               scratch,
+              pushOrientedBox,
               a,
               bp,
               nx,
@@ -898,6 +899,7 @@ export function buildChunkTier(
               shopWorld,
               vScale,
               seed,
+              faceHex,
             );
           }
         }
@@ -1315,6 +1317,7 @@ export function buildChunkTier(
   const mesh = new THREE.Mesh(geometry);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
   mesh.userData.chunkId = chunkId;
   mesh.userData.major = major;
   return mesh;
@@ -1384,6 +1387,7 @@ function emitBayWindows(
 
 function emitFacadeWindows(
   scratch: CityScratch,
+  pushOrientedBox: OrientedBoxFn,
   a: { x: number; z: number },
   bp: { x: number; z: number },
   nx: number,
@@ -1395,6 +1399,7 @@ function emitFacadeWindows(
   shopWorld: number,
   vScale: number,
   seed: number,
+  wallHex: number,
 ): void {
   const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
   const spanY = y1 - y0;
@@ -1432,6 +1437,7 @@ function emitFacadeWindows(
   const uSpan = elen - 2 * (marginU * METERS_TO_WORLD);
   const vSpan = winEnd - winStart;
   const glass = pal.windowHex(seed);
+  const frame = pal.mixHex(wallHex, pal.AO_DARK, 0.22);
 
   for (let r = 0; r < rows; r++) {
     const y = winStart + ((r + 0.5) / rows) * vSpan;
@@ -1440,6 +1446,39 @@ function emitFacadeWindows(
       const x = a.x + tx * u - nx * inset;
       const z = a.z + tz * u - nz * inset;
       pushWindowMatrix(scratch, x, y, z, nx, nz, winW, winH, glass);
+    }
+  }
+
+  // Baked niches so the front still reads when instanced sashes do not.
+  // Longest street fronts only; cap the count so a City chunk does not explode.
+  if (edgeM < 8) return;
+  let bakeCols = Math.min(cols, 5);
+  let bakeRows = Math.min(rows, 3);
+  const bakeCap = major ? 12 : 8;
+  while (bakeCols * bakeRows > bakeCap && bakeRows > 1) bakeRows -= 1;
+  while (bakeCols * bakeRows > bakeCap && bakeCols > 2) bakeCols -= 1;
+  const depth = 1.85 * METERS_TO_WORLD;
+  const paneD = 0.45 * METERS_TO_WORLD;
+  for (let r = 0; r < bakeRows; r++) {
+    const y = winStart + ((r + 0.5) / bakeRows) * vSpan - winH / 2;
+    for (let c = 0; c < bakeCols; c++) {
+      const u = u0 + ((c + 0.5) / bakeCols) * (uSpan - winW);
+      const mx = a.x + tx * u + nx * (depth / 2);
+      const mz = a.z + tz * u + nz * (depth / 2);
+      pushOrientedBox(mx, y, mz, winW * 1.12, winH, depth, tx, tz, nx, nz, frame);
+      pushOrientedBox(
+        a.x + tx * u + nx * (depth + paneD / 2),
+        y + winH * 0.14,
+        a.z + tz * u + nz * (depth + paneD / 2),
+        winW * 0.7,
+        winH * 0.68,
+        paneD,
+        tx,
+        tz,
+        nx,
+        nz,
+        glass,
+      );
     }
   }
 }
