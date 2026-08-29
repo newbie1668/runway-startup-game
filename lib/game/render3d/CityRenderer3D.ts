@@ -65,11 +65,12 @@ const BUILD_JOBS_PER_FRAME = 2;
 /** Drain faster while the loading overlay is up — the player isn't watching a half-built city. */
 const BUILD_JOBS_WHILE_LOADING = 16;
 /**
- * Keep-disk cameras still extrude every stock plate inside the disk. Dumping
- * those buffers in one burst Aw Snapped the first view=mid. Spread the upload;
- * do not skip keep-disk stock to save GPU.
+ * Keep-disk cameras still extrude every stock plate inside the disk. Six
+ * jobs in one frame packed leftover chunks with water, parks, and roads
+ * and Aw Snapped the first view=mid. One upload per frame. Do not skip
+ * keep-disk stock to save GPU.
  */
-const BUILD_JOBS_WHILE_LOADING_WIDE = 6;
+const BUILD_JOBS_WHILE_LOADING_WIDE = 1;
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 
 /** Fitzrovia / Charlotte St — cream and brick terraces, toy isometric height. */
