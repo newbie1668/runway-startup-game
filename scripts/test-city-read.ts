@@ -522,6 +522,7 @@ check('wide-view mesh budget clips the city; close looks stay full', () => {
   assert.equal(mid.pixelRatioCap, 1);
   assert.equal(mid.skipTrees, true);
   assert.equal(mid.skipWindows, true);
+  assert.equal(mid.skipMinorChunks, false);
   const eye = meshBudgetFromSearch(new URLSearchParams('look=eye'));
   assert.equal(eye.chunkKeepM, 1800);
   assert.equal(eye.skipAntialias, true);

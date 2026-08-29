@@ -660,9 +660,13 @@ export function buildChunkTier(
       district,
     );
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
-    const forceFlat = district === 'canary' || (district === 'city' && b.heightM > 14);
+    const forceFlat = district === 'canary' || (district === 'city' && b.heightM > 18);
     const forceGable =
-      !forceFlat && (style === STYLE_TERRACE || style === STYLE_HOUSE) && b.heightM <= 16;
+      !forceFlat &&
+      (style === STYLE_TERRACE ||
+        style === STYLE_HOUSE ||
+        (style === STYLE_APARTMENTS && b.heightM <= 18)) &&
+      b.heightM <= 22;
     const roof = forceGable && storedRoof === ROOF_FLAT ? ROOF_GABLED : storedRoof;
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
     const osmWall = fromRgb565(b.wall565);
@@ -837,17 +841,17 @@ export function buildChunkTier(
             while (houses * floors * bays > 36 && floors > 1) floors -= 1;
             while (houses * floors * bays > 36 && bays > 1) bays -= 1;
             const elen = Math.hypot(dx, dz) || 1;
-            const alongN = -0.28 * METERS_TO_WORLD;
-            const winW = (residential ? 1.55 : 1.85) * METERS_TO_WORLD;
+            const alongN = -0.48 * METERS_TO_WORLD;
+            const winW = (residential ? 2.15 : 2.55) * METERS_TO_WORLD;
             const winH = Math.min(
-              (stack / floors) * 0.62,
-              (residential ? 2.15 : 2.35) * METERS_TO_WORLD * Math.min(vScale, 1.7),
+              (stack / floors) * 0.68,
+              (residential ? 2.45 : 2.7) * METERS_TO_WORLD * Math.min(vScale, 1.7),
             );
             if (houses > 1) {
               const ribHex = pal.mixHex(baseHex, pal.AO_DARK, 0.5);
-              const half = 0.28 * METERS_TO_WORLD;
-              const ox = nx * -0.18 * METERS_TO_WORLD;
-              const oz = nz * -0.18 * METERS_TO_WORLD;
+              const half = 0.48 * METERS_TO_WORLD;
+              const ox = nx * -0.32 * METERS_TO_WORLD;
+              const oz = nz * -0.32 * METERS_TO_WORLD;
               const tx = dx / elen;
               const tz = dz / elen;
               for (let hse = 1; hse < houses; hse++) {
@@ -1042,8 +1046,8 @@ export function buildChunkTier(
     const roofRing = shaftRing;
     const axis = principalAxis(roofRing, cx, cz);
     const widthM = (axis.maxPerp * 2) / METERS_TO_WORLD;
-    const pitched = !forceFlat && pitchedKind && b.heightM <= 22 && widthM < 28 && n <= 12;
-    const riseM = pitched ? Math.min(8.5, Math.max(2.4, widthM * 0.36)) : 0;
+    const pitched = !forceFlat && pitchedKind && b.heightM <= 24 && widthM < 40 && n <= 16;
+    const riseM = pitched ? Math.min(11, Math.max(3.8, widthM * 0.5)) : 0;
     const riseWorld = riseM * METERS_TO_WORLD * vScale;
     const eavesY = heightWorld;
 
@@ -1191,12 +1195,12 @@ export function buildChunkTier(
         const mx = front.x + (back.x - front.x) * t;
         const mz = front.z + (back.z - front.z) * t;
         pushOrientedBox(
-          mx + nx * 0.55 * METERS_TO_WORLD,
-          eavesY + riseWorld * 0.22,
-          mz + nz * 0.55 * METERS_TO_WORLD,
-          2.0 * METERS_TO_WORLD,
-          1.55 * METERS_TO_WORLD * vScale,
-          1.7 * METERS_TO_WORLD,
+          mx + nx * 0.7 * METERS_TO_WORLD,
+          eavesY + riseWorld * 0.28,
+          mz + nz * 0.7 * METERS_TO_WORLD,
+          2.6 * METERS_TO_WORLD,
+          2.1 * METERS_TO_WORLD * vScale,
+          2.2 * METERS_TO_WORLD,
           tx,
           tz,
           nx,
@@ -1207,48 +1211,40 @@ export function buildChunkTier(
     }
 
     if (
-      scratch &&
       !pitched &&
       (style === STYLE_OFFICE || style === STYLE_TOWER || style === STYLE_APARTMENTS) &&
       b.heightM >= 12 &&
       areaM2 > 180
     ) {
-      const yaw = Math.atan2(axis.ax, axis.az);
-      const s = Math.min(5.5, Math.sqrt(areaM2) * 0.12) * METERS_TO_WORLD;
-      pushRooftopMatrix(
-        scratch,
+      const s = Math.min(6.5, Math.sqrt(areaM2) * 0.14) * METERS_TO_WORLD;
+      pushBox(
         cx,
         eavesY,
         cz,
-        s * 1.1,
-        2.4 * METERS_TO_WORLD * vScale,
-        s * 0.75,
-        yaw,
+        s * 1.2,
+        3.2 * METERS_TO_WORLD * vScale,
+        s * 0.8,
         ROOF_CLUTTER[seed % ROOF_CLUTTER.length]!,
       );
       if (areaM2 > 320) {
-        pushRooftopMatrix(
-          scratch,
+        pushBox(
           cx + axis.ax * s * 1.6,
           eavesY,
           cz + axis.az * s * 1.6,
-          s * 0.7,
-          1.5 * METERS_TO_WORLD * vScale,
-          s * 0.5,
-          yaw,
+          s * 0.8,
+          2.0 * METERS_TO_WORLD * vScale,
+          s * 0.55,
           ROOF_CLUTTER[(seed + 1) % ROOF_CLUTTER.length]!,
         );
       }
       if (areaM2 > 500 && major) {
-        pushRooftopMatrix(
-          scratch,
+        pushBox(
           cx - axis.px * s * 0.9,
           eavesY,
           cz - axis.pz * s * 0.9,
-          s * 0.45,
-          0.55 * METERS_TO_WORLD,
-          s * 0.45,
-          yaw,
+          s * 0.5,
+          0.7 * METERS_TO_WORLD,
+          s * 0.5,
           ROOF_CLUTTER[(seed + 2) % ROOF_CLUTTER.length]!,
         );
       }

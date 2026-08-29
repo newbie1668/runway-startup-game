@@ -3,6 +3,8 @@
  * tessellate the whole city — water, parks, roads, chunks — then draw it at
  * once and Aw Snap. Close looks still get the full neighbourhood around the
  * camera. Wide looks clip cover meshes to a keep-disk and skip garnish.
+ * Minor chunks stay on: they are the terraces / houses. Skipping them made
+ * view=mid a field of typed office boxes.
  */
 
 export type KeepDisk = { x: number; z: number; r: number };
@@ -37,7 +39,7 @@ const WIDE_BASE: Omit<MeshBudget, 'chunkKeepM'> = {
   skipWindows: true,
   skipLamps: true,
   skipNoticedStock: true,
-  skipMinorChunks: true,
+  skipMinorChunks: false,
   skipAntialias: true,
   pixelRatioCap: 1,
 };
@@ -53,13 +55,13 @@ export function meshBudgetFromSearch(q: URLSearchParams | null): MeshBudget {
   const view = q.get('view');
   const wide = view === 'mid' || view === 'default' || view === 'wide';
   if (look === 'eye') {
-    return { ...WIDE_BASE, chunkKeepM: 1800 };
+    return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 1800 };
   }
   if (look === 'lcy') {
     return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 2200 };
   }
   if (wide) {
-    return { ...WIDE_BASE, chunkKeepM: 1600 };
+    return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 1600 };
   }
   return FULL;
 }
