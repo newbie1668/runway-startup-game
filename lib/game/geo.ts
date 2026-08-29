@@ -367,6 +367,17 @@ export function isDeckLandmark(kind: LandmarkKind): boolean {
   );
 }
 
+/** Mid-river points for every Thames crossing in the bake — prefab or not. */
+export const THAMES_CROSSINGS: readonly { name: string; at: LngLat }[] = [
+  { name: 'Putney Bridge', at: [-0.213, 51.4668] },
+  { name: 'Hammersmith Bridge', at: [-0.2304, 51.4882] },
+  { name: 'Wandsworth Bridge', at: [-0.1875, 51.4655] },
+  { name: 'Battersea Bridge', at: [-0.1726, 51.4811] },
+  { name: 'Chelsea Bridge', at: [-0.15, 51.4845] },
+  { name: 'Vauxhall Bridge', at: [-0.1267, 51.4875] },
+  { name: 'Southwark Bridge', at: [-0.0942, 51.5086] },
+] as const;
+
 export const LANDMARKS: readonly Landmark[] = [
   { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90, yaw: 0.12 },
   { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },

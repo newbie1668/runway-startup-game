@@ -12,7 +12,14 @@
  */
 
 import * as THREE from 'three';
-import { LANDMARKS, METERS_TO_WORLD, WORLD, project, type LandmarkKind } from '../geo';
+import {
+  LANDMARKS,
+  METERS_TO_WORLD,
+  WORLD,
+  isDeckLandmark,
+  project,
+  type LandmarkKind,
+} from '../geo';
 import { HUB_POS, MapOverlay } from '../overlay';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
@@ -33,8 +40,10 @@ import {
   CHUNK_COUNT,
   createBuildingMaterial,
   createScratch,
+  crossingYawAt,
   HUB_GLOW_PLAYER_COLOR,
   nearestPick,
+  riverCrossingSpans,
   type BuildingPick,
   type CityScratch,
 } from './cityBuilder';
@@ -385,13 +394,20 @@ export class CityRenderer3D implements IMapRenderer {
       const mesh = buildWater(data);
       if (mesh) this.cityGroup.add(mesh);
     });
+    const crossings = riverCrossingSpans(data);
     for (let i = 0; i < LANDMARKS.length; i++) {
       jobs.push(() => {
         const landmark = LANDMARKS[i];
         const p = project(landmark.at);
         const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(p.x, 0, p.y);
-        if (landmark.yaw) group.rotation.y += landmark.yaw;
+        const riverDeck = isDeckLandmark(landmark.kind) && landmark.kind !== 'oldstreet';
+        if (riverDeck && landmark.kind !== 'towerbridge') {
+          const yaw = crossingYawAt(p.x, p.y, crossings) ?? landmark.yaw ?? 0;
+          group.rotation.y += yaw;
+        } else if (landmark.yaw) {
+          group.rotation.y += landmark.yaw;
+        }
         this.cityGroup.add(group);
       });
     }

@@ -6,7 +6,6 @@ import * as THREE from 'three';
 import { isDeckLandmark } from '../lib/game/geo';
 import { ROAD_Y } from '../lib/game/render3d/cityBuilder';
 import { EYE_WHEEL_NAME, LANDMARK_DECK_Y, build } from '../lib/game/render3d/landmarks';
-import { ASPHALT } from '../lib/game/render3d/palette';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -46,29 +45,24 @@ check('London Eye A-frame meets the hub', () => {
   assert.ok(hits >= 2, `expected axle/legs at the hub, got ${hits}`);
 });
 
-check('Tower Bridge has a deck at LANDMARK_DECK_Y', () => {
+check('Tower Bridge keeps its towers without a competing road slab', () => {
   const bridge = build('towerbridge');
-  let found = false;
+  assert.equal(bridge.getObjectByName('deck'), undefined);
+  let cones = 0;
   bridge.traverse((obj) => {
-    if (!(obj instanceof THREE.Mesh)) return;
-    if (Math.abs(obj.position.y - LANDMARK_DECK_Y) > 0.03) return;
-    const size = new THREE.Vector3();
-    obj.geometry.computeBoundingBox();
-    obj.geometry.boundingBox?.getSize(size);
-    if (size.z > size.x) found = true;
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
   });
-  assert.ok(found, 'no along-Z deck slab at deck height');
+  assert.ok(cones >= 2, `expected Tower Bridge spires, got ${cones}`);
 });
 
-check('Hungerford deck matches LANDMARK_DECK_Y', () => {
+check('Hungerford keeps river piers, not a leftover deck box', () => {
   const br = build('hungerford');
-  let found = false;
+  assert.equal(br.getObjectByName('deck'), undefined);
+  let boxes = 0;
   br.traverse((obj) => {
-    if (obj instanceof THREE.Mesh && Math.abs(obj.position.y - LANDMARK_DECK_Y) < 0.03) {
-      found = true;
-    }
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'BoxGeometry') boxes += 1;
   });
-  assert.ok(found);
+  assert.ok(boxes >= 4, `expected Hungerford piers, got ${boxes}`);
 });
 
 function countGlow(root: THREE.Object3D): number {
@@ -105,18 +99,7 @@ check("St Paul's nave has a window grid and dome ridges", () => {
   assert.ok(boxes >= 40, `nave window grid should add boxes, got ${boxes}`);
 });
 
-function deckHex(kind: Parameters<typeof build>[0]): number | null {
-  const root = build(kind);
-  const deck = root.getObjectByName('deck');
-  if (!(deck instanceof THREE.Mesh)) return null;
-  const mat = deck.material;
-  if (mat instanceof THREE.MeshLambertMaterial || mat instanceof THREE.MeshBasicMaterial) {
-    return mat.color.getHex();
-  }
-  return null;
-}
-
-check('named Thames decks use street asphalt, not park green or brick red', () => {
+check('river prefabs do not carry a competing carriageway slab', () => {
   for (const kind of [
     'westminsterbr',
     'lambethbr',
@@ -128,8 +111,7 @@ check('named Thames decks use street asphalt, not park green or brick red', () =
     'hungerford',
     'towerbridge',
   ] as const) {
-    const hex = deckHex(kind);
-    assert.equal(hex, ASPHALT, `${kind} deck ${hex?.toString(16)} should be asphalt`);
+    assert.equal(build(kind).getObjectByName('deck'), undefined, `${kind} still has a deck box`);
   }
 });
 

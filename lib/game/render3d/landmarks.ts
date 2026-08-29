@@ -12,7 +12,6 @@ import * as THREE from 'three';
 import { METERS_TO_WORLD } from '../geo';
 import type { LandmarkKind } from '../geo';
 import { HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
-import { ASPHALT } from './palette';
 
 /** Name used to find the rotating wheel sub-group for the frame()-driven spin. */
 export const EYE_WHEEL_NAME = 'eyeWheel';
@@ -22,9 +21,8 @@ function m(meters: number): number {
 }
 
 /**
- * Landmark bridge decks sit just above OSM carriageways (`ROAD_Y` = 0.14).
- * Using `m(7)` here used to put decks *below* the road ribbons, which read as
- * collapsed / fallen-off spans.
+ * Landmark ornament (piers, towers) sits at road height. The carriageway itself
+ * is the OSM / stitch asphalt ribbon — prefabs must not carry a competing slab.
  */
 export const LANDMARK_DECK_Y = 0.18;
 
@@ -114,121 +112,6 @@ function addWindowGrid(
       const y = y0 + ((r + 0.5) / rows) * height - paneH / 2;
       if (facing === 'z') addBox(group, paneW, paneH, thick, glass, ox + u, y, oz);
       else addBox(group, thick, paneH, paneW, glass, ox, y, oz + u);
-    }
-  }
-}
-
-type BridgeLamp =
-  'westminster' | 'lambeth' | 'albert' | 'tower' | 'blackfriars' | 'stone' | 'white';
-
-const LAMP_CAGE = new THREE.MeshLambertMaterial({ color: 0x1c1e22 });
-const LAMP_GLOW = emissiveMaterial(0xffe7a8);
-const LAMP_GOLD = emissiveMaterial(0xe8c878);
-
-function addLanternHead(group: THREE.Group, x: number, y: number, z: number, scale = 1): void {
-  const s = scale;
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(m(0.42) * s, m(0.34) * s, m(1.15) * s, 8),
-    LAMP_CAGE,
-  );
-  body.position.set(x, y, z);
-  group.add(body);
-  const glass = new THREE.Mesh(
-    new THREE.CylinderGeometry(m(0.34) * s, m(0.34) * s, m(0.95) * s, 8),
-    LAMP_GLOW,
-  );
-  glass.position.set(x, y, z);
-  group.add(glass);
-}
-
-/** Charles Barry triples on Westminster; ornate singles on the other Thames crossings. */
-function addBridgeLamp(
-  group: THREE.Group,
-  x: number,
-  deckY: number,
-  z: number,
-  kind: BridgeLamp,
-  paint: THREE.Material,
-): void {
-  if (kind === 'westminster') {
-    const postH = m(6.4);
-    const post = new THREE.Mesh(
-      baseAtGround(new THREE.CylinderGeometry(m(0.22), m(0.3), postH, 8), postH),
-      paint,
-    );
-    post.position.set(x, deckY, z);
-    group.add(post);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(m(5.2), m(0.22), m(0.22)), paint);
-    arm.position.set(x, deckY + postH, z);
-    group.add(arm);
-    for (const dx of [-m(2.1), 0, m(2.1)]) {
-      addLanternHead(group, x + dx, deckY + postH + m(0.7), z, dx === 0 ? 1.45 : 1.2);
-      const fin = new THREE.Mesh(new THREE.SphereGeometry(m(0.2), 6, 6), LAMP_GOLD);
-      fin.position.set(x + dx, deckY + postH + m(1.4), z);
-      group.add(fin);
-    }
-    return;
-  }
-  const postH = kind === 'albert' ? m(5.4) : m(6.0);
-  const post = new THREE.Mesh(
-    baseAtGround(new THREE.CylinderGeometry(m(0.18), m(0.24), postH, 8), postH),
-    paint,
-  );
-  post.position.set(x, deckY, z);
-  group.add(post);
-  if (kind === 'lambeth') {
-    addLanternHead(group, x, deckY + postH + m(0.65), z, 1.35);
-    const pine = new THREE.Mesh(
-      baseAtGround(new THREE.ConeGeometry(m(0.4), m(0.9), 8), m(0.9)),
-      LAMP_GOLD,
-    );
-    pine.position.set(x, deckY + postH + m(1.2), z);
-    group.add(pine);
-    return;
-  }
-  if (kind === 'albert') {
-    for (const dx of [-m(0.7), m(0.7)]) {
-      addLanternHead(group, x + dx, deckY + postH + m(0.55), z, 1.15);
-    }
-    return;
-  }
-  if (kind === 'tower') {
-    addLanternHead(group, x, deckY + postH + m(0.7), z, 1.55);
-    const cap = new THREE.Mesh(
-      baseAtGround(new THREE.ConeGeometry(m(0.7), m(1.1), 4), m(1.1)),
-      LAMP_CAGE,
-    );
-    cap.position.set(x, deckY + postH + m(1.35), z);
-    cap.rotation.y = Math.PI / 4;
-    group.add(cap);
-    return;
-  }
-  addLanternHead(group, x, deckY + postH + m(0.6), z, kind === 'blackfriars' ? 1.4 : 1.2);
-  const fin = new THREE.Mesh(
-    new THREE.SphereGeometry(m(0.2), 6, 6),
-    kind === 'blackfriars' ? LAMP_GOLD : LAMP_GLOW,
-  );
-  fin.position.set(x, deckY + postH + m(1.25), z);
-  group.add(fin);
-}
-
-function addBridgeLampRow(
-  group: THREE.Group,
-  length: number,
-  width: number,
-  deckY: number,
-  kind: BridgeLamp,
-  paint: THREE.Material,
-  spacingM = 11,
-  along: 'x' | 'z' = 'x',
-): void {
-  const n = Math.max(6, Math.round(length / METERS_TO_WORLD / spacingM));
-  for (let i = 0; i <= n; i++) {
-    const t = (i / n - 0.5) * length * 0.9;
-    if (along === 'z') {
-      for (const x of [-width / 2, width / 2]) addBridgeLamp(group, x, deckY, t, kind, paint);
-    } else {
-      for (const z of [-width / 2, width / 2]) addBridgeLamp(group, t, deckY, z, kind, paint);
     }
   }
 }
@@ -632,28 +515,11 @@ function buildStPauls(): THREE.Group {
   return group;
 }
 
-function addDeckSlab(
-  group: THREE.Group,
-  width: number,
-  thick: number,
-  length: number,
-  material: THREE.Material,
-  x: number,
-  y: number,
-  z: number,
-): void {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, thick, length), material);
-  mesh.position.set(x, y, z);
-  mesh.name = 'deck';
-  group.add(mesh);
-}
-
 function buildTowerBridge(): THREE.Group {
   const group = new THREE.Group();
   const stone = new THREE.MeshLambertMaterial({ color: 0xe8dcc8 });
   const band = new THREE.MeshLambertMaterial({ color: 0xf4eee4 });
   const iron = new THREE.MeshLambertMaterial({ color: 0x2a5aa8 });
-  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
   const voidMat = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
 
   const towerHeight = h(65);
@@ -661,11 +527,9 @@ function buildTowerBridge(): THREE.Group {
   const shaftW = m(18);
   const pier = m(3.6);
   const deckY = LANDMARK_DECK_Y;
-  const deckThick = m(2.8);
   const deckW = m(11.5);
   const archH = deckY + m(12);
   const walkY = towerHeight * 0.78;
-  const approach = towerHalfSpan + m(110);
 
   for (const side of [-1, 1]) {
     const z = side * towerHalfSpan;
@@ -796,11 +660,6 @@ function buildTowerBridge(): THREE.Group {
         group.add(pinRoof);
       }
     }
-
-    const abutH = Math.max(h(16), deckY + m(6));
-    const abutZ = side * (towerHalfSpan + m(78));
-    addBox(group, m(16), abutH, m(24), stone, 0, 0, abutZ);
-    addPointedArchVoid(group, m(10), m(11), m(12), voidMat, 0, m(3), abutZ);
   }
 
   const walkLen = towerHalfSpan * 2 - shaftW * 0.35;
@@ -827,14 +686,12 @@ function buildTowerBridge(): THREE.Group {
     );
   }
 
-  addDeckSlab(group, deckW, deckThick, approach * 2, asphalt, 0, deckY, 0);
-
   for (const side of [-1, 1]) {
     const towerZ = side * towerHalfSpan;
-    const abutmentZ = side * (towerHalfSpan + m(78));
+    const chainEndZ = side * (towerHalfSpan + m(55));
     for (const x of [-m(5.4), m(5.4)]) {
       const start = new THREE.Vector3(x, walkY - m(2), towerZ);
-      const end = new THREE.Vector3(x, deckY + m(2.5), abutmentZ);
+      const end = new THREE.Vector3(x, deckY + m(2.5), chainEndZ);
       const mid = start.clone().lerp(end, 0.48);
       mid.y = deckY + m(8);
       const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
@@ -846,7 +703,6 @@ function buildTowerBridge(): THREE.Group {
     }
   }
 
-  addBridgeLampRow(group, approach * 2, deckW, deckY + m(1.4), 'tower', iron, 10, 'z');
   return group;
 }
 
@@ -1245,69 +1101,36 @@ function buildOldStreet(): THREE.Group {
   return group;
 }
 
-function buildBeamBridge(
-  pierColor: number,
-  lengthM: number,
-  pierCount: number,
-  lamp: BridgeLamp,
-): THREE.Group {
+function buildBeamBridge(pierColor: number, pierCount: number): THREE.Group {
   const group = new THREE.Group();
-  const length = m(lengthM);
-  const width = m(22);
-  const deckY = LANDMARK_DECK_Y;
-  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
-  const rail = new THREE.MeshLambertMaterial({ color: 0x3a3c42 });
   const pierMat = new THREE.MeshLambertMaterial({ color: pierColor });
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(length, m(2.6), width), asphalt);
-  deck.position.y = deckY;
-  deck.name = 'deck';
-  group.add(deck);
-  for (const z of [-width / 2, width / 2]) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(length, m(1.7), m(0.8)), rail);
-    wall.position.set(0, deckY + m(1.8), z);
-    group.add(wall);
-  }
+  const spread = m(170);
   for (let i = 0; i < pierCount; i++) {
     const t = (i + 0.5) / pierCount - 0.5;
-    addBox(group, m(10), deckY, m(16), pierMat, t * length * 0.52, 0, 0);
+    addBox(group, m(8), LANDMARK_DECK_Y, m(14), pierMat, t * spread, 0, 0);
   }
-  addBridgeLampRow(
-    group,
-    length,
-    width,
-    deckY + m(1.6),
-    lamp,
-    rail,
-    lamp === 'westminster' ? 10 : 12,
-  );
   return group;
 }
 
 function buildWestminsterBr(): THREE.Group {
-  return buildBeamBridge(0xc4b9a6, 340, 7, 'westminster');
+  return buildBeamBridge(0xc4b9a6, 7);
 }
 function buildLambethBr(): THREE.Group {
-  return buildBeamBridge(0xc4b9a6, 320, 5, 'lambeth');
+  return buildBeamBridge(0xc4b9a6, 5);
 }
 function buildWaterlooBr(): THREE.Group {
-  return buildBeamBridge(0xb0a898, 400, 5, 'stone');
+  return buildBeamBridge(0xb0a898, 5);
 }
 function buildBlackfriarsBr(): THREE.Group {
-  return buildBeamBridge(0xc9a24a, 340, 5, 'blackfriars');
+  return buildBeamBridge(0xc9a24a, 5);
 }
 function buildLondonBr(): THREE.Group {
-  return buildBeamBridge(0x6e6a64, 320, 3, 'stone');
+  return buildBeamBridge(0x6e6a64, 3);
 }
 
 function buildMillennium(): THREE.Group {
   const group = new THREE.Group();
   const steel = new THREE.MeshLambertMaterial({ color: 0xb8c0c8 });
-  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
-  const length = m(370);
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(length, m(1.4), m(8)), asphalt);
-  deck.position.y = LANDMARK_DECK_Y;
-  deck.name = 'deck';
-  group.add(deck);
   for (const side of [-1, 1]) {
     const pier = new THREE.Mesh(new THREE.CylinderGeometry(m(1.6), m(3.2), m(18), 8), steel);
     pier.position.set(side * m(70), m(9), 0);
@@ -1334,12 +1157,6 @@ function buildAlbertBr(): THREE.Group {
   const group = new THREE.Group();
   const pink = new THREE.MeshLambertMaterial({ color: 0xe8a0b4 });
   const green = new THREE.MeshLambertMaterial({ color: 0x5aa86a });
-  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
-  const length = m(280);
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(length, m(2.2), m(18)), asphalt);
-  deck.position.y = LANDMARK_DECK_Y;
-  deck.name = 'deck';
-  group.add(deck);
   for (const side of [-1, 1]) {
     addBox(group, m(10), h(22), m(10), green, side * m(40), 0, 0);
     const spire = new THREE.Mesh(
@@ -1350,7 +1167,7 @@ function buildAlbertBr(): THREE.Group {
     group.add(spire);
     for (const z of [-m(6), m(6)]) {
       const start = new THREE.Vector3(side * m(40), h(20), z);
-      const end = new THREE.Vector3(side * m(105), LANDMARK_DECK_Y + m(1), z);
+      const end = new THREE.Vector3(side * m(80), LANDMARK_DECK_Y + m(1), z);
       const mid = start.clone().lerp(end, 0.5);
       mid.y = m(16);
       group.add(
@@ -1367,31 +1184,17 @@ function buildAlbertBr(): THREE.Group {
       );
     }
   }
-  addBridgeLampRow(group, length, m(18), LANDMARK_DECK_Y + m(1.2), 'albert', pink, 9);
   return group;
 }
 
 function buildHungerford(): THREE.Group {
   const group = new THREE.Group();
-  const white = new THREE.MeshLambertMaterial({ color: 0xe8e6e0 });
   const rail = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
-  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
-  const length = m(420);
-  const deckY = LANDMARK_DECK_Y;
-  const railDeck = new THREE.Mesh(new THREE.BoxGeometry(length, m(2.8), m(12)), asphalt);
-  railDeck.position.y = deckY;
-  railDeck.name = 'deck';
-  group.add(railDeck);
-  for (const z of [-m(11), m(11)]) {
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(length, m(1.8), m(6.5)), white);
-    foot.position.set(0, deckY + m(1.2), z);
-    group.add(foot);
-  }
+  const spread = m(180);
   for (let i = 0; i < 6; i++) {
-    const x = (i / 5 - 0.5) * length * 0.8;
-    addBox(group, m(7), deckY, m(14), rail, x, 0, 0);
+    const x = (i / 5 - 0.5) * spread;
+    addBox(group, m(7), LANDMARK_DECK_Y, m(14), rail, x, 0, 0);
   }
-  addBridgeLampRow(group, length, m(28), deckY + m(1.6), 'white', white, 14);
   return group;
 }
 

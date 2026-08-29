@@ -15,14 +15,25 @@ import {
 import { polylineDashes, segmentEdgeOffsets } from '../lib/game/render3d/streetMarks';
 import { chamferRing } from '../lib/game/render3d/footprint';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
-import { METERS_TO_WORLD } from '../lib/game/geo';
+import {
+  LANDMARKS,
+  METERS_TO_WORLD,
+  THAMES_CROSSINGS,
+  isDeckLandmark,
+  project,
+} from '../lib/game/geo';
 import {
   splitRoadRuns,
   stitchWaterSpans,
+  walkAcrossWater,
+  buildCrossingSpans,
+  riverCrossingSpans,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
-import { STYLE_TERRACE } from '../lib/game/render3d/buildingStyle';
+import { decodeCity } from '../lib/game/render3d/format';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -126,7 +137,7 @@ check('London clock and climate stay offline', () => {
   assert.ok(climate.aqi > 0);
 });
 
-check('river crossings keep a long interior water span and drop bank noise', () => {
+check('river crossings drop wet OSM and stitch a land-to-land span', () => {
   const min = BRIDGE_SPAN_MIN_M * METERS_TO_WORLD;
   const landA = [
     { x: 0, z: 0 },
@@ -142,11 +153,15 @@ check('river crossings keep a long interior water span and drop bank noise', () 
   ];
   const pts = [...landA, ...span, ...landB];
   const wet = new Set(span.map((p) => `${p.x},${p.z}`));
-  const runs = splitRoadRuns(pts, (x, z) => wet.has(`${x},${z}`));
-  assert.ok(
+  const over = (x: number, z: number) => wet.has(`${x},${z}`) || (x > 2.05 && x < 2.1 + min + 0.45);
+  const runs = splitRoadRuns(pts, over);
+  assert.equal(
     runs.some((r) => r.span),
-    'expected a kept Thames span',
+    false,
+    'wet OSM must not become a ribbon',
   );
+  assert.equal(runs.length, 2, 'both banks keep their land roads');
+
   const dip = [
     { x: 0, z: 0 },
     { x: 1, z: 0 },
@@ -160,6 +175,19 @@ check('river crossings keep a long interior water span and drop bank noise', () 
     false,
     'short water dips must not become decks',
   );
+
+  const far = walkAcrossWater({ x: 0, z: 0, dx: 1, dz: 0, tier: 0 }, (x) => x > 0.5 && x < 1.6);
+  assert.ok(far && far.x > 1.6, 'walk should step onto the far bank');
+  const crossings = buildCrossingSpans(
+    [
+      { x: 0.2, z: 0, dx: 1, dz: 0, tier: 0 },
+      { x: 1.9, z: 0, dx: -1, dz: 0, tier: 0 },
+    ],
+    (x) => x > 0.4 && x < 1.7,
+  );
+  assert.equal(crossings.length, 1);
+  const mid = (crossings[0]!.pts[0].x + crossings[0]!.pts[1].x) / 2;
+  assert.ok(mid > 0.4 && mid < 1.7, 'stitched span should cross the water');
 });
 
 check('neighbouring terraces do not share one cloned wall paint', () => {
@@ -176,6 +204,36 @@ check('land stubs facing across water stitch into an asphalt span', () => {
   const spans = stitchWaterSpans(approaches, (x) => x > 0.4 && x < 1.8);
   assert.equal(spans.length, 1);
   assert.equal(spans[0]!.pts.length, 2);
+});
+
+check('named Thames crossings have a land-to-land span in the London bake', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const spans = riverCrossingSpans(
+    decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)),
+  );
+  const named = LANDMARKS.filter((l) => isDeckLandmark(l.kind) && l.kind !== 'oldstreet');
+  for (const lm of named) {
+    const at = project(lm.at);
+    const hit = spans.find((s) => {
+      const mx = (s.pts[0].x + s.pts[1].x) / 2;
+      const mz = (s.pts[0].z + s.pts[1].z) / 2;
+      return Math.hypot(mx - at.x, mz - at.y) < 90 * METERS_TO_WORLD;
+    });
+    assert.ok(hit, `${lm.name} has no stitched carriageway`);
+    const meters =
+      Math.hypot(hit!.pts[1].x - hit!.pts[0].x, hit!.pts[1].z - hit!.pts[0].z) / METERS_TO_WORLD;
+    assert.ok(meters > 70 && meters < 520, `${lm.name} span ${meters.toFixed(0)}m looks wrong`);
+  }
+  const extra = THAMES_CROSSINGS;
+  for (const { name, at: ll } of extra) {
+    const at = project(ll);
+    const hit = spans.find((s) => {
+      const mx = (s.pts[0].x + s.pts[1].x) / 2;
+      const mz = (s.pts[0].z + s.pts[1].z) / 2;
+      return Math.hypot(mx - at.x, mz - at.y) < 100 * METERS_TO_WORLD;
+    });
+    assert.ok(hit, `${name} has no stitched carriageway`);
+  }
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);
