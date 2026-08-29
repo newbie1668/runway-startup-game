@@ -861,6 +861,9 @@ function quadHitsDisk(
   if (distPointToSeg(disk.x, disk.z, b.x, b.z, c.x, c.z) < r) return true;
   if (distPointToSeg(disk.x, disk.z, c.x, c.z, d.x, d.z) < r) return true;
   if (distPointToSeg(disk.x, disk.z, d.x, d.z, a.x, a.z) < r) return true;
+  const mx = (a.x + b.x + c.x + d.x) / 4;
+  const mz = (a.z + b.z + c.z + d.z) / 4;
+  if (Math.hypot(mx - disk.x, mz - disk.z) < r) return true;
   if (pointInTri(disk.x, disk.z, a.x, a.z, b.x, b.z, c.x, c.z)) return true;
   if (pointInTri(disk.x, disk.z, a.x, a.z, c.x, c.z, d.x, d.z)) return true;
   return false;
@@ -903,7 +906,7 @@ function emitDrumWindows(
   glass: number,
   nRows: number,
 ): void {
-  const segs = 16;
+  const segs = 8;
   const rows = Math.max(1, nRows);
   const span = y1 - y0;
   const rowH = span / rows;
@@ -1032,7 +1035,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const drumR = m(POULTRY_DRUM_R_M);
   const drumH = Math.max(H * 1.28, m(40));
   const wallDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(0.5) };
-  const capDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(2.4) };
+  const capDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(3.2) };
   const arcadeH = H * 0.15;
   emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE, wallDisk);
   const shop = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
@@ -1076,8 +1079,8 @@ function emitPoultryWalls(ctx: StreetEmit): void {
 
   emitDrumWindows(ctx, apex.x, apex.z, drumR, 0, drumH, POULTRY_PINK, POULTRY_GLASS, 5);
   emitStirlingClocks(ctx, apex.x, drumH * 0.7, apex.z, drumR);
-  pushDisk(ctx, apex.x, drumH, apex.z, drumR, POULTRY_PINK, 16);
-  pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.22, m(4.5), POULTRY_BUFF, 10, true);
+  pushDisk(ctx, apex.x, drumH, apex.z, drumR, POULTRY_PINK, 8);
+  pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.4, m(2.1), POULTRY_BUFF, 8, true);
 }
 
 function emitNedWalls(ctx: StreetEmit): void {
@@ -1557,7 +1560,7 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
   if (kind === 'no-1-poultry') {
     const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
     emitAnnularRoofRadial(ctx, ctx.ring, poultryWellR(ctx.plan), H, POULTRY_ROOF, [
-      { x: apex.x, z: apex.z, r: m(POULTRY_DRUM_R_M) + m(2.4) },
+      { x: apex.x, z: apex.z, r: m(POULTRY_DRUM_R_M) + m(3.2) },
     ]);
     return;
   }
