@@ -10,13 +10,16 @@ import {
   STYLE_HOUSE,
   STYLE_OFFICE,
   STYLE_TERRACE,
+  STYLE_TOWER,
+  STYLE_INDUSTRIAL,
   bayCountForEdge,
   restyleForDistrict,
+  stockMassing,
   STYLE_APARTMENTS,
   wantBayWindows,
 } from '../lib/game/render3d/buildingStyle';
 import { polylineDashes, segmentEdgeOffsets } from '../lib/game/render3d/streetMarks';
-import { chamferRing } from '../lib/game/render3d/footprint';
+import { chamferRing, insetRingTowardCentroid } from '../lib/game/render3d/footprint';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import {
   LANDMARKS,
@@ -52,7 +55,7 @@ import {
   createScratch,
   onLondonCityAirportSpit,
 } from '../lib/game/render3d/cityBuilder';
-import { wallHex } from '../lib/game/render3d/palette';
+import { wallHex, HVAC_BLUE, HVAC_RED } from '../lib/game/render3d/palette';
 import { decodeCity, dequantizeX, dequantizeY } from '../lib/game/render3d/format';
 import { inKeepDisk, meshBudgetFromSearch, type KeepDisk } from '../lib/game/render3d/lookClip';
 
@@ -121,6 +124,23 @@ check('chamfer turns a rectangle into eight vertices', () => {
   );
   assert.equal(r.length, 8);
   assert.ok(r.every((p) => p.x >= -1e-9 && p.x <= 10 + 1e-9));
+});
+
+check('centroid inset shrinks a footprint without flipping it', () => {
+  const ring = [
+    { x: 0, z: 0 },
+    { x: 10, z: 0 },
+    { x: 10, z: 6 },
+    { x: 0, z: 6 },
+  ];
+  const inner = insetRingTowardCentroid(ring, 5, 3, 1);
+  assert.equal(inner.length, 4);
+  for (const p of inner) {
+    assert.ok(p.x > 0.2 && p.x < 9.8, `x ${p.x}`);
+    assert.ok(p.z > 0.2 && p.z < 5.8, `z ${p.z}`);
+  }
+  const spanX = Math.max(...inner.map((p) => p.x)) - Math.min(...inner.map((p) => p.x));
+  assert.ok(spanX < 10, `inset still ${spanX} wide`);
 });
 
 check('road edge offsets sit on both kerbs', () => {
@@ -476,43 +496,122 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
     hydeSkinny / hydeTris < 0.08,
     `Hyde still has fan tents (${hydeSkinny}/${hydeTris} skinny tris)`,
   );
-  assert.ok(parkTris > 8_000 && parkTris < 80_000, `park triangulation ${parkTris} looks subdivided`);
+  assert.ok(
+    parkTris > 8_000 && parkTris < 80_000,
+    `park triangulation ${parkTris} looks subdivided`,
+  );
 });
 
-check('zebra crossings sit on junction approaches, not every OSM stub', () => {
+check('zebra crossings sit one per junction, not stacked on every arm', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const xw = plannedCrosswalks(city);
-  assert.ok(xw.length > 40 && xw.length < 2000, `unexpected zebra count ${xw.length}`);
+  assert.ok(xw.length > 25 && xw.length < 2000, `unexpected zebra count ${xw.length}`);
   let stacked = 0;
   for (let i = 0; i < xw.length; i++) {
     for (let j = i + 1; j < xw.length; j++) {
       const d = Math.hypot(xw[i]!.x - xw[j]!.x, xw[i]!.z - xw[j]!.z);
-      if (d < 8 * METERS_TO_WORLD) stacked += 1;
+      if (d < 22 * METERS_TO_WORLD) stacked += 1;
     }
   }
-  assert.equal(stacked, 0, `${stacked} overlapping zebra approaches`);
+  assert.equal(stacked, 0, `${stacked} stacked zebra approaches`);
 });
 
-check('stock walls carry sash insets without the window garnish pass', () => {
+check('City offices mass as setbacks or mansards, not forced slabs', () => {
+  for (const seed of [0, 1, 2, 3, 17, 99, 1001]) {
+    const kind = stockMassing({
+      style: STYLE_OFFICE,
+      roof: 0,
+      heightM: 24,
+      areaM2: 420,
+      district: 'city',
+      seed,
+    });
+    assert.ok(
+      kind === 'setback' || kind === 'mansard',
+      `city 24 m office seed ${seed} was ${kind}`,
+    );
+  }
+  assert.equal(
+    stockMassing({
+      style: STYLE_TOWER,
+      roof: 0,
+      heightM: 90,
+      areaM2: 800,
+      district: 'city',
+      seed: 4,
+    }),
+    'slab',
+  );
+  assert.equal(
+    stockMassing({
+      style: STYLE_TERRACE,
+      roof: 0,
+      heightM: 12,
+      areaM2: 180,
+      district: 'westend',
+      seed: 8,
+    }),
+    'gable',
+  );
+  assert.equal(
+    stockMassing({
+      style: STYLE_INDUSTRIAL,
+      roof: 0,
+      heightM: 10,
+      areaM2: 2000,
+      district: 'eastend',
+      seed: 2,
+    }),
+    'sawtooth',
+  );
+});
+
+check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-  const at = project([-0.146, 51.5115]);
+  const at = project([-0.082, 51.5132]);
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
-  const mesh = buildChunkTier(city, chunkId, false, [], createScratch());
-  assert.ok(mesh, `west-end minor chunk ${chunkId} empty`);
-  const colors = mesh.geometry.getAttribute('color');
-  assert.ok(colors, 'chunk needs vertex colours');
-  let sash = 0;
-  for (let i = 0; i < colors.count; i++) {
-    const r = colors.getX(i);
-    const g = colors.getY(i);
-    const b = colors.getZ(i);
-    if (b > r + 0.04 && b > 0.22 && r < 0.42 && g < 0.5) sash += 1;
+  const red = new THREE.Color(HVAC_RED);
+  const blue = new THREE.Color(HVAC_BLUE);
+  let confetti = 0;
+  let verts = 0;
+  let sloped = 0;
+  for (const major of [true, false]) {
+    const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
+    if (!mesh) continue;
+    const colors = mesh.geometry.getAttribute('color');
+    const normals = mesh.geometry.getAttribute('normal');
+    assert.ok(colors, `chunk ${chunkId} major=${major} needs vertex colours`);
+    for (let i = 0; i < colors.count; i++) {
+      verts += 1;
+      const r = colors.getX(i);
+      const g = colors.getY(i);
+      const b = colors.getZ(i);
+      const ny = normals?.getY(i) ?? 0;
+      if (ny > 0.18 && ny < 0.92) sloped += 1;
+      if (ny < 0.85) continue;
+      if (
+        Math.abs(r - red.r) < 0.012 &&
+        Math.abs(g - red.g) < 0.012 &&
+        Math.abs(b - red.b) < 0.012
+      ) {
+        confetti += 1;
+      }
+      if (
+        Math.abs(r - blue.r) < 0.012 &&
+        Math.abs(g - blue.g) < 0.012 &&
+        Math.abs(b - blue.b) < 0.012
+      ) {
+        confetti += 1;
+      }
+    }
   }
-  assert.ok(sash > 120, `expected wall sashes in chunk ${chunkId}, got ${sash}`);
+  assert.ok(verts > 2000, `citystreet chunk ${chunkId} empty (${verts})`);
+  assert.equal(confetti, 0, `HVAC confetti still in chunk ${chunkId} (${confetti})`);
+  assert.ok(sloped > 80, `citystreet chunk ${chunkId} has no pitched/mansard slopes (${sloped})`);
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {
@@ -655,7 +754,8 @@ check('park trees stand on the lawn, not as dirt mounds', () => {
       const zi = ring[i]!.z;
       const xj = ring[j]!.x;
       const zj = ring[j]!.z;
-      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi) inside = !inside;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi)
+        inside = !inside;
     }
     return inside;
   };

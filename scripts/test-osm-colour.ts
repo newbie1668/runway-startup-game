@@ -17,6 +17,7 @@ import {
   facadeWindowRhythm,
   resolveStyle,
   restyleForDistrict,
+  stockMassing,
   wantFacadeWindows,
   TOWER_HEIGHT_SCALE,
   HEIGHT_SCALE,
@@ -218,6 +219,42 @@ check('neighbouring terraces keep different sash pitches', () => {
   const b = facadeWindowRhythm(STYLE_TERRACE, false, 99_001);
   assert.notEqual(a.pitchU, b.pitchU);
   assert.notEqual(`${a.colCap}x${a.rowCap}`, `${b.colCap}x${b.rowCap}`);
+});
+
+check('stock massing is a silhouette family, not a City slab costume', () => {
+  assert.notEqual(
+    stockMassing({
+      style: STYLE_OFFICE,
+      roof: 0,
+      heightM: 28,
+      areaM2: 500,
+      district: 'city',
+      seed: 1,
+    }),
+    'slab',
+  );
+  assert.equal(
+    stockMassing({
+      style: STYLE_TOWER,
+      roof: 0,
+      heightM: 80,
+      areaM2: 900,
+      district: 'canary',
+      seed: 3,
+    }),
+    'slab',
+  );
+  assert.equal(
+    stockMassing({
+      style: STYLE_TERRACE,
+      roof: 0,
+      heightM: 11,
+      areaM2: 140,
+      district: 'kensington',
+      seed: 4,
+    }),
+    'gable',
+  );
 });
 
 check('towers extrude taller than houses', () => {

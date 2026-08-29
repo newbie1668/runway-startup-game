@@ -39,3 +39,27 @@ export function chamferRing(ring: readonly RingPt[], amount: number): RingPt[] {
   }
   return out;
 }
+
+/**
+ * Wedding-cake inset: scale the ring toward its centroid so each edge pulls
+ * in by about `worldInset`. Skinny footprints clamp so the ring cannot invert.
+ */
+export function insetRingTowardCentroid(
+  ring: readonly RingPt[],
+  cx: number,
+  cz: number,
+  worldInset: number,
+): RingPt[] {
+  if (worldInset <= 1e-8) return ring.map((p) => ({ x: p.x, z: p.z }));
+  let minR = Infinity;
+  for (const p of ring) {
+    const r = Math.hypot(p.x - cx, p.z - cz);
+    if (r < minR) minR = r;
+  }
+  if (!(minR > 1e-8)) return ring.map((p) => ({ x: p.x, z: p.z }));
+  const scale = Math.max(0.58, 1 - worldInset / minR);
+  return ring.map((p) => ({
+    x: cx + (p.x - cx) * scale,
+    z: cz + (p.z - cz) * scale,
+  }));
+}

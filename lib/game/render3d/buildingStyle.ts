@@ -378,3 +378,55 @@ export function wantPodium(
   }
   return heightM >= 55 && areaM2 > 1100;
 }
+
+/**
+ * Map-scale silhouette for ordinary stock. Footprint + OSM style/roof + seed
+ * pick a massing family. Palette-on-a-box is not a family. True glass slabs
+ * are the exception for very tall / Canary towers, not for City mid-rises.
+ */
+export type StockMassing =
+  'slab' | 'setback' | 'mansard' | 'gable' | 'hip' | 'sawtooth' | 'parapet';
+
+export function stockMassing(input: {
+  style: number;
+  roof: number;
+  heightM: number;
+  areaM2: number;
+  district: DistrictId;
+  seed: number;
+}): StockMassing {
+  const { style, roof, heightM, areaM2, district, seed } = input;
+  if (style === STYLE_INDUSTRIAL && areaM2 >= 280) return 'sawtooth';
+  if (style === STYLE_HOUSE) return seed % 5 === 0 ? 'gable' : 'hip';
+  if (style === STYLE_TERRACE) return 'gable';
+  if (style === STYLE_APARTMENTS && heightM <= 16) return 'gable';
+  if (style === STYLE_RETAIL && heightM <= 14) return 'parapet';
+
+  const glassSlab =
+    heightM >= 72 || (district === 'canary' && heightM >= 48 && style === STYLE_TOWER);
+  if (glassSlab) return 'slab';
+
+  if (
+    (style === STYLE_OFFICE || style === STYLE_TOWER) &&
+    heightM >= 16 &&
+    heightM < 72 &&
+    areaM2 > 160
+  ) {
+    const mansion =
+      heightM <= 26 &&
+      (district === 'city' ||
+        district === 'westminster' ||
+        district === 'westend' ||
+        district === 'southbank') &&
+      seed % 3 === 0;
+    return mansion ? 'mansard' : 'setback';
+  }
+
+  if (style === STYLE_APARTMENTS && heightM >= 14 && heightM <= 32) {
+    return seed % 2 === 0 ? 'mansard' : 'setback';
+  }
+
+  if (roof === ROOF_HIPPED && heightM <= 28) return 'mansard';
+  if (roof === ROOF_GABLED && heightM <= 24) return 'gable';
+  return 'parapet';
+}

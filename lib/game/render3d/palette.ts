@@ -31,7 +31,7 @@ export const MARKING = 0xf3f3ef;
 /** Blue-tinted glass rectangles — Kansas civic/street read, not black holes. */
 export const WINDOW = 0x3a5470;
 export const BAY_GLASS = 0x1c2c40;
-/** Roof clutter — Kansas HVAC blocks in charcoal / blue / red. */
+/** Roof paint leftovers — not used as coloured HVAC studs on stock. */
 export const HVAC_BLUE = 0x3a5080;
 export const HVAC_RED = 0x8a3834;
 export const HVAC_BLACK = 0x2a3038;
@@ -70,14 +70,7 @@ const NAVY_GLASS = [0x7a92a4, 0x6e8698, 0x8aa4b4, 0x668090, 0x7698aa];
 const WAREHOUSE = [0x8a7a68, 0x7a6e60, 0x9a8a76, 0x6e6458, 0xa0907c];
 
 export type FacadeFamily =
-  | 'cream'
-  | 'yellow'
-  | 'brick'
-  | 'portland'
-  | 'grey'
-  | 'charcoal'
-  | 'navy'
-  | 'warehouse';
+  'cream' | 'yellow' | 'brick' | 'portland' | 'grey' | 'charcoal' | 'navy' | 'warehouse';
 
 const FAMILY_SWATCH: Record<FacadeFamily, readonly number[]> = {
   cream: GEORGIAN_CREAM,
@@ -91,7 +84,7 @@ const FAMILY_SWATCH: Record<FacadeFamily, readonly number[]> = {
 };
 
 const WINDOW_GLASS = [WINDOW, BAY_GLASS, 0x4a6880, 0x2a4058, 0x5c7890, 0x3e5a72] as const;
-const AWNING_PAINTS = [AWNING, 0xa8483c, 0x3a5080, 0xc4a060, 0x2a3340] as const;
+const AWNING_PAINTS = [AWNING, 0xa8483c, 0x3d4a58, 0xc4a060, 0x2a3340] as const;
 
 /** Every legal wall swatch — OSM paints snap into this gamut. */
 export const WALL_GAMUT: readonly number[] = [

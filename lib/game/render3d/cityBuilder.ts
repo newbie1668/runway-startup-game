@@ -1,9 +1,9 @@
 /**
  * RUNWAY — decoded city data -> three.js geometry.
  *
- * Daytime SFSIM look: solid vertex colours, geometric window insets
- * (instanced quads), darker roofs with parapets/clutter, grey streets with
- * white markings, instanced trees. Real OSM footprints keep their own
+ * Daytime SFSIM look: solid vertex colours, map-scale massing (setbacks,
+ * mansards, gables), darker roofs with parapets, grey streets with white
+ * markings, instanced trees. Real OSM footprints keep their own
  * outward-facing normals (winding is inconsistent).
  */
 
@@ -30,9 +30,8 @@ import {
 } from './format';
 import { fromRgb565 } from './osmColour';
 import {
-  ROOF_FLAT,
-  ROOF_GABLED,
   STYLE_HOUSE,
+  STYLE_INDUSTRIAL,
   STYLE_OFFICE,
   STYLE_APARTMENTS,
   STYLE_RETAIL,
@@ -43,6 +42,7 @@ import {
   restyleForDistrict,
   districtAt,
   extrusionScale,
+  stockMassing,
   wantBayWindows,
   wantFacadeWindows,
   wantPodium,
@@ -52,7 +52,7 @@ import {
 } from './buildingStyle';
 import * as pal from './palette';
 import { DASH_WIDTH_M, EDGE_WIDTH_M, polylineDashes, segmentEdgeOffsets } from './streetMarks';
-import { chamferRing } from './footprint';
+import { chamferRing, insetRingTowardCentroid } from './footprint';
 import {
   aabbHitsKeep,
   clipPolylineToKeep,
@@ -151,13 +151,14 @@ function lcyLocal(x: number, z: number): { lx: number; lz: number } | null {
   return { lx: dx * c - dz * s, lz: dx * s + dz * c };
 }
 
-function nearLondonCityAirport(x: number, z: number): boolean {
+function nearLondonCityAirport(x: number, z: number, padM = 0): boolean {
   const p = lcyLocal(x, z);
   if (!p) return false;
+  const pad = padM * METERS_TO_WORLD;
   return (
-    Math.abs(p.lx) < 820 * METERS_TO_WORLD &&
-    p.lz > -80 * METERS_TO_WORLD &&
-    p.lz < 210 * METERS_TO_WORLD
+    Math.abs(p.lx) < 820 * METERS_TO_WORLD + pad &&
+    p.lz > -80 * METERS_TO_WORLD - pad &&
+    p.lz < 210 * METERS_TO_WORLD + pad
   );
 }
 
@@ -401,8 +402,6 @@ function pushWindowMatrix(
   scratch.windowColors.push(color);
 }
 
-const ROOF_CLUTTER = [pal.HVAC, pal.HVAC_BLACK, pal.HVAC_BLUE, pal.HVAC_RED] as const;
-
 /** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
 export function buildChunkTier(
   cityData: CityData,
@@ -625,7 +624,7 @@ export function buildChunkTier(
     cz /= n;
 
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
-    if (nearLondonCityAirport(cx, cz) || ring.some((p) => nearLondonCityAirport(p.x, p.z)))
+    if (nearLondonCityAirport(cx, cz, 10) || ring.some((p) => nearLondonCityAirport(p.x, p.z, 10)))
       continue;
 
     const areaM2 = footprintAreaM2(ring);
@@ -638,20 +637,20 @@ export function buildChunkTier(
       district,
     );
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
-    const forceFlat = district === 'canary' || (district === 'city' && b.heightM > 18);
-    const forceGable =
-      !forceFlat &&
-      (style === STYLE_TERRACE ||
-        style === STYLE_HOUSE ||
-        (style === STYLE_APARTMENTS && b.heightM <= 18)) &&
-      b.heightM <= 22;
-    const roof = forceGable && storedRoof === ROOF_FLAT ? ROOF_GABLED : storedRoof;
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
+    const massing = stockMassing({
+      style,
+      roof: storedRoof,
+      heightM: b.heightM,
+      areaM2,
+      district,
+      seed,
+    });
     const osmWall = fromRgb565(b.wall565);
     const osmRoof = fromRgb565(b.roof565);
     const baseHex = pal.wallHex(style, district, cx, cz, seed, osmWall);
     const wallBottomHex = pal.mixHex(baseHex, pal.AO_DARK, 0.1);
-    const pitchedKind = roof !== ROOF_FLAT;
+    const pitchedKind = massing === 'gable' || massing === 'hip' || massing === 'mansard';
     const roofHex = osmRoof
       ? pal.clampRoofColour(osmRoof)
       : pal.roofHex(style, pitchedKind && b.heightM <= 22, seed);
@@ -659,9 +658,8 @@ export function buildChunkTier(
     const heightWorld = b.heightM * METERS_TO_WORLD * vScale;
     const shopM = style === STYLE_RETAIL ? Math.min(4.0, b.heightM * 0.36) : 0;
     const shopWorld = shopM * METERS_TO_WORLD * vScale;
-    const plinthWorld =
-      shopWorld > 0.02 ? 0 : Math.min(0.95 * METERS_TO_WORLD * vScale, heightWorld * 0.14);
-    const corniceWorld = Math.min(0.7 * METERS_TO_WORLD * vScale, heightWorld * 0.1);
+    const plinthWorld = shopWorld > 0.02 ? 0 : Math.min(4.2 * METERS_TO_WORLD, heightWorld * 0.22);
+    const corniceWorld = Math.min(1.6 * METERS_TO_WORLD, heightWorld * 0.12);
     const corniceHex = pal.mixHex(
       baseHex,
       pal.CORNICE,
@@ -670,6 +668,7 @@ export function buildChunkTier(
     const podium = wantPodium(style, b.heightM, areaM2, district);
     const podiumWorld = podium ? Math.min(15 * METERS_TO_WORLD * vScale, heightWorld * 0.14) : 0;
     const chamferAmt =
+      (massing === 'slab' || massing === 'parapet' || massing === 'setback') &&
       (style === STYLE_OFFICE || style === STYLE_RETAIL || style === STYLE_TOWER) &&
       n >= 4 &&
       n <= 16 &&
@@ -677,19 +676,7 @@ export function buildChunkTier(
         ? (1.55 + (seed % 4) * 0.35) * METERS_TO_WORLD
         : 0;
     const wallRing = chamferAmt > 0 ? chamferRing(ring, chamferAmt) : ring;
-    const stepped =
-      !podium &&
-      !pitchedKind &&
-      (style === STYLE_OFFICE || style === STYLE_TOWER) &&
-      b.heightM >= 16 &&
-      areaM2 > 220 &&
-      seed % 3 === 0;
-    const stepY = stepped ? heightWorld * 0.64 : heightWorld;
-    const shaftRing = podium
-      ? insetRing(ring, cx, cz, district === 'canary' ? 0.42 : 0.58)
-      : stepped
-        ? insetRing(ring, cx, cz, 0.7)
-        : ring;
+    const shaftRing = podium ? insetRing(ring, cx, cz, district === 'canary' ? 0.42 : 0.58) : ring;
 
     let longestI = 0;
     let longestM = 0;
@@ -707,8 +694,20 @@ export function buildChunkTier(
       useRing: { x: number; z: number }[],
       y0: number,
       y1: number,
-      opts: { plinth: boolean; shop: boolean; cornice: boolean; doors: boolean; windows: boolean },
+      opts: {
+        plinth: boolean;
+        shop: boolean;
+        cornice: boolean;
+        doors: boolean;
+        windows: boolean;
+        sashes?: boolean;
+        stringCourses?: boolean;
+        hex?: number;
+        bottomHex?: number;
+      },
     ) => {
+      const faceHex = opts.hex ?? baseHex;
+      const faceBottom = opts.bottomHex ?? wallBottomHex;
       const count = useRing.length;
       for (let i = 0; i < count; i++) {
         const a = useRing[i]!;
@@ -737,38 +736,26 @@ export function buildChunkTier(
         const wallTop = Math.max(plinthTop, y1 - (opts.cornice ? corniceWorld : 0));
         if (opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85) {
           emitQuad(y0, y0 + shopWorld, pal.SHOPFRONT, pal.SHOPFRONT);
-          emitQuad(y0 + shopWorld, wallTop, wallBottomHex, baseHex);
+          emitQuad(y0 + shopWorld, wallTop, faceBottom, faceHex);
         } else if (opts.plinth && plinthWorld > 0.01) {
-          emitQuad(y0, plinthTop, wallBottomHex, wallBottomHex);
-          emitQuad(plinthTop, wallTop, wallBottomHex, baseHex);
+          emitQuad(y0, plinthTop, faceBottom, faceBottom);
+          emitQuad(plinthTop, wallTop, faceBottom, faceHex);
         } else {
-          emitQuad(y0, wallTop, wallBottomHex, baseHex);
+          emitQuad(y0, wallTop, faceBottom, faceHex);
         }
         if (opts.cornice && corniceWorld > 0.008 && wallTop < y1) {
-          emitQuad(wallTop, y1, corniceHex, corniceHex, 0.22 * METERS_TO_WORLD);
+          emitQuad(wallTop, y1, corniceHex, corniceHex, 1.25 * METERS_TO_WORLD);
         }
 
         const edgeLenM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
-        if (
-          (style === STYLE_OFFICE || style === STYLE_TOWER) &&
-          edgeLenM > 14 &&
-          y1 - y0 > 8 * METERS_TO_WORLD
-        ) {
-          const mid0 = y0 + (y1 - y0) * 0.34;
-          const mid1 = y0 + (y1 - y0) * 0.58;
-          const recess = pal.mixHex(baseHex, pal.AO_DARK, 0.24);
-          emitQuad(mid0, mid1, recess, recess, -0.55 * METERS_TO_WORLD);
-        } else if (
-          opts.windows &&
-          (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_APARTMENTS) &&
-          y1 - y0 > 6 * METERS_TO_WORLD &&
-          seed % 3 !== 1
-        ) {
-          const t = 0.28 + ((seed >>> 5) % 5) * 0.08;
-          const bandH = Math.min(2.6 * METERS_TO_WORLD * vScale, (y1 - y0) * 0.18);
-          const by0 = y0 + (y1 - y0) * t;
-          const bandHex = pal.mixHex(baseHex, pal.WINDOW, 0.2 + ((seed >>> 9) % 4) * 0.05);
-          emitQuad(by0, by0 + bandH, bandHex, bandHex, -0.04 * METERS_TO_WORLD);
+        if (opts.stringCourses && y1 - y0 > 9 * METERS_TO_WORLD && edgeLenM > 8) {
+          const courseH = Math.min(1.7 * METERS_TO_WORLD, (y1 - y0) * 0.12);
+          const out = 1.35 * METERS_TO_WORLD;
+          const cHex = pal.mixHex(faceHex, pal.CORNICE, 0.38);
+          for (const t of [0.32, 0.6]) {
+            const cy0 = y0 + (y1 - y0) * t;
+            emitQuad(cy0, cy0 + courseH, cHex, cHex, out);
+          }
         }
 
         const wantDoor =
@@ -797,7 +784,7 @@ export function buildChunkTier(
           else indices.push(d0, d2, d1, d0, d3, d2);
         }
 
-        if (opts.windows && edgeLenM >= 4.4 && y1 - y0 > 5.2 * METERS_TO_WORLD) {
+        if (opts.sashes && opts.windows && edgeLenM >= 4.4 && y1 - y0 > 5.2 * METERS_TO_WORLD) {
           const shopTop =
             opts.shop && shopWorld > 0.02 ? y0 + shopWorld : y0 + 0.85 * METERS_TO_WORLD * vScale;
           const head = y1 - 0.55 * METERS_TO_WORLD * vScale;
@@ -914,6 +901,25 @@ export function buildChunkTier(
       }
     };
 
+    const glassHex = pal.mixHex(baseHex, pal.WINDOW, 0.48);
+    const glassDark = pal.mixHex(pal.WINDOW, pal.AO_DARK, 0.1);
+    const bodyY0 = podium ? podiumWorld : 0;
+    const bodySpan = Math.max(heightWorld - bodyY0, 4 * METERS_TO_WORLD);
+    const setbackSteps = massing === 'setback' && b.heightM >= 30 ? 3 : 2;
+    const setbackYA = bodyY0 + bodySpan * (0.38 + ((seed >>> 2) % 7) * 0.022);
+    const setbackYB =
+      setbackSteps === 3 ? bodyY0 + bodySpan * (0.64 + ((seed >>> 6) % 5) * 0.02) : heightWorld;
+    const insetM1 = (4.0 + (seed % 5) * 0.7) * METERS_TO_WORLD;
+    const insetM2 = (7.6 + (seed % 4) * 0.8) * METERS_TO_WORLD;
+    const setbackRoof1 = insetRingTowardCentroid(ring, cx, cz, insetM1);
+    const setbackRoof2 = insetRingTowardCentroid(ring, cx, cz, insetM2);
+    const setbackWall1 =
+      chamferAmt > 0 ? chamferRing(setbackRoof1, chamferAmt * 0.55) : setbackRoof1;
+    const setbackWall2 =
+      chamferAmt > 0 ? chamferRing(setbackRoof2, chamferAmt * 0.4) : setbackRoof2;
+    const mansardEaves =
+      bodyY0 + bodySpan * (massing === 'mansard' ? 0.64 + ((seed >>> 3) % 5) * 0.02 : 1);
+
     if (podium) {
       emitRingWalls(wallRing, 0, podiumWorld, {
         plinth: true,
@@ -921,36 +927,56 @@ export function buildChunkTier(
         cornice: true,
         doors: true,
         windows: true,
+        stringCourses: false,
       });
-      emitRingWalls(shaftRing, podiumWorld, heightWorld, {
+    }
+
+    if (massing === 'setback') {
+      emitRingWalls(podium ? shaftRing : wallRing, bodyY0, setbackYA, {
+        plinth: !podium && shopWorld <= 0.02,
+        shop: !podium && shopWorld > 0.02,
+        cornice: true,
+        doors: !podium,
+        windows: true,
+        stringCourses: true,
+      });
+      emitRingWalls(setbackWall1, setbackYA, setbackYB, {
         plinth: false,
         shop: false,
         cornice: true,
         doors: false,
         windows: true,
+        hex: glassHex,
+        bottomHex: glassHex,
       });
-    } else if (stepped) {
-      emitRingWalls(wallRing, 0, stepY, {
-        plinth: shopWorld <= 0.02,
-        shop: shopWorld > 0.02,
+      if (setbackSteps === 3) {
+        emitRingWalls(setbackWall2, setbackYB, heightWorld, {
+          plinth: false,
+          shop: false,
+          cornice: true,
+          doors: false,
+          windows: true,
+          hex: glassDark,
+          bottomHex: glassDark,
+        });
+      }
+    } else if (massing === 'mansard') {
+      emitRingWalls(podium ? shaftRing : wallRing, bodyY0, mansardEaves, {
+        plinth: !podium && shopWorld <= 0.02,
+        shop: !podium && shopWorld > 0.02,
         cornice: true,
-        doors: true,
+        doors: !podium,
         windows: true,
-      });
-      emitRingWalls(shaftRing, stepY, heightWorld, {
-        plinth: false,
-        shop: false,
-        cornice: true,
-        doors: false,
-        windows: true,
+        stringCourses: true,
       });
     } else {
-      emitRingWalls(wallRing, 0, heightWorld, {
-        plinth: shopWorld <= 0.02,
-        shop: shopWorld > 0.02,
+      emitRingWalls(podium ? shaftRing : wallRing, bodyY0, heightWorld, {
+        plinth: !podium && shopWorld <= 0.02,
+        shop: !podium && shopWorld > 0.02,
         cornice: true,
-        doors: true,
+        doors: !podium,
         windows: true,
+        stringCourses: massing === 'parapet' || massing === 'slab' || massing === 'sawtooth',
       });
     }
 
@@ -1021,17 +1047,25 @@ export function buildChunkTier(
       }
     }
 
-    const roofRing = shaftRing;
-    const axis = principalAxis(roofRing, cx, cz);
-    const widthM = (axis.maxPerp * 2) / METERS_TO_WORLD;
-    const pitched = !forceFlat && pitchedKind && b.heightM <= 24 && widthM < 40 && n <= 16;
-    const riseM = pitched ? Math.min(11, Math.max(3.8, widthM * 0.5)) : 0;
-    const riseWorld = riseM * METERS_TO_WORLD * vScale;
-    const eavesY = heightWorld;
+    const roofRing = massing === 'setback' || !podium ? ring : shaftRing;
+    const axis = principalAxis(ring, cx, cz);
+    let maxAlong = 1e-6;
+    for (const p of ring) {
+      const d = Math.abs((p.x - cx) * axis.ax + (p.z - cz) * axis.az);
+      if (d > maxAlong) maxAlong = d;
+    }
+    const pitched = pitchedKind && n <= 24;
+    const eavesY = massing === 'mansard' ? mansardEaves : heightWorld;
+    const riseWorld = pitched
+      ? massing === 'mansard'
+        ? Math.max(heightWorld - eavesY, 5.5 * METERS_TO_WORLD)
+        : Math.min(12 * METERS_TO_WORLD, Math.max(4.2 * METERS_TO_WORLD, axis.maxPerp * 0.95))
+      : 0;
+    const gableRoof = massing === 'gable';
 
     const roofYAt = (p: { x: number; z: number }): number => {
       if (!pitched) return eavesY;
-      if (roof === ROOF_GABLED) {
+      if (gableRoof) {
         const d = Math.abs((p.x - cx) * axis.px + (p.z - cz) * axis.pz);
         return eavesY + riseWorld * (1 - Math.min(1, d / axis.maxPerp));
       }
@@ -1109,25 +1143,41 @@ export function buildChunkTier(
     };
 
     if (podium) emitRoof(ring, () => podiumWorld, pal.mixHex(roofHex, pal.AO_DARK, 0.18));
-    if (stepped) emitRoof(ring, () => stepY, pal.mixHex(roofHex, pal.AO_DARK, 0.12));
-    emitRoof(roofRing, roofYAt, roofHex);
+    if (massing === 'setback') {
+      emitRoof(podium ? shaftRing : ring, () => setbackYA, pal.mixHex(roofHex, pal.AO_DARK, 0.14));
+      if (setbackSteps === 3) {
+        emitRoof(setbackRoof1, () => setbackYB, pal.mixHex(roofHex, pal.AO_DARK, 0.08));
+        emitRoof(setbackRoof2, () => heightWorld, roofHex);
+      } else {
+        emitRoof(setbackRoof1, () => heightWorld, roofHex);
+      }
+    } else {
+      emitRoof(roofRing, roofYAt, roofHex);
+    }
 
-    const wantParapet = !pitched && (major || areaM2 > 140) && b.heightM >= 8 && n <= 24;
+    const wantParapet =
+      !pitched &&
+      (massing === 'slab' || massing === 'parapet' || massing === 'setback') &&
+      (major || areaM2 > 140) &&
+      b.heightM >= 8 &&
+      n <= 24;
     if (wantParapet) {
-      const lip = 0.9 * METERS_TO_WORLD;
+      const lip = 1.6 * METERS_TO_WORLD;
       const inset = 0.35 * METERS_TO_WORLD;
-      const thick = 0.28 * METERS_TO_WORLD;
-      const count = roofRing.length;
+      const thick = 0.55 * METERS_TO_WORLD;
+      const capRing =
+        massing === 'setback' ? (setbackSteps === 3 ? setbackRoof2 : setbackRoof1) : roofRing;
+      const count = capRing.length;
       for (let i = 0; i < count; i++) {
-        const a = roofRing[i]!;
-        const bp = roofRing[(i + 1) % count]!;
+        const a = capRing[i]!;
+        const bp = capRing[(i + 1) % count]!;
         const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
         const ax = a.x - nx * inset;
         const az = a.z - nz * inset;
         const bx = bp.x - nx * inset;
         const bz = bp.z - nz * inset;
-        const y0 = eavesY;
-        const y1 = eavesY + lip;
+        const y0 = heightWorld;
+        const y1 = heightWorld + lip;
         const i0 = pushVertex(ax, y0, az, nx, 0, nz, roofHex);
         const i1 = pushVertex(bx, y0, bz, nx, 0, nz, roofHex);
         const i2 = pushVertex(bx, y1, bz, nx, 0, nz, pal.CORNICE);
@@ -1143,89 +1193,96 @@ export function buildChunkTier(
       }
     }
 
-    const ridgeY = eavesY + riseWorld;
-    if (pitched && (style === STYLE_HOUSE || style === STYLE_TERRACE) && areaM2 < 480) {
-      const count = areaM2 > 140 ? 3 : 1;
-      for (let k = 0; k < count; k++) {
-        const along = ((k + 1) / (count + 1) - 0.5) * axis.maxPerp * 1.4;
-        pushBox(
-          cx + axis.ax * along,
-          ridgeY - 0.4 * METERS_TO_WORLD,
-          cz + axis.az * along,
-          0.9 * METERS_TO_WORLD,
-          2.2 * METERS_TO_WORLD * vScale,
-          0.9 * METERS_TO_WORLD,
-          pal.CHIMNEY,
-        );
+    if (
+      (massing === 'gable' || massing === 'hip') &&
+      (style === STYLE_HOUSE || style === STYLE_TERRACE)
+    ) {
+      const houses = longestM >= 14 ? Math.max(2, Math.round(longestM / 6.5)) : 0;
+      if (houses >= 2) {
+        const front = ring[longestI]!;
+        const back = ring[(longestI + 1) % n]!;
+        const [nx, nz] = outwardNormal(front.x, front.z, back.x, back.z, cx, cz);
+        const elen = Math.hypot(back.x - front.x, back.z - front.z) || 1;
+        const tx = (back.x - front.x) / elen;
+        const tz = (back.z - front.z) / elen;
+        const ribHex = pal.mixHex(baseHex, pal.AO_DARK, 0.42);
+        const finH = heightWorld + riseWorld * 0.15;
+        const finOut = 1.35 * METERS_TO_WORLD;
+        const finThick = 1.05 * METERS_TO_WORLD;
+        for (let hse = 1; hse < houses; hse++) {
+          const t = hse / houses;
+          const mx = front.x + (back.x - front.x) * t;
+          const mz = front.z + (back.z - front.z) * t;
+          pushOrientedBox(
+            mx + nx * (finOut / 2),
+            0,
+            mz + nz * (finOut / 2),
+            finThick,
+            finH,
+            finOut,
+            tx,
+            tz,
+            nx,
+            nz,
+            ribHex,
+          );
+        }
       }
     }
 
-    if (pitched && (style === STYLE_HOUSE || style === STYLE_TERRACE) && longestM >= 14) {
-      const front = ring[longestI]!;
-      const back = ring[(longestI + 1) % n]!;
-      const [nx, nz] = outwardNormal(front.x, front.z, back.x, back.z, cx, cz);
-      const elen = Math.hypot(back.x - front.x, back.z - front.z) || 1;
-      const houses = Math.max(2, Math.round(longestM / 6.5));
-      const tx = (back.x - front.x) / elen;
-      const tz = (back.z - front.z) / elen;
-      for (let k = 0; k < houses; k++) {
-        const t = (k + 0.5) / houses;
-        const mx = front.x + (back.x - front.x) * t;
-        const mz = front.z + (back.z - front.z) * t;
+    if (massing === 'sawtooth' && style === STYLE_INDUSTRIAL) {
+      const teeth = 3 + (seed % 3);
+      const toothW = Math.max(3.2 * METERS_TO_WORLD, (axis.maxPerp * 2) / teeth);
+      const toothH = (5.5 + (seed % 4) * 0.8) * METERS_TO_WORLD;
+      const along = maxAlong * 1.7;
+      for (let k = 0; k < teeth; k++) {
+        const t = (k + 0.5) / teeth - 0.5;
         pushOrientedBox(
-          mx + nx * 0.7 * METERS_TO_WORLD,
-          eavesY + riseWorld * 0.28,
-          mz + nz * 0.7 * METERS_TO_WORLD,
-          2.6 * METERS_TO_WORLD,
-          2.1 * METERS_TO_WORLD * vScale,
-          2.2 * METERS_TO_WORLD,
-          tx,
-          tz,
-          nx,
-          nz,
-          pal.mixHex(baseHex, pal.CORNICE, 0.18),
+          cx + axis.px * t * axis.maxPerp * 1.6,
+          heightWorld,
+          cz + axis.pz * t * axis.maxPerp * 1.6,
+          along,
+          toothH,
+          toothW * 0.55,
+          axis.ax,
+          axis.az,
+          axis.px,
+          axis.pz,
+          pal.mixHex(roofHex, pal.AO_DARK, k % 2 === 0 ? 0.08 : 0.22),
         );
       }
     }
 
     if (
-      !pitched &&
-      (style === STYLE_OFFICE || style === STYLE_TOWER || style === STYLE_APARTMENTS) &&
-      b.heightM >= 12 &&
-      areaM2 > 180
+      (massing === 'setback' || massing === 'parapet') &&
+      n <= 8 &&
+      (style === STYLE_OFFICE || style === STYLE_TOWER)
     ) {
-      const s = Math.min(6.5, Math.sqrt(areaM2) * 0.14) * METERS_TO_WORLD;
-      pushBox(
-        cx,
-        eavesY,
-        cz,
-        s * 1.2,
-        3.2 * METERS_TO_WORLD * vScale,
-        s * 0.8,
-        ROOF_CLUTTER[seed % ROOF_CLUTTER.length]!,
-      );
-      if (areaM2 > 320) {
-        pushBox(
-          cx + axis.ax * s * 1.6,
-          eavesY,
-          cz + axis.az * s * 1.6,
-          s * 0.8,
-          2.0 * METERS_TO_WORLD * vScale,
-          s * 0.55,
-          ROOF_CLUTTER[(seed + 1) % ROOF_CLUTTER.length]!,
-        );
+      const quoin = 3.1 * METERS_TO_WORLD;
+      const quoinH = massing === 'setback' ? setbackYA : heightWorld;
+      for (const p of ring) {
+        pushBox(p.x, 0, p.z, quoin, quoinH, quoin, baseHex);
       }
-      if (areaM2 > 500 && major) {
-        pushBox(
-          cx - axis.px * s * 0.9,
-          eavesY,
-          cz - axis.pz * s * 0.9,
-          s * 0.5,
-          0.7 * METERS_TO_WORLD,
-          s * 0.5,
-          ROOF_CLUTTER[(seed + 2) % ROOF_CLUTTER.length]!,
-        );
-      }
+    }
+
+    if (
+      (massing === 'setback' || massing === 'slab' || massing === 'parapet') &&
+      areaM2 > 400 &&
+      b.heightM >= 18 &&
+      n <= 24
+    ) {
+      const pentH = 4.6 * METERS_TO_WORLD;
+      const pentRing = insetRingTowardCentroid(ring, cx, cz, 6.2 * METERS_TO_WORLD);
+      emitRingWalls(pentRing, heightWorld, heightWorld + pentH, {
+        plinth: false,
+        shop: false,
+        cornice: false,
+        doors: false,
+        windows: false,
+        hex: roofHex,
+        bottomHex: roofHex,
+      });
+      emitRoof(pentRing, () => heightWorld + pentH, roofHex);
     }
 
     if (scratch) {
@@ -1748,8 +1805,7 @@ function parkShadeAt(
   lite: THREE.Color,
 ): THREE.Color {
   // One sample per cell. High-frequency hashes on fan verts were the creases.
-  const u =
-    0.5 + 0.26 * Math.sin(x * 9.4 + z * 5.1) + 0.14 * Math.sin(x * 3.7 - z * 8.2);
+  const u = 0.5 + 0.26 * Math.sin(x * 9.4 + z * 5.1) + 0.14 * Math.sin(x * 3.7 - z * 8.2);
   if (u < 0.4) return dark;
   if (u > 0.6) return lite;
   return base;
@@ -1917,14 +1973,7 @@ function emitOsmParkTris(
     ) {
       continue;
     }
-    emitParkVerts(
-      positions,
-      colors,
-      indices,
-      [a, b, c],
-      y,
-      parkShadeAt(mx, mz, base, dark, lite),
-    );
+    emitParkVerts(positions, colors, indices, [a, b, c], y, parkShadeAt(mx, mz, base, dark, lite));
   }
 }
 
@@ -1957,19 +2006,7 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
       keep,
     );
     if (tiled > 0) continue;
-    emitOsmParkTris(
-      positions,
-      colors,
-      indices,
-      ring,
-      p,
-      water,
-      PARK_Y,
-      base,
-      dark,
-      lite,
-      keep,
-    );
+    emitOsmParkTris(positions, colors, indices, ring, p, water, PARK_Y, base, dark, lite, keep);
   }
   if (indices.length === 0) return null;
   const geometry = new THREE.BufferGeometry();
@@ -3063,7 +3100,7 @@ export type PlannedCrosswalk = {
   half: number;
 };
 
-/** One zebra per junction approach — not one per OSM stub start. */
+/** One zebra per junction cluster — not one per approach, which stacks at 4-ways. */
 export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
@@ -3096,8 +3133,8 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
     }
   }
 
-  const junctionR = 14 * METERS_TO_WORLD;
-  const hashCell = 14 * METERS_TO_WORLD;
+  const junctionR = 16 * METERS_TO_WORLD;
+  const hashCell = 16 * METERS_TO_WORLD;
   const grid = new Map<string, number[]>();
   const cellKey = (x: number, z: number): string =>
     `${Math.round(x / hashCell)}:${Math.round(z / hashCell)}`;
@@ -3126,39 +3163,64 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
     return hit;
   };
 
+  const parent = ends.map((_, i) => i);
+  const find = (i: number): number => {
+    let p = i;
+    while (parent[p] !== p) p = parent[p]!;
+    let x = i;
+    while (x !== p) {
+      const n = parent[x]!;
+      parent[x] = p;
+      x = n;
+    }
+    return p;
+  };
+  for (let i = 0; i < ends.length; i++) {
+    for (const j of nearby(i)) {
+      const pa = find(i);
+      const pb = find(j);
+      if (pa !== pb) parent[pa] = pb;
+    }
+  }
+
+  const clusters = new Map<number, number[]>();
+  for (let i = 0; i < ends.length; i++) {
+    const root = find(i);
+    const bucket = clusters.get(root);
+    if (bucket) bucket.push(i);
+    else clusters.set(root, [i]);
+  }
+
   const setback = 14 * METERS_TO_WORLD;
   const candidates: PlannedCrosswalk[] = [];
-  const usedApproach = new Set<string>();
-  for (let i = 0; i < ends.length; i++) {
-    const e = ends[i]!;
-    const others = nearby(i);
+  for (const idxs of clusters.values()) {
+    if (idxs.length < 2) continue;
     let crossing = false;
-    for (const j of others) {
-      const o = ends[j]!;
-      const dot = e.dx * o.dx + e.dz * o.dz;
-      if (Math.abs(dot) < 0.55) {
-        crossing = true;
-        break;
+    for (let a = 0; a < idxs.length && !crossing; a++) {
+      const ea = ends[idxs[a]!]!;
+      for (let b = a + 1; b < idxs.length; b++) {
+        const eb = ends[idxs[b]!]!;
+        const dot = ea.dx * eb.dx + ea.dz * eb.dz;
+        if (Math.abs(dot) < 0.55) {
+          crossing = true;
+          break;
+        }
       }
     }
     if (!crossing) continue;
-    // Parallel OSM fragments of the same arm share a heading at this node.
-    let heading = Math.round(Math.atan2(e.dz, e.dx) / (Math.PI / 8));
-    heading = ((heading % 16) + 16) % 16;
-    const qx = Math.round(e.x / (12 * METERS_TO_WORLD));
-    const qz = Math.round(e.z / (12 * METERS_TO_WORLD));
-    const key = `${qx}:${qz}:${heading}`;
-    if (usedApproach.has(key)) continue;
-    usedApproach.add(key);
-    if (e.runLen < setback + 8 * METERS_TO_WORLD) continue;
-    const x = e.x + e.dx * setback;
-    const z = e.z + e.dz * setback;
+    const ranked = idxs
+      .map((i) => ends[i]!)
+      .filter((e) => e.runLen >= setback + 8 * METERS_TO_WORLD)
+      .sort((a, b) => b.runLen - a.runLen);
+    const best = ranked[0];
+    if (!best) continue;
+    const x = best.x + best.dx * setback;
+    const z = best.z + best.dz * setback;
     if (skipRoadVertex(x, z)) continue;
-    candidates.push({ x, z, dx: e.dx, dz: e.dz, half: half0 });
+    candidates.push({ x, z, dx: best.dx, dz: best.dz, half: half0 });
   }
 
-  // 6 bars span ~6 m. Anything closer is overlapping paint, even on another heading.
-  const minSep = 10 * METERS_TO_WORLD;
+  const minSep = 28 * METERS_TO_WORLD;
   const kept: PlannedCrosswalk[] = [];
   for (const e of candidates) {
     if (kept.some((k) => Math.hypot(k.x - e.x, k.z - e.z) < minSep)) continue;
