@@ -38,7 +38,11 @@ export function instantiateLandmark(
   prefabs: Map<LandmarkKind, THREE.Object3D>,
 ): THREE.Group {
   // River decks stay procedural so asphalt/join fixes are not stuck in a stale GLB.
-  if (isDeckLandmark(kind) && kind !== 'oldstreet') return buildLandmark(kind);
+  // Tower of London too: pale Caen stone must not go through makeMatteLambert's
+  // photogrammetry-white → navy-glass crush.
+  if ((isDeckLandmark(kind) && kind !== 'oldstreet') || kind === 'towerlondon') {
+    return buildLandmark(kind);
+  }
   const prefab = prefabs.get(kind);
   if (!prefab) return buildLandmark(kind);
   const clone = prefab.clone(true);

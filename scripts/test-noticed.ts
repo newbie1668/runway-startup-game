@@ -238,6 +238,13 @@ check('named Canary towers get photo-true unique meshes, not baker costumes', ()
     undefined,
     'not a stepped extrusion',
   );
+  const peel = charrington.getObjectByName('charrington-tower-peel') as THREE.Mesh;
+  const peelMat = Array.isArray(peel.material) ? peel.material[0] : peel.material;
+  assert.equal(
+    peelMat?.type,
+    'MeshBasicMaterial',
+    'peeled stone must stay unlit white, not navy Lambert',
+  );
 
   const park = buildNoticedGroup({
     id: 'one-park-drive',

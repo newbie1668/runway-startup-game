@@ -523,16 +523,16 @@ function buildTowerBridge(): THREE.Group {
   const band = new THREE.MeshLambertMaterial({ color: 0xf4eee4 });
   const iron = new THREE.MeshLambertMaterial({ color: 0x2a5aa8 });
   const voidMat = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
-  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
+  const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
 
   const towerHeight = h(65);
   const towerHalfSpan = m(42);
   const shaftW = m(18);
-  const pier = m(3.2);
+  const pier = m(2.6);
   const deckY = LANDMARK_DECK_Y;
-  const deckW = m(11.2);
-  const deckLen = m(268);
-  const deckH = m(1.2);
+  const deckW = m(12.4);
+  const deckLen = m(310);
+  const deckH = m(1.8);
   const archH = deckY + m(12);
   const walkY = towerHeight * 0.78;
 
@@ -1284,11 +1284,11 @@ function addMuralTower(
 
 function buildTowerLondon(): THREE.Group {
   const group = new THREE.Group();
-  const keep = new THREE.MeshLambertMaterial({ color: 0xf2eee4 });
-  const wall = new THREE.MeshLambertMaterial({ color: 0xd4cdc0 });
+  const keep = new THREE.MeshBasicMaterial({ color: 0xe8e0d0, fog: true });
+  const wall = new THREE.MeshLambertMaterial({ color: 0xc8c0b0 });
   const dark = new THREE.MeshLambertMaterial({ color: 0x3a342c });
   const roof = new THREE.MeshLambertMaterial({ color: 0x6a5848 });
-  const lawn = new THREE.MeshLambertMaterial({ color: 0x4a6a42 });
+  const lawn = new THREE.MeshBasicMaterial({ color: 0x4a6a42, fog: true });
 
   const outerW = m(82);
   const outerD = m(64);
@@ -1299,14 +1299,14 @@ function buildTowerLondon(): THREE.Group {
   const innerThick = m(3.6);
   const innerH = h(12);
 
-  const outerLawn = new THREE.Mesh(new THREE.BoxGeometry(outerW, m(0.35), outerD), lawn);
-  outerLawn.position.y = m(0.18);
-  group.add(outerLawn);
   addCurtain(group, outerW, outerD, outerThick, outerH, wall, 'outer-curtain');
   addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(6.2));
 
-  const innerLawn = new THREE.Mesh(new THREE.BoxGeometry(innerW, m(0.4), innerD), lawn);
-  innerLawn.position.set(0, m(0.22), m(-2));
+  const innerLawn = new THREE.Mesh(
+    new THREE.BoxGeometry(innerW * 0.92, m(0.35), innerD * 0.92),
+    lawn,
+  );
+  innerLawn.position.set(0, m(0.18), m(-2));
   group.add(innerLawn);
   const inner = new THREE.Group();
   inner.position.z = m(-2);

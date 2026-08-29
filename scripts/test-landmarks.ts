@@ -59,7 +59,13 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
     'deck must pass through both towers',
   );
   const mat = Array.isArray(deck.material) ? deck.material[0] : deck.material;
-  assert.ok(mat && 'color' in mat && (mat as THREE.MeshLambertMaterial).color.getHex() === ASPHALT);
+  assert.ok(mat && 'color' in mat);
+  assert.equal((mat as THREE.MeshBasicMaterial).color.getHex(), ASPHALT);
+  assert.equal(
+    mat.type,
+    'MeshBasicMaterial',
+    'deck must stay asphalt under the sun, not pick up river light',
+  );
   let cones = 0;
   bridge.traverse((obj) => {
     if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;

@@ -26,8 +26,8 @@ export interface UniqueNoticedJob {
   ring: Array<[number, number]>;
 }
 
-function lambert(color: number): THREE.MeshLambertMaterial {
-  return new THREE.MeshLambertMaterial({ color, fog: true });
+function paint(color: number): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color, fog: true });
 }
 
 function ringExtents(ring: Array<[number, number]>): {
@@ -80,11 +80,11 @@ function buildCharrington(job: UniqueNoticedJob): THREE.Group {
   group.name = job.id;
   const { cx, cz, rx, rz } = ringExtents(job.ring);
   const H = job.heightWorld;
-  const stone = lambert(0xece8e0);
+  const stone = paint(0xe8e2d6);
   stone.side = THREE.DoubleSide;
-  const glass = lambert(0x3a5060);
+  const glass = paint(0x3a5060);
   glass.side = THREE.DoubleSide;
-  const dark = lambert(0x2a343c);
+  const dark = paint(0x2a343c);
   const rxOut = rx * 1.02;
   const rzOut = rz * 1.02;
   const rxIn = rx * 0.78;
@@ -141,8 +141,8 @@ function buildOneParkDrive(job: UniqueNoticedJob): THREE.Group {
   const { cx, cz, rx, rz } = ringExtents(job.ring);
   const R = Math.max(rx, rz);
   const H = job.heightWorld;
-  const glass = lambert(0x8d9aa6);
-  const reveal = lambert(0x2c343c);
+  const glass = paint(0x8d9aa6);
+  const reveal = paint(0x2c343c);
   const discs = [
     { t0: 0, t1: 0.07, s: 1.08 },
     { t0: 0.07, t1: 0.22, s: 1.0 },
@@ -177,8 +177,8 @@ function buildNewfoundland(job: UniqueNoticedJob): THREE.Group {
   group.name = job.id;
   const { cx, cz, rx, rz } = ringExtents(job.ring);
   const H = job.heightWorld;
-  const glass = lambert(0x5a7a88);
-  const fin = lambert(0xe4e0d8);
+  const glass = paint(0x5a7a88);
+  const fin = paint(0xd8d4cc);
   const floors = 16;
   for (let i = 0; i < floors; i++) {
     const y0 = (i / floors) * H;
@@ -209,9 +209,9 @@ function buildHsbc(job: UniqueNoticedJob): THREE.Group {
   const H = job.heightWorld;
   const w = rx * 2;
   const d = rz * 2;
-  const glass = lambert(0x7a8c9a);
-  const steel = lambert(0xc8d0d8);
-  const dark = lambert(0x3a444c);
+  const glass = paint(0x7a8c9a);
+  const steel = paint(0xb8c0c8);
+  const dark = paint(0x3a444c);
   addBox(group, w, H * 0.08, d, steel, cx, 0, cz);
   addBox(group, w * 0.96, H * 0.82, d * 0.96, glass, cx, H * 0.08, cz);
   const rows = 18;
@@ -241,9 +241,9 @@ function buildCiti(job: UniqueNoticedJob): THREE.Group {
   const H = job.heightWorld;
   const w = rx * 2;
   const d = rz * 2;
-  const granite = lambert(0x8a8580);
-  const glass = lambert(0x6a8490);
-  const steel = lambert(0xb8c4cc);
+  const granite = paint(0x8a8580);
+  const glass = paint(0x6a8490);
+  const steel = paint(0xb8c4cc);
   addBox(group, w, H * 0.1, d, granite, cx, 0, cz);
   addBox(group, w * 0.94, H * 0.78, d * 0.94, glass, cx, H * 0.1, cz);
   for (let r = 0; r < 12; r++) {
