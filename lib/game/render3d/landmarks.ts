@@ -561,6 +561,30 @@ function addRidgeRoofZ(
   return mesh;
 }
 
+/** Stone haunch so the roadway hole is a pointed arch, not a rectangular slot. */
+function addPointedHaunch(
+  group: THREE.Group,
+  hw: number,
+  springY: number,
+  peakY: number,
+  depth: number,
+  material: THREE.Material,
+  z: number,
+  side: -1 | 1,
+): THREE.Mesh {
+  const shape = new THREE.Shape();
+  shape.moveTo(side * hw, springY);
+  shape.lineTo(side * hw, peakY);
+  shape.lineTo(0, peakY);
+  shape.lineTo(side * hw, springY);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
+  geo.translate(0, 0, -depth / 2);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.set(0, 0, z);
+  group.add(mesh);
+  return mesh;
+}
+
 function buildTowerBridge(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'towerbridge';
@@ -572,23 +596,23 @@ function buildTowerBridge(): THREE.Group {
   const mark = new THREE.MeshBasicMaterial({ color: 0xd8dce0, fog: true });
   const slate = new THREE.MeshLambertMaterial({ color: 0x5c6570 });
 
-  const towerH = h(56);
+  const towerH = h(64);
   const towerZ = m(44);
-  const openingW = m(24);
-  const legW = m(8);
-  const legD = m(11);
+  const openingW = m(26);
+  const legW = m(9);
+  const legD = m(14);
   const legX = openingW / 2 + legW / 2;
+  const hw = openingW / 2;
   const deckY = LANDMARK_DECK_Y;
-  const deckW = m(11);
+  const deckW = m(12);
   const deckLen = m(420);
   const deckH = m(1.8);
-  const voidH = m(22);
-  const archBaseY = deckY + m(14);
-  const archPeakY = deckY + voidH + m(10);
-  const walkBot = deckY + m(26);
-  const walkH = m(3.2);
-  const walkW = m(3.8);
-  const walkX = m(5.0);
+  const archBaseY = deckY + m(16);
+  const archPeakY = deckY + m(34);
+  const walkH = m(9);
+  const walkW = m(6.4);
+  const walkX = m(6.6);
+  const walkBot = towerH - walkH - m(7);
 
   const deck = new THREE.Mesh(new THREE.BoxGeometry(deckW, deckH, deckLen), asphalt);
   deck.name = 'deck';
@@ -602,6 +626,24 @@ function buildTowerBridge(): THREE.Group {
     group.add(dash);
   }
 
+  const walkLen = towerZ * 2 + legD * 0.7;
+  for (const x of [-walkX, walkX]) {
+    const walk = addBox(group, walkW, walkH, walkLen, iron, x, walkBot, 0);
+    if (x > 0) walk.name = 'walkway';
+    addWindowGrid(
+      group,
+      walkLen * 0.82,
+      walkH * 0.62,
+      9,
+      2,
+      x + Math.sign(x) * (walkW / 2 + m(0.2)),
+      walkBot + m(1.2),
+      0,
+      'x',
+      0x7a92a4,
+    );
+  }
+
   for (const side of [-1, 1]) {
     const z = side * towerZ;
     const west = addBox(group, legW, towerH, legD, stone, -legX, 0, z);
@@ -611,46 +653,48 @@ function buildTowerBridge(): THREE.Group {
       east.name = 'tb-leg-e';
     }
 
-    for (const zFace of [z - legD / 2, z + legD / 2]) {
-      addBox(group, legW + m(0.5), m(1.3), m(0.8), band, -legX, walkBot - m(1.1), zFace);
-      addBox(group, legW + m(0.5), m(1.3), m(0.8), band, legX, walkBot - m(1.1), zFace);
-      const peak = new THREE.Vector3(0, archPeakY, zFace);
-      const left = new THREE.Vector3(-openingW / 2, archBaseY, zFace);
-      const right = new THREE.Vector3(openingW / 2, archBaseY, zFace);
-      addCylinderBetween(group, left, peak, m(2.1), stone);
-      addCylinderBetween(group, right, peak, m(2.1), stone);
-      if (side === 1 && zFace === z + legD / 2) {
-        const portal = addBox(group, m(2.2), m(2.2), m(2.4), stone, 0, archPeakY - m(1.1), zFace);
-        portal.name = 'portal';
-      }
-    }
+    const spandrelH = Math.max(m(4), walkBot - archPeakY);
+    addBox(group, openingW, spandrelH, legD, stone, 0, archPeakY, z);
+    const leftHaunch = addPointedHaunch(group, hw, archBaseY, archPeakY, legD, stone, z, -1);
+    addPointedHaunch(group, hw, archBaseY, archPeakY, legD, stone, z, 1);
+    if (side === 1) leftHaunch.name = 'portal';
 
-    addRidgeRoofZ(group, openingW + legW * 2 + m(1.2), m(16), legD + m(1.6), slate, 0, towerH, z);
+    for (const zFace of [z - legD / 2, z + legD / 2]) {
+      addBox(group, legW + m(0.6), m(1.6), m(1.1), band, -legX, walkBot - m(1.4), zFace);
+      addBox(group, legW + m(0.6), m(1.6), m(1.1), band, legX, walkBot - m(1.4), zFace);
+      const peak = new THREE.Vector3(0, archPeakY, zFace);
+      const left = new THREE.Vector3(-hw, archBaseY, zFace);
+      const right = new THREE.Vector3(hw, archBaseY, zFace);
+      addCylinderBetween(group, left, peak, m(3.4), stone);
+      addCylinderBetween(group, right, peak, m(3.4), stone);
+    }
 
     for (const xSign of [-1, 1]) {
-      const px = xSign * (openingW / 2 + legW * 0.12);
-      addBox(group, m(2.2), h(7), m(2.2), stone, px, towerH, z);
-      addBox(group, m(1.5), h(3.2), m(1.5), slate, px, towerH + h(7), z);
+      const px = xSign * legX;
+      addRidgeRoofZ(group, legW + m(1.4), m(11), legD + m(1.2), slate, px, towerH, z);
+      addBox(group, m(2.4), h(8), m(2.4), stone, px, towerH, z);
+      addBox(group, m(1.4), h(3.4), m(1.4), slate, px, towerH + h(8), z);
     }
 
-    const chainZ = z + side * (legD / 2 + m(0.35));
+    const shoreZ = z + side * (legD / 2);
+    const landX = (x: number) => Math.sign(x) * (deckW / 2 - m(0.4));
     for (const x of [-walkX, walkX]) {
-      const room = addBox(group, m(2.6), m(3.6), m(2.6), iron, x, walkBot, chainZ);
+      const room = addBox(group, walkW, walkH, m(4.2), iron, x, walkBot, shoreZ);
       if (side === 1 && x > 0) room.name = 'chain';
-      const start = new THREE.Vector3(x, walkBot + m(1.8), chainZ);
-      const end = new THREE.Vector3(x, deckY + m(0.6), side * m(120));
-      const pts = addCatenary(group, start, end, m(7), m(0.45), chainMat, 7);
+      const start = new THREE.Vector3(x, walkBot + walkH * 0.72, shoreZ);
+      const end = new THREE.Vector3(landX(x), deckY + m(0.45), side * m(118));
+      const pts = addCatenary(group, start, end, m(9), m(1.55), chainMat, 6);
       for (let i = 1; i < pts.length - 1; i += 2) {
         const p = pts[i]!;
-        addCylinderBetween(group, p, new THREE.Vector3(x, deckY + m(0.35), p.z), m(0.22), chainMat);
+        addCylinderBetween(
+          group,
+          p,
+          new THREE.Vector3(landX(x), deckY + m(0.28), p.z),
+          m(0.55),
+          chainMat,
+        );
       }
     }
-  }
-
-  const walkLen = towerZ * 2 + legD * 0.55;
-  for (const x of [-walkX, walkX]) {
-    const walk = addBox(group, walkW, walkH, walkLen, iron, x, walkBot, 0);
-    if (x > 0) walk.name = 'walkway';
   }
 
   const abutmentZ = m(125);
@@ -1488,19 +1532,19 @@ function buildBuckingham(): THREE.Group {
     const z = (i - 10.5) * bay;
     const pil = addBox(group, m(2.6), wallH * 0.94, m(2.1), cream, eastFace + m(1.2), h(1.2), z);
     pil.name = 'palace-pilaster';
-    const post = addBox(
-      group,
-      m(1.1),
-      h(2.6),
-      m(1.1),
-      cream,
-      eastFace + m(0.9),
-      wallH + atticH,
-      z,
-    );
+    const post = addBox(group, m(1.1), h(2.6), m(1.1), cream, eastFace + m(0.9), wallH + atticH, z);
     post.name = 'palace-baluster';
   }
-  addBox(group, m(1.4), m(0.7), frontLen + m(2), cream, eastFace + m(1.0), wallH + atticH + h(2.4), 0);
+  addBox(
+    group,
+    m(1.4),
+    m(0.7),
+    frontLen + m(2),
+    cream,
+    eastFace + m(1.0),
+    wallH + atticH + h(2.4),
+    0,
+  );
 
   const pavilionW = bay * 3.2;
   for (const z of [-(frontLen / 2) + pavilionW / 2, frontLen / 2 - pavilionW / 2]) {
@@ -1519,16 +1563,7 @@ function buildBuckingham(): THREE.Group {
 
   const centreW = bay * 3.3;
   const centreOut = m(8);
-  addBox(
-    group,
-    wallT + centreOut,
-    wallH + h(1.6),
-    centreW,
-    portland,
-    wallCx + centreOut / 2,
-    0,
-    0,
-  );
+  addBox(group, wallT + centreOut, wallH + h(1.6), centreW, portland, wallCx + centreOut / 2, 0, 0);
   const balcony = addBox(
     group,
     m(6.5),
@@ -1632,10 +1667,7 @@ function buildBuckingham(): THREE.Group {
   const memX = eastFace + m(82);
   const mall = addBox(group, m(78), 0.05, m(28), pale, eastFace + m(41), ROAD_Y, 0);
   mall.name = 'mall-axis';
-  const forecourt = new THREE.Mesh(
-    new THREE.CylinderGeometry(m(36), m(36), 0.05, 32),
-    pale,
-  );
+  const forecourt = new THREE.Mesh(new THREE.CylinderGeometry(m(36), m(36), 0.05, 32), pale);
   forecourt.position.set(memX, ROAD_Y + 0.03, 0);
   forecourt.name = 'mall-forecourt';
   group.add(forecourt);

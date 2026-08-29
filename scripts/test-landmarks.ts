@@ -89,13 +89,26 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   assert.ok(walkYM < 12, `walkway must sit level, height ${walkYM.toFixed(1)} m`);
   assert.ok(walkZM > 70, `walkway must span both towers, length ${walkZM.toFixed(0)} m`);
   assert.ok(walkZM > walkXM * 8, 'walkway must run with the deck, not across the towers');
+  const leg = bridge.getObjectByName('tb-leg');
+  assert.ok(leg instanceof THREE.Mesh, 'named portal leg');
+  const legBox = new THREE.Box3().setFromObject(leg);
+  assert.ok(
+    walkBox.min.y > (legBox.min.y + legBox.max.y) * 0.45,
+    'walkway must sit at the top of the towers, not mid-shaft',
+  );
   const walkMat = Array.isArray(walk.material) ? walk.material[0] : walk.material;
   assert.notEqual(
     (walkMat as THREE.MeshBasicMaterial).color.getHex(),
     0x2f62b8,
     'walkways must not be bright-blue chords',
   );
-  assert.ok(bridge.getObjectByName('portal'), 'Gothic portal on the tower face');
+  const portal = bridge.getObjectByName('portal');
+  assert.ok(portal instanceof THREE.Mesh, 'Gothic portal on the tower face');
+  assert.equal(
+    portal.geometry.type,
+    'ExtrudeGeometry',
+    `portal must be a pointed haunch, got ${portal.geometry.type}`,
+  );
   const deckAt = LANDMARK_DECK_Y;
   let blocking = 0;
   bridge.traverse((obj) => {
