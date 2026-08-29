@@ -1952,7 +1952,7 @@ const LAND_OVERLAP_M = 16;
 const CROSSING_STEP_M = 8;
 const CROSSING_MAX_M = 480;
 const CROSSING_SNAP_M = 52;
-const SEED_MATCH_M = 45;
+const SEED_MATCH_M = 55;
 
 export type RoadRun = { pts: { x: number; z: number }[]; span: boolean };
 
@@ -2127,6 +2127,34 @@ export function countLandRibbonsOverWater(cityData: CityData): number {
   return n;
 }
 
+/** Metres from each stitch end to the nearest OSM land ribbon vertex. */
+export function spanEndClearanceM(
+  span: CrossingSpan,
+  land: readonly { x: number; z: number }[],
+): [number, number] {
+  let d0 = Infinity;
+  let d1 = Infinity;
+  for (const p of land) {
+    d0 = Math.min(d0, Math.hypot(p.x - span.pts[0].x, p.z - span.pts[0].z));
+    d1 = Math.min(d1, Math.hypot(p.x - span.pts[1].x, p.z - span.pts[1].z));
+  }
+  return [d0 / METERS_TO_WORLD, d1 / METERS_TO_WORLD];
+}
+
+export function landRibbonVerts(cityData: CityData): { x: number; z: number }[] {
+  const rings = waterRings(cityData);
+  const over = (x: number, z: number) => pointOverWater(x, z, rings);
+  const land: { x: number; z: number }[] = [];
+  for (const road of cityData.roads as CityRoad[]) {
+    const pts = roadPts(road);
+    if (!pts) continue;
+    for (const run of splitRoadRuns(pts, over)) {
+      for (const p of run.pts) land.push(p);
+    }
+  }
+  return land;
+}
+
 export type RoadApproach = {
   x: number;
   z: number;
@@ -2254,18 +2282,29 @@ export function walkAcrossWater(
   return null;
 }
 
-function spanMid(s: CrossingSpan): { x: number; z: number } {
-  return { x: (s.pts[0].x + s.pts[1].x) / 2, z: (s.pts[0].z + s.pts[1].z) / 2 };
+function distPointToSeg(
+  px: number,
+  pz: number,
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+): number {
+  const abx = b.x - a.x;
+  const abz = b.z - a.z;
+  const len2 = abx * abx + abz * abz || 1;
+  let t = ((px - a.x) * abx + (pz - a.z) * abz) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (a.x + t * abx), pz - (a.z + t * abz));
 }
 
 /** Snap a walked span onto the OSM stubs so the deck meets the shoreline road. */
 function snapSpanToApproaches(
   span: CrossingSpan,
   approaches: RoadApproach[],
+  runEnds: { x: number; z: number }[],
   overWater: (x: number, z: number) => boolean,
 ): CrossingSpan {
-  const snapR = 36 * METERS_TO_WORLD;
-  const maxPerp = 22 * METERS_TO_WORLD;
+  const snapR = 90 * METERS_TO_WORLD;
+  const maxPerp = 40 * METERS_TO_WORLD;
   const snapOne = (
     pt: { x: number; z: number },
     far: { x: number; z: number },
@@ -2290,6 +2329,17 @@ function snapSpanToApproaches(
       bestX = a.x;
       bestZ = a.z;
       bestTier = a.tier;
+    }
+    for (const e of runEnds) {
+      const d = Math.hypot(e.x - pt.x, e.z - pt.z);
+      if (d >= bestD) continue;
+      if (overWater(e.x, e.z)) continue;
+      if (d >= Math.hypot(e.x - far.x, e.z - far.z)) continue;
+      const perp = Math.abs((e.x - pt.x) * uz - (e.z - pt.z) * ux);
+      if (perp > maxPerp) continue;
+      bestD = d;
+      bestX = e.x;
+      bestZ = e.z;
     }
     return { x: bestX, z: bestZ, tier: bestTier };
   };
@@ -2457,10 +2507,27 @@ function collectRoadApproaches(
   return approaches;
 }
 
+function collectRunEnds(
+  cityData: CityData,
+  overWater: (x: number, z: number) => boolean,
+): { x: number; z: number }[] {
+  const ends: { x: number; z: number }[] = [];
+  for (const road of cityData.roads as CityRoad[]) {
+    const pts = roadPts(road);
+    if (!pts) continue;
+    for (const run of splitRoadRuns(pts, overWater)) {
+      if (run.pts.length < 2) continue;
+      ends.push(run.pts[0]!, run.pts[run.pts.length - 1]!);
+    }
+  }
+  return ends;
+}
+
 export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
   const approaches = collectRoadApproaches(cityData, overWater);
+  const runEnds = collectRunEnds(cityData, overWater);
   const fromRoads = buildCrossingSpans(approaches, overWater);
   const seeds = [
     ...LANDMARKS.filter((lm) => isDeckLandmark(lm.kind) && lm.kind !== 'oldstreet'),
@@ -2476,14 +2543,13 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
     let picked: CrossingSpan | null = null;
     let pickedScore = -Infinity;
     for (const s of fromRoads) {
-      const m = spanMid(s);
-      const d = Math.hypot(m.x - at.x, m.z - at.y);
+      const d = distPointToSeg(at.x, at.y, s.pts[0], s.pts[1]);
       if (d > matchR) continue;
       const dx = s.pts[1].x - s.pts[0].x;
       const dz = s.pts[1].z - s.pts[0].z;
       const len = Math.hypot(dx, dz) || 1;
       const align = Math.abs((dx / len) * cx + (dz / len) * cz);
-      if (align < 0.9) continue;
+      if (align < 0.7) continue;
       const score = align * 2 - d / matchR;
       if (score > pickedScore) {
         pickedScore = score;
@@ -2492,7 +2558,7 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
     }
     if (!picked) picked = walkFromSeed(at, seed.at, overWater);
     if (!picked) continue;
-    seeded.push(snapSpanToApproaches(picked, approaches, overWater));
+    seeded.push(snapSpanToApproaches(picked, approaches, runEnds, overWater));
   }
   // Named seeds only. Unseeded OSM stitches were Rotherhithe / Blackwall
   // tunnels, rail decks, and dock leftovers — leftover slabs on the river.

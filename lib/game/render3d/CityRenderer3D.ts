@@ -85,8 +85,12 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (crossing) return { at: crossing.at, viewH: 1.35, azimuth: 0 };
   const hit = LANDMARKS.find((l) => l.kind === look);
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
-  if (hit.kind === 'towerbridge') {
-    return { at: hit.at, viewH: 2.45, azimuth: Math.PI / 2 - 0.32 };
+  if (isDeckLandmark(hit.kind) && hit.kind !== 'oldstreet') {
+    if (hit.kind === 'towerbridge') {
+      return { at: hit.at, viewH: 2.45, azimuth: Math.PI / 2 - 0.32 };
+    }
+    const azimuth = hit.kind === 'hungerford' ? -Math.PI / 2 : 0;
+    return { at: hit.at, viewH: 1.35, azimuth };
   }
   if (hit.kind === 'eye') {
     return { at: hit.at, viewH: 3.15, azimuth: -Math.PI / 2 };
@@ -96,9 +100,6 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   }
   if (hit.kind === 'stpauls') {
     return { at: hit.at, viewH: 2.35, azimuth: 0.72 };
-  }
-  if (hit.kind === 'hungerford') {
-    return { at: hit.at, viewH: 2.6, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };
@@ -113,9 +114,6 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     hit.kind === 'tower42'
   ) {
     return { at: hit.at, viewH: 2.65, azimuth: 0.42 };
-  }
-  if (hit.kind === 'westminsterbr' || hit.kind === 'lambethbr' || hit.kind === 'albertbr') {
-    return { at: hit.at, viewH: 1.35, azimuth: 0 };
   }
   const wide =
     hit.kind.endsWith('br') ||

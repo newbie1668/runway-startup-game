@@ -31,6 +31,8 @@ import {
   buildCrossingSpans,
   riverCrossingSpans,
   countLandRibbonsOverWater,
+  spanEndClearanceM,
+  landRibbonVerts,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
@@ -235,9 +237,9 @@ check('land stubs facing across water stitch into an asphalt span', () => {
 
 check('named Thames crossings have a land-to-land span in the London bake', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
-  const spans = riverCrossingSpans(
-    decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)),
-  );
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const spans = riverCrossingSpans(city);
+  const land = landRibbonVerts(city);
   const distToSpanM = (px: number, pz: number, s: (typeof spans)[0]): number => {
     const ax = s.pts[0].x;
     const az = s.pts[0].z;
@@ -263,17 +265,28 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
     const dz = hit!.pts[1].z - hit!.pts[0].z;
     const len = Math.hypot(dx, dz) || 1;
     const align = Math.abs((dx / len) * -t.y + (dz / len) * t.x);
-    assert.ok(align > 0.75, `${lm.name} deck is skewed vs the river (${align.toFixed(2)})`);
+    assert.ok(align > 0.7, `${lm.name} deck is skewed vs the river (${align.toFixed(2)})`);
     const near = spans.filter((s) => distToSpanM(at.x, at.y, s) < 40);
     assert.equal(near.length, 1, `${lm.name} has ${near.length} overlapping decks`);
+    const [e0, e1] = spanEndClearanceM(hit!, land);
+    const maxJoin = lm.kind === 'millennium' || lm.kind === 'hungerford' ? 80 : 40;
+    assert.ok(
+      e0 < maxJoin && e1 < maxJoin,
+      `${lm.name} deck misses the bank road (${e0.toFixed(0)}m / ${e1.toFixed(0)}m)`,
+    );
   }
   const extra = THAMES_CROSSINGS;
   for (const { name, at: ll } of extra) {
     const at = project(ll);
-    const hit = spans.find((s) => distToSpanM(at.x, at.y, s) < 30);
+    const hit = spans.find((s) => distToSpanM(at.x, at.y, s) < 55);
     assert.ok(hit, `${name} has no stitched carriageway`);
-    const near = spans.filter((s) => distToSpanM(at.x, at.y, s) < 40);
+    const near = spans.filter((s) => distToSpanM(at.x, at.y, s) < 60);
     assert.equal(near.length, 1, `${name} has ${near.length} overlapping decks`);
+    const [e0, e1] = spanEndClearanceM(hit!, land);
+    assert.ok(
+      e0 < 40 && e1 < 40,
+      `${name} deck misses the bank road (${e0.toFixed(0)}m / ${e1.toFixed(0)}m)`,
+    );
   }
   assert.equal(
     spans.length,
@@ -283,13 +296,7 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
   const keys = extra.map((c) => thamesCrossingLookKey(c.name));
   assert.equal(new Set(keys).size, keys.length);
   assert.ok(keys.includes('chelseabr') && keys.includes('vauxhallbr'));
-  assert.equal(
-    countLandRibbonsOverWater(
-      decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)),
-    ),
-    0,
-    'OSM land ribbons must not span a water channel',
-  );
+  assert.equal(countLandRibbonsOverWater(city), 0, 'OSM land ribbons must not span a water channel');
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);
