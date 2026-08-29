@@ -468,7 +468,7 @@ export const LANDMARKS: readonly Landmark[] = [
     exclusionM: 80,
     yaw: bridgeSpanYawX([-0.1201, 51.5062]),
   },
-  { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 110 },
+  { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 85 },
   { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 160 },
   { kind: 'monument', name: 'The Monument', at: [-0.0861, 51.5102], exclusionM: 40 },
   { kind: 'britishmuseum', name: 'British Museum', at: [-0.1269, 51.5194], exclusionM: 140 },

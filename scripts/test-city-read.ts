@@ -289,7 +289,7 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
   const tb = LANDMARKS.find((l) => l.kind === 'towerbridge')!;
   const tbAt = project(tb.at);
   assert.equal(
-    spans.find((s) => distToSpanM(tbAt.x, tbAt.y, s) < 30),
+    spans.find((s) => distToSpanM(tbAt.x, tbAt.y, s) < 80),
     undefined,
     'Tower Bridge must not get a generic stitch ribbon',
   );

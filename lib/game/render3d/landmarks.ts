@@ -380,42 +380,32 @@ function buildLondonEye(): THREE.Group {
   const group = new THREE.Group();
   const radius = h(67);
   const hubHeight = radius;
-  const steel = new THREE.MeshLambertMaterial({ color: 0xc5d0dc });
-  const spokeMat = new THREE.MeshLambertMaterial({ color: 0x9aabbd });
-  const legMat = new THREE.MeshLambertMaterial({ color: 0xb0becb });
+  const steel = new THREE.MeshBasicMaterial({ color: 0xc5d0dc, fog: true });
+  const spokeMat = new THREE.MeshBasicMaterial({ color: 0x9aabbd, fog: true });
+  const legMat = new THREE.MeshBasicMaterial({ color: 0xb0becb, fog: true });
   const hubAt = new THREE.Vector3(0, hubHeight, 0);
 
-  // Axle lives on the A-frame (not the spinning wheel) so the centre stays put.
-  const axle = new THREE.Mesh(new THREE.CylinderGeometry(m(4.4), m(4.4), m(24), 12), steel);
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(m(4.4), m(4.4), m(24), 8), steel);
   axle.rotation.z = Math.PI / 2;
   axle.position.copy(hubAt);
   group.add(axle);
-  const hubCap = new THREE.Mesh(new THREE.CylinderGeometry(m(10), m(10), m(12), 16), steel);
+  const hubCap = new THREE.Mesh(new THREE.CylinderGeometry(m(10), m(10), m(12), 10), steel);
   hubCap.rotation.z = Math.PI / 2;
   hubCap.position.copy(hubAt);
   group.add(hubCap);
 
   const wheel = new THREE.Group();
   wheel.name = EYE_WHEEL_NAME;
-  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(radius, m(2.6), 8, 48), steel));
-  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(radius * 0.86, m(1.15), 6, 40), spokeMat));
-  for (let i = 0; i < 32; i++) {
-    const angle = (i / 32) * Math.PI * 2;
+  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(radius, m(2.6), 5, 20), steel));
+  const pods = 16;
+  for (let i = 0; i < pods; i++) {
+    const angle = (i / pods) * Math.PI * 2;
     const rim = new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
-    addCylinderBetween(wheel, new THREE.Vector3(0, 0, 0), rim, m(0.7), spokeMat);
-  }
-  const podMat = glowMat(0xa8d8ea);
-  const podGlass = glassPane(0x6a9ab0);
-  for (let i = 0; i < 32; i++) {
-    const angle = (i / 32) * Math.PI * 2;
-    const pod = new THREE.Mesh(new THREE.CapsuleGeometry(m(2.8), m(3.2), 4, 8), podGlass);
-    pod.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+    addCylinderBetween(wheel, new THREE.Vector3(0, 0, 0), rim, m(0.85), spokeMat);
+    const pod = new THREE.Mesh(new THREE.BoxGeometry(m(5.2), m(4.4), m(3.6)), glowMat(0xa8d8ea));
+    pod.position.copy(rim);
     wheel.add(pod);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(m(1.1), 6, 6), podMat);
-    lamp.position.copy(pod.position);
-    wheel.add(lamp);
   }
-  // Postcard camera looks from the west (`look=eye`); disc in YZ faces ±X.
   wheel.position.copy(hubAt);
   wheel.rotation.y = Math.PI / 2;
   group.add(wheel);
@@ -521,9 +511,11 @@ function buildTowerBridge(): THREE.Group {
   const group = new THREE.Group();
   const stone = new THREE.MeshLambertMaterial({ color: 0xe8dcc8 });
   const band = new THREE.MeshLambertMaterial({ color: 0xf4eee4 });
-  const iron = new THREE.MeshLambertMaterial({ color: 0x2a5aa8 });
+  const iron = new THREE.MeshBasicMaterial({ color: 0x2f62b8, fog: true });
+  const chainMat = new THREE.MeshBasicMaterial({ color: 0x243040, fog: true });
   const voidMat = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
   const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
+  const mark = new THREE.MeshBasicMaterial({ color: 0xd8dce0, fog: true });
 
   const towerHeight = h(65);
   const towerHalfSpan = m(42);
@@ -540,6 +532,13 @@ function buildTowerBridge(): THREE.Group {
   deck.name = 'deck';
   deck.position.set(0, deckY - deckH / 2, 0);
   group.add(deck);
+  const dashH = m(0.12);
+  for (let i = -16; i <= 16; i++) {
+    if (i % 2 === 0) continue;
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(m(0.7), dashH, m(8)), mark);
+    dash.position.set(0, deckY + dashH / 2, i * m(12));
+    group.add(dash);
+  }
 
   for (const side of [-1, 1]) {
     const z = side * towerHalfSpan;
@@ -672,44 +671,32 @@ function buildTowerBridge(): THREE.Group {
     }
   }
 
-  const walkLen = towerHalfSpan * 2 - shaftW * 0.35;
-  for (const x of [-m(4.0), m(4.0)]) {
-    const walk = new THREE.Mesh(new THREE.BoxGeometry(m(4.6), m(3.8), walkLen), iron);
+  const walkLen = towerHalfSpan * 2 - shaftW * 0.2;
+  for (const x of [-m(4.2), m(4.2)]) {
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(m(5.2), m(4.4), walkLen), iron);
     walk.position.set(x, walkY, 0);
+    if (x > 0) walk.name = 'walkway';
     group.add(walk);
-    const bays = 10;
+    const bays = 8;
     for (let i = 0; i < bays; i++) {
-      const bz = ((i + 0.5) / bays - 0.5) * walkLen * 0.92;
-      const lite = new THREE.Mesh(new THREE.BoxGeometry(m(4.85), m(1.7), m(3.4)), band);
+      const bz = ((i + 0.5) / bays - 0.5) * walkLen * 0.9;
+      const lite = new THREE.Mesh(new THREE.BoxGeometry(m(5.4), m(1.8), m(4.2)), band);
       lite.position.set(x, walkY, bz);
       group.add(lite);
     }
   }
-  for (let i = -3; i <= 3; i++) {
-    if (i === 0) continue;
-    addCylinderBetween(
-      group,
-      new THREE.Vector3(-m(4.0), walkY - m(1.6), i * m(8)),
-      new THREE.Vector3(m(4.0), walkY + m(1.6), i * m(8)),
-      m(0.22),
-      iron,
-    );
-  }
 
   for (const side of [-1, 1]) {
     const towerZ = side * towerHalfSpan;
-    const chainEndZ = side * (towerHalfSpan + m(55));
-    for (const x of [-m(5.4), m(5.4)]) {
-      const start = new THREE.Vector3(x, walkY - m(2), towerZ);
-      const end = new THREE.Vector3(x, deckY + m(2.5), chainEndZ);
-      const mid = start.clone().lerp(end, 0.48);
-      mid.y = deckY + m(8);
-      const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
-      group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, m(0.55), 6, false), iron));
-      for (let k = 1; k <= 5; k++) {
-        const p = curve.getPoint(k / 6);
-        addCylinderBetween(group, p, new THREE.Vector3(p.x, deckY + m(1.2), p.z), m(0.12), iron);
-      }
+    const chainEndZ = side * (towerHalfSpan + m(70));
+    for (const x of [-m(5.2), m(5.2)]) {
+      addCylinderBetween(
+        group,
+        new THREE.Vector3(x, walkY - m(1.2), towerZ),
+        new THREE.Vector3(x, deckY + m(1.4), chainEndZ),
+        m(0.45),
+        chainMat,
+      );
     }
   }
 
@@ -1297,54 +1284,66 @@ function addMuralTower(
 
 function buildTowerLondon(): THREE.Group {
   const group = new THREE.Group();
-  const keep = new THREE.MeshBasicMaterial({ color: 0xe8e0d0, fog: true });
-  const wall = new THREE.MeshBasicMaterial({ color: 0xd4ccbe, fog: true });
+  const keep = new THREE.MeshBasicMaterial({ color: 0xf0e6d4, fog: true });
+  const wall = new THREE.MeshBasicMaterial({ color: 0xc8beae, fog: true });
   const dark = new THREE.MeshBasicMaterial({ color: 0x3a342c, fog: true });
   const roof = new THREE.MeshBasicMaterial({ color: 0x6a5848, fog: true });
   const lawn = new THREE.MeshBasicMaterial({ color: 0x4a6a42, fog: true });
+  const court = new THREE.MeshBasicMaterial({ color: 0xa89e8c, fog: true });
 
-  const outerW = m(82);
-  const outerD = m(64);
-  const outerThick = m(4.2);
-  const outerH = h(9);
-  const innerW = m(46);
-  const innerD = m(38);
-  const innerThick = m(3.6);
-  const innerH = h(12);
+  const outerW = m(96);
+  const outerD = m(78);
+  const outerThick = m(7.5);
+  const outerH = h(16);
+  const innerW = m(52);
+  const innerD = m(44);
+  const innerThick = m(5.5);
+  const innerH = h(18);
+
+  const cobbles = new THREE.Mesh(
+    new THREE.BoxGeometry(outerW + outerThick * 2 + m(8), m(0.45), outerD + outerThick * 2 + m(8)),
+    court,
+  );
+  cobbles.position.y = m(0.22);
+  cobbles.name = 'ward-court';
+  group.add(cobbles);
 
   addCurtain(group, outerW, outerD, outerThick, outerH, wall, 'outer-curtain');
-  addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(6.2));
+  addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(5.5));
 
-  const outerLawn = new THREE.Mesh(new THREE.BoxGeometry(outerW, m(0.28), outerD), lawn);
-  outerLawn.position.y = m(0.14);
+  const outerLawn = new THREE.Mesh(
+    new THREE.BoxGeometry(outerW - m(8), m(0.4), outerD - m(8)),
+    lawn,
+  );
+  outerLawn.position.y = m(0.42);
   group.add(outerLawn);
 
   const innerLawn = new THREE.Mesh(
-    new THREE.BoxGeometry(innerW * 0.92, m(0.35), innerD * 0.92),
+    new THREE.BoxGeometry(innerW * 0.88, m(0.45), innerD * 0.88),
     lawn,
   );
-  innerLawn.position.set(0, m(0.18), m(-2));
+  innerLawn.position.set(0, m(0.48), m(-2));
   group.add(innerLawn);
   const inner = new THREE.Group();
   inner.position.z = m(-2);
   addCurtain(inner, innerW, innerD, innerThick, innerH, wall, 'inner-curtain');
-  addMerlons(inner, innerW, innerD, innerThick, innerH, wall, m(5.4));
+  addMerlons(inner, innerW, innerD, innerThick, innerH, wall, m(5));
   group.add(inner);
 
   const keepG = new THREE.Group();
   keepG.name = 'white-tower';
-  const keepW = m(32);
-  const keepD = m(36);
-  const keepH = h(27);
+  const keepW = m(36);
+  const keepD = m(40);
+  const keepH = h(34);
   addBox(keepG, keepW, keepH, keepD, keep);
   for (let i = 0; i < 4; i++) {
-    addBox(keepG, m(3.6), h(5.5), m(1.3), dark, m(-10 + i * 6.6), h(11), keepD / 2 + m(0.2));
-    addBox(keepG, m(3.6), h(5.5), m(1.3), dark, m(-10 + i * 6.6), h(11), -(keepD / 2 + m(0.2)));
-    addBox(keepG, m(1.3), h(5.5), m(3.6), dark, keepW / 2 + m(0.2), h(11), m(-12 + i * 8));
-    addBox(keepG, m(1.3), h(5.5), m(3.6), dark, -(keepW / 2 + m(0.2)), h(11), m(-12 + i * 8));
+    addBox(keepG, m(4.4), h(7), m(1.6), dark, m(-12 + i * 8), h(14), keepD / 2 + m(0.25));
+    addBox(keepG, m(4.4), h(7), m(1.6), dark, m(-12 + i * 8), h(14), -(keepD / 2 + m(0.25)));
+    addBox(keepG, m(1.6), h(7), m(4.4), dark, keepW / 2 + m(0.25), h(14), m(-14 + i * 9));
+    addBox(keepG, m(1.6), h(7), m(4.4), dark, -(keepW / 2 + m(0.25)), h(14), m(-14 + i * 9));
   }
-  const turretR = m(5.2);
-  const turretH = h(36);
+  const turretR = m(7.2);
+  const turretH = h(44);
   const spots: Array<[number, number, boolean]> = [
     [-keepW / 2, -keepD / 2, false],
     [keepW / 2, -keepD / 2, true],
@@ -1364,12 +1363,12 @@ function buildTowerLondon(): THREE.Group {
     [outerW / 2 + outerThick, outerD / 2 + outerThick],
   ];
   for (const [x, z] of outerCorners) {
-    addMuralTower(group, x, z, m(4.4), h(16), wall, roof, false);
+    addMuralTower(group, x, z, m(6.2), h(22), wall, roof, false);
   }
-  addMuralTower(group, 0, -(outerD / 2 + outerThick), m(3.8), h(14), wall, roof, false);
-  addMuralTower(group, 0, outerD / 2 + outerThick, m(3.8), h(14), wall, roof, false);
-  addMuralTower(group, -(outerW / 2 + outerThick), 0, m(3.6), h(14), wall, roof, false);
-  addMuralTower(group, outerW / 2 + outerThick, 0, m(3.6), h(14), wall, roof, false);
+  addMuralTower(group, 0, -(outerD / 2 + outerThick), m(5.2), h(20), wall, roof, false);
+  addMuralTower(group, 0, outerD / 2 + outerThick, m(5.2), h(20), wall, roof, false);
+  addMuralTower(group, -(outerW / 2 + outerThick), 0, m(5), h(20), wall, roof, false);
+  addMuralTower(group, outerW / 2 + outerThick, 0, m(5), h(20), wall, roof, false);
 
   const innerCorners: Array<[number, number]> = [
     [-(innerW / 2 + innerThick), -(innerD / 2 + innerThick) - m(2)],
@@ -1378,7 +1377,7 @@ function buildTowerLondon(): THREE.Group {
     [innerW / 2 + innerThick, innerD / 2 + innerThick - m(2)],
   ];
   for (const [x, z] of innerCorners) {
-    addMuralTower(group, x, z, m(3.2), h(18), wall, roof, false);
+    addMuralTower(group, x, z, m(4.4), h(24), wall, roof, false);
   }
 
   group.rotation.y = 0.18;

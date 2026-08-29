@@ -76,6 +76,24 @@ const PARK_Y = 0.08;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
 
+function landmarkExclusionAt(x: number, z: number): number | null {
+  for (const landmark of LANDMARKS) {
+    const at = project(landmark.at);
+    const r = (landmark.exclusionM ?? 80) * METERS_TO_WORLD;
+    const d = Math.hypot(x - at.x, z - at.y);
+    if (d < r) return d / METERS_TO_WORLD;
+  }
+  return null;
+}
+
+function nearTowerBridgeWater(x: number, z: number, overWater: (x: number, z: number) => boolean): boolean {
+  const tb = LANDMARKS.find((l) => l.kind === 'towerbridge');
+  if (!tb) return false;
+  const at = project(tb.at);
+  if (Math.hypot(x - at.x, z - at.y) > 80 * METERS_TO_WORLD) return false;
+  return overWater(x, z);
+}
+
 const HUB_GLOW_COLOR = 0xb8d4e8;
 export const HUB_GLOW_PLAYER_COLOR = 0xf0c56a;
 const HUB_GLOW_SIZE_M = 36;
@@ -1515,6 +1533,9 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
       const b = ring[p.indices[t + 1]!]!;
       const c = ring[p.indices[t + 2]!]!;
       if (!a || !b || !c) continue;
+      const mx = (a.x + b.x + c.x) / 3;
+      const mz = (a.z + b.z + c.z) / 3;
+      if (landmarkExclusionAt(mx, mz) !== null) continue;
       emitParkTriangle(
         positions,
         colors,
@@ -1626,9 +1647,12 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
       const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
       const rad =
         Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.28;
+      const x = info.x + Math.cos(ang) * rad;
+      const z = info.z + Math.sin(ang) * rad;
+      if (landmarkExclusionAt(x, z) !== null) continue;
       spots.push({
-        x: info.x + Math.cos(ang) * rad,
-        z: info.z + Math.sin(ang) * rad,
+        x,
+        z,
         scale: 14.5 + ((h >>> 16) & 7) * 0.9,
         shade: (h >>> 20) % 3,
         cluster: false,
@@ -1641,9 +1665,12 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
         const rad =
           Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.32;
+        const x = info.x + Math.cos(ang) * rad;
+        const z = info.z + Math.sin(ang) * rad;
+        if (landmarkExclusionAt(x, z) !== null) continue;
         groves.push({
-          x: info.x + Math.cos(ang) * rad,
-          z: info.z + Math.sin(ang) * rad,
+          x,
+          z,
           scale: 70 + ((h >>> 16) & 15) * 3.2,
           shade: (h >>> 20) % 3,
         });
@@ -2656,6 +2683,8 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       if (!pts) continue;
       const runs = splitRoadRuns(pts, overWater);
       for (const run of runs) {
+        const mid = run.pts[Math.floor(run.pts.length / 2)]!;
+        if (nearTowerBridgeWater(mid.x, mid.z, overWater)) continue;
         appendRibbon(walkPos, walkIdx, run.pts, halfWalk, SIDEWALK_Y);
         appendRibbon(asphPos, asphIdx, run.pts, halfCarriage, ROAD_Y);
         if (tier <= 1) {

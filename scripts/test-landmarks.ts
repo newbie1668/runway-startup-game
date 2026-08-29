@@ -74,6 +74,13 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   assert.ok(cones >= 2, `expected Tower Bridge spires, got ${cones}`);
   assert.ok(bridge.getObjectByName('abutment'), 'stone abutments on the banks');
   assert.ok(bridge.getObjectByName('apron'), 'asphalt apron overlapping the bank road');
+  const walk = bridge.getObjectByName('walkway');
+  assert.ok(walk instanceof THREE.Mesh, 'high walkways between the towers');
+  const walkBox = new THREE.Box3().setFromObject(walk);
+  const walkYM = (walkBox.max.y - walkBox.min.y) / METERS_TO_WORLD;
+  const walkZM = (walkBox.max.z - walkBox.min.z) / METERS_TO_WORLD;
+  assert.ok(walkYM < 12, `walkway must sit level, height ${walkYM.toFixed(1)} m`);
+  assert.ok(walkZM > 60, `walkway must span both towers, length ${walkZM.toFixed(0)} m`);
 });
 
 check('Hungerford keeps river piers, not a leftover deck box', () => {
@@ -198,6 +205,7 @@ check('Tower of London is a concentric fortress, not a courtyard slab', () => {
   assert.ok(root.getObjectByName('white-tower'), 'White Tower keep');
   assert.ok(root.getObjectByName('outer-curtain'), 'outer curtain wall');
   assert.ok(root.getObjectByName('inner-curtain'), 'inner curtain wall');
+  assert.ok(root.getObjectByName('ward-court'), 'stone ward, not a beige exclusion hole');
   let cones = 0;
   let cylinders = 0;
   root.traverse((obj) => {

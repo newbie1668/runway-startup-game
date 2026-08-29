@@ -26,6 +26,7 @@ const PLAYTIME_PROCEDURAL: ReadonlySet<LandmarkKind> = new Set([
   'bishop',
   'heron',
   'tower42',
+  'eye',
 ]);
 
 export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
@@ -34,7 +35,9 @@ export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
 
 export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Object3D>> {
   const loader = new GLTFLoader();
-  const kinds = [...new Set(LANDMARKS.map((l) => l.kind))];
+  const kinds = [...new Set(LANDMARKS.map((l) => l.kind))].filter(
+    (kind) => !isPlaytimeProceduralKind(kind),
+  );
   const prefabs = new Map<LandmarkKind, THREE.Object3D>();
   await Promise.all(
     kinds.map(async (kind) => {
