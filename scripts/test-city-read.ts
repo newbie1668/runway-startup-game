@@ -22,6 +22,7 @@ import {
   LANDMARKS,
   METERS_TO_WORLD,
   THAMES_CROSSINGS,
+  WORLD,
   isDeckLandmark,
   project,
   thamesCrossingLookKey,
@@ -43,7 +44,9 @@ import {
   buildChunkTier,
   plannedCrosswalks,
   BRIDGE_SPAN_MIN_M,
+  CHUNK_COLS,
   CHUNK_COUNT,
+  CHUNK_ROWS,
   PARK_Y,
   ROAD_Y,
   createScratch,
@@ -489,6 +492,27 @@ check('zebra crossings sit on junction approaches, not every OSM stub', () => {
     }
   }
   assert.equal(stacked, 0, `${stacked} overlapping zebra approaches`);
+});
+
+check('stock walls carry sash insets without the window garnish pass', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const at = project([-0.146, 51.5115]);
+  const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
+  const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
+  const chunkId = row * CHUNK_COLS + col;
+  const mesh = buildChunkTier(city, chunkId, false, [], createScratch());
+  assert.ok(mesh, `west-end minor chunk ${chunkId} empty`);
+  const colors = mesh.geometry.getAttribute('color');
+  assert.ok(colors, 'chunk needs vertex colours');
+  let sash = 0;
+  for (let i = 0; i < colors.count; i++) {
+    const r = colors.getX(i);
+    const g = colors.getY(i);
+    const b = colors.getZ(i);
+    if (b > r + 0.04 && b > 0.22 && r < 0.42 && g < 0.5) sash += 1;
+  }
+  assert.ok(sash > 120, `expected wall sashes in chunk ${chunkId}, got ${sash}`);
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {

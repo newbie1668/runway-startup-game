@@ -815,6 +815,85 @@ export function buildChunkTier(
           else indices.push(d0, d2, d1, d0, d3, d2);
         }
 
+        if (opts.windows && edgeLenM >= 4.4 && y1 - y0 > 5.2 * METERS_TO_WORLD) {
+          const shopTop =
+            opts.shop && shopWorld > 0.02 ? y0 + shopWorld : y0 + 0.85 * METERS_TO_WORLD * vScale;
+          const head = y1 - 0.55 * METERS_TO_WORLD * vScale;
+          const stack = head - shopTop;
+          if (stack > 1.8 * METERS_TO_WORLD) {
+            const residential =
+              style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_APARTMENTS;
+            const houses =
+              residential && edgeLenM >= 16 ? Math.max(2, Math.round(edgeLenM / 6.5)) : 1;
+            let floors = Math.min(
+              residential ? 4 : 7,
+              Math.max(1, Math.floor(stack / (3.15 * METERS_TO_WORLD * vScale))),
+            );
+            let bays = residential
+              ? houses > 1
+                ? 2
+                : Math.min(4, Math.max(1, Math.floor(edgeLenM / 3.6)))
+              : Math.min(8, Math.max(2, Math.floor(edgeLenM / 4.2)));
+            while (houses * floors * bays > 36 && floors > 1) floors -= 1;
+            while (houses * floors * bays > 36 && bays > 1) bays -= 1;
+            const elen = Math.hypot(dx, dz) || 1;
+            const alongN = -0.28 * METERS_TO_WORLD;
+            const winW = (residential ? 1.55 : 1.85) * METERS_TO_WORLD;
+            const winH = Math.min(
+              (stack / floors) * 0.62,
+              (residential ? 2.15 : 2.35) * METERS_TO_WORLD * Math.min(vScale, 1.7),
+            );
+            if (houses > 1) {
+              const ribHex = pal.mixHex(baseHex, pal.AO_DARK, 0.5);
+              const half = 0.28 * METERS_TO_WORLD;
+              const ox = nx * -0.18 * METERS_TO_WORLD;
+              const oz = nz * -0.18 * METERS_TO_WORLD;
+              const tx = dx / elen;
+              const tz = dz / elen;
+              for (let hse = 1; hse < houses; hse++) {
+                const t = hse / houses;
+                const mx = a.x + dx * t;
+                const mz = a.z + dz * t;
+                const hx = tx * half;
+                const hz = tz * half;
+                const p0 = pushVertex(mx - hx + ox, y0, mz - hz + oz, nx, 0, nz, ribHex);
+                const p1 = pushVertex(mx + hx + ox, y0, mz + hz + oz, nx, 0, nz, ribHex);
+                const p2 = pushVertex(mx + hx + ox, y1, mz + hz + oz, nx, 0, nz, ribHex);
+                const p3 = pushVertex(mx - hx + ox, y1, mz - hz + oz, nx, 0, nz, ribHex);
+                if (!flip) indices.push(p0, p1, p2, p0, p2, p3);
+                else indices.push(p0, p2, p1, p0, p3, p2);
+              }
+            }
+            for (let hse = 0; hse < houses; hse++) {
+              const glass = pal.windowHex(seed + hse * 17);
+              const u0 = (hse / houses) * elen;
+              const spanU = elen / houses;
+              for (let c = 0; c < bays; c++) {
+                const u = u0 + ((c + 1) / (bays + 1)) * spanU;
+                for (let r = 0; r < floors; r++) {
+                  const yMid = shopTop + ((r + 0.5) / floors) * stack;
+                  const half = winW / 2;
+                  const t0 = (u - half) / elen;
+                  const t1 = (u + half) / elen;
+                  if (t0 < 0.03 || t1 > 0.97) continue;
+                  const x0 = a.x + dx * t0 + nx * alongN;
+                  const z0 = a.z + dz * t0 + nz * alongN;
+                  const x1 = a.x + dx * t1 + nx * alongN;
+                  const z1 = a.z + dz * t1 + nz * alongN;
+                  const ySill = yMid - winH / 2;
+                  const yHead = yMid + winH / 2;
+                  const s0 = pushVertex(x0, ySill, z0, nx, 0, nz, glass);
+                  const s1 = pushVertex(x1, ySill, z1, nx, 0, nz, glass);
+                  const s2 = pushVertex(x1, yHead, z1, nx, 0, nz, glass);
+                  const s3 = pushVertex(x0, yHead, z0, nx, 0, nz, glass);
+                  if (!flip) indices.push(s0, s1, s2, s0, s2, s3);
+                  else indices.push(s0, s2, s1, s0, s3, s2);
+                }
+              }
+            }
+          }
+        }
+
         if (opts.windows && scratch) {
           const spanM = (y1 - y0) / METERS_TO_WORLD;
           if (wantBayWindows(edgeLenM, spanM, style)) {
@@ -1095,6 +1174,34 @@ export function buildChunkTier(
           2.2 * METERS_TO_WORLD * vScale,
           0.9 * METERS_TO_WORLD,
           pal.CHIMNEY,
+        );
+      }
+    }
+
+    if (pitched && (style === STYLE_HOUSE || style === STYLE_TERRACE) && longestM >= 14) {
+      const front = ring[longestI]!;
+      const back = ring[(longestI + 1) % n]!;
+      const [nx, nz] = outwardNormal(front.x, front.z, back.x, back.z, cx, cz);
+      const elen = Math.hypot(back.x - front.x, back.z - front.z) || 1;
+      const houses = Math.max(2, Math.round(longestM / 6.5));
+      const tx = (back.x - front.x) / elen;
+      const tz = (back.z - front.z) / elen;
+      for (let k = 0; k < houses; k++) {
+        const t = (k + 0.5) / houses;
+        const mx = front.x + (back.x - front.x) * t;
+        const mz = front.z + (back.z - front.z) * t;
+        pushOrientedBox(
+          mx + nx * 0.55 * METERS_TO_WORLD,
+          eavesY + riseWorld * 0.22,
+          mz + nz * 0.55 * METERS_TO_WORLD,
+          2.0 * METERS_TO_WORLD,
+          1.55 * METERS_TO_WORLD * vScale,
+          1.7 * METERS_TO_WORLD,
+          tx,
+          tz,
+          nx,
+          nz,
+          pal.mixHex(baseHex, pal.CORNICE, 0.18),
         );
       }
     }
