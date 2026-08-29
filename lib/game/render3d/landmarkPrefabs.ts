@@ -29,6 +29,7 @@ const PLAYTIME_PROCEDURAL: ReadonlySet<LandmarkKind> = new Set([
   'tower42',
   'eye',
   'lcy',
+  'buckingham',
 ]);
 
 export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {

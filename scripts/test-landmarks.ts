@@ -313,6 +313,35 @@ check('Buckingham Palace carries MeshBasic garden lawns, not a dirt moat', () =>
   assert.ok(north >= 1, 'north Green Park apron missing');
 });
 
+check('Buckingham east front is a Portland palace, not a courtyard doughnut', () => {
+  const palace = build('buckingham');
+  const east = palace.getObjectByName('east-front');
+  assert.ok(east instanceof THREE.Mesh, 'named Mall facade');
+  const mat = Array.isArray(east.material) ? east.material[0] : east.material;
+  assert.equal(mat.type, 'MeshBasicMaterial', 'Portland must not relight to slate-blue');
+  const hex = (mat as THREE.MeshBasicMaterial).color.getHex();
+  const r = (hex >> 16) & 255;
+  const g = (hex >> 8) & 255;
+  const b = hex & 255;
+  assert.ok(r > 180 && g > 160 && b > 140 && r > b + 20, `Portland not slate (${hex.toString(16)})`);
+  assert.ok(palace.getObjectByName('court-roof'), 'courtyard is a roof well, not a hole');
+  assert.ok(palace.getObjectByName('pediment'), 'central pediment on the Mall');
+  assert.ok(palace.getObjectByName('balcony'), 'centre balcony');
+  let columns = 0;
+  palace.traverse((obj) => {
+    if (obj.name === 'column') columns += 1;
+  });
+  assert.ok(columns >= 4, `portico columns, got ${columns}`);
+  const dummy = new THREE.Group();
+  dummy.name = 'costume';
+  dummy.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 2)));
+  const prefabs = new Map();
+  prefabs.set('buckingham', dummy);
+  const live = instantiateLandmark('buckingham', prefabs);
+  assert.equal(live.getObjectByName('costume'), undefined);
+  assert.ok(live.getObjectByName('east-front'));
+});
+
 check('One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box', () => {
   const dummy = new THREE.Group();
   dummy.name = 'crushed';
