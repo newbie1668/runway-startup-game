@@ -1849,75 +1849,151 @@ function buildAlbertHall(): THREE.Group {
   return group;
 }
 
+/** Flat 3×5 digit on the runway deck. Rows run along `ax` (approach). */
+function addRunwayDigit(
+  group: THREE.Group,
+  cells: readonly number[],
+  x: number,
+  z: number,
+  ax: number,
+  az: number,
+  y: number,
+  mat: THREE.Material,
+): void {
+  const col = m(2.1);
+  const row = m(2.5);
+  const px = -az;
+  const pz = ax;
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 3; c++) {
+      if (!cells[r * 3 + c]) continue;
+      const along = (2 - r) * row;
+      const across = (c - 1) * col;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(m(2.0), m(0.12), m(2.4)), mat);
+      mesh.position.set(x + ax * along + px * across, y, z + az * along + pz * across);
+      mesh.name = 'runway-mark';
+      group.add(mesh);
+    }
+  }
+}
+
 function buildLcy(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'lcy';
   const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
   const mark = new THREE.MeshBasicMaterial({ color: 0xe8e6dc, fog: true });
   const concrete = new THREE.MeshLambertMaterial({ color: 0xc8c4b8 });
-  const hall = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
+  const hall = new THREE.MeshLambertMaterial({ color: 0xece8dc });
   const glass = new THREE.MeshBasicMaterial({ color: 0x3a5468, fog: true });
-  const cab = new THREE.MeshBasicMaterial({ color: 0x243440, fog: true });
-  const dlr = new THREE.MeshLambertMaterial({ color: 0xb8a090 });
+  const cab = new THREE.MeshBasicMaterial({ color: 0x1c2a34, fog: true });
+  const dlr = new THREE.MeshLambertMaterial({ color: 0x7a9088 });
   const grass = new THREE.MeshBasicMaterial({ color: 0x6a8a48, fog: true });
+  const steel = new THREE.MeshLambertMaterial({ color: 0x8a9096 });
 
+  // Sit on the road deck so the 09/27 strip is not under WATER_Y (0.04).
+  const deck = LANDMARK_DECK_Y;
   const rwLen = m(1508);
   const rwW = m(30);
-  const rwH = m(0.55);
+  const rwH = m(0.7);
+  const markY = deck + rwH + m(0.05);
+
   const runway = new THREE.Mesh(new THREE.BoxGeometry(rwLen, rwH, rwW), asphalt);
   runway.name = 'runway';
-  runway.position.set(0, rwH / 2, 0);
+  runway.position.set(0, deck + rwH / 2, 0);
   group.add(runway);
-  addBox(group, rwLen, m(0.18), m(16), grass, 0, 0, m(23));
-  addBox(group, rwLen, m(0.18), m(16), grass, 0, 0, m(-23));
-  for (const z of [-m(14.2), m(14.2)]) {
+  // North shoulder stays skinny so Royal Albert Dock reads as water on the edge.
+  addBox(group, rwLen, m(0.22), m(10), grass, 0, deck, -m(20));
+  addBox(group, rwLen * 0.55, m(0.22), m(14), grass, m(80), deck, m(24));
+  for (const z of [-m(14.4), m(14.4)]) {
     const edge = new THREE.Mesh(new THREE.BoxGeometry(rwLen * 0.98, m(0.08), m(0.7)), mark);
-    edge.position.set(0, rwH + m(0.04), z);
+    edge.position.set(0, markY, z);
     group.add(edge);
   }
   for (let i = -48; i <= 48; i++) {
     if (i % 2 === 0) continue;
     const dash = new THREE.Mesh(new THREE.BoxGeometry(m(18), m(0.08), m(0.55)), mark);
-    dash.position.set(i * m(15), rwH + m(0.05), 0);
+    dash.position.set(i * m(15), markY, 0);
     group.add(dash);
   }
   for (const side of [-1, 1]) {
-    const x0 = side * (rwLen / 2 - m(28));
+    const x0 = side * (rwLen / 2 - m(36));
     for (let i = 0; i < 6; i++) {
       const bar = new THREE.Mesh(new THREE.BoxGeometry(m(22), m(0.08), m(1.5)), mark);
-      bar.position.set(x0, rwH + m(0.05), (i - 2.5) * m(3.6));
+      bar.position.set(x0, markY, (i - 2.5) * m(3.6));
       group.add(bar);
     }
   }
 
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(m(720), m(0.4), m(95)), concrete);
+  const zero = [1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1];
+  const two = [1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1];
+  const seven = [1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
+  const nine = [1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1];
+  const west = -rwLen / 2 + m(58);
+  const east = rwLen / 2 - m(58);
+  const g09 = new THREE.Group();
+  g09.name = 'mark-09';
+  group.add(g09);
+  addRunwayDigit(g09, zero, west, -m(5.2), 1, 0, markY, mark);
+  addRunwayDigit(g09, nine, west, m(5.2), 1, 0, markY, mark);
+  const g27 = new THREE.Group();
+  g27.name = 'mark-27';
+  group.add(g27);
+  addRunwayDigit(g27, two, east, m(5.2), -1, 0, markY, mark);
+  addRunwayDigit(g27, seven, east, -m(5.2), -1, 0, markY, mark);
+
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(m(560), m(0.45), m(62)), concrete);
   apron.name = 'apron';
-  apron.position.set(m(-80), m(0.2), m(78));
+  apron.position.set(m(-40), deck + m(0.22), m(58));
   group.add(apron);
   for (let i = 0; i < 8; i++) {
-    const stand = new THREE.Mesh(new THREE.BoxGeometry(m(28), m(0.12), m(22)), asphalt);
-    stand.position.set(m(-280 + i * 72), m(0.42), m(88));
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(m(26), m(0.1), m(18)), asphalt);
+    stand.position.set(m(-240 + i * 58), deck + m(0.5), m(52));
     group.add(stand);
+    const lead = new THREE.Mesh(new THREE.BoxGeometry(m(1.1), m(0.08), m(16)), mark);
+    lead.position.set(m(-240 + i * 58), markY, m(38));
+    group.add(lead);
   }
 
-  const terminal = addBox(group, m(210), m(11), m(42), hall, m(-120), 0, m(118));
-  terminal.name = 'terminal';
-  addBox(group, m(200), m(7.5), m(3.2), glass, m(-120), m(2.2), m(97));
-  addBox(group, m(70), m(7), m(28), hall, m(-40), 0, m(148));
-  addBox(group, m(206), m(1.4), m(44), hall, m(-120), m(11), m(118));
+  // Long airside pier + west headhouse — LCY's terminal, not a hangar box.
+  const pier = addBox(group, m(300), m(7.2), m(16), hall, m(-60), deck, m(92));
+  pier.name = 'terminal';
+  addBox(group, m(292), m(5.4), m(2.4), glass, m(-60), deck + m(1.4), m(83.5));
+  for (let i = 0; i < 10; i++) {
+    addBox(group, m(2.2), m(5.6), m(2.6), glass, m(-200 + i * 31), deck + m(1.2), m(84));
+  }
+  addBox(group, m(88), m(13), m(36), hall, m(-150), deck, m(122));
+  addBox(group, m(80), m(8), m(3.2), glass, m(-150), deck + m(2.4), m(140));
+  addBox(group, m(90), m(1.6), m(38), hall, m(-150), deck + m(13), m(122));
+  for (let i = 0; i < 8; i++) {
+    const bridge = addBox(
+      group,
+      m(3.4),
+      m(3.2),
+      m(22),
+      steel,
+      m(-240 + i * 58),
+      deck + m(4),
+      m(72),
+    );
+    bridge.name = 'jetbridge';
+  }
 
-  addBox(group, m(9), m(38), m(9), concrete, m(40), 0, m(125));
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(m(18), m(7), m(14)), cab);
+  addBox(group, m(7.5), m(32), m(7.5), concrete, m(70), 0, m(108));
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(m(20), m(8), m(16)), cab);
   tower.name = 'tower';
-  tower.position.set(m(40), m(42), m(125));
+  tower.position.set(m(70), m(36), m(108));
   group.add(tower);
-  addBox(group, m(20), m(1.2), m(16), hall, m(40), m(45.2), m(125));
+  addBox(group, m(22), m(1.3), m(18), hall, m(70), m(40), m(108));
+  addBox(group, m(1.2), m(6), m(1.2), steel, m(70), m(41), m(108));
 
-  const viaduct = addBox(group, m(180), m(6), m(8), dlr, m(-520), m(8), m(150));
+  const jet = addBox(group, m(48), m(8), m(22), concrete, m(280), deck, m(78));
+  jet.name = 'jetcentre';
+
+  const viaduct = addBox(group, m(200), m(5.5), m(7), dlr, m(-430), m(9), m(138));
   viaduct.name = 'dlr';
-  addBox(group, m(48), m(8), m(22), dlr, m(-480), m(8), m(165));
-  addBox(group, m(12), m(10), m(12), dlr, m(-560), 0, m(150));
-  addBox(group, m(12), m(10), m(12), dlr, m(-440), 0, m(150));
+  addBox(group, m(52), m(9), m(24), dlr, m(-360), m(9), m(150));
+  addBox(group, m(10), m(11), m(10), dlr, m(-510), 0, m(138));
+  addBox(group, m(10), m(11), m(10), dlr, m(-350), 0, m(138));
   return group;
 }
 

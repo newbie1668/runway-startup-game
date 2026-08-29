@@ -578,9 +578,10 @@ export class MapRenderer implements IMapRenderer {
           ctx.stroke();
           break;
         case 'lcy':
-          ctx.strokeRect(-16, -2, 32, 4);
-          ctx.strokeRect(-6, 4, 10, 6);
-          ctx.strokeRect(4, 3, 3, 8);
+          ctx.strokeRect(-18, -1.5, 36, 3);
+          ctx.strokeRect(-10, 4, 16, 3);
+          ctx.strokeRect(-8, 7, 6, 5);
+          ctx.strokeRect(4, 5, 2.5, 7);
           break;
       }
       ctx.restore();

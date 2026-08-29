@@ -319,9 +319,23 @@ check('London City Airport is a runway in the docks, not a grey rectangle', () =
   const northM = (box.max.z - box.min.z) / METERS_TO_WORLD;
   assert.ok(eastM > 1400 && eastM < 1700, `runway length ${eastM.toFixed(0)} m`);
   assert.ok(northM > 20 && northM < 50, `runway width ${northM.toFixed(0)} m`);
-  assert.ok(air.getObjectByName('terminal'), 'south-side terminal');
+  assert.ok(box.min.y > 0.08, `runway must sit above dock water, min.y=${box.min.y.toFixed(3)}`);
+  const mat = Array.isArray(runway.material) ? runway.material[0] : runway.material;
+  assert.equal(mat.type, 'MeshBasicMaterial', 'runway stays asphalt, not a lit hangar');
+  assert.ok(air.getObjectByName('terminal'), 'south-side terminal pier');
   assert.ok(air.getObjectByName('tower'), 'south-side control tower');
   assert.ok(air.getObjectByName('apron'), 'stands south of the runway');
+  assert.ok(air.getObjectByName('mark-09'), '09 threshold at the west end');
+  assert.ok(air.getObjectByName('mark-27'), '27 threshold at the east end');
+  const tower = air.getObjectByName('tower')!;
+  assert.ok(tower.position.z > 0, 'tower must sit south of the runway');
+  const dlr = air.getObjectByName('dlr')!;
+  assert.ok(dlr.position.x < 0, 'DLR at the west end');
+  let bridges = 0;
+  air.traverse((obj) => {
+    if (obj.name === 'jetbridge') bridges += 1;
+  });
+  assert.ok(bridges >= 6, `airside jetbridges, got ${bridges}`);
   const dummy = new THREE.Group();
   dummy.name = 'costume';
   dummy.add(new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 0.2)));
