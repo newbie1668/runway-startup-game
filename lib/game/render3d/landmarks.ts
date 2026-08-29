@@ -900,8 +900,8 @@ function buildCanadaSq(): THREE.Group {
     }
   }
 
-  const capHeight = ht(58);
-  const capMat = new THREE.MeshBasicMaterial({ color: 0xe8eef2, fog: true });
+  const capHeight = ht(72);
+  const capMat = new THREE.MeshBasicMaterial({ color: 0xf4f8fc, fog: true });
   const cap = new THREE.Mesh(
     baseAtGround(new THREE.ConeGeometry((width / 2) * Math.SQRT2, capHeight, 4), capHeight),
     capMat,

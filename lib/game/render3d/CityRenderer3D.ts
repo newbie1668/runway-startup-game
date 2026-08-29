@@ -77,6 +77,7 @@ const NOTICED_LOOK: Record<
   charrington: { at: [-0.00546, 51.50692], viewH: 1.85, azimuth: 0.18 },
   hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
   canadastreet: { at: [-0.0184, 51.50495], viewH: 4.25, azimuth: 0.62 },
+  citystreet: { at: [-0.0818, 51.51415], viewH: 3.55, azimuth: 0.5 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
@@ -361,6 +362,15 @@ export class CityRenderer3D implements IMapRenderer {
             : look === 'hsbc' || look === 'canadastreet'
               ? 'hsbc-uk'
               : undefined;
+    const lookLandmarkKinds = new Set<string>(
+      look === 'citystreet'
+        ? ['gherkin', 'grater', 'walkie', 'tower42']
+        : look === 'canadastreet'
+          ? ['canadasq']
+          : look
+            ? [look]
+            : [],
+    );
     const jobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
     const pushNoticed = (entry: NoticedEntry): void => {
@@ -394,7 +404,7 @@ export class CityRenderer3D implements IMapRenderer {
       if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) pushNoticed(entry);
     }
     for (const landmark of LANDMARKS) {
-      if (look && landmark.kind === look) pushLandmark(landmark);
+      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
     }
     jobs.push(() => {
       const mesh = buildWater(data);
@@ -423,7 +433,7 @@ export class CityRenderer3D implements IMapRenderer {
       }
     });
     for (const landmark of LANDMARKS) {
-      if (!(look && landmark.kind === look)) pushLandmark(landmark);
+      if (!lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
     }
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       for (const major of [true, false]) {
