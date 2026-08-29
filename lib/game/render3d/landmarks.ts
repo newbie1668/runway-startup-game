@@ -801,8 +801,8 @@ function buildO2(): THREE.Group {
 function buildWalkie(): THREE.Group {
   const group = new THREE.Group();
   const height = ht(160);
-  const wall = new THREE.MeshLambertMaterial({ color: 0xc8c4bc });
-  const win = new THREE.MeshLambertMaterial({ color: 0x6a7e90 });
+  const wall = new THREE.MeshBasicMaterial({ color: 0xd8d4cc, fog: true });
+  const win = new THREE.MeshBasicMaterial({ color: 0x5a7080, fog: true });
   const steps = 16;
   for (let i = 0; i < steps; i++) {
     const t0 = i / steps;
@@ -832,8 +832,8 @@ function buildGrater(): THREE.Group {
   g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
   g.setIndex(idx);
   g.computeVertexNormals();
-  const glass = new THREE.MeshLambertMaterial({ color: 0x8aa0b0 });
-  const steel = new THREE.MeshLambertMaterial({ color: 0xd0d8e0 });
+  const glass = new THREE.MeshBasicMaterial({ color: 0x5a7388, fog: true });
+  const steel = new THREE.MeshBasicMaterial({ color: 0xd8e0e8, fog: true });
   group.add(new THREE.Mesh(g, glass));
   for (let i = 1; i < 12; i++) {
     const t = i / 12;

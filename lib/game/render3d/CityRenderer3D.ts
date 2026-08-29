@@ -77,7 +77,7 @@ const NOTICED_LOOK: Record<
   charrington: { at: [-0.00546, 51.50692], viewH: 1.85, azimuth: 0.18 },
   hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
   canadastreet: { at: [-0.0184, 51.50495], viewH: 4.25, azimuth: 0.62 },
-  citystreet: { at: [-0.0818, 51.51415], viewH: 3.55, azimuth: 0.5 },
+  citystreet: { at: [-0.082, 51.5132], viewH: 4.15, azimuth: 0.42 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
