@@ -56,13 +56,16 @@ import {
   type UniqueStockRecipe,
 } from './uniqueStock';
 import {
+  emitCheapsideStockWalls,
   emitStreetUniqueRoofs,
   emitStreetUniqueWalls,
   STREET_UNIQUE_LABEL,
   streetUniqueAt,
+  type StreetEmit,
 } from './uniqueStreet';
 import {
   aabbHitsKeep,
+  CITYSTREET_AT,
   clipPolylineToKeep,
   inKeepDisk,
   ptsHitKeep,
@@ -610,6 +613,8 @@ export function buildChunkTier(
     }
   };
 
+  const citystreetPt = project(CITYSTREET_AT);
+
   for (const b of cityData.buildings as CityBuilding[]) {
     if (b.chunkId !== chunkId || b.major !== major) continue;
     const n = b.verts.length / 2;
@@ -637,6 +642,9 @@ export function buildChunkTier(
     const [lng, lat] = unproject(cx, cz);
     const streetKind = streetUniqueAt(lng, lat);
     const district = districtAt(lng, lat);
+    const distStreetM = Math.hypot(cx - citystreetPt.x, cz - citystreetPt.y) / METERS_TO_WORLD;
+    const cheapsideNotice =
+      !streetKind && district === 'city' && distStreetM < 280 && areaM2 >= 160 && b.heightM >= 8;
     const style = restyleForDistrict(
       resolveStyle(b.style, b.heightM, areaM2),
       b.heightM,
@@ -1041,22 +1049,26 @@ export function buildChunkTier(
 
     const stampWindows = style !== STYLE_INDUSTRIAL;
     const houseCourse = style === STYLE_HOUSE || style === STYLE_TERRACE;
+    const streetEmit: StreetEmit = {
+      ring,
+      plan,
+      heightWorld,
+      emitRingWalls: (useRing, y0, y1, opts) => {
+        emitRingWalls(useRing, y0, y1, opts);
+      },
+      pushBox,
+      pushOrientedBox,
+      pushVertex,
+      pushTri: (i0, i1, i2) => {
+        indices.push(i0, i1, i2);
+      },
+      outwardNormal,
+    };
+
     if (streetKind) {
-      emitStreetUniqueWalls(streetKind, {
-        ring,
-        plan,
-        heightWorld,
-        emitRingWalls: (useRing, y0, y1, opts) => {
-          emitRingWalls(useRing, y0, y1, opts);
-        },
-        pushBox,
-        pushOrientedBox,
-        pushVertex,
-        pushTri: (i0, i1, i2) => {
-          indices.push(i0, i1, i2);
-        },
-        outwardNormal,
-      });
+      emitStreetUniqueWalls(streetKind, streetEmit);
+    } else if (cheapsideNotice) {
+      emitCheapsideStockWalls(streetEmit, recipe.silhouette, baseHex, pal.windowHex(seed));
     } else {
       const facadeOpts = { facade: recipe.facade };
       if (podium) {
@@ -1178,6 +1190,7 @@ export function buildChunkTier(
 
     const wantSign =
       !streetKind &&
+      !cheapsideNotice &&
       (style === STYLE_RETAIL || (style === STYLE_OFFICE && seed % 9 === 0)) &&
       longestM >= 8;
     if (wantSign && scratch) {
