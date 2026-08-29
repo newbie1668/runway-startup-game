@@ -65,6 +65,7 @@ export const POULTRY_SHOP = 0x3a322c;
 export const POULTRY_ROOF = 0x5a625c;
 export const POULTRY_GRANITE = 0x6a6e6a;
 export const POULTRY_WELL = 0x1a1a22;
+export const POULTRY_MORTAR = 0x6a5a50;
 /** Stirling watch face. Off-white vanished into the pink/buff stripes under Lambert. */
 export const POULTRY_CLOCK = 0xffffff;
 export const POULTRY_CLOCK_RIM = 0x141210;
@@ -719,10 +720,7 @@ function emitEdgeSlots(
     emitWallQuad(ctx, e.a.x, e.a.z, e.b.x, e.b.z, y0, y1, e.nx, e.nz, stone);
     return;
   }
-  const bays =
-    edgeM < 6.2
-      ? 1
-      : Math.max(2, Math.min(16, Math.round(edgeM / pitchM)));
+  const bays = edgeM < 6.2 ? 1 : Math.max(2, Math.min(16, Math.round(edgeM / pitchM)));
   for (let b = 0; b < bays; b++) {
     const t0 = b / bays;
     const t1 = (b + 1) / bays;
@@ -802,10 +800,7 @@ function plateRhythm(
     3.15,
     Math.min(10.4, 3.05 + ((plan.longestEdgeM * 0.173 + plan.n * 0.31 + storey * 0.9) % 5.8)),
   );
-  const rows = Math.max(
-    1,
-    Math.min(6, Math.round(hM / (3.2 + plan.compactness * 1.35)) - storey),
-  );
+  const rows = Math.max(1, Math.min(6, Math.round(hM / (3.2 + plan.compactness * 1.35)) - storey));
   const winU = Math.max(
     0.32,
     Math.min(0.48, 0.34 + plan.compactness * 0.12 + (plan.longestEdgeIndex % 3) * 0.03),
@@ -842,13 +837,7 @@ function pointInTri(
   return b1 === b2 && b2 === b3;
 }
 
-function quadHitsDisk(
-  a: StreetPt,
-  b: StreetPt,
-  c: StreetPt,
-  d: StreetPt,
-  disk: Disk,
-): boolean {
+function quadHitsDisk(a: StreetPt, b: StreetPt, c: StreetPt, d: StreetPt, disk: Disk): boolean {
   const r = disk.r;
   if (Math.hypot(a.x - disk.x, a.z - disk.z) < r) return true;
   if (Math.hypot(b.x - disk.x, b.z - disk.z) < r) return true;
@@ -891,39 +880,249 @@ function emitTerraceCap(
   }
 }
 
-function emitStripedSegment(
+/** One limestone course with a real ledge, not a coplanar stripe. */
+function emitLimestoneLedge(
   ctx: StreetEmit,
   e: Edge,
   t0: number,
   t1: number,
   y0: number,
   y1: number,
-  hexA: number,
-  hexB: number,
-  nBands: number,
-  outset = 0,
+  hex: number,
+  out: number,
 ): void {
   const a = edgePoint(e, t0);
   const b = edgePoint(e, t1);
-  const ax = a.x + e.nx * outset;
-  const az = a.z + e.nz * outset;
-  const bx = b.x + e.nx * outset;
-  const bz = b.z + e.nz * outset;
-  const n = Math.max(4, nBands);
-  const h = (y1 - y0) / n;
-  for (let i = 0; i < n; i++) {
+  const ax = a.x + e.nx * out;
+  const az = a.z + e.nz * out;
+  const bx = b.x + e.nx * out;
+  const bz = b.z + e.nz * out;
+  emitWallQuad(ctx, ax, az, bx, bz, y0, y1, e.nx, e.nz, hex);
+  const i0 = ctx.pushVertex(a.x, y1, a.z, 0, 1, 0, hex);
+  const i1 = ctx.pushVertex(b.x, y1, b.z, 0, 1, 0, hex);
+  const i2 = ctx.pushVertex(bx, y1, bz, 0, 1, 0, hex);
+  const i3 = ctx.pushVertex(ax, y1, az, 0, 1, 0, hex);
+  ctx.pushTri(i0, i1, i2);
+  ctx.pushTri(i0, i2, i3);
+  const s0 = ctx.pushVertex(ax, y0, az, 0, -1, 0, hex);
+  const s1 = ctx.pushVertex(bx, y0, bz, 0, -1, 0, hex);
+  const s2 = ctx.pushVertex(b.x, y0, b.z, 0, -1, 0, hex);
+  const s3 = ctx.pushVertex(a.x, y0, a.z, 0, -1, 0, hex);
+  ctx.pushTri(s0, s1, s2);
+  ctx.pushTri(s0, s2, s3);
+}
+
+function emitRakedQuad(
+  ctx: StreetEmit,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  y0a: number,
+  y1a: number,
+  y0b: number,
+  y1b: number,
+  nx: number,
+  nz: number,
+  hex: number,
+): void {
+  const i0 = ctx.pushVertex(ax, y0a, az, nx, 0, nz, hex);
+  const i1 = ctx.pushVertex(bx, y0b, bz, nx, 0, nz, hex);
+  const i2 = ctx.pushVertex(bx, y1b, bz, nx, 0, nz, hex);
+  const i3 = ctx.pushVertex(ax, y1a, az, nx, 0, nz, hex);
+  const dx = bx - ax;
+  const dz = bz - az;
+  const candX = -dz * ((y1a + y1b - y0a - y0b) * 0.5);
+  const candZ = dx * ((y1a + y1b - y0a - y0b) * 0.5);
+  if (candX * nx + candZ * nz < 0) {
+    ctx.pushTri(i0, i2, i1);
+    ctx.pushTri(i0, i3, i2);
+  } else {
+    ctx.pushTri(i0, i1, i2);
+    ctx.pushTri(i0, i2, i3);
+  }
+}
+
+function emitJambReturn(
+  ctx: StreetEmit,
+  px: number,
+  pz: number,
+  nx: number,
+  nz: number,
+  outA: number,
+  outB: number,
+  y0: number,
+  y1: number,
+  jx: number,
+  jz: number,
+  hex: number,
+): void {
+  emitWallQuad(
+    ctx,
+    px + nx * outA,
+    pz + nz * outA,
+    px + nx * outB,
+    pz + nz * outB,
+    y0,
+    y1,
+    jx,
+    jz,
+    hex,
+  );
+}
+
+/** Concertina bay: rusticated ledges + a deep raked slot. Not a plate-slot costume. */
+function emitStirlingBay(
+  ctx: StreetEmit,
+  e: Edge,
+  t0: number,
+  t1: number,
+  y0: number,
+  y1: number,
+  fold: number,
+  nRows: number,
+  tallerAtT0: boolean,
+): void {
+  const span = y1 - y0;
+  const courses = Math.max(3, Math.min(7, Math.round(span / m(1.55))));
+  const pierU = 0.18;
+  const leftPier1 = t0 + (t1 - t0) * pierU;
+  const rightPier0 = t1 - (t1 - t0) * pierU;
+  const ch = span / courses;
+  for (let c = 0; c < courses; c++) {
+    const cy0 = y0 + c * ch;
+    const cy1 = cy0 + ch * 0.82;
+    const my1 = cy0 + ch;
+    const hex = c % 2 === 0 ? POULTRY_PINK : POULTRY_BUFF;
+    const out = fold + (c % 2 === 0 ? m(0.08) : m(0.2));
+    emitLimestoneLedge(ctx, e, t0, leftPier1, cy0, cy1, hex, out);
+    emitLimestoneLedge(ctx, e, rightPier0, t1, cy0, cy1, hex, out);
+    const pL0 = edgePoint(e, t0);
+    const pL1 = edgePoint(e, leftPier1);
+    const pR0 = edgePoint(e, rightPier0);
+    const pR1 = edgePoint(e, t1);
+    const mo = out * 0.35;
     emitWallQuad(
       ctx,
-      ax,
-      az,
-      bx,
-      bz,
-      y0 + i * h,
-      y0 + (i + 1) * h,
+      pL0.x + e.nx * mo,
+      pL0.z + e.nz * mo,
+      pL1.x + e.nx * mo,
+      pL1.z + e.nz * mo,
+      cy1,
+      my1,
       e.nx,
       e.nz,
-      i % 2 === 0 ? hexA : hexB,
+      POULTRY_MORTAR,
     );
+    emitWallQuad(
+      ctx,
+      pR0.x + e.nx * mo,
+      pR0.z + e.nz * mo,
+      pR1.x + e.nx * mo,
+      pR1.z + e.nz * mo,
+      cy1,
+      my1,
+      e.nx,
+      e.nz,
+      POULTRY_MORTAR,
+    );
+  }
+  const rows = Math.max(1, nRows);
+  const rowH = span / rows;
+  const glassOut = fold - m(0.35);
+  const stoneOut = fold + m(0.18);
+  for (let r = 0; r < rows; r++) {
+    const ry0 = y0 + r * rowH;
+    const ry1 = ry0 + rowH;
+    const sillLo = ry0 + rowH * 0.14;
+    const sillHi = ry0 + rowH * 0.22;
+    const headLo = ry1 - rowH * 0.2;
+    const headHi = ry1 - rowH * 0.12;
+    const sillA = tallerAtT0 ? sillLo : sillHi;
+    const headA = tallerAtT0 ? headHi : headLo;
+    const sillB = tallerAtT0 ? sillHi : sillLo;
+    const headB = tallerAtT0 ? headLo : headHi;
+    const w0 = edgePoint(e, leftPier1);
+    const w1 = edgePoint(e, rightPier0);
+    const gx0 = w0.x + e.nx * glassOut;
+    const gz0 = w0.z + e.nz * glassOut;
+    const gx1 = w1.x + e.nx * glassOut;
+    const gz1 = w1.z + e.nz * glassOut;
+    emitRakedQuad(ctx, gx0, gz0, gx1, gz1, sillA, headA, sillB, headB, e.nx, e.nz, POULTRY_GLASS);
+    emitJambReturn(
+      ctx,
+      w0.x,
+      w0.z,
+      e.nx,
+      e.nz,
+      stoneOut,
+      glassOut,
+      sillA,
+      headA,
+      e.tx,
+      e.tz,
+      POULTRY_BUFF,
+    );
+    emitJambReturn(
+      ctx,
+      w1.x,
+      w1.z,
+      e.nx,
+      e.nz,
+      stoneOut,
+      glassOut,
+      sillB,
+      headB,
+      -e.tx,
+      -e.tz,
+      POULTRY_BUFF,
+    );
+    emitLimestoneLedge(
+      ctx,
+      e,
+      leftPier1,
+      rightPier0,
+      ry0,
+      Math.min(sillA, sillB),
+      POULTRY_BUFF,
+      stoneOut,
+    );
+    emitLimestoneLedge(
+      ctx,
+      e,
+      leftPier1,
+      rightPier0,
+      Math.max(headA, headB),
+      ry1,
+      POULTRY_PINK,
+      stoneOut,
+    );
+  }
+}
+
+function emitStirlingElevation(
+  ctx: StreetEmit,
+  e: Edge,
+  tLo: number,
+  tHi: number,
+  y0: number,
+  y1: number,
+  nRows: number,
+  tallerAtT0: boolean,
+): void {
+  const spanT = tHi - tLo;
+  if (spanT < 0.04) return;
+  const edgeM = (e.len * spanT) / METERS_TO_WORLD;
+  if (edgeM < 4.2) {
+    emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, POULTRY_BUFF, m(0.12));
+    return;
+  }
+  const bays = Math.max(1, Math.min(8, Math.round(edgeM / 5.4)));
+  for (let b = 0; b < bays; b++) {
+    const t0 = tLo + (spanT * b) / bays;
+    const t1 = tLo + (spanT * (b + 1)) / bays;
+    const fold = b % 2 === 0 ? m(0.1) : m(0.26);
+    emitStirlingBay(ctx, e, t0, t1, y0, y1, fold, nRows, tallerAtT0);
   }
 }
 
@@ -950,12 +1149,10 @@ function emitClockOnFace(
   const halfD = m(0.62);
   const faceOut = halfD + m(0.1);
 
-  const ringAt = (out: number, radius: number, hex: number, sign: number): number[] => {
+  const ringAt = (out: number, radius: number, hex: number): number[] => {
     const ids: number[] = [];
     const ox = nx * out;
     const oz = nz * out;
-    const snx = nx * sign;
-    const snz = nz * sign;
     for (let s = 0; s < segs; s++) {
       const t = (s / segs) * Math.PI * 2;
       const cpx = Math.cos(t);
@@ -965,9 +1162,9 @@ function emitClockOnFace(
           px + tx * cpx * radius + ox,
           py + spy * radius,
           pz + tz * cpx * radius + oz,
-          snx,
           0,
-          snz,
+          1,
+          0,
           hex,
         ),
       );
@@ -978,11 +1175,9 @@ function emitClockOnFace(
   const emitFace = (out: number, sign: number) => {
     const ox = nx * out;
     const oz = nz * out;
-    const snx = nx * sign;
-    const snz = nz * sign;
-    const c = ctx.pushVertex(px + ox, py, pz + oz, snx, 0, snz, POULTRY_CLOCK);
-    const inner = ringAt(out, faceR, POULTRY_CLOCK, sign);
-    const outer = ringAt(out, faceR + rimW, POULTRY_CLOCK_RIM, sign);
+    const c = ctx.pushVertex(px + ox, py, pz + oz, 0, 1, 0, POULTRY_CLOCK);
+    const inner = ringAt(out, faceR, POULTRY_CLOCK);
+    const outer = ringAt(out, faceR + rimW, POULTRY_CLOCK_RIM);
     for (let s = 0; s < segs; s++) {
       const a = inner[s]!;
       const b = inner[(s + 1) % segs]!;
@@ -1010,27 +1205,27 @@ function emitClockOnFace(
         px + tx * -baseT + hox,
         py + -baseY,
         pz + tz * -baseT + hoz,
-        snx,
         0,
-        snz,
+        1,
+        0,
         POULTRY_CLOCK_RIM,
       );
       const i1 = ctx.pushVertex(
         px + tx * baseT + hox,
         py + baseY,
         pz + tz * baseT + hoz,
-        snx,
         0,
-        snz,
+        1,
+        0,
         POULTRY_CLOCK_RIM,
       );
       const i2 = ctx.pushVertex(
         px + tx * tipT + hox,
         py + tipY,
         pz + tz * tipT + hoz,
-        snx,
         0,
-        snz,
+        1,
+        0,
         POULTRY_CLOCK_RIM,
       );
       if (sign > 0) ctx.pushTri(i0, i1, i2);
@@ -1052,9 +1247,9 @@ function emitClockOnFace(
           px + tx * (cpx * r + pxT * side) + hox,
           py + spy * r + pyT * side,
           pz + tz * (cpx * r + pxT * side) + hoz,
-          snx,
           0,
-          snz,
+          1,
+          0,
           POULTRY_CLOCK_RIM,
         );
       const t0 = tick(r0, -halfW);
@@ -1073,8 +1268,8 @@ function emitClockOnFace(
 
   emitFace(faceOut, 1);
   emitFace(-faceOut, -1);
-  const frontOuter = ringAt(faceOut, faceR + rimW, POULTRY_CLOCK_RIM, 1);
-  const backOuter = ringAt(-faceOut, faceR + rimW, POULTRY_CLOCK_RIM, -1);
+  const frontOuter = ringAt(faceOut, faceR + rimW, POULTRY_CLOCK_RIM);
+  const backOuter = ringAt(-faceOut, faceR + rimW, POULTRY_CLOCK_RIM);
   for (let s = 0; s < segs; s++) {
     const a = frontOuter[s]!;
     const b = frontOuter[(s + 1) % segs]!;
@@ -1085,7 +1280,7 @@ function emitClockOnFace(
   }
 }
 
-/** ~30 pointed panes on the apex end of a prow wall. */
+/** Folded V-curtain: recessed panes + stone mullions, not painted slots. */
 function emitProwVGlass(
   ctx: StreetEmit,
   e: Edge,
@@ -1097,18 +1292,36 @@ function emitProwVGlass(
   const tHi = apexAtStart ? 0.4 : 1;
   const cols = 3;
   const rows = 5;
-  const out = m(0.08);
-  const uPad = 0.1;
-  const vPad = 0.12;
+  const glassOut = m(-0.42);
+  const mullionOut = m(0.06);
+  const uPad = 0.08;
+  const vPad = 0.1;
+  for (let c = 0; c <= cols; c++) {
+    const u = tLo + ((tHi - tLo) * c) / cols;
+    emitLimestoneLedge(
+      ctx,
+      e,
+      Math.max(tLo, u - 0.012),
+      Math.min(tHi, u + 0.012),
+      y0,
+      y1,
+      POULTRY_BUFF,
+      mullionOut,
+    );
+  }
+  for (let r = 0; r <= rows; r++) {
+    const y = y0 + ((y1 - y0) * r) / rows;
+    emitLimestoneLedge(ctx, e, tLo, tHi, y - m(0.18), y + m(0.18), POULTRY_PINK, mullionOut);
+  }
   for (let c = 0; c < cols; c++) {
     const u0 = tLo + ((tHi - tLo) * c) / cols;
     const u1 = tLo + ((tHi - tLo) * (c + 1)) / cols;
     const left = edgePoint(e, u0 + (u1 - u0) * uPad);
     const right = edgePoint(e, u1 - (u1 - u0) * uPad);
-    const ax = left.x + e.nx * out;
-    const az = left.z + e.nz * out;
-    const bx = right.x + e.nx * out;
-    const bz = right.z + e.nz * out;
+    const ax = left.x + e.nx * glassOut;
+    const az = left.z + e.nz * glassOut;
+    const bx = right.x + e.nx * glassOut;
+    const bz = right.z + e.nz * glassOut;
     for (let r = 0; r < rows; r++) {
       if (r >= 4 && c !== 1) continue;
       const ry0 = y0 + ((y1 - y0) * r) / rows;
@@ -1116,28 +1329,110 @@ function emitProwVGlass(
       const sill = ry0 + (ry1 - ry0) * vPad;
       const head = ry1 - (ry1 - ry0) * vPad;
       emitWallQuad(ctx, ax, az, bx, bz, sill, head, e.nx, e.nz, POULTRY_GLASS);
+      emitJambReturn(
+        ctx,
+        left.x,
+        left.z,
+        e.nx,
+        e.nz,
+        mullionOut,
+        glassOut,
+        sill,
+        head,
+        e.tx,
+        e.tz,
+        POULTRY_BUFF,
+      );
+      emitJambReturn(
+        ctx,
+        right.x,
+        right.z,
+        e.nx,
+        e.nz,
+        mullionOut,
+        glassOut,
+        sill,
+        head,
+        -e.tx,
+        -e.tz,
+        POULTRY_BUFF,
+      );
     }
   }
 }
 
-function emitApexArch(ctx: StreetEmit, e: Edge, apexAtStart: boolean, y0: number, y1: number): void {
+function emitApexArch(
+  ctx: StreetEmit,
+  e: Edge,
+  apexAtStart: boolean,
+  y0: number,
+  y1: number,
+): void {
   const t0 = apexAtStart ? 0 : 0.82;
   const t1 = apexAtStart ? 0.18 : 1;
   const a = edgePoint(e, t0);
   const b = edgePoint(e, t1);
-  const out = m(0.05);
+  const out0 = m(0.22);
+  const out1 = m(-1.35);
   emitWallQuad(
     ctx,
-    a.x + e.nx * out,
-    a.z + e.nz * out,
-    b.x + e.nx * out,
-    b.z + e.nz * out,
+    a.x + e.nx * out1,
+    a.z + e.nz * out1,
+    b.x + e.nx * out1,
+    b.z + e.nz * out1,
     y0,
     y1,
     e.nx,
     e.nz,
     POULTRY_SHOP,
   );
+  emitJambReturn(ctx, a.x, a.z, e.nx, e.nz, out0, out1, y0, y1, e.tx, e.tz, POULTRY_GRANITE);
+  emitJambReturn(ctx, b.x, b.z, e.nx, e.nz, out0, out1, y0, y1, -e.tx, -e.tz, POULTRY_GRANITE);
+  const hx0 = a.x + e.nx * out0;
+  const hz0 = a.z + e.nz * out0;
+  const hx1 = b.x + e.nx * out0;
+  const hz1 = b.z + e.nz * out0;
+  const hx2 = b.x + e.nx * out1;
+  const hz2 = b.z + e.nz * out1;
+  const hx3 = a.x + e.nx * out1;
+  const hz3 = a.z + e.nz * out1;
+  const i0 = ctx.pushVertex(hx0, y1, hz0, 0, -1, 0, POULTRY_GRANITE);
+  const i1 = ctx.pushVertex(hx1, y1, hz1, 0, -1, 0, POULTRY_GRANITE);
+  const i2 = ctx.pushVertex(hx2, y1, hz2, 0, -1, 0, POULTRY_GRANITE);
+  const i3 = ctx.pushVertex(hx3, y1, hz3, 0, -1, 0, POULTRY_GRANITE);
+  ctx.pushTri(i0, i1, i2);
+  ctx.pushTri(i0, i2, i3);
+}
+
+function emitProwStone(
+  ctx: StreetEmit,
+  e: Edge,
+  t0: number,
+  t1: number,
+  y0: number,
+  y1: number,
+): void {
+  const n = 6;
+  const h = (y1 - y0) / n;
+  for (let i = 0; i < n; i++) {
+    const cy0 = y0 + i * h;
+    const cy1 = cy0 + h * 0.78;
+    const hex = i % 2 === 0 ? POULTRY_PINK : POULTRY_BUFF;
+    const out = i % 2 === 0 ? m(0.16) : m(0.3);
+    emitLimestoneLedge(ctx, e, t0, t1, cy0, cy1, hex, out);
+    emitWallQuad(
+      ctx,
+      edgePoint(e, t0).x + e.nx * (out * 0.4),
+      edgePoint(e, t0).z + e.nz * (out * 0.4),
+      edgePoint(e, t1).x + e.nx * (out * 0.4),
+      edgePoint(e, t1).z + e.nz * (out * 0.4),
+      cy1,
+      cy0 + h,
+      e.nx,
+      e.nz,
+      POULTRY_MORTAR,
+    );
+  }
 }
 
 function emitPoultryWalls(ctx: StreetEmit): void {
@@ -1169,7 +1464,16 @@ function emitPoultryWalls(ctx: StreetEmit): void {
     const inset = Math.min(insetsM[i]!, capM);
     const ring = inset <= 0.05 ? ctx.ring : insetRingTowardCentroid(ctx.ring, cx, cz, m(inset));
     if (i > 0) emitTerraceCap(ctx, prevRing, ring, y, POULTRY_BUFF, capDisk);
-    emitPlateSlots(ctx, ring, y, y + h, POULTRY_BUFF, POULTRY_GLASS, 4.2 + i * 0.85, 2, 0.3 + i * 0.03, 0.44);
+    const wingRows = i < 2 ? 2 : 1;
+    for (const e of edgesOf(ctx, ring)) {
+      if (e.i === ePrev.i) {
+        emitStirlingElevation(ctx, e, 0, 0.5, y, y + h, wingRows, false);
+      } else if (e.i === eNext.i) {
+        emitStirlingElevation(ctx, e, 0.5, 1, y, y + h, wingRows, true);
+      } else {
+        emitStirlingElevation(ctx, e, 0, 1, y, y + h, wingRows, false);
+      }
+    }
     prevRing = ring;
     y += h;
   }
@@ -1178,13 +1482,12 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);
   pushDisk(ctx, cx, m(0.35), cz, wellR * 0.98, POULTRY_WELL, 16);
 
-  const out = m(0.07);
-  emitStripedSegment(ctx, ePrev, 0.5, 1, arcadeH, prowH, POULTRY_PINK, POULTRY_BUFF, 10, out);
-  emitStripedSegment(ctx, eNext, 0, 0.5, arcadeH, prowH, POULTRY_PINK, POULTRY_BUFF, 10, out);
   emitApexArch(ctx, ePrev, false, 0, arcadeH * 1.35);
   emitApexArch(ctx, eNext, true, 0, arcadeH * 1.35);
   emitProwVGlass(ctx, ePrev, false, arcadeH, vTop);
   emitProwVGlass(ctx, eNext, true, arcadeH, vTop);
+  emitProwStone(ctx, ePrev, 0.5, 1, vTop, prowH);
+  emitProwStone(ctx, eNext, 0, 0.5, vTop, prowH);
   const faceR = m(5.8);
   const flankR = m(4.6);
   const clockY = vTop + faceR + m(1.4);
@@ -1193,29 +1496,29 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const bl = Math.hypot(bx, bz) || 1;
   bx /= bl;
   bz /= bl;
-  emitClockOnFace(ctx, apex.x - bx * m(3.2), clockY, apex.z - bz * m(3.2), bx, bz, faceR);
+  emitClockOnFace(ctx, apex.x - bx * m(2.2), clockY, apex.z - bz * m(2.2), bx, bz, faceR);
   const pPrev = edgePoint(ePrev, 0.78);
   const pNext = edgePoint(eNext, 0.22);
   emitClockOnFace(
     ctx,
-    pPrev.x + ePrev.nx * m(0.28),
+    pPrev.x + ePrev.nx * m(0.35),
     clockY,
-    pPrev.z + ePrev.nz * m(0.28),
+    pPrev.z + ePrev.nz * m(0.35),
     ePrev.nx,
     ePrev.nz,
     flankR,
   );
   emitClockOnFace(
     ctx,
-    pNext.x + eNext.nx * m(0.28),
+    pNext.x + eNext.nx * m(0.35),
     clockY,
-    pNext.z + eNext.nz * m(0.28),
+    pNext.z + eNext.nz * m(0.35),
     eNext.nx,
     eNext.nz,
     flankR,
   );
-  emitStripedSegment(ctx, ePrev, 0.5, 1, prowH - m(1.3), prowH, POULTRY_BUFF, POULTRY_PINK, 2, m(0.14));
-  emitStripedSegment(ctx, eNext, 0, 0.5, prowH - m(1.3), prowH, POULTRY_BUFF, POULTRY_PINK, 2, m(0.14));
+  emitLimestoneLedge(ctx, ePrev, 0.5, 1, prowH - m(1.4), prowH, POULTRY_BUFF, m(0.38));
+  emitLimestoneLedge(ctx, eNext, 0, 0.5, prowH - m(1.4), prowH, POULTRY_BUFF, m(0.38));
 }
 
 function emitNedWalls(ctx: StreetEmit): void {
@@ -1270,18 +1573,7 @@ function emitOldJewryWalls(ctx: StreetEmit): void {
   const e0 = ranked[0];
   const e1 = ranked[1] ?? e0;
   emitRustication(ctx, ctx.ring, 0, hA * 0.22, JEWRY_STONE, 2);
-  emitPlateSlots(
-    ctx,
-    ctx.ring,
-    hA * 0.22,
-    hA,
-    JEWRY_STONE,
-    JEWRY_GLASS,
-    3.2,
-    2,
-    0.5,
-    0.58,
-  );
+  emitPlateSlots(ctx, ctx.ring, hA * 0.22, hA, JEWRY_STONE, JEWRY_GLASS, 3.2, 2, 0.5, 0.58);
   if (e0) {
     const left = edgePoint(e0, 0);
     const p0 = edgePoint(e0, 0.36);
@@ -1355,7 +1647,18 @@ function emitGreshamWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
   emitRustication(ctx, ctx.ring, 0, H * 0.18, GRESHAM_STONE, 3);
-  emitPlateSlots(ctx, ctx.ring, H * 0.18, H * 0.42, GRESHAM_STONE, GRESHAM_GLASS, 5.2, 2, 0.46, 0.7);
+  emitPlateSlots(
+    ctx,
+    ctx.ring,
+    H * 0.18,
+    H * 0.42,
+    GRESHAM_STONE,
+    GRESHAM_GLASS,
+    5.2,
+    2,
+    0.46,
+    0.7,
+  );
   const mid = insetRingTowardCentroid(ctx.ring, cx, cz, m(2.8));
   emitVerticalFins(ctx, mid, H * 0.42, H * 0.72, GRESHAM_STONE, GRESHAM_GLASS, 4.8);
   const high = insetRingTowardCentroid(ctx.ring, cx, cz, m(5.6));
@@ -1474,8 +1777,10 @@ function emitRoofKit(ctx: StreetEmit, recipe: UniqueStockRecipe, stone: number):
   const w = m(Math.min(recipe.plant.wM, minRM * 0.45));
   const d = m(Math.min(recipe.plant.dM, minRM * 0.35));
   const h = m(Math.min(recipe.plant.hM, 6.5));
-  const x = cx + ax * m(recipe.plant.along * minRM * 0.25) + px * m(recipe.plant.perp * minRM * 0.2);
-  const z = cz + az * m(recipe.plant.along * minRM * 0.25) + pz * m(recipe.plant.perp * minRM * 0.2);
+  const x =
+    cx + ax * m(recipe.plant.along * minRM * 0.25) + px * m(recipe.plant.perp * minRM * 0.2);
+  const z =
+    cz + az * m(recipe.plant.along * minRM * 0.25) + pz * m(recipe.plant.perp * minRM * 0.2);
   ctx.pushBox(x, H, z, w, h, d, stone);
 }
 
@@ -1495,8 +1800,7 @@ export function emitCheapsideStockWalls(
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
   const sil = recipe.silhouette;
-  const physicalBays =
-    recipe.facade.kind === 'bays' || sil.kind === 'gable-row' || heightM <= 36;
+  const physicalBays = recipe.facade.kind === 'bays' || sil.kind === 'gable-row' || heightM <= 36;
   const paintBand = (
     ring: StreetPt[],
     y0: number,
@@ -1513,17 +1817,7 @@ export function emitCheapsideStockWalls(
     if (recipe.facade.kind === 'piers') {
       emitVerticalFins(ctx, ring, y0, y1, stone, glass, ry.pitchM);
     } else if (physicalBays) {
-      emitProjectingBays(
-        ctx,
-        ring,
-        y0,
-        y1,
-        stone,
-        glass,
-        ry.pitchM,
-        rows,
-        0.42 + storey * 0.08,
-      );
+      emitProjectingBays(ctx, ring, y0, y1, stone, glass, ry.pitchM, rows, 0.42 + storey * 0.08);
     } else {
       emitPlateSlots(ctx, ring, y0, y1, stone, glass, ry.pitchM, rows, ry.winU, ry.winV);
     }

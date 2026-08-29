@@ -37,6 +37,7 @@ import {
   POULTRY_BUFF,
   POULTRY_CLOCK,
   POULTRY_GLASS,
+  POULTRY_MORTAR,
   POULTRY_PINK,
   POULTRY_ROOF,
   POULTRY_WELL,
@@ -1016,6 +1017,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const jewryHigh = new THREE.Color(JEWRY_HIGH);
   const poultryGlass = new THREE.Color(POULTRY_GLASS);
   const poultryClock = new THREE.Color(POULTRY_CLOCK);
+  const poultryMortar = new THREE.Color(POULTRY_MORTAR);
   const jewryGlass = new THREE.Color(JEWRY_GLASS);
   const nedGlass = new THREE.Color(NED_GLASS);
   let pinkN = 0;
@@ -1031,6 +1033,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let poultryGlassN = 0;
   let poultryClockN = 0;
   let poultryClockProwN = 0;
+  let poultryMortarN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
   const highR: number[] = [];
@@ -1126,6 +1129,13 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
           if (dApex < 30 && yM > 16 && yM < 40) poultryClockProwN += 1;
         }
+        if (
+          Math.abs(r - poultryMortar.r) < 0.05 &&
+          Math.abs(g - poultryMortar.g) < 0.05 &&
+          Math.abs(b - poultryMortar.b) < 0.05
+        ) {
+          poultryMortarN += 1;
+        }
       }
       const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
       if (dj <= 35) {
@@ -1203,6 +1213,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     poultryClockProwN > 40,
     `Stirling clocks missing from the prow (prowClock=${poultryClockProwN})`,
   );
+  assert.ok(
+    poultryMortarN > 30,
+    `Poultry limestone is a band shader, not modelled courses (mortar=${poultryMortarN})`,
+  );
   assert.ok(highR.length > 16, `Poultry prow missing above the wings (${highR.length} high verts)`);
   {
     const mean = highR.reduce((a, v) => a + v, 0) / highR.length;
@@ -1222,10 +1236,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     jewryMidN > 20 && jewryHighN > 20,
     `1 Old Jewry is not three blocks (mid=${jewryMidN} high=${jewryHighN})`,
   );
-  assert.ok(
-    jewryGlassN > 40,
-    `1 Old Jewry window rhythm missing (glass=${jewryGlassN})`,
-  );
+  assert.ok(jewryGlassN > 40, `1 Old Jewry window rhythm missing (glass=${jewryGlassN})`);
   assert.ok(nedGlassN > 40, `The Ned palazzo window grid missing (glass=${nedGlassN})`);
   assert.ok(columnN > 20, `Mansion House portico columns missing (${columnN} verts)`);
 });
