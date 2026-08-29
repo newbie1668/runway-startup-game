@@ -849,26 +849,6 @@ function emitTerraceCap(
   }
 }
 
-/** Glass sits on an inset ring so the storey reads as a ledge, not a painted stripe. */
-function emitRecessedReveal(
-  ctx: StreetEmit,
-  ring: StreetPt[],
-  y0: number,
-  y1: number,
-  stone: number,
-  glass: number,
-  disk: Disk | null = null,
-): void {
-  const span = y1 - y0;
-  const sill = span * 0.2;
-  const head = span * 0.18;
-  const g = Math.max(span * 0.4, span - sill - head);
-  emitBandOutsideDisk(ctx, ring, y0, y0 + sill, stone, disk);
-  const inner = insetRingTowardCentroid(ring, ctx.plan.cx, ctx.plan.cz, m(0.5));
-  emitBandOutsideDisk(ctx, inner, y0 + sill, y0 + sill + g, glass, disk);
-  emitBandOutsideDisk(ctx, ring, y0 + sill + g, y1, stone, disk);
-}
-
 function emitClockFaces(
   ctx: StreetEmit,
   cx: number,
@@ -879,7 +859,7 @@ function emitClockFaces(
   hex: number,
 ): void {
   const segs = 10;
-  const out = m(0.12);
+  const out = m(0.05);
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + 0.35;
     const nx = Math.cos(a);
@@ -949,7 +929,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const drumR = m(POULTRY_DRUM_R_M);
   const drumH = Math.max(H * 1.28, m(40));
   pushCylinder(ctx, apex.x, 0, apex.z, drumR, drumH, POULTRY_PINK, 16, true);
-  emitClockFaces(ctx, apex.x, drumH * 0.55, apex.z, drumR, m(1.8), 0xf0e6d4);
+  emitClockFaces(ctx, apex.x, drumH * 0.55, apex.z, drumR, m(1.15), 0xf0e6d4);
   pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.62, m(2.6), POULTRY_BUFF, 12, true);
 }
 
