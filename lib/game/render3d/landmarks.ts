@@ -207,6 +207,26 @@ function addGothicPortalFace(
   group.add(reveal);
 }
 
+function addPointedArchVoidX(
+  group: THREE.Group,
+  zWidth: number,
+  height: number,
+  xDepth: number,
+  material: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+): void {
+  const body = new THREE.Mesh(new THREE.BoxGeometry(xDepth, height, zWidth), material);
+  body.position.set(x, y + height / 2, z);
+  group.add(body);
+  const cap = Math.min(zWidth * 0.32, m(5));
+  const peak = new THREE.Mesh(new THREE.BoxGeometry(xDepth, cap, cap), material);
+  peak.rotation.x = Math.PI / 4;
+  peak.position.set(x, y + height, z);
+  group.add(peak);
+}
+
 function buildShard(): THREE.Group {
   const group = new THREE.Group();
   const height = ht(310);
@@ -653,18 +673,15 @@ function buildTowerBridge(): THREE.Group {
       );
     }
     for (const xFace of [(shaftW - wallT) / 2, -(shaftW - wallT) / 2]) {
-      addGothicPortalFace(
+      addPointedArchVoidX(
         group,
-        shaftD - pier * 2.4,
-        portalH - m(1.2),
-        m(2.2),
-        stone,
+        m(12.5),
+        portalH - m(2),
+        m(2.8),
         voidMat,
-        xFace,
-        0,
+        xFace > 0 ? shaftW / 2 + m(0.2) : -(shaftW / 2 + m(0.2)),
+        deckY - m(1.5),
         z,
-        undefined,
-        'x',
       );
     }
 
