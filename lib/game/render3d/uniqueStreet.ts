@@ -984,7 +984,7 @@ function emitStirlingBay(
   tallerAtT0: boolean,
 ): void {
   const span = y1 - y0;
-  const courses = Math.max(3, Math.min(7, Math.round(span / m(1.55))));
+  const courses = 3;
   const pierU = 0.18;
   const leftPier1 = t0 + (t1 - t0) * pierU;
   const rightPier0 = t1 - (t1 - t0) * pierU;
@@ -1121,7 +1121,7 @@ function emitStirlingElevation(
   for (let b = 0; b < bays; b++) {
     const t0 = tLo + (spanT * b) / bays;
     const t1 = tLo + (spanT * (b + 1)) / bays;
-    const fold = b % 2 === 0 ? m(0.1) : m(0.26);
+    const fold = b % 2 === 0 ? m(0.08) : m(0.42);
     emitStirlingBay(ctx, e, t0, t1, y0, y1, fold, nRows, tallerAtT0);
   }
 }
@@ -1301,17 +1301,13 @@ function emitProwVGlass(
     emitLimestoneLedge(
       ctx,
       e,
-      Math.max(tLo, u - 0.012),
-      Math.min(tHi, u + 0.012),
+      Math.max(tLo, u - 0.018),
+      Math.min(tHi, u + 0.018),
       y0,
       y1,
       POULTRY_BUFF,
       mullionOut,
     );
-  }
-  for (let r = 0; r <= rows; r++) {
-    const y = y0 + ((y1 - y0) * r) / rows;
-    emitLimestoneLedge(ctx, e, tLo, tHi, y - m(0.18), y + m(0.18), POULTRY_PINK, mullionOut);
   }
   for (let c = 0; c < cols; c++) {
     const u0 = tLo + ((tHi - tLo) * c) / cols;
@@ -1412,7 +1408,7 @@ function emitProwStone(
   y0: number,
   y1: number,
 ): void {
-  const n = 6;
+  const n = 4;
   const h = (y1 - y0) / n;
   for (let i = 0; i < n; i++) {
     const cy0 = y0 + i * h;
