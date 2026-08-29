@@ -757,6 +757,7 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const at = project(CITYSTREET_AT);
   const keep: KeepDisk = { x: at.x, z: at.y, r: 1600 * METERS_TO_WORLD };
+  const pad = 120 * METERS_TO_WORLD;
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
@@ -764,8 +765,27 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
     const p = project(l.at);
     return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
   });
+  const streetM = 250;
+  let nearby = 0;
+  let dropped = 0;
+  for (const b of city.buildings) {
+    const n = b.verts.length / 2;
+    let cx = 0;
+    let cz = 0;
+    for (let i = 0; i < n; i++) {
+      cx += dequantizeX(b.verts[i * 2]!);
+      cz += dequantizeY(b.verts[i * 2 + 1]!);
+    }
+    cx /= n;
+    cz /= n;
+    if (Math.hypot(cx - at.x, cz - at.y) / METERS_TO_WORLD > streetM) continue;
+    nearby += 1;
+    if (!inKeepDisk(cx, cz, keep, pad)) dropped += 1;
+  }
+  assert.ok(nearby > 80, `Cheapside street has no OSM stock (${nearby} footprints)`);
+  assert.equal(dropped, 0, `keep-disk clipped ${dropped}/${nearby} Cheapside footprints`);
   let verts = 0;
-  let tall = 0;
+  let tallNear = 0;
   for (const major of [true, false]) {
     const mesh = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
     if (!mesh) continue;
@@ -774,12 +794,14 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
     verts += pos?.count ?? 0;
     if (pos) {
       for (let i = 0; i < pos.count; i++) {
-        if (pos.getY(i) > 8 * METERS_TO_WORLD) tall += 1;
+        const d = Math.hypot(pos.getX(i) - at.x, pos.getZ(i) - at.y) / METERS_TO_WORLD;
+        if (d > 200) continue;
+        if (pos.getY(i) > 8 * METERS_TO_WORLD) tallNear += 1;
       }
     }
   }
   assert.ok(verts > 2000, `citystreet keep-disk emptied Cheapside (${verts} verts)`);
-  assert.ok(tall > 80, `citystreet keep-disk is ground pancakes (${tall} tall verts)`);
+  assert.ok(tallNear > 4000, `citystreet keep-disk is ground pancakes (${tallNear} tall verts)`);
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {

@@ -6,7 +6,9 @@
  * before the palace job paints. Clip that look the same way as view=mid.
  * look=citystreet is a street-scale camera on Cheapside. FULL budget still
  * queued every London chunk behind the roads, so the frame was pavement
- * pancakes until Chrome error 9. Clip it the same way; keep minor stock.
+ * pancakes until Chrome error 9. Clip to a 1600 m disk like view=mid.
+ * Buildings inside that disk stay; dropping them to save memory empties
+ * the street. Minor chunks stay on.
  * Other close looks still get the neighbourhood around the camera.
  * Minor chunks stay on: they are the terraces / houses. Skipping them made
  * view=mid a field of typed office boxes.
