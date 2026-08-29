@@ -1302,6 +1302,10 @@ function buildTowerLondon(): THREE.Group {
   addCurtain(group, outerW, outerD, outerThick, outerH, wall, 'outer-curtain');
   addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(6.2));
 
+  const outerLawn = new THREE.Mesh(new THREE.BoxGeometry(outerW, m(0.28), outerD), lawn);
+  outerLawn.position.y = m(0.14);
+  group.add(outerLawn);
+
   const innerLawn = new THREE.Mesh(
     new THREE.BoxGeometry(innerW * 0.92, m(0.35), innerD * 0.92),
     lawn,

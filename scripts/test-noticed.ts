@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { makeMatteLambert } from '../lib/game/render3d/matteGltf';
+import { makeMatteLambert, makeUnlitBasic } from '../lib/game/render3d/matteGltf';
 import {
   bandsForShape,
   civicKindFromTags,
@@ -145,6 +145,20 @@ check('makeMatteLambert still drops maps on landmarks', () => {
   const mat = mesh.material as THREE.MeshLambertMaterial;
   assert.equal(mat.map, null);
   assert.equal(mat.color.getHex(), 0x7a92a4);
+});
+
+check('unique-tower unlit pass keeps pale stone as MeshBasicMaterial', () => {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0xe8e2d6 }),
+  );
+  const root = new THREE.Group();
+  root.add(mesh);
+  makeMatteLambert(root, { keepMaps: true });
+  makeUnlitBasic(root);
+  const mat = mesh.material as THREE.MeshBasicMaterial;
+  assert.equal(mat.type, 'MeshBasicMaterial');
+  assert.equal(mat.color.getHex(), 0xe8e2d6);
 });
 
 check('church baker adds a tower and spire, not another glass taper', () => {

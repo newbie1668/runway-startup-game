@@ -74,3 +74,27 @@ export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions):
     obj.material = Array.isArray(obj.material) ? mapped : mapped[0]!;
   });
 }
+
+/** Photo-true unique towers: unlit so pale stone / glass bands survive the sun. */
+export function makeUnlitBasic(root: THREE.Object3D): void {
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+    const mapped = list.map((mat) => {
+      if (!mat || mat instanceof THREE.MeshBasicMaterial) return mat;
+      const color =
+        'color' in mat && mat.color instanceof THREE.Color ? mat.color.getHex() : 0x9aa4ae;
+      const next = new THREE.MeshBasicMaterial({
+        color,
+        fog: true,
+        side: mat.side ?? THREE.FrontSide,
+        transparent: !!mat.transparent,
+        opacity: mat.opacity ?? 1,
+        vertexColors: !!mat.vertexColors,
+      });
+      mat.dispose();
+      return next;
+    });
+    obj.material = Array.isArray(obj.material) ? mapped : mapped[0]!;
+  });
+}
