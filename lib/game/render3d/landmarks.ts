@@ -900,10 +900,11 @@ function buildCanadaSq(): THREE.Group {
     }
   }
 
-  const capHeight = ht(45);
+  const capHeight = ht(58);
+  const capMat = new THREE.MeshBasicMaterial({ color: 0xe8eef2, fog: true });
   const cap = new THREE.Mesh(
     baseAtGround(new THREE.ConeGeometry((width / 2) * Math.SQRT2, capHeight, 4), capHeight),
-    steel,
+    capMat,
   );
   cap.position.y = ht(8) + shaftHeight;
   cap.rotation.y = Math.PI / 4;

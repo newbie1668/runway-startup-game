@@ -31,7 +31,7 @@ const LANDMARK_VIEW_H: Record<string, number> = {
   hungerford: 2.6,
   buckingham: 2.4,
   canadasq: 4.4,
-  gherkin: 2.65,
+  gherkin: 3.35,
   shard: 2.65,
   walkie: 2.8,
   grater: 2.8,

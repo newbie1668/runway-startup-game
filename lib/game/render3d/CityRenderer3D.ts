@@ -76,7 +76,7 @@ const NOTICED_LOOK: Record<
   wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
   charrington: { at: [-0.00546, 51.50692], viewH: 1.85, azimuth: 0.18 },
   hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
-  canadastreet: { at: [-0.0184, 51.50495], viewH: 3.05, azimuth: 0.62 },
+  canadastreet: { at: [-0.0184, 51.50495], viewH: 4.25, azimuth: 0.62 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
@@ -119,13 +119,15 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   }
   if (
     hit.kind === 'gherkin' ||
-    hit.kind === 'shard' ||
     hit.kind === 'walkie' ||
     hit.kind === 'grater' ||
     hit.kind === 'bishop' ||
     hit.kind === 'heron' ||
     hit.kind === 'tower42'
   ) {
+    return { at: hit.at, viewH: 3.35, azimuth: 0.55 };
+  }
+  if (hit.kind === 'shard') {
     return { at: hit.at, viewH: 2.65, azimuth: 0.42 };
   }
   const wide =
