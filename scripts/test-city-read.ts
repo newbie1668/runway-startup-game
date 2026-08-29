@@ -27,7 +27,13 @@ import {
   recipeFingerprint,
   uniqueStockRecipe,
 } from '../lib/game/render3d/uniqueStock';
-import { POULTRY_BUFF, POULTRY_PINK, streetUniqueAt } from '../lib/game/render3d/uniqueStreet';
+import {
+  JEWRY_BRONZE,
+  MANSION_COLUMN,
+  POULTRY_BUFF,
+  POULTRY_PINK,
+  streetUniqueAt,
+} from '../lib/game/render3d/uniqueStreet';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import {
   LANDMARKS,
@@ -939,18 +945,27 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.equal(streetUniqueAt(-0.09087, 51.51339), 'no-1-poultry');
   assert.equal(streetUniqueAt(-0.08996, 51.51374), 'the-ned');
   assert.equal(streetUniqueAt(-0.08983, 51.51262), 'walbrook');
+  assert.equal(streetUniqueAt(-0.09072, 51.51379), 'old-jewry');
+  assert.equal(streetUniqueAt(-0.08938, 51.51311), 'mansion-house');
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const at = project(CITYSTREET_AT);
   const poultryAt = project([-0.09075, 51.51332]);
+  const jewryAt = project([-0.09077, 51.51381]);
+  const mansionAt = project([-0.08948, 51.51297]);
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
   const pink = new THREE.Color(POULTRY_PINK);
   const buff = new THREE.Color(POULTRY_BUFF);
+  const bronze = new THREE.Color(JEWRY_BRONZE);
+  const column = new THREE.Color(MANSION_COLUMN);
   let pinkN = 0;
   let buffN = 0;
   let near = 0;
+  let bronzeN = 0;
+  let columnN = 0;
+  const drumKeys = new Set<string>();
   for (const major of [true, false]) {
     const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
     if (!mesh) continue;
@@ -958,30 +973,70 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     const colors = mesh.geometry.getAttribute('color');
     if (!pos || !colors) continue;
     for (let i = 0; i < pos.count; i++) {
-      const d = Math.hypot(pos.getX(i) - poultryAt.x, pos.getZ(i) - poultryAt.y) / METERS_TO_WORLD;
-      if (d > 45) continue;
-      near += 1;
-      const r = colors.getX(i);
-      const g = colors.getY(i);
-      const b = colors.getZ(i);
-      if (
-        Math.abs(r - pink.r) < 0.04 &&
-        Math.abs(g - pink.g) < 0.04 &&
-        Math.abs(b - pink.b) < 0.04
-      ) {
-        pinkN += 1;
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const d = Math.hypot(x - poultryAt.x, z - poultryAt.y) / METERS_TO_WORLD;
+      const yM = y / METERS_TO_WORLD;
+      if (d <= 55 && yM > 38) {
+        drumKeys.add(`${x.toFixed(3)},${z.toFixed(3)}`);
       }
-      if (
-        Math.abs(r - buff.r) < 0.04 &&
-        Math.abs(g - buff.g) < 0.04 &&
-        Math.abs(b - buff.b) < 0.04
-      ) {
-        buffN += 1;
+      if (d <= 45) {
+        near += 1;
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        if (
+          Math.abs(r - pink.r) < 0.04 &&
+          Math.abs(g - pink.g) < 0.04 &&
+          Math.abs(b - pink.b) < 0.04
+        ) {
+          pinkN += 1;
+        }
+        if (
+          Math.abs(r - buff.r) < 0.04 &&
+          Math.abs(g - buff.g) < 0.04 &&
+          Math.abs(b - buff.b) < 0.04
+        ) {
+          buffN += 1;
+        }
+      }
+      const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
+      if (dj <= 35) {
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        if (
+          Math.abs(r - bronze.r) < 0.05 &&
+          Math.abs(g - bronze.g) < 0.05 &&
+          Math.abs(b - bronze.b) < 0.05
+        ) {
+          bronzeN += 1;
+        }
+      }
+      const dm = Math.hypot(x - mansionAt.x, z - mansionAt.y) / METERS_TO_WORLD;
+      if (dm <= 40) {
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        if (
+          Math.abs(r - column.r) < 0.05 &&
+          Math.abs(g - column.g) < 0.05 &&
+          Math.abs(b - column.b) < 0.05
+        ) {
+          columnN += 1;
+        }
       }
     }
   }
   assert.ok(near > 200, `No 1 Poultry mesh missing (${near} verts)`);
-  assert.ok(pinkN > 40 && buffN > 40, `Stirling stripes missing pink=${pinkN} buff=${buffN}`);
+  assert.ok(pinkN > 40 && buffN > 40, `Stirling courses missing pink=${pinkN} buff=${buffN}`);
+  assert.ok(
+    drumKeys.size >= 12,
+    `Poultry clock turret is still a box (${drumKeys.size} unique xz above roof)`,
+  );
+  assert.ok(bronzeN > 20, `1 Old Jewry bronze fins missing (${bronzeN} verts)`);
+  assert.ok(columnN > 20, `Mansion House portico columns missing (${columnN} verts)`);
 });
 
 check('City street offices are not a shared punched-window recess costume', () => {

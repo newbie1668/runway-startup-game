@@ -754,10 +754,12 @@ export function buildChunkTier(
         hex?: number;
         bottomHex?: number;
         facade?: UniqueFacade;
+        outset?: number;
       },
     ) => {
       const faceHex = opts.hex ?? baseHex;
       const faceBottom = opts.bottomHex ?? wallBottomHex;
+      const bandOut = opts.outset ?? 0;
       const count = useRing.length;
       for (let i = 0; i < count; i++) {
         const a = useRing[i]!;
@@ -785,16 +787,16 @@ export function buildChunkTier(
         const plinthTop = opts.plinth ? y0 + plinthWorld : y0;
         const wallTop = Math.max(plinthTop, y1 - (opts.cornice ? corniceWorld : 0));
         if (opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85) {
-          emitQuad(y0, y0 + shopWorld, pal.SHOPFRONT, pal.SHOPFRONT);
-          emitQuad(y0 + shopWorld, wallTop, faceBottom, faceHex);
+          emitQuad(y0, y0 + shopWorld, pal.SHOPFRONT, pal.SHOPFRONT, bandOut);
+          emitQuad(y0 + shopWorld, wallTop, faceBottom, faceHex, bandOut);
         } else if (opts.plinth && plinthWorld > 0.01) {
-          emitQuad(y0, plinthTop, faceBottom, faceBottom);
-          emitQuad(plinthTop, wallTop, faceBottom, faceHex);
+          emitQuad(y0, plinthTop, faceBottom, faceBottom, bandOut);
+          emitQuad(plinthTop, wallTop, faceBottom, faceHex, bandOut);
         } else {
-          emitQuad(y0, wallTop, faceBottom, faceHex);
+          emitQuad(y0, wallTop, faceBottom, faceHex, bandOut);
         }
         if (opts.cornice && corniceWorld > 0.008 && wallTop < y1) {
-          emitQuad(wallTop, y1, corniceHex, corniceHex, 1.25 * METERS_TO_WORLD);
+          emitQuad(wallTop, y1, corniceHex, corniceHex, 1.25 * METERS_TO_WORLD + bandOut);
         }
 
         const edgeLenM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
@@ -1043,6 +1045,7 @@ export function buildChunkTier(
               ? Math.min(0.76, 0.6 + plan.compactness * 0.12)
               : 1);
 
+    const stampWindows = style === STYLE_HOUSE || style === STYLE_TERRACE;
     if (streetKind) {
       emitStreetUniqueWalls(streetKind, {
         ring,
@@ -1053,6 +1056,10 @@ export function buildChunkTier(
         },
         pushBox,
         pushOrientedBox,
+        pushVertex,
+        pushTri: (i0, i1, i2) => {
+          indices.push(i0, i1, i2);
+        },
         outwardNormal,
       });
     } else {
@@ -1063,7 +1070,7 @@ export function buildChunkTier(
           shop: false,
           cornice: true,
           doors: true,
-          windows: true,
+          windows: stampWindows,
           stringCourses: false,
           ...facadeOpts,
         });
@@ -1081,7 +1088,7 @@ export function buildChunkTier(
             shop: s === 0 && !podium && shopWorld > 0.02,
             cornice: true,
             doors: s === 0 && !podium,
-            windows: true,
+            windows: stampWindows,
             stringCourses: s === 0,
             hex: glassStep ? glassHex : undefined,
             bottomHex: glassStep ? glassHex : undefined,
@@ -1099,7 +1106,7 @@ export function buildChunkTier(
             shop: s === 0 && !podium && shopWorld > 0.02,
             cornice: true,
             doors: s === 0 && !podium,
-            windows: true,
+            windows: stampWindows,
             stringCourses: false,
             hex: s > 0 ? glassHex : undefined,
             bottomHex: s > 0 ? glassHex : undefined,
@@ -1114,7 +1121,7 @@ export function buildChunkTier(
           shop: !podium && shopWorld > 0.02,
           cornice: true,
           doors: !podium,
-          windows: true,
+          windows: stampWindows,
           stringCourses: true,
           ...facadeOpts,
         });
@@ -1124,7 +1131,7 @@ export function buildChunkTier(
           shop: false,
           cornice: true,
           doors: false,
-          windows: true,
+          windows: stampWindows,
           hex: glassHex,
           bottomHex: glassHex,
           ...facadeOpts,
@@ -1135,7 +1142,7 @@ export function buildChunkTier(
           shop: !podium && shopWorld > 0.02,
           cornice: true,
           doors: !podium,
-          windows: true,
+          windows: stampWindows,
           stringCourses: true,
           ...facadeOpts,
         });
@@ -1144,7 +1151,7 @@ export function buildChunkTier(
           shop: false,
           cornice: true,
           doors: false,
-          windows: true,
+          windows: stampWindows,
           hex: glassHex,
           bottomHex: glassHex,
           ...facadeOpts,
@@ -1155,7 +1162,7 @@ export function buildChunkTier(
             shop: false,
             cornice: true,
             doors: false,
-            windows: true,
+            windows: stampWindows,
             hex: glassDark,
             bottomHex: glassDark,
             ...facadeOpts,
@@ -1167,7 +1174,7 @@ export function buildChunkTier(
           shop: !podium && shopWorld > 0.02,
           cornice: true,
           doors: !podium,
-          windows: true,
+          windows: stampWindows,
           stringCourses: true,
           ...facadeOpts,
         });
@@ -1177,7 +1184,7 @@ export function buildChunkTier(
           shop: !podium && shopWorld > 0.02,
           cornice: true,
           doors: !podium,
-          windows: true,
+          windows: stampWindows,
           stringCourses: massing === 'parapet' || massing === 'slab' || massing === 'sawtooth',
           ...facadeOpts,
         });
@@ -1359,6 +1366,12 @@ export function buildChunkTier(
         emitRoof,
         insetRing,
         pushBox,
+        pushVertex,
+        pushTri: (i0, i1, i2) => {
+          indices.push(i0, i1, i2);
+        },
+        pushOrientedBox,
+        outwardNormal,
       });
     } else {
       if (podium) emitRoof(ring, () => podiumWorld, pal.mixHex(roofHex, pal.AO_DARK, 0.18));
@@ -1538,15 +1551,6 @@ export function buildChunkTier(
         plan.pz,
         pal.mixHex(roofHex, pal.AO_DARK, 0.08),
       );
-    }
-
-    if (!streetKind && recipe.turret) {
-      const tp = ring[recipe.turret.vertexIndex];
-      if (tp) {
-        const r = recipe.turret.rM * METERS_TO_WORLD;
-        const h = heightWorld * (1 + recipe.turret.hFrac);
-        pushBox(tp.x, 0, tp.z, r * 2, h, r * 2, pal.mixHex(baseHex, pal.CORNICE, 0.18));
-      }
     }
 
     if (scratch) {
