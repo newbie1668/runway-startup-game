@@ -39,7 +39,9 @@ import {
   buildTubeLines,
   buildWater,
   buildWindowMesh,
+  CHUNK_COLS,
   CHUNK_COUNT,
+  CHUNK_ROWS,
   createBuildingMaterial,
   createScratch,
   crossingYawAt,
@@ -92,13 +94,13 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
   if (isDeckLandmark(hit.kind) && hit.kind !== 'oldstreet') {
     if (hit.kind === 'towerbridge') {
-      return { at: hit.at, viewH: 2.05, azimuth: Math.PI / 2 };
+      return { at: hit.at, viewH: 2.2, azimuth: Math.PI / 2 - 0.55 };
     }
     const azimuth = hit.kind === 'hungerford' ? -Math.PI / 2 : 0;
     return { at: hit.at, viewH: 1.35, azimuth };
   }
   if (hit.kind === 'eye') {
-    return { at: hit.at, viewH: 3.15, azimuth: -Math.PI / 2 };
+    return { at: hit.at, viewH: 2.55, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'buckingham') {
     return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
@@ -113,7 +115,7 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     return { at: hit.at, viewH: 2.4, azimuth: 0.2 };
   }
   if (hit.kind === 'towerlondon') {
-    return { at: hit.at, viewH: 1.55, azimuth: 0.35 };
+    return { at: hit.at, viewH: 1.4, azimuth: 0.48 };
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };
@@ -232,8 +234,12 @@ export class CityRenderer3D implements IMapRenderer {
       antialias: !this.isCoarsePointer,
       powerPreference: 'high-performance',
     });
+    const lookNow = new URLSearchParams(window.location.search).get('look');
     this.renderer.setPixelRatio(
-      Math.min(window.devicePixelRatio || 1, this.isCoarsePointer ? 1.5 : 2),
+      Math.min(
+        window.devicePixelRatio || 1,
+        lookNow === 'eye' ? 1.25 : this.isCoarsePointer ? 1.5 : 2,
+      ),
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
@@ -367,10 +373,16 @@ export class CityRenderer3D implements IMapRenderer {
         ? ['gherkin', 'grater', 'walkie', 'tower42']
         : look === 'canadastreet'
           ? ['canadasq']
-          : look
-            ? [look]
-            : [],
+          : look === 'eye'
+            ? ['eye', 'hungerford', 'westminsterbr', 'nationaltheatre', 'bigben']
+            : look
+              ? [look]
+              : [],
     );
+    const eyeOnly = look === 'eye';
+    const lookAt = heroLook();
+    const lookPt = project(lookAt.at);
+    const chunkKeepR = eyeOnly ? 2400 * METERS_TO_WORLD : Number.POSITIVE_INFINITY;
     const jobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
     const pushNoticed = (entry: NoticedEntry): void => {
@@ -400,8 +412,10 @@ export class CityRenderer3D implements IMapRenderer {
     for (const entry of this.noticedEntries) {
       if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry);
     }
-    for (const entry of this.noticedEntries) {
-      if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) pushNoticed(entry);
+    if (!eyeOnly) {
+      for (const entry of this.noticedEntries) {
+        if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) pushNoticed(entry);
+      }
     }
     for (const landmark of LANDMARKS) {
       if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
@@ -414,14 +428,16 @@ export class CityRenderer3D implements IMapRenderer {
       const mesh = buildParks(data);
       if (mesh) this.cityGroup.add(mesh);
     });
-    jobs.push(() => {
-      const trees = buildParkTrees(data);
-      if (trees) {
-        trees.visible = true;
-        this.treeGroup = trees;
-        this.cityGroup.add(trees);
-      }
-    });
+    if (!eyeOnly) {
+      jobs.push(() => {
+        const trees = buildParkTrees(data);
+        if (trees) {
+          trees.visible = true;
+          this.treeGroup = trees;
+          this.cityGroup.add(trees);
+        }
+      });
+    }
     jobs.push(() => {
       const roadGroup = buildRoads(data);
       if (roadGroup) {
@@ -432,10 +448,17 @@ export class CityRenderer3D implements IMapRenderer {
         }
       }
     });
-    for (const landmark of LANDMARKS) {
-      if (!lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
+    if (!eyeOnly) {
+      for (const landmark of LANDMARKS) {
+        if (!lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
+      }
     }
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
+      const col = chunkId % CHUNK_COLS;
+      const row = Math.floor(chunkId / CHUNK_COLS);
+      const cx = ((col + 0.5) / CHUNK_COLS) * WORLD.width;
+      const cz = ((row + 0.5) / CHUNK_ROWS) * WORLD.height;
+      if (Math.hypot(cx - lookPt.x, cz - lookPt.y) > chunkKeepR) continue;
       for (const major of [true, false]) {
         jobs.push(() => {
           const mesh = buildChunkTier(data, chunkId, major, landmarkAnchors, this.scratch);
@@ -448,29 +471,31 @@ export class CityRenderer3D implements IMapRenderer {
         });
       }
     }
-    jobs.push(() => {
-      const windows = buildWindowMesh(this.scratch);
-      if (windows) {
-        windows.visible = false;
-        this.windowMesh = windows;
-        this.cityGroup.add(windows);
+    if (!eyeOnly) {
+      jobs.push(() => {
+        const windows = buildWindowMesh(this.scratch);
+        if (windows) {
+          windows.visible = false;
+          this.windowMesh = windows;
+          this.cityGroup.add(windows);
+        }
+        const roofs = buildRooftopMesh(this.scratch);
+        if (roofs) this.cityGroup.add(roofs);
+        const signs = buildFacadeSigns(this.scratch);
+        if (signs) this.cityGroup.add(signs);
+      });
+      jobs.push(() => {
+        const lamps = buildStreetLamps(data);
+        if (lamps) {
+          lamps.visible = false;
+          this.lampGroup = lamps;
+          this.cityGroup.add(lamps);
+        }
+      });
+      for (const entry of this.noticedEntries) {
+        if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
+        pushNoticed(entry);
       }
-      const roofs = buildRooftopMesh(this.scratch);
-      if (roofs) this.cityGroup.add(roofs);
-      const signs = buildFacadeSigns(this.scratch);
-      if (signs) this.cityGroup.add(signs);
-    });
-    jobs.push(() => {
-      const lamps = buildStreetLamps(data);
-      if (lamps) {
-        lamps.visible = false;
-        this.lampGroup = lamps;
-        this.cityGroup.add(lamps);
-      }
-    });
-    for (const entry of this.noticedEntries) {
-      if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
-      pushNoticed(entry);
     }
     this.buildQueue = jobs;
     this.cityStreamed = true;

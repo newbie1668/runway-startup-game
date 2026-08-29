@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { isDeckLandmark, METERS_TO_WORLD } from '../lib/game/geo';
+import { isDeckLandmark, LANDMARKS, METERS_TO_WORLD } from '../lib/game/geo';
 import { ROAD_Y } from '../lib/game/render3d/cityBuilder';
 import { EYE_WHEEL_NAME, LANDMARK_DECK_Y, build } from '../lib/game/render3d/landmarks';
 import { HEIGHT_SCALE } from '../lib/game/render3d/buildingStyle';
@@ -81,6 +81,21 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   const walkZM = (walkBox.max.z - walkBox.min.z) / METERS_TO_WORLD;
   assert.ok(walkYM < 12, `walkway must sit level, height ${walkYM.toFixed(1)} m`);
   assert.ok(walkZM > 60, `walkway must span both towers, length ${walkZM.toFixed(0)} m`);
+  assert.ok(bridge.getObjectByName('portal'), 'Gothic portal on the tower face');
+  let tubes = 0;
+  let hangers = 0;
+  bridge.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    if (obj.geometry.type === 'TubeGeometry') tubes += 1;
+    if (obj.geometry.type === 'CylinderGeometry') {
+      const b = new THREE.Box3().setFromObject(obj);
+      const yM = (b.max.y - b.min.y) / METERS_TO_WORLD;
+      const zM = (b.max.z - b.min.z) / METERS_TO_WORLD;
+      if (yM > 4 && zM > 8) hangers += 1;
+    }
+  });
+  assert.equal(tubes, 0, 'chains must be attached cylinders, not floating tubes');
+  assert.ok(hangers >= 4, `chains must run from the towers down to the deck, got ${hangers}`);
 });
 
 check('Hungerford keeps river piers, not a leftover deck box', () => {
@@ -206,6 +221,14 @@ check('Tower of London is a concentric fortress, not a courtyard slab', () => {
   assert.ok(root.getObjectByName('outer-curtain'), 'outer curtain wall');
   assert.ok(root.getObjectByName('inner-curtain'), 'inner curtain wall');
   assert.ok(root.getObjectByName('ward-court'), 'stone ward, not a beige exclusion hole');
+  const keep = root.getObjectByName('white-tower')!;
+  const keepBox = new THREE.Box3().setFromObject(keep);
+  const keepWM = (keepBox.max.x - keepBox.min.x) / METERS_TO_WORLD;
+  const keepDM = (keepBox.max.z - keepBox.min.z) / METERS_TO_WORLD;
+  assert.ok(
+    keepWM > 40 && keepDM > 40,
+    `White Tower must read as a cubic keep, got ${keepWM.toFixed(0)}×${keepDM.toFixed(0)} m`,
+  );
   let cones = 0;
   let cylinders = 0;
   root.traverse((obj) => {
@@ -221,16 +244,35 @@ check('Tower of London is a concentric fortress, not a courtyard slab', () => {
         p.height < 15 * METERS_TO_WORLD * HEIGHT_SCALE;
       assert.equal(slab, false, 'old courtyard office plate must not return');
     }
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const mat of mats) {
+      if (!('color' in mat)) continue;
+      const hex = (mat as THREE.MeshBasicMaterial).color.getHex();
+      const r = (hex >> 16) & 255;
+      const g = (hex >> 8) & 255;
+      const b = hex & 255;
+      assert.ok(
+        !(g > r + 18 && g > b + 18),
+        `fortress must not carry a green hedge/lawn (${hex.toString(16)})`,
+      );
+    }
   });
   assert.ok(cones >= 8, `wall and keep turrets need conical roofs, got ${cones}`);
   assert.ok(cylinders >= 6, `round mural towers, got ${cylinders}`);
+  const tb = LANDMARKS.find((l) => l.kind === 'towerbridge')!;
+  assert.equal(tb.yaw, undefined, 'Tower Bridge must not take a stitch yaw');
+  const tol = LANDMARKS.find((l) => l.kind === 'towerlondon')!;
+  assert.ok((tol.exclusionM ?? 0) >= 140, 'Tower of London must punch the surrounding park');
 });
 
 check('One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box', () => {
   const dummy = new THREE.Group();
   dummy.name = 'crushed';
   dummy.add(
-    new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshLambertMaterial({ color: 0x445566 })),
+    new THREE.Mesh(
+      new THREE.BoxGeometry(1, 2, 1),
+      new THREE.MeshLambertMaterial({ color: 0x445566 }),
+    ),
   );
   const prefabs = new Map();
   prefabs.set('canadasq', dummy);

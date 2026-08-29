@@ -37,6 +37,7 @@ import {
   spanEndClearanceM,
   landRibbonVerts,
   buildParks,
+  buildRoads,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
@@ -343,6 +344,50 @@ check('park grass is matte mottled green, not a lit plastic lawn', () => {
     }
   });
   assert.ok(grass >= 1, 'grass mesh must use vertex colours');
+});
+
+check('OSM asphalt does not replace the Tower Bridge prefab', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const roads = buildRoads(city);
+  assert.ok(roads, 'expected road meshes');
+  const tb = LANDMARKS.find((l) => l.kind === 'towerbridge')!;
+  const at = project(tb.at);
+  const limit = 55 * METERS_TO_WORLD;
+  let near = 0;
+  roads!.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const pos = obj.geometry.getAttribute('position');
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      const dx = pos.getX(i) - at.x;
+      const dz = pos.getZ(i) - at.y;
+      if (Math.hypot(dx, dz) < limit) near += 1;
+    }
+  });
+  assert.equal(near, 0, `OSM/stitch ribbon still sits on Tower Bridge (${near} verts)`);
+});
+
+check('Tower Hill park does not remain as a green hedge around the fortress', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const parks = buildParks(city);
+  assert.ok(parks, 'expected park meshes');
+  const tol = LANDMARKS.find((l) => l.kind === 'towerlondon')!;
+  const at = project(tol.at);
+  const limit = 120 * METERS_TO_WORLD;
+  let near = 0;
+  parks!.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const pos = obj.geometry.getAttribute('position');
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      const dx = pos.getX(i) - at.x;
+      const dz = pos.getZ(i) - at.y;
+      if (Math.hypot(dx, dz) < limit) near += 1;
+    }
+  });
+  assert.equal(near, 0, `park grass still inside the fortress (${near} verts)`);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

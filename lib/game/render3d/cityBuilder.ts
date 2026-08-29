@@ -86,12 +86,48 @@ function landmarkExclusionAt(x: number, z: number): number | null {
   return null;
 }
 
-function nearTowerBridgeWater(x: number, z: number, overWater: (x: number, z: number) => boolean): boolean {
+function nearTowerBridgePrefab(x: number, z: number): boolean {
   const tb = LANDMARKS.find((l) => l.kind === 'towerbridge');
   if (!tb) return false;
   const at = project(tb.at);
-  if (Math.hypot(x - at.x, z - at.y) > 80 * METERS_TO_WORLD) return false;
-  return overWater(x, z);
+  return Math.hypot(x - at.x, z - at.y) < 110 * METERS_TO_WORLD;
+}
+
+function parkRingHitsLandmark(ring: { x: number; z: number }[]): boolean {
+  for (const p of ring) {
+    if (landmarkExclusionAt(p.x, p.z) !== null) return true;
+  }
+  return false;
+}
+
+function triangleHitsExclusion(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+): boolean {
+  if (landmarkExclusionAt(ax, az) !== null) return true;
+  if (landmarkExclusionAt(bx, bz) !== null) return true;
+  if (landmarkExclusionAt(cx, cz) !== null) return true;
+  const mx = (ax + bx + cx) / 3;
+  const mz = (az + bz + cz) / 3;
+  if (landmarkExclusionAt(mx, mz) !== null) return true;
+  for (const landmark of LANDMARKS) {
+    const at = project(landmark.at);
+    const r = (landmark.exclusionM ?? 80) * METERS_TO_WORLD;
+    const tri = [
+      { x: ax, z: az },
+      { x: bx, z: bz },
+      { x: cx, z: cz },
+    ];
+    if (pointInRing(at.x, at.y, tri)) return true;
+    if (distPointToSeg(at.x, at.y, tri[0]!, tri[1]!) < r) return true;
+    if (distPointToSeg(at.x, at.y, tri[1]!, tri[2]!) < r) return true;
+    if (distPointToSeg(at.x, at.y, tri[2]!, tri[0]!) < r) return true;
+  }
+  return false;
 }
 
 const HUB_GLOW_COLOR = 0xb8d4e8;
@@ -1528,14 +1564,13 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
     for (let i = 0; i < n; i++) {
       ring.push({ x: dequantizeX(p.verts[i * 2]!), z: dequantizeY(p.verts[i * 2 + 1]!) });
     }
+    if (parkRingHitsLandmark(ring)) continue;
     for (let t = 0; t + 2 < p.indices.length; t += 3) {
       const a = ring[p.indices[t]!]!;
       const b = ring[p.indices[t + 1]!]!;
       const c = ring[p.indices[t + 2]!]!;
       if (!a || !b || !c) continue;
-      const mx = (a.x + b.x + c.x) / 3;
-      const mz = (a.z + b.z + c.z) / 3;
-      if (landmarkExclusionAt(mx, mz) !== null) continue;
+      if (triangleHitsExclusion(a.x, a.z, b.x, b.z, c.x, c.z)) continue;
       emitParkTriangle(
         positions,
         colors,
@@ -1589,6 +1624,8 @@ export function buildParks(cityData: CityData): THREE.Group | null {
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
     if (!info || info.areaM2 < 18_000) continue;
+    if (parkRingHitsLandmark(info.ring)) continue;
+    if (landmarkExclusionAt(info.x, info.z) !== null) continue;
     const { ring, x: cx, z: cz } = info;
     let maxI = 0;
     let maxD = 0;
@@ -2684,7 +2721,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       const runs = splitRoadRuns(pts, overWater);
       for (const run of runs) {
         const mid = run.pts[Math.floor(run.pts.length / 2)]!;
-        if (nearTowerBridgeWater(mid.x, mid.z, overWater)) continue;
+        if (nearTowerBridgePrefab(mid.x, mid.z)) continue;
         appendRibbon(walkPos, walkIdx, run.pts, halfWalk, SIDEWALK_Y);
         appendRibbon(asphPos, asphIdx, run.pts, halfCarriage, ROAD_Y);
         if (tier <= 1) {

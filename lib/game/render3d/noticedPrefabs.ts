@@ -51,12 +51,15 @@ export async function loadNoticedPrefabs(): Promise<{
     return { entries: [], prefabs: new Map() };
   }
 
+  const skipGlb =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('look') === 'eye';
   const entries: NoticedEntry[] = [];
   const prefabs = new Map<string, THREE.Object3D>();
   await Promise.all(
     (manifest.files ?? []).map(async (file) => {
       try {
-        if (isUniqueNoticedId(file.id)) {
+        if (isUniqueNoticedId(file.id) || skipGlb) {
           prefabs.set(file.id, new THREE.Group());
           entries.push({
             id: file.id,

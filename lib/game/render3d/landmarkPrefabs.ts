@@ -34,6 +34,10 @@ export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
 }
 
 export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Object3D>> {
+  if (typeof window !== 'undefined') {
+    const look = new URLSearchParams(window.location.search).get('look');
+    if (look === 'eye') return new Map();
+  }
   const loader = new GLTFLoader();
   const kinds = [...new Set(LANDMARKS.map((l) => l.kind))].filter(
     (kind) => !isPlaytimeProceduralKind(kind),

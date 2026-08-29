@@ -66,6 +66,27 @@ function addCylinderBetween(
   group.add(mesh);
 }
 
+/** Sagging iron chain — short cylinders, never a detached TubeGeometry ribbon. */
+function addCatenary(
+  group: THREE.Group,
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  sag: number,
+  radius: number,
+  material: THREE.Material,
+  segs = 8,
+): THREE.Vector3[] {
+  const pts: THREE.Vector3[] = [a.clone()];
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    const p = new THREE.Vector3().lerpVectors(a, b, t);
+    p.y -= sag * 4 * t * (1 - t);
+    addCylinderBetween(group, pts[i - 1]!, p, radius, material);
+    pts.push(p);
+  }
+  return pts;
+}
+
 function addBox(
   group: THREE.Group,
   w: number,
@@ -135,6 +156,36 @@ function addPointedArchVoid(
   peak.rotation.z = Math.PI / 4;
   peak.position.set(x, y + height, z);
   group.add(peak);
+}
+
+/** Stone Gothic frame on a N/S tower face. The roadway void stays empty. */
+function addGothicPortalFace(
+  group: THREE.Group,
+  width: number,
+  height: number,
+  depth: number,
+  stone: THREE.Material,
+  voidMat: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+  name?: string,
+): void {
+  const jamb = m(2.4);
+  addBox(group, jamb, height, depth, stone, x - width / 2, y, z);
+  addBox(group, jamb, height, depth, stone, x + width / 2, y, z);
+  addBox(group, width + jamb, m(2.6), depth, stone, x, y + height - m(1.3), z);
+  const peak = new THREE.Mesh(new THREE.BoxGeometry(width * 0.78, width * 0.62, depth), stone);
+  peak.rotation.z = Math.PI / 4;
+  peak.position.set(x, y + height + m(0.4), z);
+  group.add(peak);
+  const reveal = new THREE.Mesh(
+    new THREE.BoxGeometry(width - jamb * 0.35, m(2.2), depth * 0.55),
+    voidMat,
+  );
+  reveal.position.set(x, y + height - m(1.1), z);
+  if (name) reveal.name = name;
+  group.add(reveal);
 }
 
 function buildShard(): THREE.Group {
@@ -509,178 +560,155 @@ function buildStPauls(): THREE.Group {
 
 function buildTowerBridge(): THREE.Group {
   const group = new THREE.Group();
+  group.name = 'towerbridge';
   const stone = new THREE.MeshLambertMaterial({ color: 0xe8dcc8 });
   const band = new THREE.MeshLambertMaterial({ color: 0xf4eee4 });
   const iron = new THREE.MeshBasicMaterial({ color: 0x2f62b8, fog: true });
   const chainMat = new THREE.MeshBasicMaterial({ color: 0x243040, fog: true });
-  const voidMat = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
+  const voidMat = new THREE.MeshLambertMaterial({ color: 0x4a4038 });
   const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
   const mark = new THREE.MeshBasicMaterial({ color: 0xd8dce0, fog: true });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0xb8a090 });
 
-  const towerHeight = h(65);
-  const towerHalfSpan = m(42);
-  const shaftW = m(18);
-  const pier = m(2.6);
+  const towerHeight = h(62);
+  const towerHalfSpan = m(43);
+  const shaftW = m(22);
+  const shaftD = m(22);
+  const wallT = m(3.8);
+  const pier = m(3.2);
   const deckY = LANDMARK_DECK_Y;
-  const deckW = m(12.4);
+  const deckW = m(12.8);
   const deckLen = m(420);
   const deckH = m(1.8);
-  const archH = deckY + m(12);
-  const walkY = towerHeight * 0.78;
+  const portalH = deckY + m(15);
+  const walkY = towerHeight * 0.72;
+  const innerFace = shaftD / 2;
 
   const deck = new THREE.Mesh(new THREE.BoxGeometry(deckW, deckH, deckLen), asphalt);
   deck.name = 'deck';
   deck.position.set(0, deckY - deckH / 2, 0);
   group.add(deck);
-  const dashH = m(0.12);
-  for (let i = -16; i <= 16; i++) {
+  const dashH = m(0.1);
+  for (let i = -18; i <= 18; i++) {
     if (i % 2 === 0) continue;
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(m(0.7), dashH, m(8)), mark);
-    dash.position.set(0, deckY + dashH / 2, i * m(12));
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(m(0.65), dashH, m(7)), mark);
+    dash.position.set(0, deckY + dashH / 2, i * m(11));
     group.add(dash);
   }
 
   for (const side of [-1, 1]) {
     const z = side * towerHalfSpan;
+    addBox(group, wallT, towerHeight, shaftD, stone, (shaftW - wallT) / 2, 0, z);
+    addBox(group, wallT, towerHeight, shaftD, stone, -(shaftW - wallT) / 2, 0, z);
+    addBox(group, shaftW - wallT * 2, towerHeight - portalH, shaftD, stone, 0, portalH, z);
+    addBox(group, shaftW + m(0.8), m(1.2), shaftD + m(0.8), band, 0, h(22), z);
+    addBox(group, shaftW + m(0.8), m(1.2), shaftD + m(0.8), band, 0, h(40), z);
+
     for (const xSign of [-1, 1]) {
       for (const zSign of [-1, 1]) {
         addBox(
           group,
           pier,
-          archH,
+          portalH,
           pier,
           stone,
           xSign * (shaftW / 2 - pier / 2),
           0,
-          z + zSign * (shaftW / 2 - pier / 2),
+          z + zSign * (shaftD / 2 - pier / 2),
         );
       }
     }
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(shaftW, m(3.2), shaftW), stone);
-    lintel.position.set(0, archH - m(1.6), z);
-    group.add(lintel);
-    addBox(group, shaftW, towerHeight - archH, shaftW, stone, 0, archH, z);
-    addWindowGrid(
-      group,
-      shaftW * 0.72,
-      towerHeight - archH - m(8),
-      3,
-      5,
-      0,
-      archH + m(4),
-      z + shaftW / 2 + m(0.2),
-      'z',
-      0x5a7a98,
-    );
-    addWindowGrid(
-      group,
-      shaftW * 0.72,
-      towerHeight - archH - m(8),
-      3,
-      5,
-      0,
-      archH + m(4),
-      z - shaftW / 2 - m(0.2),
-      'z',
-      0x5a7a98,
-    );
-    addBox(group, shaftW + m(0.6), m(1.1), shaftW + m(0.6), band, 0, h(18), z);
-    addBox(group, shaftW + m(0.6), m(1.1), shaftW + m(0.6), band, 0, h(38), z);
 
-    addPointedArchVoid(
-      group,
-      deckW + m(1.2),
-      m(13),
-      m(1.4),
-      voidMat,
-      0,
-      deckY - m(2),
-      z - shaftW / 2,
-    );
-    addPointedArchVoid(
-      group,
-      deckW + m(1.2),
-      m(13),
-      m(1.4),
-      voidMat,
-      0,
-      deckY - m(2),
-      z + shaftW / 2,
-    );
+    for (const zFace of [z - innerFace, z + innerFace]) {
+      addGothicPortalFace(
+        group,
+        deckW + m(3.0),
+        portalH - m(1.2),
+        m(2.2),
+        stone,
+        voidMat,
+        0,
+        0,
+        zFace,
+        zFace === z + innerFace && side === 1 ? 'portal' : undefined,
+      );
+    }
 
     for (const xSign of [-1, 1]) {
-      for (const wy of [h(28), h(40), h(52)]) {
+      for (const wy of [h(24), h(36), h(48)]) {
         addPointedArchVoid(
           group,
-          m(3.4),
-          h(9),
-          m(1.8),
+          m(3.6),
+          h(8),
+          m(1.6),
           voidMat,
-          xSign * (shaftW / 2 + m(0.15)),
+          xSign * (shaftW / 2 + m(0.1)),
           wy,
           z,
         );
       }
     }
 
+    const walkOpening = new THREE.Mesh(new THREE.BoxGeometry(m(12), m(5.2), m(1.4)), voidMat);
+    walkOpening.position.set(0, walkY, z - side * innerFace);
+    group.add(walkOpening);
+
     const gallery = new THREE.Mesh(
-      new THREE.BoxGeometry(shaftW + m(2.4), m(3.2), shaftW + m(2.4)),
+      new THREE.BoxGeometry(shaftW + m(2.2), m(3.4), shaftD + m(2.2)),
       iron,
     );
     gallery.position.set(0, walkY, z);
     group.add(gallery);
     const galleryLite = new THREE.Mesh(
-      new THREE.BoxGeometry(shaftW + m(2.6), m(1.4), shaftW + m(2.6)),
+      new THREE.BoxGeometry(shaftW + m(2.4), m(1.5), shaftD + m(2.4)),
       band,
     );
     galleryLite.position.set(0, walkY, z);
     group.add(galleryLite);
 
-    const upperH = h(12);
-    addBox(group, shaftW * 1.08, upperH, shaftW * 1.08, stone, 0, towerHeight, z);
-
-    const roofH = h(34);
+    const upperH = h(11);
+    addBox(group, shaftW * 1.06, upperH, shaftD * 1.06, stone, 0, towerHeight, z);
+    const roofH = h(32);
     const roof = new THREE.Mesh(
-      baseAtGround(new THREE.ConeGeometry(m(10.5), roofH, 4), roofH),
-      new THREE.MeshLambertMaterial({ color: 0xb8a090 }),
+      baseAtGround(new THREE.ConeGeometry(m(11), roofH, 4), roofH),
+      roofMat,
     );
     roof.position.set(0, towerHeight + upperH, z);
     roof.rotation.y = Math.PI / 4;
     group.add(roof);
 
-    const pinH = h(16);
-    const pinOff = shaftW * 0.48;
+    const pinH = h(15);
+    const pinOff = shaftW * 0.46;
     for (const dx of [-1, 1]) {
       for (const dz of [-1, 1]) {
         const px = dx * pinOff;
         const pz = z + dz * pinOff;
         const pin = new THREE.Mesh(
-          baseAtGround(new THREE.CylinderGeometry(m(1.15), m(1.5), pinH, 8), pinH),
+          baseAtGround(new THREE.CylinderGeometry(m(1.25), m(1.6), pinH, 8), pinH),
           stone,
         );
-        pin.position.set(px, towerHeight + upperH * 0.15, pz);
+        pin.position.set(px, towerHeight + upperH * 0.12, pz);
         group.add(pin);
         const pinRoof = new THREE.Mesh(
-          baseAtGround(new THREE.ConeGeometry(m(2.0), h(8), 4), h(8)),
+          baseAtGround(new THREE.ConeGeometry(m(2.1), h(8), 4), h(8)),
           stone,
         );
-        pinRoof.position.set(px, towerHeight + upperH * 0.15 + pinH, pz);
+        pinRoof.position.set(px, towerHeight + upperH * 0.12 + pinH, pz);
         pinRoof.rotation.y = Math.PI / 4;
         group.add(pinRoof);
       }
     }
   }
 
-  const walkLen = towerHalfSpan * 2 - shaftW * 0.2;
-  for (const x of [-m(4.2), m(4.2)]) {
-    const walk = new THREE.Mesh(new THREE.BoxGeometry(m(5.2), m(4.4), walkLen), iron);
+  const walkLen = towerHalfSpan * 2 - shaftD + m(3);
+  for (const x of [-m(4.4), m(4.4)]) {
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(m(5.0), m(3.8), walkLen), iron);
     walk.position.set(x, walkY, 0);
     if (x > 0) walk.name = 'walkway';
     group.add(walk);
-    const bays = 8;
-    for (let i = 0; i < bays; i++) {
-      const bz = ((i + 0.5) / bays - 0.5) * walkLen * 0.9;
-      const lite = new THREE.Mesh(new THREE.BoxGeometry(m(5.4), m(1.8), m(4.2)), band);
+    for (let i = 0; i < 7; i++) {
+      const bz = ((i + 0.5) / 7 - 0.5) * walkLen * 0.88;
+      const lite = new THREE.Mesh(new THREE.BoxGeometry(m(5.2), m(1.6), m(3.8)), band);
       lite.position.set(x, walkY, bz);
       group.add(lite);
     }
@@ -688,15 +716,15 @@ function buildTowerBridge(): THREE.Group {
 
   for (const side of [-1, 1]) {
     const towerZ = side * towerHalfSpan;
-    const chainEndZ = side * (towerHalfSpan + m(70));
+    const farZ = side * m(118);
     for (const x of [-m(5.2), m(5.2)]) {
-      addCylinderBetween(
-        group,
-        new THREE.Vector3(x, walkY - m(1.2), towerZ),
-        new THREE.Vector3(x, deckY + m(1.4), chainEndZ),
-        m(0.45),
-        chainMat,
-      );
+      const start = new THREE.Vector3(x, walkY - m(1.1), towerZ + side * innerFace);
+      const end = new THREE.Vector3(x, deckY + m(1.3), farZ);
+      const pts = addCatenary(group, start, end, m(9), m(0.48), chainMat, 8);
+      for (let i = 2; i < pts.length - 1; i += 2) {
+        const p = pts[i]!;
+        addCylinderBetween(group, p, new THREE.Vector3(x, deckY + m(0.9), p.z), m(0.28), chainMat);
+      }
     }
   }
 
@@ -1239,8 +1267,8 @@ function addMerlons(
   const outerD = innerD + thick * 2;
   const hw = outerW / 2;
   const hd = outerD / 2;
-  const merlon = m(1.4);
-  const merlonH = h(1.8);
+  const merlon = m(2.6);
+  const merlonH = h(3.4);
   for (const z of [-hd, hd]) {
     for (let x = -hw + step; x < hw - merlon; x += step) {
       addBox(group, merlon, merlonH, thick * 0.7, mat, x, y, z);
@@ -1284,77 +1312,125 @@ function addMuralTower(
 
 function buildTowerLondon(): THREE.Group {
   const group = new THREE.Group();
-  const keep = new THREE.MeshBasicMaterial({ color: 0xf0e6d4, fog: true });
-  const wall = new THREE.MeshBasicMaterial({ color: 0xc8beae, fog: true });
+  const keep = new THREE.MeshBasicMaterial({ color: 0xf2e8d6, fog: true });
+  const wall = new THREE.MeshBasicMaterial({ color: 0xc4b8a4, fog: true });
+  const course = new THREE.MeshBasicMaterial({ color: 0x8e8474, fog: true });
   const dark = new THREE.MeshBasicMaterial({ color: 0x3a342c, fog: true });
   const roof = new THREE.MeshBasicMaterial({ color: 0x6a5848, fog: true });
-  const lawn = new THREE.MeshBasicMaterial({ color: 0x4a6a42, fog: true });
   const court = new THREE.MeshBasicMaterial({ color: 0xa89e8c, fog: true });
 
-  const outerW = m(96);
-  const outerD = m(78);
-  const outerThick = m(7.5);
-  const outerH = h(16);
-  const innerW = m(52);
-  const innerD = m(44);
-  const innerThick = m(5.5);
-  const innerH = h(18);
+  const outerW = m(118);
+  const outerD = m(96);
+  const outerThick = m(10);
+  const outerH = h(22);
+  const innerW = m(62);
+  const innerD = m(54);
+  const innerThick = m(7);
+  const innerH = h(24);
 
   const cobbles = new THREE.Mesh(
-    new THREE.BoxGeometry(outerW + outerThick * 2 + m(8), m(0.45), outerD + outerThick * 2 + m(8)),
+    new THREE.BoxGeometry(outerW + outerThick * 2 + m(36), m(0.5), outerD + outerThick * 2 + m(36)),
     court,
   );
-  cobbles.position.y = m(0.22);
+  cobbles.position.y = m(0.24);
   cobbles.name = 'ward-court';
   group.add(cobbles);
 
   addCurtain(group, outerW, outerD, outerThick, outerH, wall, 'outer-curtain');
-  addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(5.5));
-
-  const outerLawn = new THREE.Mesh(
-    new THREE.BoxGeometry(outerW - m(8), m(0.4), outerD - m(8)),
-    lawn,
+  addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(6.5));
+  addBox(
+    group,
+    outerW + outerThick * 2 + m(0.6),
+    m(1.4),
+    m(1.2),
+    course,
+    0,
+    outerH * 0.55,
+    -(outerD / 2 + outerThick / 2),
   );
-  outerLawn.position.y = m(0.42);
-  group.add(outerLawn);
-
-  const innerLawn = new THREE.Mesh(
-    new THREE.BoxGeometry(innerW * 0.88, m(0.45), innerD * 0.88),
-    lawn,
+  addBox(
+    group,
+    outerW + outerThick * 2 + m(0.6),
+    m(1.4),
+    m(1.2),
+    course,
+    0,
+    outerH * 0.55,
+    outerD / 2 + outerThick / 2,
   );
-  innerLawn.position.set(0, m(0.48), m(-2));
-  group.add(innerLawn);
+
   const inner = new THREE.Group();
-  inner.position.z = m(-2);
+  inner.position.z = m(-4);
   addCurtain(inner, innerW, innerD, innerThick, innerH, wall, 'inner-curtain');
-  addMerlons(inner, innerW, innerD, innerThick, innerH, wall, m(5));
+  addMerlons(inner, innerW, innerD, innerThick, innerH, wall, m(6));
   group.add(inner);
 
   const keepG = new THREE.Group();
   keepG.name = 'white-tower';
-  const keepW = m(36);
-  const keepD = m(40);
-  const keepH = h(34);
+  const keepW = m(46);
+  const keepD = m(46);
+  const keepH = h(40);
   addBox(keepG, keepW, keepH, keepD, keep);
+  addBox(keepG, keepW + m(1.2), m(1.6), keepD + m(1.2), course, 0, keepH * 0.38, 0);
+  addBox(keepG, keepW + m(1.2), m(1.6), keepD + m(1.2), course, 0, keepH * 0.68, 0);
   for (let i = 0; i < 4; i++) {
-    addBox(keepG, m(4.4), h(7), m(1.6), dark, m(-12 + i * 8), h(14), keepD / 2 + m(0.25));
-    addBox(keepG, m(4.4), h(7), m(1.6), dark, m(-12 + i * 8), h(14), -(keepD / 2 + m(0.25)));
-    addBox(keepG, m(1.6), h(7), m(4.4), dark, keepW / 2 + m(0.25), h(14), m(-14 + i * 9));
-    addBox(keepG, m(1.6), h(7), m(4.4), dark, -(keepW / 2 + m(0.25)), h(14), m(-14 + i * 9));
+    addBox(keepG, m(5.2), h(8), m(2.0), dark, m(-15 + i * 10), h(16), keepD / 2 + m(0.3));
+    addBox(keepG, m(5.2), h(8), m(2.0), dark, m(-15 + i * 10), h(16), -(keepD / 2 + m(0.3)));
+    addBox(keepG, m(2.0), h(8), m(5.2), dark, keepW / 2 + m(0.3), h(16), m(-15 + i * 10));
+    addBox(keepG, m(2.0), h(8), m(5.2), dark, -(keepW / 2 + m(0.3)), h(16), m(-15 + i * 10));
   }
-  const turretR = m(7.2);
-  const turretH = h(44);
-  const spots: Array<[number, number, boolean]> = [
+
+  const turW = m(16);
+  const turH = keepH + m(10);
+  const corners: Array<[number, number, boolean]> = [
     [-keepW / 2, -keepD / 2, false],
     [keepW / 2, -keepD / 2, true],
     [-keepW / 2, keepD / 2, false],
     [keepW / 2, keepD / 2, false],
   ];
-  for (const [x, z, square] of spots) {
-    addMuralTower(keepG, x, z, turretR, turretH, keep, roof, square);
+  for (const [x, z, square] of corners) {
+    addBox(keepG, turW, turH, turW, keep, x, 0, z);
+    if (square) {
+      const capH = m(12);
+      addBox(keepG, turW * 0.92, capH, turW * 0.92, keep, x, turH, z);
+      const py = capH * 0.85;
+      const pyramid = new THREE.Mesh(
+        baseAtGround(new THREE.ConeGeometry(turW * 0.72, py, 4), py),
+        roof,
+      );
+      pyramid.position.set(x, turH + capH, z);
+      pyramid.rotation.y = Math.PI / 4;
+      keepG.add(pyramid);
+    } else {
+      const drumH = m(10);
+      const drum = new THREE.Mesh(
+        baseAtGround(new THREE.CylinderGeometry(turW * 0.42, turW * 0.46, drumH, 10), drumH),
+        keep,
+      );
+      drum.position.set(x, turH, z);
+      keepG.add(drum);
+      const coneH = m(11);
+      const cone = new THREE.Mesh(
+        baseAtGround(new THREE.ConeGeometry(turW * 0.5, coneH, 8), coneH),
+        roof,
+      );
+      cone.position.set(x, turH + drumH, z);
+      keepG.add(cone);
+    }
   }
-  keepG.position.set(0, 0, m(-2));
+  keepG.position.set(0, 0, m(-4));
   group.add(keepG);
+
+  addBox(group, m(28), h(14), m(12), wall, m(-8), 0, m(18));
+  addBox(group, m(10), h(18), m(10), wall, m(10), 0, m(18));
+  const chapelRoofH = h(8);
+  const chapelRoof = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(7), chapelRoofH, 4), chapelRoofH),
+    roof,
+  );
+  chapelRoof.position.set(m(10), h(18), m(18));
+  chapelRoof.rotation.y = Math.PI / 4;
+  group.add(chapelRoof);
 
   const outerCorners: Array<[number, number]> = [
     [-(outerW / 2 + outerThick), -(outerD / 2 + outerThick)],
@@ -1363,21 +1439,21 @@ function buildTowerLondon(): THREE.Group {
     [outerW / 2 + outerThick, outerD / 2 + outerThick],
   ];
   for (const [x, z] of outerCorners) {
-    addMuralTower(group, x, z, m(6.2), h(22), wall, roof, false);
+    addMuralTower(group, x, z, m(13), outerH + m(8), wall, roof, false);
   }
-  addMuralTower(group, 0, -(outerD / 2 + outerThick), m(5.2), h(20), wall, roof, false);
-  addMuralTower(group, 0, outerD / 2 + outerThick, m(5.2), h(20), wall, roof, false);
-  addMuralTower(group, -(outerW / 2 + outerThick), 0, m(5), h(20), wall, roof, false);
-  addMuralTower(group, outerW / 2 + outerThick, 0, m(5), h(20), wall, roof, false);
+  addMuralTower(group, 0, -(outerD / 2 + outerThick), m(12), outerH + m(6), wall, roof, false);
+  addMuralTower(group, 0, outerD / 2 + outerThick, m(12), outerH + m(6), wall, roof, false);
+  addMuralTower(group, -(outerW / 2 + outerThick), 0, m(12), outerH + m(6), wall, roof, false);
+  addMuralTower(group, outerW / 2 + outerThick, 0, m(12), outerH + m(6), wall, roof, false);
 
   const innerCorners: Array<[number, number]> = [
-    [-(innerW / 2 + innerThick), -(innerD / 2 + innerThick) - m(2)],
-    [innerW / 2 + innerThick, -(innerD / 2 + innerThick) - m(2)],
-    [-(innerW / 2 + innerThick), innerD / 2 + innerThick - m(2)],
-    [innerW / 2 + innerThick, innerD / 2 + innerThick - m(2)],
+    [-(innerW / 2 + innerThick), -(innerD / 2 + innerThick) - m(4)],
+    [innerW / 2 + innerThick, -(innerD / 2 + innerThick) - m(4)],
+    [-(innerW / 2 + innerThick), innerD / 2 + innerThick - m(4)],
+    [innerW / 2 + innerThick, innerD / 2 + innerThick - m(4)],
   ];
   for (const [x, z] of innerCorners) {
-    addMuralTower(group, x, z, m(4.4), h(24), wall, roof, false);
+    addMuralTower(group, x, z, m(10), innerH + m(6), wall, roof, false);
   }
 
   group.rotation.y = 0.18;
