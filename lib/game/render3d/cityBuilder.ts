@@ -15,6 +15,7 @@ import {
   WORLD,
   isDeckLandmark,
   project,
+  thamesTangent,
   unproject,
 } from '../geo';
 import { HUB_POS } from '../overlay';
@@ -64,6 +65,8 @@ export const GROVE_MAX = 2_400;
 export const ROOFTOP_MAX = 24_000;
 
 const ROAD_WIDTHS_M = [14, 9.5, 5.8];
+/** River-crossing ribbons match a primary street, not a footway. */
+const CROSSING_WIDTH_M = 14;
 const SIDEWALK_M = [3.6, 2.8, 2.0];
 export const ROAD_Y = 0.14;
 const SIDEWALK_Y = 0.09;
@@ -1945,12 +1948,44 @@ function pointOnPrefabDeck(x: number, z: number): boolean {
 /** Consecutive over-water centreline longer than this is a river crossing. */
 export const BRIDGE_SPAN_MIN_M = 55;
 /** Pull stitch endpoints inland so the ribbon overlaps the shoreline road. */
-const LAND_OVERLAP_M = 24;
+const LAND_OVERLAP_M = 16;
 const CROSSING_STEP_M = 8;
 const CROSSING_MAX_M = 480;
 const CROSSING_SNAP_M = 52;
+/** OSM leftover spans this close are the same crossing (rotated slabs, dual decks). */
+const SPAN_CLUSTER_M = 70;
+const SEED_MATCH_M = 45;
 
 export type RoadRun = { pts: { x: number; z: number }[]; span: boolean };
+
+/**
+ * Last dry point along land→wet. Land ribbons stop at the bank instead of
+ * leaving a water gap between the OSM dashes and the stitched carriageway.
+ */
+function shorelinePoint(
+  land: { x: number; z: number },
+  wet: { x: number; z: number },
+  overWater: (x: number, z: number) => boolean,
+): { x: number; z: number } | null {
+  if (overWater(land.x, land.z)) return null;
+  if (Math.hypot(wet.x - land.x, wet.z - land.z) < 3 * METERS_TO_WORLD) return null;
+  let x0 = land.x;
+  let z0 = land.z;
+  let x1 = wet.x;
+  let z1 = wet.z;
+  for (let i = 0; i < 14; i++) {
+    const mx = (x0 + x1) / 2;
+    const mz = (z0 + z1) / 2;
+    if (overWater(mx, mz)) {
+      x1 = mx;
+      z1 = mz;
+    } else {
+      x0 = mx;
+      z0 = mz;
+    }
+  }
+  return { x: x0, z: z0 };
+}
 
 /**
  * Land ribbons only. Wet vertices are dropped — OSM ways over water are
@@ -1973,10 +2008,38 @@ export function splitRoadRuns(
     i = j;
   }
   const out: RoadRun[] = [];
-  for (const run of groups) {
+  for (let g = 0; g < groups.length; g++) {
+    const run = groups[g]!;
     if (run.wet) continue;
+    const headWet = g > 0 && groups[g - 1]!.wet;
+    const tailWet = g + 1 < groups.length && groups[g + 1]!.wet;
     const slice = pts.slice(run.start, run.end);
-    if (slice.length >= 2) out.push({ pts: slice, span: false });
+    let outPts: { x: number; z: number }[] = [];
+    if (slice.length === 1) {
+      const land = slice[0]!;
+      const wetPt = headWet ? pts[run.start - 1]! : tailWet ? pts[run.end]! : null;
+      if (!wetPt) continue;
+      const dx = land.x - wetPt.x;
+      const dz = land.z - wetPt.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const inland = {
+        x: land.x + (dx / len) * 16 * METERS_TO_WORLD,
+        z: land.z + (dz / len) * 16 * METERS_TO_WORLD,
+      };
+      const shore = shorelinePoint(land, wetPt, overWater) ?? land;
+      outPts = [inland, shore];
+    } else if (slice.length >= 2) {
+      outPts = slice.slice();
+      if (headWet) {
+        const shore = shorelinePoint(pts[run.start]!, pts[run.start - 1]!, overWater);
+        if (shore) outPts = [shore, ...outPts];
+      }
+      if (tailWet) {
+        const shore = shorelinePoint(pts[run.end - 1]!, pts[run.end]!, overWater);
+        if (shore) outPts = [...outPts, shore];
+      }
+    }
+    if (outPts.length >= 2) out.push({ pts: outPts, span: false });
   }
   return out;
 }
@@ -2088,14 +2151,11 @@ export function walkAcrossWater(
   const max = CROSSING_MAX_M * METERS_TO_WORLD;
   const minWater = minWaterM * METERS_TO_WORLD;
   const extra = LAND_OVERLAP_M * METERS_TO_WORLD;
-  if (minWaterM <= 0 && !overWater(a.x, a.z)) {
-    return { x: a.x - a.dx * extra, z: a.z - a.dz * extra };
-  }
   let x = a.x;
   let z = a.z;
   let dist = 0;
-  let waterRun = 0;
-  let seenWater = false;
+  let seenWater = overWater(x, z);
+  let waterRun = seenWater ? minWater : 0;
   while (dist < max) {
     x += a.dx * step;
     z += a.dz * step;
@@ -2115,30 +2175,162 @@ export function walkAcrossWater(
   return null;
 }
 
+function spanMid(s: CrossingSpan): { x: number; z: number } {
+  return { x: (s.pts[0].x + s.pts[1].x) / 2, z: (s.pts[0].z + s.pts[1].z) / 2 };
+}
+
+function thamesCrossAlign(s: CrossingSpan): number {
+  const mid = spanMid(s);
+  const t = thamesTangent(unproject(mid.x, mid.z));
+  const cx = -t.y;
+  const cz = t.x;
+  const dx = s.pts[1].x - s.pts[0].x;
+  const dz = s.pts[1].z - s.pts[0].z;
+  const len = Math.hypot(dx, dz) || 1;
+  return Math.abs((dx / len) * cx + (dz / len) * cz);
+}
+
+function looksLikeThamesBridge(
+  s: CrossingSpan,
+  overWater: (x: number, z: number) => boolean,
+): boolean {
+  const meters = spanLen(s) / METERS_TO_WORLD;
+  if (meters < 180 || meters > CROSSING_MAX_M) return false;
+  const mid = spanMid(s);
+  if (!overWater(mid.x, mid.z)) return false;
+  return thamesCrossAlign(s) > 0.75;
+}
+
+/** Snap a walked span onto the OSM stubs so the deck meets the shoreline road. */
+function snapSpanToApproaches(
+  span: CrossingSpan,
+  approaches: RoadApproach[],
+  overWater: (x: number, z: number) => boolean,
+): CrossingSpan {
+  const snapR = 36 * METERS_TO_WORLD;
+  const maxPerp = 22 * METERS_TO_WORLD;
+  const snapOne = (
+    pt: { x: number; z: number },
+    far: { x: number; z: number },
+  ): { x: number; z: number; tier: number } => {
+    const dx = far.x - pt.x;
+    const dz = far.z - pt.z;
+    const slen = Math.hypot(dx, dz) || 1;
+    const ux = dx / slen;
+    const uz = dz / slen;
+    let bestX = pt.x;
+    let bestZ = pt.z;
+    let bestD = snapR;
+    let bestTier = span.tier;
+    for (const a of approaches) {
+      const d = Math.hypot(a.x - pt.x, a.z - pt.z);
+      if (d >= bestD) continue;
+      const toward = (far.x - a.x) * a.dx + (far.z - a.z) * a.dz;
+      if (toward < 0) continue;
+      const perp = Math.abs((a.x - pt.x) * uz - (a.z - pt.z) * ux);
+      if (perp > maxPerp) continue;
+      bestD = d;
+      bestX = a.x;
+      bestZ = a.z;
+      bestTier = a.tier;
+    }
+    return { x: bestX, z: bestZ, tier: bestTier };
+  };
+  const a = snapOne(span.pts[0], span.pts[1]);
+  const b = snapOne(span.pts[1], span.pts[0]);
+  const pts = overlapEndpoints({ x: a.x, z: a.z }, { x: b.x, z: b.z }, overWater);
+  if (!overWater((pts[0].x + pts[1].x) / 2, (pts[0].z + pts[1].z) / 2)) return span;
+  return { pts, tier: Math.min(a.tier, b.tier, span.tier) };
+}
+
+function nudgeOntoWater(
+  x: number,
+  z: number,
+  overWater: (x: number, z: number) => boolean,
+): { x: number; z: number } {
+  if (overWater(x, z)) return { x, z };
+  for (const r of [12, 24, 40, 60, 90]) {
+    const rad = r * METERS_TO_WORLD;
+    for (let i = 0; i < 16; i++) {
+      const ang = (i / 16) * Math.PI * 2;
+      const px = x + Math.cos(ang) * rad;
+      const pz = z + Math.sin(ang) * rad;
+      if (overWater(px, pz)) return { x: px, z: pz };
+    }
+  }
+  return { x, z };
+}
+
+function walkFromSeed(
+  at: { x: number; y: number },
+  lnglat: readonly [number, number],
+  overWater: (x: number, z: number) => boolean,
+): CrossingSpan | null {
+  const t = thamesTangent(lnglat);
+  const prefX = -t.y;
+  const prefZ = t.x;
+  const origin = nudgeOntoWater(at.x, at.y, overWater);
+  const dirs: { dx: number; dz: number }[] = [{ dx: prefX, dz: prefZ }];
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI;
+    dirs.push({ dx: Math.cos(ang), dz: Math.sin(ang) });
+  }
+  let best: CrossingSpan | null = null;
+  let bestScore = -Infinity;
+  for (const dir of dirs) {
+    const align = Math.abs(dir.dx * prefX + dir.dz * prefZ);
+    if (align < 0.5) continue;
+    const fwd = walkAcrossWater(
+      { x: origin.x, z: origin.z, dx: dir.dx, dz: dir.dz, tier: 0 },
+      overWater,
+      40,
+    );
+    const back = walkAcrossWater(
+      { x: origin.x, z: origin.z, dx: -dir.dx, dz: -dir.dz, tier: 0 },
+      overWater,
+      40,
+    );
+    if (!fwd || !back) continue;
+    const meters = Math.hypot(fwd.x - back.x, fwd.z - back.z) / METERS_TO_WORLD;
+    if (meters < BRIDGE_SPAN_MIN_M || meters > CROSSING_MAX_M) continue;
+    const midX = (fwd.x + back.x) / 2;
+    const midZ = (fwd.z + back.z) / 2;
+    if (!overWater(midX, midZ)) continue;
+    const abx = fwd.x - back.x;
+    const abz = fwd.z - back.z;
+    const len2 = abx * abx + abz * abz || 1;
+    let t = ((at.x - back.x) * abx + (at.y - back.z) * abz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const perp = Math.hypot(at.x - (back.x + t * abx), at.y - (back.z + t * abz));
+    if (perp > 35 * METERS_TO_WORLD) continue;
+    const score = align * 4 - perp / METERS_TO_WORLD / 8 - Math.abs(meters - 280) / 400;
+    if (score > bestScore) {
+      bestScore = score;
+      best = {
+        pts: overlapEndpoints({ x: back.x, z: back.z }, { x: fwd.x, z: fwd.z }, overWater),
+        tier: 0,
+      };
+    }
+  }
+  return best;
+}
+
 function dedupeCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
   const out: CrossingSpan[] = [];
   const used = new Set<number>();
-  const near = 8 * METERS_TO_WORLD;
+  const near = 55 * METERS_TO_WORLD;
   for (let i = 0; i < spans.length; i++) {
     if (used.has(i)) continue;
     let keep = spans[i]!;
     const mix = (keep.pts[0].x + keep.pts[1].x) / 2;
     const miz = (keep.pts[0].z + keep.pts[1].z) / 2;
-    const li = spanLen(keep);
-    const dix = (keep.pts[1].x - keep.pts[0].x) / (li || 1);
-    const diz = (keep.pts[1].z - keep.pts[0].z) / (li || 1);
     for (let j = i + 1; j < spans.length; j++) {
       if (used.has(j)) continue;
       const s = spans[j]!;
       const mjx = (s.pts[0].x + s.pts[1].x) / 2;
       const mjz = (s.pts[0].z + s.pts[1].z) / 2;
       if (Math.hypot(mix - mjx, miz - mjz) > near) continue;
-      const lj = spanLen(s);
-      const djx = (s.pts[1].x - s.pts[0].x) / (lj || 1);
-      const djz = (s.pts[1].z - s.pts[0].z) / (lj || 1);
-      if (Math.abs(dix * djx + diz * djz) < 0.9) continue;
       used.add(j);
-      if (s.tier < keep.tier || (s.tier === keep.tier && lj > li)) keep = s;
     }
     out.push(keep);
   }
@@ -2211,51 +2403,53 @@ function collectRoadApproaches(
 export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
-  const fromRoads = buildCrossingSpans(collectRoadApproaches(cityData, overWater), overWater);
-  const extra: CrossingSpan[] = [];
-  const seeds: { at: ReturnType<typeof project> }[] = [
-    ...LANDMARKS.filter((lm) => isDeckLandmark(lm.kind) && lm.kind !== 'oldstreet').map((lm) => ({
-      at: project(lm.at),
-    })),
-    ...THAMES_CROSSINGS.map((c) => ({ at: project(c.at) })),
+  const approaches = collectRoadApproaches(cityData, overWater);
+  const fromRoads = buildCrossingSpans(approaches, overWater);
+  const seeds = [
+    ...LANDMARKS.filter((lm) => isDeckLandmark(lm.kind) && lm.kind !== 'oldstreet'),
+    ...THAMES_CROSSINGS,
   ];
+  const seeded: CrossingSpan[] = [];
+  const matchR = SEED_MATCH_M * METERS_TO_WORLD;
+  const clusterR = SPAN_CLUSTER_M * METERS_TO_WORLD;
   for (const seed of seeds) {
-    const at = seed.at;
-    const already = fromRoads.some((s) => {
-      const mx = (s.pts[0].x + s.pts[1].x) / 2;
-      const mz = (s.pts[0].z + s.pts[1].z) / 2;
-      return Math.hypot(mx - at.x, mz - at.y) < 90 * METERS_TO_WORLD;
-    });
-    if (already) continue;
-    let best: CrossingSpan | null = null;
-    let bestM = Infinity;
-    for (let i = 0; i < 16; i++) {
-      const ang = (i / 16) * Math.PI;
-      const dirX = Math.cos(ang);
-      const dirZ = Math.sin(ang);
-      const fwd = walkAcrossWater({ x: at.x, z: at.y, dx: dirX, dz: dirZ, tier: 1 }, overWater, 0);
-      const back = walkAcrossWater(
-        { x: at.x, z: at.y, dx: -dirX, dz: -dirZ, tier: 1 },
-        overWater,
-        0,
-      );
-      if (!fwd || !back) continue;
-      const meters = Math.hypot(fwd.x - back.x, fwd.z - back.z) / METERS_TO_WORLD;
-      if (meters < BRIDGE_SPAN_MIN_M || meters > CROSSING_MAX_M) continue;
-      const midX = (fwd.x + back.x) / 2;
-      const midZ = (fwd.z + back.z) / 2;
-      if (!overWater(midX, midZ)) continue;
-      if (meters < bestM) {
-        bestM = meters;
-        best = {
-          pts: overlapEndpoints({ x: back.x, z: back.z }, { x: fwd.x, z: fwd.z }, overWater),
-          tier: 1,
-        };
+    const at = project(seed.at);
+    const t = thamesTangent(seed.at);
+    const cx = -t.y;
+    const cz = t.x;
+    let picked: CrossingSpan | null = null;
+    let pickedScore = -Infinity;
+    for (const s of fromRoads) {
+      const m = spanMid(s);
+      const d = Math.hypot(m.x - at.x, m.z - at.y);
+      if (d > matchR) continue;
+      const dx = s.pts[1].x - s.pts[0].x;
+      const dz = s.pts[1].z - s.pts[0].z;
+      const len = Math.hypot(dx, dz) || 1;
+      const align = Math.abs((dx / len) * cx + (dz / len) * cz);
+      if (align < 0.78) continue;
+      const score = align * 2 - d / matchR;
+      if (score > pickedScore) {
+        pickedScore = score;
+        picked = s;
       }
     }
-    if (best) extra.push(best);
+    if (!picked) picked = walkFromSeed(at, seed.at, overWater);
+    if (!picked) continue;
+    seeded.push(snapSpanToApproaches(picked, approaches, overWater));
   }
-  return dedupeCrossingSpans([...fromRoads, ...extra]);
+  const extras: CrossingSpan[] = [];
+  for (const s of fromRoads) {
+    const m = spanMid(s);
+    const claimed = seeded.some((k) => {
+      const km = spanMid(k);
+      return Math.hypot(m.x - km.x, m.z - km.z) < clusterR;
+    });
+    if (claimed) continue;
+    if (!looksLikeThamesBridge(s, overWater)) continue;
+    extras.push(snapSpanToApproaches(s, approaches, overWater));
+  }
+  return dedupeCrossingSpans([...seeded, ...extras]);
 }
 
 /** Y rotation for a +X-modelled pier group so +X follows the nearest carriageway span. */
@@ -2387,19 +2581,17 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
     const stitchPos: number[] = [];
     const stitchIdx: number[] = [];
     for (const span of stitches) {
-      const halfCarriage = (ROAD_WIDTHS_M[span.tier]! * METERS_TO_WORLD) / 2;
+      const halfCarriage = (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2;
       appendRibbon(stitchPos, stitchIdx, span.pts, halfCarriage, ROAD_Y);
-      if (span.tier <= 1) {
-        const dashes = polylineDashes(span.pts);
-        const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
-        for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
-        const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
-        const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
-        if (inset > halfEdge && span.pts.length >= 2) {
-          const edges = segmentEdgeOffsets(span.pts[0]!, span.pts[1]!, inset);
-          appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
-          appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
-        }
+      const dashes = polylineDashes(span.pts);
+      const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+      for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
+      const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
+      const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
+      if (inset > halfEdge && span.pts.length >= 2) {
+        const edges = segmentEdgeOffsets(span.pts[0]!, span.pts[1]!, inset);
+        appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
+        appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
       }
     }
     if (stitchPos.length > 0) {
@@ -2472,7 +2664,6 @@ export function buildStreetLamps(cityData: CityData): THREE.Group | null {
   const spans = riverCrossingSpans(cityData);
   for (const span of spans) {
     if (spots.length >= LAMP_MAX) break;
-    if (span.tier > 1) continue;
     const a = span.pts[0];
     const b = span.pts[1];
     const dx = b.x - a.x;
@@ -2482,7 +2673,8 @@ export function buildStreetLamps(cityData: CityData): THREE.Group | null {
     const uz = dz / len;
     const px = -uz;
     const pz = ux;
-    const offset = (ROAD_WIDTHS_M[span.tier]! / 2 + SIDEWALK_M[span.tier]! * 0.4) * METERS_TO_WORLD;
+    const offset =
+      (CROSSING_WIDTH_M / 2 + SIDEWALK_M[Math.min(span.tier, 1)]! * 0.4) * METERS_TO_WORLD;
     const spacing = 32 * METERS_TO_WORLD;
     const n = Math.max(2, Math.floor(len / spacing));
     for (let i = 1; i < n && spots.length < LAMP_MAX; i++) {

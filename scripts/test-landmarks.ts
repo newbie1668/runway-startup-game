@@ -115,4 +115,25 @@ check('river prefabs do not carry a competing carriageway slab', () => {
   }
 });
 
+check('beam-bridge piers sit under the asphalt, not over it', () => {
+  for (const kind of [
+    'westminsterbr',
+    'lambethbr',
+    'waterloobr',
+    'blackfriarsbr',
+    'londonbr',
+  ] as const) {
+    let maxTop = 0;
+    build(kind).traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const box = new THREE.Box3().setFromObject(obj);
+      maxTop = Math.max(maxTop, box.max.y);
+    });
+    assert.ok(
+      maxTop <= ROAD_Y + 0.01,
+      `${kind} pier top ${maxTop.toFixed(3)} sits on top of the road (${ROAD_Y})`,
+    );
+  }
+});
+
 console.log(`\nAll ${passed} landmark geometry checks passed.`);

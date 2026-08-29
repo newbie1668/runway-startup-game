@@ -21,10 +21,11 @@ function m(meters: number): number {
 }
 
 /**
- * Landmark ornament (piers, towers) sits at road height. The carriageway itself
- * is the OSM / stitch asphalt ribbon — prefabs must not carry a competing slab.
+ * Piers sit in the channel under the OSM asphalt (`ROAD_Y` = 0.14). Taller
+ * boxes read as a brown/tan deck from isometric height and hide the road.
  */
 export const LANDMARK_DECK_Y = 0.18;
+const PIER_H = 0.12;
 
 function h(meters: number): number {
   return meters * METERS_TO_WORLD * HEIGHT_SCALE;
@@ -1107,7 +1108,7 @@ function buildBeamBridge(pierColor: number, pierCount: number): THREE.Group {
   const spread = m(170);
   for (let i = 0; i < pierCount; i++) {
     const t = (i + 0.5) / pierCount - 0.5;
-    addBox(group, m(8), LANDMARK_DECK_Y, m(14), pierMat, t * spread, 0, 0);
+    addBox(group, m(5), PIER_H, m(7), pierMat, t * spread, 0, 0);
   }
   return group;
 }
@@ -1193,7 +1194,7 @@ function buildHungerford(): THREE.Group {
   const spread = m(180);
   for (let i = 0; i < 6; i++) {
     const x = (i / 5 - 0.5) * spread;
-    addBox(group, m(7), LANDMARK_DECK_Y, m(14), rail, x, 0, 0);
+    addBox(group, m(5), PIER_H, m(7), rail, x, 0, 0);
   }
   return group;
 }

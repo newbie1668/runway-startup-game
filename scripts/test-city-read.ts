@@ -21,6 +21,7 @@ import {
   THAMES_CROSSINGS,
   isDeckLandmark,
   project,
+  thamesTangent,
 } from '../lib/game/geo';
 import {
   splitRoadRuns,
@@ -176,6 +177,16 @@ check('river crossings drop wet OSM and stitch a land-to-land span', () => {
     'short water dips must not become decks',
   );
 
+  const oneVert = [
+    { x: 0, z: 0 },
+    { x: 1, z: 0 },
+    { x: 2, z: 0 },
+  ];
+  const oneWet = (x: number, z: number) => x === 1 && z === 0;
+  const stubs = splitRoadRuns(oneVert, oneWet);
+  assert.equal(stubs.length, 2, 'a single land vertex on each bank still makes an approach stub');
+  assert.ok(stubs.every((r) => r.pts.length >= 2));
+
   const far = walkAcrossWater({ x: 0, z: 0, dx: 1, dz: 0, tier: 0 }, (x) => x > 0.5 && x < 1.6);
   assert.ok(far && far.x > 1.6, 'walk should step onto the far bank');
   const crossings = buildCrossingSpans(
@@ -211,28 +222,42 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
   const spans = riverCrossingSpans(
     decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)),
   );
+  const distToSpanM = (px: number, pz: number, s: (typeof spans)[0]): number => {
+    const ax = s.pts[0].x;
+    const az = s.pts[0].z;
+    const bx = s.pts[1].x;
+    const bz = s.pts[1].z;
+    const abx = bx - ax;
+    const abz = bz - az;
+    const len2 = abx * abx + abz * abz || 1;
+    let t = ((px - ax) * abx + (pz - az) * abz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * abx), pz - (az + t * abz)) / METERS_TO_WORLD;
+  };
   const named = LANDMARKS.filter((l) => isDeckLandmark(l.kind) && l.kind !== 'oldstreet');
   for (const lm of named) {
     const at = project(lm.at);
-    const hit = spans.find((s) => {
-      const mx = (s.pts[0].x + s.pts[1].x) / 2;
-      const mz = (s.pts[0].z + s.pts[1].z) / 2;
-      return Math.hypot(mx - at.x, mz - at.y) < 90 * METERS_TO_WORLD;
-    });
+    const hit = spans.find((s) => distToSpanM(at.x, at.y, s) < 30);
     assert.ok(hit, `${lm.name} has no stitched carriageway`);
     const meters =
       Math.hypot(hit!.pts[1].x - hit!.pts[0].x, hit!.pts[1].z - hit!.pts[0].z) / METERS_TO_WORLD;
     assert.ok(meters > 70 && meters < 520, `${lm.name} span ${meters.toFixed(0)}m looks wrong`);
+    const t = thamesTangent(lm.at);
+    const dx = hit!.pts[1].x - hit!.pts[0].x;
+    const dz = hit!.pts[1].z - hit!.pts[0].z;
+    const len = Math.hypot(dx, dz) || 1;
+    const align = Math.abs((dx / len) * -t.y + (dz / len) * t.x);
+    assert.ok(align > 0.75, `${lm.name} deck is skewed vs the river (${align.toFixed(2)})`);
+    const near = spans.filter((s) => distToSpanM(at.x, at.y, s) < 40);
+    assert.equal(near.length, 1, `${lm.name} has ${near.length} overlapping decks`);
   }
   const extra = THAMES_CROSSINGS;
   for (const { name, at: ll } of extra) {
     const at = project(ll);
-    const hit = spans.find((s) => {
-      const mx = (s.pts[0].x + s.pts[1].x) / 2;
-      const mz = (s.pts[0].z + s.pts[1].z) / 2;
-      return Math.hypot(mx - at.x, mz - at.y) < 100 * METERS_TO_WORLD;
-    });
+    const hit = spans.find((s) => distToSpanM(at.x, at.y, s) < 30);
     assert.ok(hit, `${name} has no stitched carriageway`);
+    const near = spans.filter((s) => distToSpanM(at.x, at.y, s) < 40);
+    assert.equal(near.length, 1, `${name} has ${near.length} overlapping decks`);
   }
 });
 
