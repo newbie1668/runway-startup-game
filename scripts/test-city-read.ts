@@ -1040,6 +1040,8 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let jewryGlassN = 0;
   let nedGlassN = 0;
   const highR: number[] = [];
+  const turretR: number[] = [];
+  const midR: number[] = [];
   const stickPad = 8 * METERS_TO_WORLD;
   for (const major of [true, false]) {
     const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
@@ -1072,6 +1074,12 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - roofCol.b) < 0.05);
       if (d <= 40 && yM > 36 && poultryTint) {
         highR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
+      }
+      if (d <= 40 && yM > 30 && poultryTint) {
+        turretR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
+      }
+      if (d <= 40 && yM > 10 && yM < 26 && poultryTint) {
+        midR.push(Math.hypot(x - poultryCx, z - poultryCz) / METERS_TO_WORLD);
       }
       if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
       if (
@@ -1209,11 +1217,11 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     `Stirling window bands missing (glass=${poultryGlassN}) — blank walls are a fail`,
   );
   assert.ok(
-    poultryClockN > 80,
+    poultryClockN > 40,
     `Poultry clock faces missing (clock=${poultryClockN}) — blank drum is a fail`,
   );
   assert.ok(
-    poultryClockProwN > 40,
+    poultryClockProwN > 24,
     `Stirling clocks missing from the prow (prowClock=${poultryClockProwN})`,
   );
   assert.ok(
@@ -1222,13 +1230,19 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   );
   assert.ok(highR.length > 16, `Poultry prow missing above the wings (${highR.length} high verts)`);
   {
-    const mean = highR.reduce((a, v) => a + v, 0) / highR.length;
-    const variance = highR.reduce((a, v) => a + (v - mean) ** 2, 0) / highR.length;
+    const turretNear = turretR.filter((r) => r > 3 && r < 12);
+    assert.ok(
+      turretNear.length > 24,
+      `Stirling clock turret missing at the prow (turret=${turretNear.length})`,
+    );
+    const mean = midR.length > 0 ? midR.reduce((a, v) => a + v, 0) / midR.length : 0;
+    const variance =
+      midR.length > 0 ? midR.reduce((a, v) => a + (v - mean) ** 2, 0) / midR.length : 0;
     const std = Math.sqrt(variance);
     const circ = mean > 0.4 ? 1 - std / mean : 1;
     assert.ok(
       circ < 0.72,
-      `Poultry is still a cylinder (circularity=${circ.toFixed(2)}, n=${highR.length})`,
+      `Poultry wings are still a cylinder (circularity=${circ.toFixed(2)}, n=${midR.length})`,
     );
   }
   assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);

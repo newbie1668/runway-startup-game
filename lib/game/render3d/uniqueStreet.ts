@@ -57,7 +57,7 @@ export const STREET_UNIQUE_LABEL: Record<StreetUniqueId, { name: string; use: st
   'bank-england': { name: 'Bank of England', use: 'Soane' },
 };
 
-/** Stirling banded sandstone (wiki Commons still of No 1 Poultry). */
+/** Rose-pink and buff limestone as modelled masses (wiki Commons still of No 1 Poultry). */
 export const POULTRY_BUFF = 0xe8d4a4;
 export const POULTRY_PINK = 0xc47a58;
 export const POULTRY_GLASS = 0x2a4050;
@@ -855,31 +855,6 @@ function quadHitsDisk(a: StreetPt, b: StreetPt, c: StreetPt, d: StreetPt, disk: 
   return false;
 }
 
-function emitTerraceCap(
-  ctx: StreetEmit,
-  outer: StreetPt[],
-  inner: StreetPt[],
-  y: number,
-  hex: number,
-  disk: Disk | null = null,
-): void {
-  const n = Math.min(outer.length, inner.length);
-  if (n < 3) return;
-  for (let i = 0; i < n; i++) {
-    const a = outer[i]!;
-    const b = outer[(i + 1) % n]!;
-    const c = inner[(i + 1) % n]!;
-    const d = inner[i]!;
-    if (disk && quadHitsDisk(a, b, c, d, disk)) continue;
-    const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
-    const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
-    const i2 = ctx.pushVertex(c.x, y, c.z, 0, 1, 0, hex);
-    const i3 = ctx.pushVertex(d.x, y, d.z, 0, 1, 0, hex);
-    ctx.pushTri(i0, i1, i2);
-    ctx.pushTri(i0, i2, i3);
-  }
-}
-
 /** One limestone course with a real ledge, not a coplanar stripe. */
 function emitLimestoneLedge(
   ctx: StreetEmit,
@@ -971,7 +946,7 @@ function emitJambReturn(
   );
 }
 
-/** Concertina bay: rusticated ledges + a deep raked slot. Not a plate-slot costume. */
+/** Concertina bay: full-height pink piers and a deep raked slot. Not a wrapping course. */
 function emitStirlingBay(
   ctx: StreetEmit,
   e: Edge,
@@ -982,40 +957,39 @@ function emitStirlingBay(
   fold: number,
   nRows: number,
   tallerAtT0: boolean,
+  stone: number,
 ): void {
   const span = y1 - y0;
   const pierU = 0.18;
   const leftPier1 = t0 + (t1 - t0) * pierU;
   const rightPier0 = t1 - (t1 - t0) * pierU;
   const pierOut = fold + m(0.18);
-  emitLimestoneLedge(ctx, e, t0, leftPier1, y0, y1, POULTRY_BUFF, pierOut);
-  emitLimestoneLedge(ctx, e, rightPier0, t1, y0, y1, POULTRY_BUFF, pierOut);
-  const my = y0 + span * 0.52;
-  const pL0 = edgePoint(e, t0);
+  emitLimestoneLedge(ctx, e, t0, leftPier1, y0, y1, stone, pierOut);
+  emitLimestoneLedge(ctx, e, rightPier0, t1, y0, y1, stone, pierOut);
   const pL1 = edgePoint(e, leftPier1);
   const pR0 = edgePoint(e, rightPier0);
-  const pR1 = edgePoint(e, t1);
   const mo = pierOut * 0.4;
+  const jw = m(0.14);
   emitWallQuad(
     ctx,
-    pL0.x + e.nx * mo,
-    pL0.z + e.nz * mo,
-    pL1.x + e.nx * mo,
-    pL1.z + e.nz * mo,
-    my,
-    my + m(0.22),
+    pL1.x + e.nx * mo - e.tx * jw,
+    pL1.z + e.nz * mo - e.tz * jw,
+    pL1.x + e.nx * mo + e.tx * jw,
+    pL1.z + e.nz * mo + e.tz * jw,
+    y0,
+    y1,
     e.nx,
     e.nz,
     POULTRY_MORTAR,
   );
   emitWallQuad(
     ctx,
-    pR0.x + e.nx * mo,
-    pR0.z + e.nz * mo,
-    pR1.x + e.nx * mo,
-    pR1.z + e.nz * mo,
-    my,
-    my + m(0.22),
+    pR0.x + e.nx * mo - e.tx * jw,
+    pR0.z + e.nz * mo - e.tz * jw,
+    pR0.x + e.nx * mo + e.tx * jw,
+    pR0.z + e.nz * mo + e.tz * jw,
+    y0,
+    y1,
     e.nx,
     e.nz,
     POULTRY_MORTAR,
@@ -1054,7 +1028,7 @@ function emitStirlingBay(
       headA,
       e.tx,
       e.tz,
-      POULTRY_BUFF,
+      stone,
     );
     emitJambReturn(
       ctx,
@@ -1068,7 +1042,7 @@ function emitStirlingBay(
       headB,
       -e.tx,
       -e.tz,
-      POULTRY_BUFF,
+      stone,
     );
     emitLimestoneLedge(
       ctx,
@@ -1077,7 +1051,7 @@ function emitStirlingBay(
       rightPier0,
       ry0,
       Math.min(sillA, sillB),
-      POULTRY_BUFF,
+      stone,
       stoneOut,
     );
     emitLimestoneLedge(
@@ -1087,7 +1061,7 @@ function emitStirlingBay(
       rightPier0,
       Math.max(headA, headB),
       ry1,
-      POULTRY_PINK,
+      stone,
       stoneOut,
     );
   }
@@ -1102,12 +1076,13 @@ function emitStirlingElevation(
   y1: number,
   nRows: number,
   tallerAtT0: boolean,
+  stone: number,
 ): void {
   const spanT = tHi - tLo;
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
   if (edgeM < 4.2) {
-    emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, POULTRY_BUFF, m(0.12));
+    emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, m(0.12));
     return;
   }
   const bays = Math.max(1, Math.min(8, Math.round(edgeM / 5.4)));
@@ -1115,7 +1090,7 @@ function emitStirlingElevation(
     const t0 = tLo + (spanT * b) / bays;
     const t1 = tLo + (spanT * (b + 1)) / bays;
     const fold = b % 2 === 0 ? m(0.08) : m(0.42);
-    emitStirlingBay(ctx, e, t0, t1, y0, y1, fold, nRows, tallerAtT0);
+    emitStirlingBay(ctx, e, t0, t1, y0, y1, fold, nRows, tallerAtT0, stone);
   }
 }
 
@@ -1273,6 +1248,46 @@ function emitClockOnFace(
   }
 }
 
+/** Stirling conning-tower watch: a buff cylinder with horn deck, not a disk on a slab. */
+function emitStirlingClockTurret(
+  ctx: StreetEmit,
+  cx: number,
+  y0: number,
+  cz: number,
+  bx: number,
+  bz: number,
+): void {
+  const turretR = m(6.4);
+  const turretH = m(18);
+  pushCylinder(ctx, cx, y0, cz, turretR, turretH, POULTRY_BUFF, 20, true);
+  const tx = -bz;
+  const tz = bx;
+  ctx.pushOrientedBox(
+    cx,
+    y0 + turretH * 0.38,
+    cz,
+    m(18),
+    m(2.6),
+    m(6.2),
+    tx,
+    tz,
+    bx,
+    bz,
+    POULTRY_BUFF,
+  );
+  const clockY = y0 + turretH * 0.58;
+  const faceR = m(5.2);
+  emitClockOnFace(
+    ctx,
+    cx + bx * (turretR + m(0.2)),
+    clockY,
+    cz + bz * (turretR + m(0.2)),
+    bx,
+    bz,
+    faceR,
+  );
+}
+
 /** Folded V-curtain: recessed panes + stone mullions, not painted slots. */
 function emitProwVGlass(
   ctx: StreetEmit,
@@ -1413,41 +1428,22 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const apexI = ctx.plan.apexIndex;
   const ePrev = edges[(apexI + n - 1) % n]!;
   const eNext = edges[apexI]!;
-  const prowH = Math.max(H * 1.32, m(42));
   const arcadeH = H * 0.15;
   const vTop = Math.max(arcadeH + m(14), H * 0.5);
-  const capDisk: Disk = { x: apex.x, z: apex.z, r: m(8.5) };
 
   emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE);
   const shop = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
   emitWallBand(ctx, shop, 0, arcadeH * 0.82, POULTRY_SHOP, 0);
-  for (const e of edges) {
-    emitLimestoneLedge(ctx, e, 0, 1, arcadeH, arcadeH + m(1.15), POULTRY_PINK, m(0.2));
-  }
 
-  const weights = [1.9, 1.45, 1.08, 0.82, 0.62];
-  const insetsM = [0, 2.2, 4.4, 6.6, 8.8];
-  const capM = Math.max(1.6, ctx.plan.minRM * 0.42);
-  const sum = weights.reduce((a, b) => a + b, 0);
-  let y = arcadeH;
-  let prevRing = ctx.ring;
-  for (let i = 0; i < weights.length; i++) {
-    const h = (weights[i]! / sum) * (H - arcadeH);
-    const inset = Math.min(insetsM[i]!, capM);
-    const ring = inset <= 0.05 ? ctx.ring : insetRingTowardCentroid(ctx.ring, cx, cz, m(inset));
-    if (i > 0) emitTerraceCap(ctx, prevRing, ring, y, POULTRY_BUFF, capDisk);
-    const wingRows = 1;
-    for (const e of edgesOf(ctx, ring)) {
-      if (e.i === ePrev.i) {
-        emitStirlingElevation(ctx, e, 0, 0.5, y, y + h, wingRows, false);
-      } else if (e.i === eNext.i) {
-        emitStirlingElevation(ctx, e, 0.5, 1, y, y + h, wingRows, true);
-      } else {
-        emitStirlingElevation(ctx, e, 0, 1, y, y + h, wingRows, false);
-      }
+  const wingRows = 3;
+  for (const e of edges) {
+    if (e.i === ePrev.i) {
+      emitStirlingElevation(ctx, e, 0, 0.5, arcadeH, H, wingRows, false, POULTRY_PINK);
+    } else if (e.i === eNext.i) {
+      emitStirlingElevation(ctx, e, 0.5, 1, arcadeH, H, wingRows, true, POULTRY_PINK);
+    } else {
+      emitStirlingElevation(ctx, e, 0, 1, arcadeH, H, wingRows, false, POULTRY_PINK);
     }
-    prevRing = ring;
-    y += h;
   }
 
   const wellR = poultryWellR(ctx.plan);
@@ -1458,39 +1454,14 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   emitApexArch(ctx, eNext, true, 0, arcadeH * 1.35);
   emitProwVGlass(ctx, ePrev, false, arcadeH, vTop);
   emitProwVGlass(ctx, eNext, true, arcadeH, vTop);
-  emitProwStone(ctx, ePrev, 0.5, 1, vTop, prowH);
-  emitProwStone(ctx, eNext, 0, 0.5, vTop, prowH);
-  const faceR = m(5.8);
-  const flankR = m(4.6);
-  const clockY = vTop + faceR + m(1.4);
+  emitProwStone(ctx, ePrev, 0.5, 1, vTop, vTop + m(3.2));
+  emitProwStone(ctx, eNext, 0, 0.5, vTop, vTop + m(3.2));
   let bx = ePrev.nx + eNext.nx;
   let bz = ePrev.nz + eNext.nz;
   const bl = Math.hypot(bx, bz) || 1;
   bx /= bl;
   bz /= bl;
-  emitClockOnFace(ctx, apex.x - bx * m(2.2), clockY, apex.z - bz * m(2.2), bx, bz, faceR);
-  const pPrev = edgePoint(ePrev, 0.78);
-  const pNext = edgePoint(eNext, 0.22);
-  emitClockOnFace(
-    ctx,
-    pPrev.x + ePrev.nx * m(0.35),
-    clockY,
-    pPrev.z + ePrev.nz * m(0.35),
-    ePrev.nx,
-    ePrev.nz,
-    flankR,
-  );
-  emitClockOnFace(
-    ctx,
-    pNext.x + eNext.nx * m(0.35),
-    clockY,
-    pNext.z + eNext.nz * m(0.35),
-    eNext.nx,
-    eNext.nz,
-    flankR,
-  );
-  emitLimestoneLedge(ctx, ePrev, 0.5, 1, prowH - m(1.4), prowH, POULTRY_PINK, m(0.4));
-  emitLimestoneLedge(ctx, eNext, 0, 0.5, prowH - m(1.4), prowH, POULTRY_PINK, m(0.4));
+  emitStirlingClockTurret(ctx, apex.x - bx * m(2.4), vTop, apex.z - bz * m(2.4), bx, bz);
 }
 
 function emitNedWalls(ctx: StreetEmit): void {
@@ -1671,10 +1642,6 @@ function planWellInsetM(plan: PlanMetrics): number {
   return Math.min(plan.minRM * 0.42, Math.min(plan.maxAlongM, plan.maxPerpM) * 0.38);
 }
 
-function emitStoreyLip(ctx: StreetEmit, ring: StreetPt[], y: number, hex: number): void {
-  emitWallBand(ctx, ring, y, y + m(0.38), hex, m(0.1));
-}
-
 /**
  * Physical bays on THIS front. Flush punched slots on every OSM extrusion
  * is the shared costume the street still failed on.
@@ -1749,6 +1716,7 @@ function emitRoofKit(ctx: StreetEmit, recipe: UniqueStockRecipe, stone: number):
   const w = m(Math.min(recipe.plant.wM, minRM * 0.45));
   const d = m(Math.min(recipe.plant.dM, minRM * 0.35));
   const h = m(Math.min(recipe.plant.hM, 6.5));
+  if (w < m(2.6) || d < m(2.6) || h < m(2.6)) return;
   const x =
     cx + ax * m(recipe.plant.along * minRM * 0.25) + px * m(recipe.plant.perp * minRM * 0.2);
   const z =
@@ -1793,7 +1761,6 @@ export function emitCheapsideStockWalls(
     } else {
       emitPlateSlots(ctx, ring, y0, y1, stone, glass, ry.pitchM, rows, ry.winU, ry.winV);
     }
-    emitStoreyLip(ctx, ring, y1 - m(0.32), stone);
   };
   const colonnadeBase = recipe.facade.kind === 'colonnade';
 
