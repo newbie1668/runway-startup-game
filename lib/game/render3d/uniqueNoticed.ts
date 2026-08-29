@@ -250,7 +250,7 @@ function buildHsbc(job: UniqueNoticedJob): THREE.Group {
     addBox(group, w * 0.018, H * 0.82, d * 0.018, steel, cx + w * 0.49, H * 0.08, z);
     addBox(group, w * 0.018, H * 0.82, d * 0.018, steel, cx - w * 0.49, H * 0.08, z);
   }
-  addBox(group, w * 0.62, H * 0.1, d * 0.62, dark, cx, H * 0.9, cz, `${job.id}-hat`);
+  addBox(group, w * 0.55, H * 0.14, d * 0.55, dark, cx, H * 0.86, cz, `${job.id}-hat`);
   addBox(group, w * 0.22, H * 0.06, d * 0.18, steel, cx + w * 0.28, H * 0.94, cz);
   addBox(group, w * 0.22, H * 0.06, d * 0.18, steel, cx - w * 0.28, H * 0.94, cz);
   return group;
