@@ -51,7 +51,7 @@ import {
   type DistrictId,
 } from './buildingStyle';
 import * as pal from './palette';
-import { DASH_WIDTH_M, EDGE_WIDTH_M, polylineDashes, segmentEdgeOffsets } from './streetMarks';
+import { DASH_WIDTH_M, polylineDashes } from './streetMarks';
 import { chamferRing, insetRingTowardCentroid } from './footprint';
 import {
   aabbHitsKeep,
@@ -81,8 +81,11 @@ const MARK_Y = 0.155;
 export const PARK_Y = 0.028;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
-/** Regular lawn tiles. OSM fans (even split) still read as tents. */
-const PARK_CELL = 32 * METERS_TO_WORLD;
+/** Regular lawn tiles. Smaller gardens need a tighter grid or beige GROUND shows. */
+function parkCellWorld(areaM2: number): number {
+  if (areaM2 >= 15_000) return 32 * METERS_TO_WORLD;
+  return 12 * METERS_TO_WORLD;
+}
 
 function landmarkExclusionAt(x: number, z: number): number | null {
   for (const landmark of LANDMARKS) {
@@ -1889,6 +1892,7 @@ function fillParkGrid(
   dark: THREE.Color,
   lite: THREE.Color,
   keep: KeepDisk | null,
+  cell: number,
 ): number {
   let minx = Infinity;
   let maxx = -Infinity;
@@ -1902,13 +1906,19 @@ function fillParkGrid(
   }
   if (!(maxx > minx && maxz > minz)) return 0;
   let added = 0;
-  for (let x0 = minx; x0 < maxx; x0 += PARK_CELL) {
-    const x1 = x0 + PARK_CELL;
-    for (let z0 = minz; z0 < maxz; z0 += PARK_CELL) {
-      const z1 = z0 + PARK_CELL;
+  for (let x0 = minx; x0 < maxx; x0 += cell) {
+    const x1 = x0 + cell;
+    for (let z0 = minz; z0 < maxz; z0 += cell) {
+      const z1 = z0 + cell;
       const cx = (x0 + x1) * 0.5;
       const cz = (z0 + z1) * 0.5;
-      if (!pointInRing(cx, cz, ring)) continue;
+      const cornersIn =
+        (pointInRing(x0, z0, ring) ? 1 : 0) +
+        (pointInRing(x1, z0, ring) ? 1 : 0) +
+        (pointInRing(x1, z1, ring) ? 1 : 0) +
+        (pointInRing(x0, z1, ring) ? 1 : 0);
+      const tight = cell < 18 * METERS_TO_WORLD;
+      if (!pointInRing(cx, cz, ring) && (!tight || cornersIn < 2)) continue;
       if (keep && !inKeepDisk(cx, cz, keep)) continue;
       if (pointOverWater(cx, cz, water)) continue;
       if (
@@ -1986,27 +1996,39 @@ function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE
   const lite = new THREE.Color(0x88bf5e);
   const water = waterRings(cityData);
   for (const p of cityData.parks) {
-    const n = p.verts.length / 2;
-    if (n < 3) continue;
-    const ring: { x: number; z: number }[] = [];
-    for (let i = 0; i < n; i++) {
-      ring.push({ x: dequantizeX(p.verts[i * 2]!), z: dequantizeY(p.verts[i * 2 + 1]!) });
-    }
-    if (!ringHitsKeep(ring, keep)) continue;
+    const info = parkCentroid(p);
+    if (!info) continue;
+    if (!ringHitsKeep(info.ring, keep)) continue;
+    const cell = parkCellWorld(info.areaM2);
     const tiled = fillParkGrid(
       positions,
       colors,
       indices,
-      ring,
+      info.ring,
       water,
       PARK_Y,
       base,
       dark,
       lite,
       keep,
+      cell,
     );
-    if (tiled > 0) continue;
-    emitOsmParkTris(positions, colors, indices, ring, p, water, PARK_Y, base, dark, lite, keep);
+    const cellM = cell / METERS_TO_WORLD;
+    if (tiled === 0 || tiled * cellM * cellM < info.areaM2 * 0.25) {
+      emitOsmParkTris(
+        positions,
+        colors,
+        indices,
+        info.ring,
+        p,
+        water,
+        PARK_Y,
+        base,
+        dark,
+        lite,
+        keep,
+      );
+    }
   }
   if (indices.length === 0) return null;
   const geometry = new THREE.BufferGeometry();
@@ -3230,7 +3252,11 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
 }
 
 /** One group per tier so minor streets can hide independently at low zoom. */
-export function buildRoads(cityData: CityData, keep: KeepDisk | null = null): THREE.Group | null {
+export function buildRoads(
+  cityData: CityData,
+  keep: KeepDisk | null = null,
+  paintMarks = true,
+): THREE.Group | null {
   const group = new THREE.Group();
   const sidewalkMat = new THREE.MeshLambertMaterial({
     color: pal.PAVEMENT,
@@ -3258,7 +3284,7 @@ export function buildRoads(cityData: CityData, keep: KeepDisk | null = null): TH
   const markIdx: number[] = [];
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
-  const zebras = plannedCrosswalks(cityData);
+  const zebras = paintMarks ? plannedCrosswalks(cityData) : [];
   const roadPad = 80 * METERS_TO_WORLD;
 
   for (let tier = 0; tier <= 2; tier++) {
@@ -3279,19 +3305,10 @@ export function buildRoads(cityData: CityData, keep: KeepDisk | null = null): TH
           for (const clipped of clipPolylineToKeep(piece, keep, roadPad)) {
             appendRibbon(walkPos, walkIdx, clipped, halfWalk, SIDEWALK_Y);
             appendRibbon(asphPos, asphIdx, clipped, halfCarriage, ROAD_Y);
-            if (tier <= 1) {
+            if (paintMarks && tier <= 1) {
               const dashes = polylineDashes(clipped);
               const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
               for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
-              const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
-              const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
-              if (inset > halfEdge) {
-                for (let i = 0; i < clipped.length - 1; i++) {
-                  const edges = segmentEdgeOffsets(clipped[i]!, clipped[i + 1]!, inset);
-                  appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
-                  appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
-                }
-              }
             }
           }
         }
@@ -3333,15 +3350,10 @@ export function buildRoads(cityData: CityData, keep: KeepDisk | null = null): TH
         if (clipped.length < 2) continue;
         const halfCarriage = (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2;
         appendRibbon(stitchPos, stitchIdx, clipped, halfCarriage, ROAD_Y);
-        const dashes = polylineDashes(clipped);
-        const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
-        for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
-        const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
-        const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
-        if (inset > halfEdge && clipped.length >= 2) {
-          const edges = segmentEdgeOffsets(clipped[0]!, clipped[1]!, inset);
-          appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
-          appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+        if (paintMarks) {
+          const dashes = polylineDashes(clipped);
+          const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+          for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
         }
       }
     }
@@ -3482,10 +3494,14 @@ export function buildGround(): THREE.Mesh {
   const marginY = WORLD.height * 0.3;
   const geometry = new THREE.PlaneGeometry(WORLD.width + marginX * 2, WORLD.height + marginY * 2);
   geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshLambertMaterial({ color: pal.GROUND, fog: true });
+  const material = new THREE.MeshBasicMaterial({
+    color: pal.GROUND,
+    fog: true,
+  });
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'ground';
   mesh.position.set(WORLD.width / 2, 0, WORLD.height / 2);
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false;
   return mesh;
 }
 

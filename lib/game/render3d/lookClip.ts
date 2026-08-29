@@ -17,6 +17,7 @@ export type MeshBudget = {
   skipNoticedStock: boolean;
   skipMinorChunks: boolean;
   skipAntialias: boolean;
+  skipRoadMarks: boolean;
   chunkKeepM: number | null;
   pixelRatioCap: number;
 };
@@ -29,6 +30,7 @@ const FULL: MeshBudget = {
   skipNoticedStock: false,
   skipMinorChunks: false,
   skipAntialias: false,
+  skipRoadMarks: false,
   chunkKeepM: null,
   pixelRatioCap: 2,
 };
@@ -41,6 +43,7 @@ const WIDE_BASE: Omit<MeshBudget, 'chunkKeepM'> = {
   skipNoticedStock: true,
   skipMinorChunks: false,
   skipAntialias: true,
+  skipRoadMarks: true,
   pixelRatioCap: 1,
 };
 

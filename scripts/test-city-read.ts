@@ -45,6 +45,7 @@ import {
   buildRoads,
   buildWater,
   buildChunkTier,
+  buildGround,
   plannedCrosswalks,
   BRIDGE_SPAN_MIN_M,
   CHUNK_COLS,
@@ -55,7 +56,7 @@ import {
   createScratch,
   onLondonCityAirportSpit,
 } from '../lib/game/render3d/cityBuilder';
-import { wallHex, HVAC_BLUE, HVAC_RED } from '../lib/game/render3d/palette';
+import { wallHex, HVAC_BLUE, HVAC_RED, GROUND } from '../lib/game/render3d/palette';
 import { decodeCity, dequantizeX, dequantizeY } from '../lib/game/render3d/format';
 import { inKeepDisk, meshBudgetFromSearch, type KeepDisk } from '../lib/game/render3d/lookClip';
 
@@ -387,6 +388,28 @@ check('park grass is matte mottled green, not a lit plastic lawn', () => {
   assert.ok(grass >= 1, 'grass mesh must use vertex colours');
 });
 
+check('open ground is a matte green carpet, not beige dirt paving', () => {
+  const ground = buildGround();
+  const mat = ground.material as THREE.MeshBasicMaterial;
+  assert.equal(mat.type, 'MeshBasicMaterial', `${mat.type} still lights the dirt`);
+  const c = new THREE.Color(GROUND);
+  assert.ok(c.g > c.r && c.g > c.b, `GROUND ${GROUND.toString(16)} is not green`);
+});
+
+check('view=mid does not paint kerb ribbons across the city', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const hero = project([-0.1358, 51.5196]);
+  const keep: KeepDisk = { x: hero.x, z: hero.y, r: 1600 * METERS_TO_WORLD };
+  const quiet = buildRoads(city, keep, false);
+  assert.ok(quiet, 'mid-view still needs asphalt');
+  let markMeshes = 0;
+  quiet!.traverse((obj) => {
+    if (obj.userData.roadMarks) markMeshes += 1;
+  });
+  assert.equal(markMeshes, 0, `mid-view still has ${markMeshes} mark meshes`);
+});
+
 check('OSM asphalt does not replace the Tower Bridge prefab', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
@@ -497,7 +520,7 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
     `Hyde still has fan tents (${hydeSkinny}/${hydeTris} skinny tris)`,
   );
   assert.ok(
-    parkTris > 8_000 && parkTris < 80_000,
+    parkTris > 8_000 && parkTris < 140_000,
     `park triangulation ${parkTris} looks subdivided`,
   );
 });
@@ -622,13 +645,18 @@ check('wide-view mesh budget clips the city; close looks stay full', () => {
   assert.equal(mid.skipTrees, true);
   assert.equal(mid.skipWindows, true);
   assert.equal(mid.skipMinorChunks, false);
+  assert.equal(mid.skipRoadMarks, true);
   const eye = meshBudgetFromSearch(new URLSearchParams('look=eye'));
   assert.equal(eye.chunkKeepM, 1800);
   assert.equal(eye.skipAntialias, true);
+  assert.equal(eye.skipRoadMarks, true);
   const close = meshBudgetFromSearch(new URLSearchParams('look=towerbridge'));
   assert.equal(close.chunkKeepM, null);
   assert.equal(close.skipAntialias, false);
   assert.equal(close.skipTrees, false);
+  assert.equal(close.skipRoadMarks, false);
+  const street = meshBudgetFromSearch(new URLSearchParams('look=citystreet'));
+  assert.equal(street.skipRoadMarks, false);
 });
 
 check('view=mid keep-disk does not tessellate the whole 23 km map', () => {

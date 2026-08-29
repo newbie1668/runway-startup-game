@@ -467,7 +467,7 @@ export class CityRenderer3D implements IMapRenderer {
       });
     }
     coverJobs.push(() => {
-      const roadGroup = buildRoads(data, keep);
+      const roadGroup = buildRoads(data, keep, !budget.skipRoadMarks);
       if (roadGroup) {
         this.cityGroup.add(roadGroup);
         for (const child of roadGroup.children) {
