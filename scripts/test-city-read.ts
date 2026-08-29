@@ -38,11 +38,13 @@ import {
   landRibbonVerts,
   buildParks,
   buildRoads,
+  buildWater,
   plannedCrosswalks,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
 import { decodeCity } from '../lib/game/render3d/format';
+import { inKeepDisk, meshBudgetFromSearch, type KeepDisk } from '../lib/game/render3d/lookClip';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -437,6 +439,62 @@ check('zebra crossings sit on junction approaches, not every OSM stub', () => {
     }
   }
   assert.equal(stacked, 0, `${stacked} overlapping zebra approaches`);
+});
+
+check('wide-view mesh budget clips the city; close looks stay full', () => {
+  const mid = meshBudgetFromSearch(new URLSearchParams('view=mid'));
+  assert.equal(mid.chunkKeepM, 1600);
+  assert.equal(mid.skipAntialias, true);
+  assert.equal(mid.pixelRatioCap, 1);
+  assert.equal(mid.skipTrees, true);
+  assert.equal(mid.skipWindows, true);
+  const eye = meshBudgetFromSearch(new URLSearchParams('look=eye'));
+  assert.equal(eye.chunkKeepM, 1800);
+  assert.equal(eye.skipAntialias, true);
+  const close = meshBudgetFromSearch(new URLSearchParams('look=towerbridge'));
+  assert.equal(close.chunkKeepM, null);
+  assert.equal(close.skipAntialias, false);
+  assert.equal(close.skipTrees, false);
+});
+
+check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const hero = project([-0.1358, 51.5196]);
+  const keep: KeepDisk = { x: hero.x, z: hero.y, r: 1600 * METERS_TO_WORLD };
+  const pad = 120 * METERS_TO_WORLD;
+  const tally = (root: THREE.Object3D | null) => {
+    let verts = 0;
+    let outside = 0;
+    if (!root) return { verts, outside };
+    root.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const pos = obj.geometry.getAttribute('position');
+      if (!pos) return;
+      for (let i = 0; i < pos.count; i++) {
+        verts += 1;
+        if (!inKeepDisk(pos.getX(i), pos.getZ(i), keep, pad)) outside += 1;
+      }
+    });
+    return { verts, outside };
+  };
+  const roads = tally(buildRoads(city, keep));
+  assert.ok(roads.verts > 800, `mid-view neighbourhood has no streets (${roads.verts} verts)`);
+  assert.equal(roads.outside, 0, `road verts leak outside the keep-disk (${roads.outside})`);
+  const parks = tally(buildParks(city, keep));
+  assert.equal(parks.outside, 0, `park verts leak outside the keep-disk (${parks.outside})`);
+  const water = tally(buildWater(city, keep));
+  assert.equal(water.outside, 0, `water verts leak outside the keep-disk (${water.outside})`);
+  const eyeAt = project(LANDMARKS.find((l) => l.kind === 'eye')!.at);
+  const eyeKeep: KeepDisk = { x: eyeAt.x, z: eyeAt.y, r: 1800 * METERS_TO_WORLD };
+  const eyeWater = buildWater(city, eyeKeep);
+  let eyeWaterVerts = 0;
+  eyeWater?.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const pos = obj.geometry.getAttribute('position');
+    if (pos) eyeWaterVerts += pos.count;
+  });
+  assert.ok(eyeWaterVerts > 40, `look=eye keep-disk lost the Thames (${eyeWaterVerts} verts)`);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

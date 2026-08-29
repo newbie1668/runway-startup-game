@@ -54,7 +54,7 @@ import {
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
-import { meshBudget } from './lookClip';
+import { aabbHitsKeep, inKeepDisk, meshBudget, type KeepDisk } from './lookClip';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
@@ -243,13 +243,13 @@ export class CityRenderer3D implements IMapRenderer {
       () => ({ w: this.cssW, h: this.cssH }),
     );
 
+    const budget = meshBudget();
     this.renderer = new THREE.WebGLRenderer({
       canvas: cityCanvas,
       alpha: false,
-      antialias: !this.isCoarsePointer,
+      antialias: !this.isCoarsePointer && !budget.skipAntialias,
       powerPreference: 'high-performance',
     });
-    const budget = meshBudget();
     this.renderer.setPixelRatio(
       Math.min(
         window.devicePixelRatio || 1,
@@ -398,13 +398,23 @@ export class CityRenderer3D implements IMapRenderer {
     const budget = meshBudget();
     const lookAt = heroLook();
     const lookPt = project(lookAt.at);
-    const chunkKeepR =
-      budget.chunkKeepM != null ? budget.chunkKeepM * METERS_TO_WORLD : Number.POSITIVE_INFINITY;
-    const inKeep = (x: number, z: number) => Math.hypot(x - lookPt.x, z - lookPt.y) <= chunkKeepR;
-    const jobs: BuildJob[] = [];
+    const view = viewParam();
+    const keep: KeepDisk | null =
+      budget.chunkKeepM != null
+        ? {
+            x: view === 'wide' ? WORLD.width / 2 : lookPt.x,
+            z: view === 'wide' ? WORLD.height / 2 : lookPt.y,
+            r: budget.chunkKeepM * METERS_TO_WORLD,
+          }
+        : null;
+    const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
+    const heroJobs: BuildJob[] = [];
+    const coverJobs: BuildJob[] = [];
+    const chunkJobs: BuildJob[] = [];
+    const restJobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
-    const pushNoticed = (entry: NoticedEntry): void => {
-      jobs.push(() => {
+    const pushNoticed = (entry: NoticedEntry, into: BuildJob[]): void => {
+      into.push(() => {
         const prefab = this.noticedPrefabs.get(entry.id) ?? null;
         if (!prefab && !isUniqueNoticedId(entry.id)) return;
         const group = instantiateNoticed(entry, prefab);
@@ -412,8 +422,8 @@ export class CityRenderer3D implements IMapRenderer {
         this.cityGroup.add(group);
       });
     };
-    const pushLandmark = (landmark: (typeof LANDMARKS)[number]): void => {
-      jobs.push(() => {
+    const pushLandmark = (landmark: (typeof LANDMARKS)[number], into: BuildJob[]): void => {
+      into.push(() => {
         const p = project(landmark.at);
         const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(p.x, 0, p.y);
@@ -434,27 +444,22 @@ export class CityRenderer3D implements IMapRenderer {
       return inKeep(p.x, p.y);
     };
     for (const entry of this.noticedEntries) {
-      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry);
-    }
-    if (!budget.skipNoticedStock) {
-      for (const entry of this.noticedEntries) {
-        if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) pushNoticed(entry);
-      }
+      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs);
     }
     for (const landmark of LANDMARKS) {
-      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
+      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs);
     }
-    jobs.push(() => {
-      const mesh = buildWater(data);
+    coverJobs.push(() => {
+      const mesh = buildWater(data, keep);
       if (mesh) this.cityGroup.add(mesh);
     });
-    jobs.push(() => {
-      const mesh = buildParks(data);
+    coverJobs.push(() => {
+      const mesh = buildParks(data, keep);
       if (mesh) this.cityGroup.add(mesh);
     });
     if (!budget.skipTrees) {
-      jobs.push(() => {
-        const trees = buildParkTrees(data);
+      coverJobs.push(() => {
+        const trees = buildParkTrees(data, keep);
         if (trees) {
           trees.visible = true;
           this.treeGroup = trees;
@@ -462,8 +467,8 @@ export class CityRenderer3D implements IMapRenderer {
         }
       });
     }
-    jobs.push(() => {
-      const roadGroup = buildRoads(data);
+    coverJobs.push(() => {
+      const roadGroup = buildRoads(data, keep);
       if (roadGroup) {
         this.cityGroup.add(roadGroup);
         for (const child of roadGroup.children) {
@@ -474,17 +479,31 @@ export class CityRenderer3D implements IMapRenderer {
     });
     for (const landmark of LANDMARKS) {
       if (lookLandmarkKinds.has(landmark.kind)) continue;
-      if (allowLandmark(landmark)) pushLandmark(landmark);
+      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs);
+    }
+    if (!budget.skipNoticedStock) {
+      for (const entry of this.noticedEntries) {
+        if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
+          pushNoticed(entry, restJobs);
+        }
+      }
+      for (const entry of this.noticedEntries) {
+        if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
+        if (!inKeep(entry.x, entry.z)) continue;
+        pushNoticed(entry, restJobs);
+      }
     }
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       const col = chunkId % CHUNK_COLS;
       const row = Math.floor(chunkId / CHUNK_COLS);
-      const cx = ((col + 0.5) / CHUNK_COLS) * WORLD.width;
-      const cz = ((row + 0.5) / CHUNK_ROWS) * WORLD.height;
-      if (!inKeep(cx, cz)) continue;
+      const x0 = (col / CHUNK_COLS) * WORLD.width;
+      const x1 = ((col + 1) / CHUNK_COLS) * WORLD.width;
+      const z0 = (row / CHUNK_ROWS) * WORLD.height;
+      const z1 = ((row + 1) / CHUNK_ROWS) * WORLD.height;
+      if (!aabbHitsKeep(x0, z0, x1, z1, keep)) continue;
       for (const major of [true, false]) {
         if (budget.skipMinorChunks && !major) continue;
-        jobs.push(() => {
+        chunkJobs.push(() => {
           const mesh = buildChunkTier(data, chunkId, major, landmarkAnchors, this.scratch);
           if (mesh) {
             mesh.material = this.buildingMaterial;
@@ -496,7 +515,7 @@ export class CityRenderer3D implements IMapRenderer {
       }
     }
     if (!budget.skipWindows) {
-      jobs.push(() => {
+      restJobs.push(() => {
         const windows = buildWindowMesh(this.scratch);
         if (windows) {
           windows.visible = false;
@@ -510,7 +529,7 @@ export class CityRenderer3D implements IMapRenderer {
       });
     }
     if (!budget.skipLamps) {
-      jobs.push(() => {
+      restJobs.push(() => {
         const lamps = buildStreetLamps(data);
         if (lamps) {
           lamps.visible = false;
@@ -519,14 +538,11 @@ export class CityRenderer3D implements IMapRenderer {
         }
       });
     }
-    if (!budget.skipNoticedStock) {
-      for (const entry of this.noticedEntries) {
-        if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
-        if (!inKeep(entry.x, entry.z)) continue;
-        pushNoticed(entry);
-      }
-    }
-    this.buildQueue = jobs;
+    // Wide cameras must paint nearby chunks before the cover jobs, or chrome=0
+    // sits on brown ground until water/parks/roads finish (and used to OOM first).
+    this.buildQueue = keep
+      ? [...heroJobs, ...chunkJobs, ...coverJobs, ...restJobs]
+      : [...heroJobs, ...coverJobs, ...restJobs, ...chunkJobs];
     this.cityStreamed = true;
   }
 

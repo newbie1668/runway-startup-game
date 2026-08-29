@@ -53,6 +53,13 @@ import {
 import * as pal from './palette';
 import { DASH_WIDTH_M, EDGE_WIDTH_M, polylineDashes, segmentEdgeOffsets } from './streetMarks';
 import { chamferRing } from './footprint';
+import {
+  aabbHitsKeep,
+  clipPolylineToKeep,
+  inKeepDisk,
+  ptsHitKeep,
+  type KeepDisk,
+} from './lookClip';
 
 export { HEIGHT_SCALE, TOWER_HEIGHT_SCALE, NOTICED_BAKE_HEIGHT_SCALE } from './buildingStyle';
 
@@ -1389,12 +1396,144 @@ export function buildFacadeSigns(scratch: CityScratch): THREE.Group | null {
   return group;
 }
 
+function polyBBox(p: CityPoly): { minX: number; minZ: number; maxX: number; maxZ: number } {
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  const n = p.verts.length / 2;
+  for (let i = 0; i < n; i++) {
+    const x = dequantizeX(p.verts[i * 2]!);
+    const z = dequantizeY(p.verts[i * 2 + 1]!);
+    if (x < minX) minX = x;
+    if (z < minZ) minZ = z;
+    if (x > maxX) maxX = x;
+    if (z > maxZ) maxZ = z;
+  }
+  return { minX, minZ, maxX, maxZ };
+}
+
+function shadeAt(
+  x: number,
+  z: number,
+  base: THREE.Color,
+  dark: THREE.Color,
+  lite: THREE.Color,
+): THREE.Color {
+  const h = Math.imul(Math.round(x * 40), 374761393) ^ Math.imul(Math.round(z * 40), 668265263);
+  const u = ((h >>> 0) % 1000) / 1000;
+  if (u < 0.38) return dark;
+  if (u > 0.72) return lite;
+  return base;
+}
+
+function finishPolyMesh(
+  positions: ArrayLike<number>,
+  indices: ArrayLike<number>,
+  colors: ArrayLike<number> | null,
+  color: number,
+  opts: { receiveShadow?: boolean; doubleSide?: boolean },
+): THREE.Mesh | null {
+  if (indices.length === 0) return null;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(
+      positions instanceof Float32Array ? positions : new Float32Array(positions),
+      3,
+    ),
+  );
+  if (colors) {
+    geometry.setAttribute(
+      'color',
+      new THREE.BufferAttribute(
+        colors instanceof Float32Array ? colors : new Float32Array(colors),
+        3,
+      ),
+    );
+  }
+  geometry.setIndex(
+    new THREE.BufferAttribute(
+      indices instanceof Uint32Array ? indices : new Uint32Array(indices),
+      1,
+    ),
+  );
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  const material = new THREE.MeshLambertMaterial({
+    color: colors ? 0xffffff : color,
+    vertexColors: !!colors,
+    side: opts.doubleSide === false ? THREE.FrontSide : THREE.DoubleSide,
+    fog: true,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = opts.receiveShadow !== false;
+  mesh.castShadow = false;
+  return mesh;
+}
+
 function buildMergedPolyMesh(
   polys: CityPoly[],
   color: number,
   y: number,
-  opts: { receiveShadow?: boolean; doubleSide?: boolean; vary?: boolean } = {},
+  opts: {
+    receiveShadow?: boolean;
+    doubleSide?: boolean;
+    vary?: boolean;
+    keep?: KeepDisk | null;
+  } = {},
 ): THREE.Mesh | null {
+  const keep = opts.keep ?? null;
+  const base = new THREE.Color(color);
+  const dark = new THREE.Color(color).offsetHSL(0, 0.04, -0.08);
+  const lite = new THREE.Color(color).offsetHSL(0.02, -0.02, 0.07);
+
+  if (keep) {
+    const positions: number[] = [];
+    const colorArr: number[] | null = opts.vary ? [] : null;
+    const indices: number[] = [];
+    for (const p of polys) {
+      const box = polyBBox(p);
+      if (!aabbHitsKeep(box.minX, box.minZ, box.maxX, box.maxZ, keep)) continue;
+      const n = p.verts.length / 2;
+      const xs = new Array<number>(n);
+      const zs = new Array<number>(n);
+      for (let i = 0; i < n; i++) {
+        xs[i] = dequantizeX(p.verts[i * 2]!);
+        zs[i] = dequantizeY(p.verts[i * 2 + 1]!);
+      }
+      const used = new Int32Array(n).fill(-1);
+      const mapVert = (i: number): number => {
+        const cached = used[i]!;
+        if (cached >= 0) return cached;
+        const x = xs[i]!;
+        const z = zs[i]!;
+        const idx = positions.length / 3;
+        used[i] = idx;
+        positions.push(x, y, z);
+        if (colorArr) {
+          const c = shadeAt(x, z, base, dark, lite);
+          colorArr.push(c.r, c.g, c.b);
+        }
+        return idx;
+      };
+      for (let t = 0; t + 2 < p.indices.length; t += 3) {
+        const ia = p.indices[t]!;
+        const ib = p.indices[t + 1]!;
+        const ic = p.indices[t + 2]!;
+        if (
+          !inKeepDisk(xs[ia]!, zs[ia]!, keep) ||
+          !inKeepDisk(xs[ib]!, zs[ib]!, keep) ||
+          !inKeepDisk(xs[ic]!, zs[ic]!, keep)
+        ) {
+          continue;
+        }
+        indices.push(mapVert(ia), mapVert(ib), mapVert(ic));
+      }
+    }
+    return finishPolyMesh(positions, indices, colorArr, color, opts);
+  }
+
   let totalVerts = 0;
   let totalTris = 0;
   for (const p of polys) {
@@ -1410,9 +1549,6 @@ function buildMergedPolyMesh(
   let cOff = 0;
   let iOff = 0;
   let vertBase = 0;
-  const base = new THREE.Color(color);
-  const dark = new THREE.Color(color).offsetHSL(0, 0.04, -0.08);
-  const lite = new THREE.Color(color).offsetHSL(0.02, -0.02, 0.07);
   for (const p of polys) {
     const n = p.verts.length / 2;
     for (let i = 0; i < n; i++) {
@@ -1422,10 +1558,7 @@ function buildMergedPolyMesh(
       positions[vOff++] = y;
       positions[vOff++] = z;
       if (colors) {
-        const h =
-          Math.imul(Math.round(x * 40), 374761393) ^ Math.imul(Math.round(z * 40), 668265263);
-        const u = ((h >>> 0) % 1000) / 1000;
-        const c = u < 0.38 ? dark : u > 0.72 ? lite : base;
+        const c = shadeAt(x, z, base, dark, lite);
         colors[cOff++] = c.r;
         colors[cOff++] = c.g;
         colors[cOff++] = c.b;
@@ -1435,33 +1568,21 @@ function buildMergedPolyMesh(
     vertBase += n;
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  if (colors) geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-  const material = new THREE.MeshLambertMaterial({
-    color: colors ? 0xffffff : color,
-    vertexColors: !!colors,
-    side: opts.doubleSide === false ? THREE.FrontSide : THREE.DoubleSide,
-    fog: true,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.receiveShadow = opts.receiveShadow !== false;
-  mesh.castShadow = false;
-  return mesh;
+  return finishPolyMesh(positions, indices, colors, color, opts);
 }
 
-export function buildWater(cityData: CityData): THREE.Object3D | null {
-  const water = buildMergedPolyMesh(cityData.water, pal.WATER, WATER_Y);
-  if (!water) return null;
+export function buildWater(
+  cityData: CityData,
+  keep: KeepDisk | null = null,
+): THREE.Object3D | null {
+  const water = buildMergedPolyMesh(cityData.water, pal.WATER, WATER_Y, { keep });
   const group = new THREE.Group();
-  group.add(water);
+  if (water) group.add(water);
 
   const bankPos: number[] = [];
   const bankIdx: number[] = [];
   const halfW = 3.4 * METERS_TO_WORLD;
+  const pad = 40 * METERS_TO_WORLD;
   for (const poly of cityData.water) {
     const n = poly.verts.length / 2;
     if (n < 3) continue;
@@ -1470,7 +1591,9 @@ export function buildWater(cityData: CityData): THREE.Object3D | null {
       pts.push({ x: dequantizeX(poly.verts[i * 2]!), z: dequantizeY(poly.verts[i * 2 + 1]!) });
     }
     pts.push(pts[0]!);
-    appendRibbon(bankPos, bankIdx, pts, halfW, WATER_BANK_Y);
+    for (const run of clipPolylineToKeep(pts, keep, pad)) {
+      appendRibbon(bankPos, bankIdx, run, halfW, WATER_BANK_Y);
+    }
   }
   if (bankPos.length > 0) {
     const g = new THREE.BufferGeometry();
@@ -1489,7 +1612,7 @@ export function buildWater(cityData: CityData): THREE.Object3D | null {
     mesh.receiveShadow = true;
     group.add(mesh);
   }
-  return group;
+  return group.children.length > 0 ? group : null;
 }
 
 function parkCentroid(
@@ -1561,7 +1684,7 @@ function emitParkTriangle(
   indices.push(i0, i1, i2);
 }
 
-function buildParkGrass(cityData: CityData): THREE.Mesh | null {
+function buildParkGrass(cityData: CityData, keep: KeepDisk | null = null): THREE.Mesh | null {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
@@ -1581,6 +1704,12 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
       const c = ring[p.indices[t + 2]!]!;
       if (!a || !b || !c) continue;
       if (triangleHitsExclusion(a.x, a.z, b.x, b.z, c.x, c.z)) continue;
+      if (
+        keep &&
+        (!inKeepDisk(a.x, a.z, keep) || !inKeepDisk(b.x, b.z, keep) || !inKeepDisk(c.x, c.z, keep))
+      ) {
+        continue;
+      }
       emitParkTriangle(
         positions,
         colors,
@@ -1624,8 +1753,8 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
   return mesh;
 }
 
-export function buildParks(cityData: CityData): THREE.Group | null {
-  const grass = buildParkGrass(cityData);
+export function buildParks(cityData: CityData, keep: KeepDisk | null = null): THREE.Group | null {
+  const grass = buildParkGrass(cityData, keep);
   if (!grass) return null;
   const group = new THREE.Group();
   group.add(grass);
@@ -1636,6 +1765,7 @@ export function buildParks(cityData: CityData): THREE.Group | null {
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
     if (!info || info.areaM2 < 18_000) continue;
+    if (!inKeepDisk(info.x, info.z, keep)) continue;
     if (landmarkExclusionAt(info.x, info.z) !== null) continue;
     const { ring, x: cx, z: cz } = info;
     let maxI = 0;
@@ -1680,7 +1810,10 @@ function mulberry(h: number): number {
 }
 
 /** Instanced low-poly trees in parks and along major streets. */
-export function buildParkTrees(cityData: CityData): THREE.Group | null {
+export function buildParkTrees(
+  cityData: CityData,
+  keep: KeepDisk | null = null,
+): THREE.Group | null {
   const dummy = new THREE.Object3D();
   const spots: { x: number; z: number; scale: number; shade: number; cluster: boolean }[] = [];
   const groves: { x: number; z: number; scale: number; shade: number }[] = [];
@@ -1688,6 +1821,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
     if (!info || info.areaM2 < 90) continue;
+    if (!inKeepDisk(info.x, info.z, keep, 80 * METERS_TO_WORLD)) continue;
     const count = Math.min(80, Math.max(3, Math.round(info.areaM2 / 900)));
     let h = Math.imul(info.ring.length + 1, 2654435761) ^ park.verts[0]!;
     for (let t = 0; t < count && spots.length < TREE_MAX; t++) {
@@ -1697,6 +1831,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.28;
       const x = info.x + Math.cos(ang) * rad;
       const z = info.z + Math.sin(ang) * rad;
+      if (!inKeepDisk(x, z, keep)) continue;
       if (landmarkExclusionAt(x, z) !== null) continue;
       if (nearLondonCityAirport(x, z)) continue;
       spots.push({
@@ -1716,6 +1851,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
           Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.32;
         const x = info.x + Math.cos(ang) * rad;
         const z = info.z + Math.sin(ang) * rad;
+        if (!inKeepDisk(x, z, keep)) continue;
         if (landmarkExclusionAt(x, z) !== null) continue;
         if (nearLondonCityAirport(x, z)) continue;
         groves.push({
@@ -1734,6 +1870,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
     if (road.tier > 2 || spots.length >= TREE_MAX) continue;
     const pts = roadPts(road);
     if (!pts) continue;
+    if (!ptsHitKeep(pts, keep, 40 * METERS_TO_WORLD)) continue;
     const spacing = streetSpacing[road.tier]! * METERS_TO_WORLD;
     const offset =
       (ROAD_WIDTHS_M[road.tier]! / 2 + SIDEWALK_M[road.tier]! * 0.72) * METERS_TO_WORLD;
@@ -2825,7 +2962,7 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
 }
 
 /** One group per tier so minor streets can hide independently at low zoom. */
-export function buildRoads(cityData: CityData): THREE.Group | null {
+export function buildRoads(cityData: CityData, keep: KeepDisk | null = null): THREE.Group | null {
   const group = new THREE.Group();
   const sidewalkMat = new THREE.MeshLambertMaterial({
     color: pal.PAVEMENT,
@@ -2854,6 +2991,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
   const zebras = plannedCrosswalks(cityData);
+  const roadPad = 80 * METERS_TO_WORLD;
 
   for (let tier = 0; tier <= 2; tier++) {
     const walkPos: number[] = [];
@@ -2866,22 +3004,25 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       if (road.tier !== tier) continue;
       const pts = roadPts(road);
       if (!pts) continue;
+      if (!ptsHitKeep(pts, keep, roadPad)) continue;
       const runs = splitRoadRuns(pts, overWater);
       for (const run of runs) {
         for (const piece of clipRibbonPts(run.pts)) {
-          appendRibbon(walkPos, walkIdx, piece, halfWalk, SIDEWALK_Y);
-          appendRibbon(asphPos, asphIdx, piece, halfCarriage, ROAD_Y);
-          if (tier <= 1) {
-            const dashes = polylineDashes(piece);
-            const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
-            for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
-            const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
-            const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
-            if (inset > halfEdge) {
-              for (let i = 0; i < piece.length - 1; i++) {
-                const edges = segmentEdgeOffsets(piece[i]!, piece[i + 1]!, inset);
-                appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
-                appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+          for (const clipped of clipPolylineToKeep(piece, keep, roadPad)) {
+            appendRibbon(walkPos, walkIdx, clipped, halfWalk, SIDEWALK_Y);
+            appendRibbon(asphPos, asphIdx, clipped, halfCarriage, ROAD_Y);
+            if (tier <= 1) {
+              const dashes = polylineDashes(clipped);
+              const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+              for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
+              const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
+              const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
+              if (inset > halfEdge) {
+                for (let i = 0; i < clipped.length - 1; i++) {
+                  const edges = segmentEdgeOffsets(clipped[i]!, clipped[i + 1]!, inset);
+                  appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
+                  appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+                }
               }
             }
           }
@@ -2920,17 +3061,20 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
     const stitchIdx: number[] = [];
     for (const span of stitches) {
       if (runTouchesTowerBridge(span.pts)) continue;
-      const halfCarriage = (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2;
-      appendRibbon(stitchPos, stitchIdx, span.pts, halfCarriage, ROAD_Y);
-      const dashes = polylineDashes(span.pts);
-      const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
-      for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
-      const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
-      const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
-      if (inset > halfEdge && span.pts.length >= 2) {
-        const edges = segmentEdgeOffsets(span.pts[0]!, span.pts[1]!, inset);
-        appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
-        appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+      for (const clipped of clipPolylineToKeep(span.pts, keep, roadPad)) {
+        if (clipped.length < 2) continue;
+        const halfCarriage = (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2;
+        appendRibbon(stitchPos, stitchIdx, clipped, halfCarriage, ROAD_Y);
+        const dashes = polylineDashes(clipped);
+        const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+        for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
+        const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
+        const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
+        if (inset > halfEdge && clipped.length >= 2) {
+          const edges = segmentEdgeOffsets(clipped[0]!, clipped[1]!, inset);
+          appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
+          appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+        }
       }
     }
     if (stitchPos.length > 0) {
@@ -2946,6 +3090,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
   }
 
   for (const zebra of zebras) {
+    if (!inKeepDisk(zebra.x, zebra.z, keep, roadPad)) continue;
     addCrosswalk(markPos, markIdx, zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half);
   }
 
