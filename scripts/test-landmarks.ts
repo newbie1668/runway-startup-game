@@ -348,6 +348,25 @@ check('London City Airport is a runway in the docks, not a grey rectangle', () =
   assert.ok(air.getObjectByName('mark-27'), '27 threshold at the east end');
   const tower = air.getObjectByName('tower')!;
   assert.ok(tower.position.z > 0, 'tower must sit south of the runway');
+  const shaft = air.getObjectByName('tower-shaft');
+  assert.ok(shaft instanceof THREE.Mesh, 'shaft under the cab');
+  const cabBox = new THREE.Box3().setFromObject(tower);
+  const shaftBox = new THREE.Box3().setFromObject(shaft);
+  const cabWM = (cabBox.max.x - cabBox.min.x) / METERS_TO_WORLD;
+  const shaftWM = (shaftBox.max.x - shaftBox.min.x) / METERS_TO_WORLD;
+  const cabDM = (cabBox.max.z - cabBox.min.z) / METERS_TO_WORLD;
+  assert.ok(cabWM > 36, `cab must read as a hat, width ${cabWM.toFixed(0)} m`);
+  assert.ok(cabDM > 28, `cab depth ${cabDM.toFixed(0)} m`);
+  assert.ok(cabWM > shaftWM * 2.2, `cab ${cabWM.toFixed(0)} m vs shaft ${shaftWM.toFixed(0)} m`);
+  assert.ok(
+    cabBox.min.z < shaftBox.min.z - 6 * METERS_TO_WORLD,
+    'cab cantilevers toward the runway',
+  );
+  let marks = 0;
+  air.traverse((obj) => {
+    if (obj.name === 'runway-mark') marks += 1;
+  });
+  assert.ok(marks >= 40, `piano keys / dashes / 09-27, got ${marks}`);
   const dlr = air.getObjectByName('dlr')!;
   assert.ok(dlr.position.x < 0, 'DLR at the west end');
   let bridges = 0;
