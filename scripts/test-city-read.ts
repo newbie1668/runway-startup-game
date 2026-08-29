@@ -466,13 +466,12 @@ check('zebra crossings sit on junction approaches, not every OSM stub', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const xw = plannedCrosswalks(city);
-  assert.ok(xw.length > 80 && xw.length < 4000, `unexpected zebra count ${xw.length}`);
+  assert.ok(xw.length > 40 && xw.length < 2000, `unexpected zebra count ${xw.length}`);
   let stacked = 0;
   for (let i = 0; i < xw.length; i++) {
     for (let j = i + 1; j < xw.length; j++) {
       const d = Math.hypot(xw[i]!.x - xw[j]!.x, xw[i]!.z - xw[j]!.z);
-      const dot = xw[i]!.dx * xw[j]!.dx + xw[i]!.dz * xw[j]!.dz;
-      if (d < 5 * METERS_TO_WORLD && Math.abs(dot) > 0.92) stacked += 1;
+      if (d < 8 * METERS_TO_WORLD) stacked += 1;
     }
   }
   assert.equal(stacked, 0, `${stacked} overlapping zebra approaches`);

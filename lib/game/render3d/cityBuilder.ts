@@ -2899,8 +2899,10 @@ export type PlannedCrosswalk = {
 export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
-  const ends: PlannedCrosswalk[] = [];
+  type End = { x: number; z: number; dx: number; dz: number; runLen: number };
+  const ends: End[] = [];
   const half0 = (ROAD_WIDTHS_M[0]! * METERS_TO_WORLD) / 2;
+  const minRun = 28 * METERS_TO_WORLD;
   for (const road of cityData.roads as CityRoad[]) {
     if (road.tier !== 0) continue;
     const pts = roadPts(road);
@@ -2911,7 +2913,7 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
       for (let i = 0; i < run.pts.length - 1; i++) {
         runLen += Math.hypot(run.pts[i + 1]!.x - run.pts[i]!.x, run.pts[i + 1]!.z - run.pts[i]!.z);
       }
-      if (runLen < 22 * METERS_TO_WORLD) continue;
+      if (runLen < minRun) continue;
       const pushEnd = (a: { x: number; z: number }, b: { x: number; z: number }) => {
         if (skipRoadVertex(a.x, a.z)) return;
         let dx = b.x - a.x;
@@ -2919,17 +2921,15 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
         const len = Math.hypot(dx, dz) || 1;
         dx /= len;
         dz /= len;
-        const x = a.x + dx * 2.5 * METERS_TO_WORLD;
-        const z = a.z + dz * 2.5 * METERS_TO_WORLD;
-        if (skipRoadVertex(x, z)) return;
-        ends.push({ x, z, dx, dz, half: half0 });
+        ends.push({ x: a.x, z: a.z, dx, dz, runLen });
       };
       pushEnd(run.pts[0]!, run.pts[1]!);
       pushEnd(run.pts[run.pts.length - 1]!, run.pts[run.pts.length - 2]!);
     }
   }
-  const junctionR = 16 * METERS_TO_WORLD;
-  const hashCell = 16 * METERS_TO_WORLD;
+
+  const junctionR = 14 * METERS_TO_WORLD;
+  const hashCell = 14 * METERS_TO_WORLD;
   const grid = new Map<string, number[]>();
   const cellKey = (x: number, z: number): string =>
     `${Math.round(x / hashCell)}:${Math.round(z / hashCell)}`;
@@ -2939,51 +2939,61 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
     if (bucket) bucket.push(i);
     else grid.set(k, [i]);
   }
-  const out: PlannedCrosswalk[] = [];
-  const used = new Set<string>();
-  for (let i = 0; i < ends.length; i++) {
+
+  const nearby = (i: number): number[] => {
     const e = ends[i]!;
     const cx = Math.round(e.x / hashCell);
     const cz = Math.round(e.z / hashCell);
-    let crossing = false;
-    outer: for (let gx = cx - 1; gx <= cx + 1; gx++) {
+    const hit: number[] = [];
+    for (let gx = cx - 1; gx <= cx + 1; gx++) {
       for (let gz = cz - 1; gz <= cz + 1; gz++) {
         const bucket = grid.get(`${gx}:${gz}`);
         if (!bucket) continue;
         for (const j of bucket) {
           if (j === i) continue;
-          const o = ends[j]!;
-          if (Math.hypot(o.x - e.x, o.z - e.z) >= junctionR) continue;
-          const dot = e.dx * o.dx + e.dz * o.dz;
-          if (Math.abs(dot) < 0.55) {
-            crossing = true;
-            break outer;
-          }
+          if (Math.hypot(ends[j]!.x - e.x, ends[j]!.z - e.z) < junctionR) hit.push(j);
         }
       }
     }
+    return hit;
+  };
+
+  const setback = 14 * METERS_TO_WORLD;
+  const candidates: PlannedCrosswalk[] = [];
+  const usedApproach = new Set<string>();
+  for (let i = 0; i < ends.length; i++) {
+    const e = ends[i]!;
+    const others = nearby(i);
+    let crossing = false;
+    for (const j of others) {
+      const o = ends[j]!;
+      const dot = e.dx * o.dx + e.dz * o.dz;
+      if (Math.abs(dot) < 0.55) {
+        crossing = true;
+        break;
+      }
+    }
     if (!crossing) continue;
-    const qcell = 12 * METERS_TO_WORLD;
-    const qx = Math.round(e.x / qcell);
-    const qz = Math.round(e.z / qcell);
+    // Parallel OSM fragments of the same arm share a heading at this node.
     let heading = Math.round(Math.atan2(e.dz, e.dx) / (Math.PI / 8));
     heading = ((heading % 16) + 16) % 16;
+    const qx = Math.round(e.x / (12 * METERS_TO_WORLD));
+    const qz = Math.round(e.z / (12 * METERS_TO_WORLD));
     const key = `${qx}:${qz}:${heading}`;
-    if (used.has(key)) continue;
-    used.add(key);
-    out.push(e);
+    if (usedApproach.has(key)) continue;
+    usedApproach.add(key);
+    if (e.runLen < setback + 8 * METERS_TO_WORLD) continue;
+    const x = e.x + e.dx * setback;
+    const z = e.z + e.dz * setback;
+    if (skipRoadVertex(x, z)) continue;
+    candidates.push({ x, z, dx: e.dx, dz: e.dz, half: half0 });
   }
-  const mergeR = 8 * METERS_TO_WORLD;
+
+  // 6 bars span ~6 m. Anything closer is overlapping paint, even on another heading.
+  const minSep = 10 * METERS_TO_WORLD;
   const kept: PlannedCrosswalk[] = [];
-  for (const e of out) {
-    if (
-      kept.some(
-        (k) =>
-          Math.hypot(k.x - e.x, k.z - e.z) < mergeR && Math.abs(k.dx * e.dx + k.dz * e.dz) > 0.82,
-      )
-    ) {
-      continue;
-    }
+  for (const e of candidates) {
+    if (kept.some((k) => Math.hypot(k.x - e.x, k.z - e.z) < minSep)) continue;
     kept.push(e);
   }
   return kept;
