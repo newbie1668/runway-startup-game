@@ -13,6 +13,7 @@ import { NOTICED_BAKE_HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
 import { METERS_TO_WORLD } from '../geo';
 import { makeMatteLambert } from './matteGltf';
 import { buildUniqueNoticed, isUniqueNoticedId, uniquePlanRing } from './uniqueNoticed';
+import { meshBudget } from './lookClip';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -51,9 +52,7 @@ export async function loadNoticedPrefabs(): Promise<{
     return { entries: [], prefabs: new Map() };
   }
 
-  const skipGlb =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('look') === 'eye';
+  const skipGlb = typeof window !== 'undefined' && meshBudget().skipGlb;
   const entries: NoticedEntry[] = [];
   const prefabs = new Map<string, THREE.Object3D>();
   await Promise.all(

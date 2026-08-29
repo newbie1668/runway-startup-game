@@ -96,6 +96,15 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   });
   assert.equal(tubes, 0, 'chains must be attached cylinders, not floating tubes');
   assert.ok(hangers >= 4, `chains must run from the towers down to the deck, got ${hangers}`);
+  assert.ok(bridge.getObjectByName('chain'), 'chains leave the towers, not the walkway slab');
+  const deckBox = new THREE.Box3().setFromObject(deck);
+  const walkAxis = new THREE.Box3().setFromObject(walk);
+  const deckSpanZ = deckBox.max.z - deckBox.min.z;
+  const deckSpanX = deckBox.max.x - deckBox.min.x;
+  const walkSpanZ = walkAxis.max.z - walkAxis.min.z;
+  const walkSpanX = walkAxis.max.x - walkAxis.min.x;
+  assert.ok(deckSpanZ > deckSpanX * 8, 'designed deck must run with the towers, along Z');
+  assert.ok(walkSpanZ > walkSpanX * 4, 'walkway must run with the deck, not across it');
 });
 
 check('Hungerford keeps river piers, not a leftover deck box', () => {
@@ -279,6 +288,28 @@ check('One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box'
   const group = instantiateLandmark('canadasq', prefabs);
   assert.equal(group.getObjectByName('crushed'), undefined);
   assert.ok(group.getObjectByName('canadasq-pyramid'), 'Foster pyramid hat');
+});
+
+check('London City Airport is a runway in the docks, not a grey rectangle', () => {
+  const air = build('lcy');
+  const runway = air.getObjectByName('runway');
+  assert.ok(runway instanceof THREE.Mesh, 'needs a named 09/27 runway');
+  const box = new THREE.Box3().setFromObject(runway);
+  const eastM = (box.max.x - box.min.x) / METERS_TO_WORLD;
+  const northM = (box.max.z - box.min.z) / METERS_TO_WORLD;
+  assert.ok(eastM > 1400 && eastM < 1700, `runway length ${eastM.toFixed(0)} m`);
+  assert.ok(northM > 20 && northM < 50, `runway width ${northM.toFixed(0)} m`);
+  assert.ok(air.getObjectByName('terminal'), 'south-side terminal');
+  assert.ok(air.getObjectByName('tower'), 'south-side control tower');
+  assert.ok(air.getObjectByName('apron'), 'stands south of the runway');
+  const dummy = new THREE.Group();
+  dummy.name = 'costume';
+  dummy.add(new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 0.2)));
+  const prefabs = new Map();
+  prefabs.set('lcy', dummy);
+  const live = instantiateLandmark('lcy', prefabs);
+  assert.equal(live.getObjectByName('costume'), undefined);
+  assert.ok(live.getObjectByName('runway'));
 });
 
 console.log(`\nAll ${passed} landmark geometry checks passed.`);

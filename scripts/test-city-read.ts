@@ -38,6 +38,7 @@ import {
   landRibbonVerts,
   buildParks,
   buildRoads,
+  plannedCrosswalks,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
@@ -233,6 +234,8 @@ check('search finds British Museum and Goodge Street among landmarks', () => {
   assert.ok(museum.some((h) => h.label === 'British Museum'));
   const station = searchPlaces('goodge');
   assert.ok(station.some((h) => /goodge street/i.test(h.label)));
+  const lcy = searchPlaces('london city');
+  assert.ok(lcy.some((h) => h.label === 'London City Airport'));
 });
 
 check('land stubs facing across water stitch into an asphalt span', () => {
@@ -353,19 +356,25 @@ check('OSM asphalt does not replace the Tower Bridge prefab', () => {
   assert.ok(roads, 'expected road meshes');
   const tb = LANDMARKS.find((l) => l.kind === 'towerbridge')!;
   const at = project(tb.at);
-  const limit = 55 * METERS_TO_WORLD;
-  let near = 0;
+  let onSpan = 0;
+  let onTowers = 0;
   roads!.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
     const pos = obj.geometry.getAttribute('position');
     if (!pos) return;
     for (let i = 0; i < pos.count; i++) {
-      const dx = pos.getX(i) - at.x;
-      const dz = pos.getZ(i) - at.y;
-      if (Math.hypot(dx, dz) < limit) near += 1;
+      const dxM = (pos.getX(i) - at.x) / METERS_TO_WORLD;
+      const dzM = (pos.getZ(i) - at.y) / METERS_TO_WORLD;
+      if (Math.hypot(dxM, dzM) < 80) onTowers += 1;
+      if (Math.abs(dxM) < 40 && Math.abs(dzM) < 120) onSpan += 1;
     }
   });
-  assert.equal(near, 0, `OSM/stitch ribbon still sits on Tower Bridge (${near} verts)`);
+  assert.equal(onTowers, 0, `OSM/stitch ribbon still sits on the towers (${onTowers} verts)`);
+  assert.equal(
+    onSpan,
+    0,
+    `OSM/stitch ribbon still crosses the Tower Bridge span (${onSpan} verts)`,
+  );
 });
 
 check('Tower Hill park does not remain as a green hedge around the fortress', () => {
@@ -388,6 +397,46 @@ check('Tower Hill park does not remain as a green hedge around the fortress', ()
     }
   });
   assert.equal(near, 0, `park grass still inside the fortress (${near} verts)`);
+});
+
+check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const parks = buildParks(city);
+  assert.ok(parks, 'expected park meshes');
+  const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
+  const at = project(buck.at);
+  let garden = 0;
+  let parkTris = 0;
+  parks!.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const pos = obj.geometry.getAttribute('position');
+    const idx = obj.geometry.getIndex();
+    if (idx) parkTris += idx.count / 3;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      const d = Math.hypot(pos.getX(i) - at.x, pos.getZ(i) - at.y) / METERS_TO_WORLD;
+      if (d > 90 && d < 240) garden += 1;
+    }
+  });
+  assert.ok(garden > 80, `palace gardens / Green Park missing lawn (${garden} verts)`);
+  assert.ok(parkTris > 200 && parkTris < 80_000, `park triangulation ${parkTris} looks subdivided`);
+});
+
+check('zebra crossings sit on junction approaches, not every OSM stub', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const xw = plannedCrosswalks(city);
+  assert.ok(xw.length > 80 && xw.length < 4000, `unexpected zebra count ${xw.length}`);
+  let stacked = 0;
+  for (let i = 0; i < xw.length; i++) {
+    for (let j = i + 1; j < xw.length; j++) {
+      const d = Math.hypot(xw[i]!.x - xw[j]!.x, xw[i]!.z - xw[j]!.z);
+      const dot = xw[i]!.dx * xw[j]!.dx + xw[i]!.dz * xw[j]!.dz;
+      if (d < 5 * METERS_TO_WORLD && Math.abs(dot) > 0.92) stacked += 1;
+    }
+  }
+  assert.equal(stacked, 0, `${stacked} overlapping zebra approaches`);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

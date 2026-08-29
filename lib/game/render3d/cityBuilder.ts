@@ -72,7 +72,7 @@ const SIDEWALK_M = [3.6, 2.8, 2.0];
 export const ROAD_Y = 0.14;
 const SIDEWALK_Y = 0.09;
 const MARK_Y = 0.155;
-const PARK_Y = 0.08;
+const PARK_Y = 0.11;
 const WATER_Y = 0.04;
 const WATER_BANK_Y = 0.055;
 
@@ -86,18 +86,86 @@ function landmarkExclusionAt(x: number, z: number): number | null {
   return null;
 }
 
-function nearTowerBridgePrefab(x: number, z: number): boolean {
+function towerBridgeWorld(): { x: number; z: number } | null {
   const tb = LANDMARKS.find((l) => l.kind === 'towerbridge');
-  if (!tb) return false;
+  if (!tb) return null;
   const at = project(tb.at);
-  return Math.hypot(x - at.x, z - at.y) < 110 * METERS_TO_WORLD;
+  return { x: at.x, z: at.y };
 }
 
-function parkRingHitsLandmark(ring: { x: number; z: number }[]): boolean {
-  for (const p of ring) {
-    if (landmarkExclusionAt(p.x, p.z) !== null) return true;
+function inTowerBridgeCorridor(x: number, z: number): boolean {
+  const at = towerBridgeWorld();
+  if (!at) return false;
+  const dx = x - at.x;
+  const dz = z - at.z;
+  return Math.abs(dx) < 55 * METERS_TO_WORLD && Math.abs(dz) < 230 * METERS_TO_WORLD;
+}
+
+function nearTowerBridgePrefab(x: number, z: number, radiusM = 80): boolean {
+  const at = towerBridgeWorld();
+  if (!at) return false;
+  return Math.hypot(x - at.x, z - at.z) < radiusM * METERS_TO_WORLD;
+}
+
+function segmentHitsTowerBridge(a: { x: number; z: number }, b: { x: number; z: number }): boolean {
+  const at = towerBridgeWorld();
+  if (!at) return false;
+  if (distPointToSeg(at.x, at.z, a, b) < 70 * METERS_TO_WORLD) return true;
+  if (inTowerBridgeCorridor(a.x, a.z) || inTowerBridgeCorridor(b.x, b.z)) return true;
+  for (let s = 1; s < 8; s++) {
+    const t = s / 8;
+    if (inTowerBridgeCorridor(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t)) return true;
   }
   return false;
+}
+
+function runTouchesTowerBridge(pts: { x: number; z: number }[]): boolean {
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (segmentHitsTowerBridge(pts[i]!, pts[i + 1]!)) return true;
+  }
+  return pts.some((p) => nearTowerBridgePrefab(p.x, p.z) || inTowerBridgeCorridor(p.x, p.z));
+}
+
+function lcyWorld(): { x: number; z: number; yaw: number } | null {
+  const lm = LANDMARKS.find((l) => l.kind === 'lcy');
+  if (!lm) return null;
+  const at = project(lm.at);
+  return { x: at.x, z: at.y, yaw: lm.yaw ?? 0 };
+}
+
+function lcyLocal(x: number, z: number): { lx: number; lz: number } | null {
+  const at = lcyWorld();
+  if (!at) return null;
+  const dx = x - at.x;
+  const dz = z - at.z;
+  const c = Math.cos(at.yaw);
+  const s = Math.sin(at.yaw);
+  return { lx: dx * c - dz * s, lz: dx * s + dz * c };
+}
+
+function nearLondonCityAirport(x: number, z: number): boolean {
+  const p = lcyLocal(x, z);
+  if (!p) return false;
+  return (
+    Math.abs(p.lx) < 780 * METERS_TO_WORLD &&
+    p.lz > -55 * METERS_TO_WORLD &&
+    p.lz < 175 * METERS_TO_WORLD
+  );
+}
+
+function onLcyRunway(x: number, z: number): boolean {
+  const p = lcyLocal(x, z);
+  if (!p) return false;
+  return Math.abs(p.lx) < 780 * METERS_TO_WORLD && Math.abs(p.lz) < 48 * METERS_TO_WORLD;
+}
+
+function parkClipRadiusWorld(
+  kind: (typeof LANDMARKS)[number]['kind'],
+  exclusionM?: number,
+): number {
+  if (kind === 'towerlondon') return (exclusionM ?? 155) * METERS_TO_WORLD;
+  if (kind === 'lcy') return 90 * METERS_TO_WORLD;
+  return Math.min(72, exclusionM ?? 72) * METERS_TO_WORLD;
 }
 
 function triangleHitsExclusion(
@@ -108,24 +176,22 @@ function triangleHitsExclusion(
   cx: number,
   cz: number,
 ): boolean {
-  if (landmarkExclusionAt(ax, az) !== null) return true;
-  if (landmarkExclusionAt(bx, bz) !== null) return true;
-  if (landmarkExclusionAt(cx, cz) !== null) return true;
   const mx = (ax + bx + cx) / 3;
   const mz = (az + bz + cz) / 3;
-  if (landmarkExclusionAt(mx, mz) !== null) return true;
+  if (nearLondonCityAirport(mx, mz)) return true;
   for (const landmark of LANDMARKS) {
     const at = project(landmark.at);
-    const r = (landmark.exclusionM ?? 80) * METERS_TO_WORLD;
+    const r = parkClipRadiusWorld(landmark.kind, landmark.exclusionM);
     const tri = [
       { x: ax, z: az },
       { x: bx, z: bz },
       { x: cx, z: cz },
     ];
+    if (Math.hypot(mx - at.x, mz - at.y) < r) return true;
     if (pointInRing(at.x, at.y, tri)) return true;
-    if (distPointToSeg(at.x, at.y, tri[0]!, tri[1]!) < r) return true;
-    if (distPointToSeg(at.x, at.y, tri[1]!, tri[2]!) < r) return true;
-    if (distPointToSeg(at.x, at.y, tri[2]!, tri[0]!) < r) return true;
+    if (distPointToSeg(at.x, at.y, tri[0]!, tri[1]!) < r * 0.45) return true;
+    if (distPointToSeg(at.x, at.y, tri[1]!, tri[2]!) < r * 0.45) return true;
+    if (distPointToSeg(at.x, at.y, tri[2]!, tri[0]!) < r * 0.45) return true;
   }
   return false;
 }
@@ -558,6 +624,7 @@ export function buildChunkTier(
     cz /= n;
 
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
+    if (nearLondonCityAirport(cx, cz)) continue;
 
     const areaM2 = footprintAreaM2(ring);
     const [lng, lat] = unproject(cx, cz);
@@ -1461,8 +1528,8 @@ function parkShadeAt(
 ): THREE.Color {
   const h = Math.imul(Math.round(x * 36), 374761393) ^ Math.imul(Math.round(z * 36), 668265263);
   const u = ((h >>> 0) % 1000) / 1000;
-  if (u < 0.3) return dark;
-  if (u > 0.78) return lite;
+  if (u < 0.22) return dark;
+  if (u > 0.82) return lite;
   return base;
 }
 
@@ -1477,66 +1544,10 @@ function emitParkTriangle(
   cx: number,
   cz: number,
   y: number,
-  depth: number,
   base: THREE.Color,
   dark: THREE.Color,
   lite: THREE.Color,
 ): void {
-  const areaWorld = Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az)) * 0.5;
-  const areaM2 = areaWorld / (METERS_TO_WORLD * METERS_TO_WORLD);
-  if (depth < 3 && areaM2 > 900) {
-    const mx = (ax + bx + cx) / 3;
-    const mz = (az + bz + cz) / 3;
-    emitParkTriangle(
-      positions,
-      colors,
-      indices,
-      ax,
-      az,
-      bx,
-      bz,
-      mx,
-      mz,
-      y,
-      depth + 1,
-      base,
-      dark,
-      lite,
-    );
-    emitParkTriangle(
-      positions,
-      colors,
-      indices,
-      bx,
-      bz,
-      cx,
-      cz,
-      mx,
-      mz,
-      y,
-      depth + 1,
-      base,
-      dark,
-      lite,
-    );
-    emitParkTriangle(
-      positions,
-      colors,
-      indices,
-      cx,
-      cz,
-      ax,
-      az,
-      mx,
-      mz,
-      y,
-      depth + 1,
-      base,
-      dark,
-      lite,
-    );
-    return;
-  }
   const push = (x: number, z: number): number => {
     const c = parkShadeAt(x, z, base, dark, lite);
     const i = positions.length / 3;
@@ -1554,9 +1565,9 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
-  const base = new THREE.Color(pal.PARK).offsetHSL(0.01, -0.14, -0.07);
-  const dark = new THREE.Color(pal.PARK).offsetHSL(0.03, -0.22, -0.16);
-  const lite = new THREE.Color(pal.PARK).offsetHSL(-0.01, -0.24, -0.02);
+  const base = new THREE.Color(0x6b9a4e);
+  const dark = new THREE.Color(0x5a8a42);
+  const lite = new THREE.Color(0x7eab5c);
   for (const p of cityData.parks) {
     const n = p.verts.length / 2;
     if (n < 3) continue;
@@ -1564,7 +1575,6 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
     for (let i = 0; i < n; i++) {
       ring.push({ x: dequantizeX(p.verts[i * 2]!), z: dequantizeY(p.verts[i * 2 + 1]!) });
     }
-    if (parkRingHitsLandmark(ring)) continue;
     for (let t = 0; t + 2 < p.indices.length; t += 3) {
       const a = ring[p.indices[t]!]!;
       const b = ring[p.indices[t + 1]!]!;
@@ -1582,7 +1592,6 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
         c.x,
         c.z,
         PARK_Y,
-        0,
         base,
         dark,
         lite,
@@ -1605,6 +1614,9 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
       vertexColors: true,
       side: THREE.DoubleSide,
       fog: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     }),
   );
   mesh.receiveShadow = false;
@@ -1624,7 +1636,6 @@ export function buildParks(cityData: CityData): THREE.Group | null {
   for (const park of cityData.parks) {
     const info = parkCentroid(park);
     if (!info || info.areaM2 < 18_000) continue;
-    if (parkRingHitsLandmark(info.ring)) continue;
     if (landmarkExclusionAt(info.x, info.z) !== null) continue;
     const { ring, x: cx, z: cz } = info;
     let maxI = 0;
@@ -1687,6 +1698,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
       const x = info.x + Math.cos(ang) * rad;
       const z = info.z + Math.sin(ang) * rad;
       if (landmarkExclusionAt(x, z) !== null) continue;
+      if (nearLondonCityAirport(x, z)) continue;
       spots.push({
         x,
         z,
@@ -1705,6 +1717,7 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         const x = info.x + Math.cos(ang) * rad;
         const z = info.z + Math.sin(ang) * rad;
         if (landmarkExclusionAt(x, z) !== null) continue;
+        if (nearLondonCityAirport(x, z)) continue;
         groves.push({
           x,
           z,
@@ -1742,7 +1755,11 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         if (road.tier === 2 ? ((h >>> 8) & 3) === 0 : ((h >>> 8) & 7) !== 0) {
           const sx = a.x + dx * t + px * offset * sign;
           const sz = a.z + dz * t + pz * offset * sign;
-          if (!pointOverWater(sx, sz, rings) && !pointOnPrefabDeck(sx, sz)) {
+          if (
+            !pointOverWater(sx, sz, rings) &&
+            !pointOnPrefabDeck(sx, sz) &&
+            !nearLondonCityAirport(sx, sz)
+          ) {
             spots.push({
               x: sx,
               z: sz,
@@ -2027,6 +2044,8 @@ function pointOverWater(x: number, z: number, rings: { x: number; z: number }[][
 }
 
 function pointOnPrefabDeck(x: number, z: number): boolean {
+  if (inTowerBridgeCorridor(x, z) || nearTowerBridgePrefab(x, z)) return true;
+  if (onLcyRunway(x, z)) return true;
   for (const landmark of LANDMARKS) {
     if (landmark.kind !== 'oldstreet') continue;
     const at = project(landmark.at);
@@ -2677,6 +2696,134 @@ export function crossingYawAt(x: number, z: number, spans: CrossingSpan[]): numb
   return Math.atan2(-dz, dx);
 }
 
+function skipRoadVertex(x: number, z: number): boolean {
+  return inTowerBridgeCorridor(x, z) || nearTowerBridgePrefab(x, z) || onLcyRunway(x, z);
+}
+
+function clipRibbonPts(pts: { x: number; z: number }[]): { x: number; z: number }[][] {
+  const runs: { x: number; z: number }[][] = [];
+  let cur: { x: number; z: number }[] = [];
+  const keepSeg = (a: { x: number; z: number }, b: { x: number; z: number }) =>
+    !segmentHitsTowerBridge(a, b) && !onLcyRunway(a.x, a.z) && !onLcyRunway(b.x, b.z);
+  for (const p of pts) {
+    if (cur.length === 0) {
+      if (!skipRoadVertex(p.x, p.z)) cur.push(p);
+      continue;
+    }
+    const prev = cur[cur.length - 1]!;
+    if (keepSeg(prev, p)) {
+      cur.push(p);
+    } else {
+      if (cur.length >= 2) runs.push(cur);
+      cur = skipRoadVertex(p.x, p.z) ? [] : [p];
+    }
+  }
+  if (cur.length >= 2) runs.push(cur);
+  return runs;
+}
+
+export type PlannedCrosswalk = {
+  x: number;
+  z: number;
+  dx: number;
+  dz: number;
+  half: number;
+};
+
+/** One zebra per junction approach — not one per OSM stub start. */
+export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
+  const rings = waterRings(cityData);
+  const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
+  const ends: PlannedCrosswalk[] = [];
+  const half0 = (ROAD_WIDTHS_M[0]! * METERS_TO_WORLD) / 2;
+  for (const road of cityData.roads as CityRoad[]) {
+    if (road.tier !== 0) continue;
+    const pts = roadPts(road);
+    if (!pts) continue;
+    for (const run of splitRoadRuns(pts, overWater)) {
+      if (run.pts.length < 2) continue;
+      let runLen = 0;
+      for (let i = 0; i < run.pts.length - 1; i++) {
+        runLen += Math.hypot(run.pts[i + 1]!.x - run.pts[i]!.x, run.pts[i + 1]!.z - run.pts[i]!.z);
+      }
+      if (runLen < 22 * METERS_TO_WORLD) continue;
+      const pushEnd = (a: { x: number; z: number }, b: { x: number; z: number }) => {
+        if (skipRoadVertex(a.x, a.z)) return;
+        let dx = b.x - a.x;
+        let dz = b.z - a.z;
+        const len = Math.hypot(dx, dz) || 1;
+        dx /= len;
+        dz /= len;
+        const x = a.x + dx * 2.5 * METERS_TO_WORLD;
+        const z = a.z + dz * 2.5 * METERS_TO_WORLD;
+        if (skipRoadVertex(x, z)) return;
+        ends.push({ x, z, dx, dz, half: half0 });
+      };
+      pushEnd(run.pts[0]!, run.pts[1]!);
+      pushEnd(run.pts[run.pts.length - 1]!, run.pts[run.pts.length - 2]!);
+    }
+  }
+  const junctionR = 16 * METERS_TO_WORLD;
+  const hashCell = 16 * METERS_TO_WORLD;
+  const grid = new Map<string, number[]>();
+  const cellKey = (x: number, z: number): string =>
+    `${Math.round(x / hashCell)}:${Math.round(z / hashCell)}`;
+  for (let i = 0; i < ends.length; i++) {
+    const k = cellKey(ends[i]!.x, ends[i]!.z);
+    const bucket = grid.get(k);
+    if (bucket) bucket.push(i);
+    else grid.set(k, [i]);
+  }
+  const out: PlannedCrosswalk[] = [];
+  const used = new Set<string>();
+  for (let i = 0; i < ends.length; i++) {
+    const e = ends[i]!;
+    const cx = Math.round(e.x / hashCell);
+    const cz = Math.round(e.z / hashCell);
+    let crossing = false;
+    outer: for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      for (let gz = cz - 1; gz <= cz + 1; gz++) {
+        const bucket = grid.get(`${gx}:${gz}`);
+        if (!bucket) continue;
+        for (const j of bucket) {
+          if (j === i) continue;
+          const o = ends[j]!;
+          if (Math.hypot(o.x - e.x, o.z - e.z) >= junctionR) continue;
+          const dot = e.dx * o.dx + e.dz * o.dz;
+          if (Math.abs(dot) < 0.55) {
+            crossing = true;
+            break outer;
+          }
+        }
+      }
+    }
+    if (!crossing) continue;
+    const qcell = 12 * METERS_TO_WORLD;
+    const qx = Math.round(e.x / qcell);
+    const qz = Math.round(e.z / qcell);
+    let heading = Math.round(Math.atan2(e.dz, e.dx) / (Math.PI / 8));
+    heading = ((heading % 16) + 16) % 16;
+    const key = `${qx}:${qz}:${heading}`;
+    if (used.has(key)) continue;
+    used.add(key);
+    out.push(e);
+  }
+  const mergeR = 8 * METERS_TO_WORLD;
+  const kept: PlannedCrosswalk[] = [];
+  for (const e of out) {
+    if (
+      kept.some(
+        (k) =>
+          Math.hypot(k.x - e.x, k.z - e.z) < mergeR && Math.abs(k.dx * e.dx + k.dz * e.dz) > 0.82,
+      )
+    ) {
+      continue;
+    }
+    kept.push(e);
+  }
+  return kept;
+}
+
 /** One group per tier so minor streets can hide independently at low zoom. */
 export function buildRoads(cityData: CityData): THREE.Group | null {
   const group = new THREE.Group();
@@ -2706,6 +2853,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
   const markIdx: number[] = [];
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
+  const zebras = plannedCrosswalks(cityData);
 
   for (let tier = 0; tier <= 2; tier++) {
     const walkPos: number[] = [];
@@ -2720,41 +2868,23 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       if (!pts) continue;
       const runs = splitRoadRuns(pts, overWater);
       for (const run of runs) {
-        const mid = run.pts[Math.floor(run.pts.length / 2)]!;
-        if (nearTowerBridgePrefab(mid.x, mid.z)) continue;
-        appendRibbon(walkPos, walkIdx, run.pts, halfWalk, SIDEWALK_Y);
-        appendRibbon(asphPos, asphIdx, run.pts, halfCarriage, ROAD_Y);
-        if (tier <= 1) {
-          const dashes = polylineDashes(run.pts);
-          const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
-          for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
-          const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
-          const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
-          if (inset > halfEdge) {
-            for (let i = 0; i < run.pts.length - 1; i++) {
-              const edges = segmentEdgeOffsets(run.pts[i]!, run.pts[i + 1]!, inset);
-              appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
-              appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+        for (const piece of clipRibbonPts(run.pts)) {
+          appendRibbon(walkPos, walkIdx, piece, halfWalk, SIDEWALK_Y);
+          appendRibbon(asphPos, asphIdx, piece, halfCarriage, ROAD_Y);
+          if (tier <= 1) {
+            const dashes = polylineDashes(piece);
+            const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+            for (const d of dashes) appendRibbon(markPos, markIdx, [d.a, d.b], halfDash, MARK_Y);
+            const halfEdge = (EDGE_WIDTH_M * METERS_TO_WORLD) / 2;
+            const inset = halfCarriage - 0.28 * METERS_TO_WORLD;
+            if (inset > halfEdge) {
+              for (let i = 0; i < piece.length - 1; i++) {
+                const edges = segmentEdgeOffsets(piece[i]!, piece[i + 1]!, inset);
+                appendRibbon(markPos, markIdx, edges.left, halfEdge, MARK_Y);
+                appendRibbon(markPos, markIdx, edges.right, halfEdge, MARK_Y);
+              }
             }
           }
-        }
-        if (tier === 0 && run.pts.length >= 2) {
-          const a = run.pts[0]!;
-          const b = run.pts[1]!;
-          let dx = b.x - a.x;
-          let dz = b.z - a.z;
-          const len = Math.hypot(dx, dz) || 1;
-          dx /= len;
-          dz /= len;
-          addCrosswalk(
-            markPos,
-            markIdx,
-            a.x + dx * 2.5 * METERS_TO_WORLD,
-            a.z + dz * 2.5 * METERS_TO_WORLD,
-            dx,
-            dz,
-            halfCarriage,
-          );
         }
       }
     }
@@ -2789,6 +2919,7 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
     const stitchPos: number[] = [];
     const stitchIdx: number[] = [];
     for (const span of stitches) {
+      if (runTouchesTowerBridge(span.pts)) continue;
       const halfCarriage = (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2;
       appendRibbon(stitchPos, stitchIdx, span.pts, halfCarriage, ROAD_Y);
       const dashes = polylineDashes(span.pts);
@@ -2812,6 +2943,10 @@ export function buildRoads(cityData: CityData): THREE.Group | null {
       mesh.receiveShadow = true;
       group.add(mesh);
     }
+  }
+
+  for (const zebra of zebras) {
+    addCrosswalk(markPos, markIdx, zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half);
   }
 
   if (markPos.length > 0) {

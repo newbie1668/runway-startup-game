@@ -751,14 +751,14 @@ function buildTowerBridge(): THREE.Group {
     }
   }
 
-  const walkLen = towerHalfSpan * 2 - shaftD + m(3);
+  const walkLen = towerHalfSpan * 2 - shaftD;
   for (const x of [-m(4.4), m(4.4)]) {
     const walk = new THREE.Mesh(new THREE.BoxGeometry(m(5.0), m(3.8), walkLen), iron);
     walk.position.set(x, walkY, 0);
     if (x > 0) walk.name = 'walkway';
     group.add(walk);
     for (let i = 0; i < 7; i++) {
-      const bz = ((i + 0.5) / 7 - 0.5) * walkLen * 0.88;
+      const bz = ((i + 0.5) / 7 - 0.5) * walkLen * 0.82;
       const lite = new THREE.Mesh(new THREE.BoxGeometry(m(5.2), m(1.6), m(3.8)), band);
       lite.position.set(x, walkY, bz);
       group.add(lite);
@@ -769,7 +769,11 @@ function buildTowerBridge(): THREE.Group {
     const towerZ = side * towerHalfSpan;
     const farZ = side * m(118);
     for (const x of [-m(5.2), m(5.2)]) {
-      const start = new THREE.Vector3(x, walkY - m(1.1), towerZ + side * innerFace);
+      const chainRoom = new THREE.Mesh(new THREE.BoxGeometry(m(3.2), m(4.4), m(3.2)), iron);
+      chainRoom.position.set(x, walkY, towerZ + side * (innerFace + m(0.4)));
+      if (side === 1 && x > 0) chainRoom.name = 'chain';
+      group.add(chainRoom);
+      const start = new THREE.Vector3(x, walkY - m(0.4), towerZ + side * (innerFace + m(1.6)));
       const end = new THREE.Vector3(x, deckY + m(1.3), farZ);
       const pts = addCatenary(group, start, end, m(9), m(0.48), chainMat, 8);
       for (let i = 2; i < pts.length - 1; i += 2) {
@@ -1811,6 +1815,78 @@ function buildAlbertHall(): THREE.Group {
   return group;
 }
 
+function buildLcy(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'lcy';
+  const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
+  const mark = new THREE.MeshBasicMaterial({ color: 0xe8e6dc, fog: true });
+  const concrete = new THREE.MeshLambertMaterial({ color: 0xc8c4b8 });
+  const hall = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
+  const glass = new THREE.MeshBasicMaterial({ color: 0x3a5468, fog: true });
+  const cab = new THREE.MeshBasicMaterial({ color: 0x243440, fog: true });
+  const dlr = new THREE.MeshLambertMaterial({ color: 0xb8a090 });
+  const grass = new THREE.MeshBasicMaterial({ color: 0x6a8a48, fog: true });
+
+  const rwLen = m(1508);
+  const rwW = m(30);
+  const rwH = m(0.55);
+  const runway = new THREE.Mesh(new THREE.BoxGeometry(rwLen, rwH, rwW), asphalt);
+  runway.name = 'runway';
+  runway.position.set(0, rwH / 2, 0);
+  group.add(runway);
+  addBox(group, rwLen, m(0.18), m(16), grass, 0, 0, m(23));
+  addBox(group, rwLen, m(0.18), m(16), grass, 0, 0, m(-23));
+  for (const z of [-m(14.2), m(14.2)]) {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(rwLen * 0.98, m(0.08), m(0.7)), mark);
+    edge.position.set(0, rwH + m(0.04), z);
+    group.add(edge);
+  }
+  for (let i = -48; i <= 48; i++) {
+    if (i % 2 === 0) continue;
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(m(18), m(0.08), m(0.55)), mark);
+    dash.position.set(i * m(15), rwH + m(0.05), 0);
+    group.add(dash);
+  }
+  for (const side of [-1, 1]) {
+    const x0 = side * (rwLen / 2 - m(28));
+    for (let i = 0; i < 6; i++) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(m(22), m(0.08), m(1.5)), mark);
+      bar.position.set(x0, rwH + m(0.05), (i - 2.5) * m(3.6));
+      group.add(bar);
+    }
+  }
+
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(m(720), m(0.4), m(95)), concrete);
+  apron.name = 'apron';
+  apron.position.set(m(-80), m(0.2), m(78));
+  group.add(apron);
+  for (let i = 0; i < 8; i++) {
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(m(28), m(0.12), m(22)), asphalt);
+    stand.position.set(m(-280 + i * 72), m(0.42), m(88));
+    group.add(stand);
+  }
+
+  const terminal = addBox(group, m(210), m(11), m(42), hall, m(-120), 0, m(118));
+  terminal.name = 'terminal';
+  addBox(group, m(200), m(7.5), m(3.2), glass, m(-120), m(2.2), m(97));
+  addBox(group, m(70), m(7), m(28), hall, m(-40), 0, m(148));
+  addBox(group, m(206), m(1.4), m(44), hall, m(-120), m(11), m(118));
+
+  addBox(group, m(9), m(38), m(9), concrete, m(40), 0, m(125));
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(m(18), m(7), m(14)), cab);
+  tower.name = 'tower';
+  tower.position.set(m(40), m(42), m(125));
+  group.add(tower);
+  addBox(group, m(20), m(1.2), m(16), hall, m(40), m(45.2), m(125));
+
+  const viaduct = addBox(group, m(180), m(6), m(8), dlr, m(-520), m(8), m(150));
+  viaduct.name = 'dlr';
+  addBox(group, m(48), m(8), m(22), dlr, m(-480), m(8), m(165));
+  addBox(group, m(12), m(10), m(12), dlr, m(-560), 0, m(150));
+  addBox(group, m(12), m(10), m(12), dlr, m(-440), 0, m(150));
+  return group;
+}
+
 const BUILDERS: Record<LandmarkKind, () => THREE.Group> = {
   shard: buildShard,
   gherkin: buildGherkin,
@@ -1848,6 +1924,7 @@ const BUILDERS: Record<LandmarkKind, () => THREE.Group> = {
   tatemodern: buildTateModern,
   stpancras: buildStPancras,
   alberthall: buildAlbertHall,
+  lcy: buildLcy,
 };
 
 export function build(kind: LandmarkKind): THREE.Group {

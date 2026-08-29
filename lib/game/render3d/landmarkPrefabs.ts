@@ -12,6 +12,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { LANDMARKS, isDeckLandmark, type LandmarkKind } from '../geo';
 import { build as buildLandmark } from './landmarks';
 import { makeMatteLambert } from './matteGltf';
+import { meshBudget } from './lookClip';
 
 export const LANDMARK_GLB_DIR = '/map/landmarks';
 
@@ -27,6 +28,7 @@ const PLAYTIME_PROCEDURAL: ReadonlySet<LandmarkKind> = new Set([
   'heron',
   'tower42',
   'eye',
+  'lcy',
 ]);
 
 export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
@@ -34,10 +36,7 @@ export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
 }
 
 export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Object3D>> {
-  if (typeof window !== 'undefined') {
-    const look = new URLSearchParams(window.location.search).get('look');
-    if (look === 'eye') return new Map();
-  }
+  if (typeof window !== 'undefined' && meshBudget().skipGlb) return new Map();
   const loader = new GLTFLoader();
   const kinds = [...new Set(LANDMARKS.map((l) => l.kind))].filter(
     (kind) => !isPlaytimeProceduralKind(kind),

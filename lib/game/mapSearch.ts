@@ -42,6 +42,7 @@ const LANDMARK_VIEW_H: Record<string, number> = {
   bigben: 2.8,
   abbey: 2.8,
   towerlondon: 1.4,
+  lcy: 10.2,
   battersea: 2.8,
   o2: 2.8,
   britishmuseum: 2.35,

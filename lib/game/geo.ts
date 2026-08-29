@@ -349,7 +349,8 @@ export type LandmarkKind =
   | 'nationaltheatre'
   | 'tatemodern'
   | 'stpancras'
-  | 'alberthall';
+  | 'alberthall'
+  | 'lcy';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -403,6 +404,14 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'o2', name: 'The O2', at: [0.0032, 51.5029], exclusionM: 220 },
   { kind: 'gherkin', name: 'The Gherkin', at: [-0.0803, 51.5145], exclusionM: 80 },
   { kind: 'towerbridge', name: 'Tower Bridge', at: [-0.0754, 51.5055], exclusionM: 160 },
+  {
+    kind: 'lcy',
+    name: 'London City Airport',
+    at: [0.0553, 51.5053],
+    exclusionM: 220,
+    /** Local +X follows runway 09/27 (~093° true). */
+    yaw: -0.052,
+  },
   { kind: 'walkie', name: 'Walkie Talkie', at: [-0.0837, 51.5114], exclusionM: 80 },
   { kind: 'grater', name: 'The Cheesegrater', at: [-0.0825, 51.5139], exclusionM: 90 },
   { kind: 'canadasq', name: 'One Canada Square', at: [-0.0196, 51.505], exclusionM: 110 },

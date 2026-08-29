@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import {
   LANDMARKS,
   METERS_TO_WORLD,
+  PARKS,
   THAMES_CROSSINGS,
   WORLD,
   isDeckLandmark,
@@ -53,6 +54,7 @@ import {
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
+import { meshBudget } from './lookClip';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
@@ -91,7 +93,17 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   const crossing = THAMES_CROSSINGS.find((c) => thamesCrossingLookKey(c.name) === look);
   if (crossing) return { at: crossing.at, viewH: 1.35, azimuth: 0 };
   const hit = LANDMARKS.find((l) => l.kind === look);
-  if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
+  if (!hit) {
+    const park = PARKS.find((p) => {
+      const key = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      return look !== null && (key === look || key.startsWith(look));
+    });
+    if (park) {
+      const at = park.label ?? park.points[0]!;
+      return { at, viewH: 6.5, azimuth: 0 };
+    }
+    return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
+  }
   if (isDeckLandmark(hit.kind) && hit.kind !== 'oldstreet') {
     if (hit.kind === 'towerbridge') {
       return { at: hit.at, viewH: 2.2, azimuth: Math.PI / 2 };
@@ -116,6 +128,9 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   }
   if (hit.kind === 'towerlondon') {
     return { at: hit.at, viewH: 1.4, azimuth: 0.48 };
+  }
+  if (hit.kind === 'lcy') {
+    return { at: hit.at, viewH: 10.2, azimuth: 0.18 };
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };
@@ -234,11 +249,12 @@ export class CityRenderer3D implements IMapRenderer {
       antialias: !this.isCoarsePointer,
       powerPreference: 'high-performance',
     });
-    const lookNow = new URLSearchParams(window.location.search).get('look');
+    const budget = meshBudget();
     this.renderer.setPixelRatio(
       Math.min(
         window.devicePixelRatio || 1,
-        lookNow === 'eye' ? 1.25 : this.isCoarsePointer ? 1.5 : 2,
+        budget.pixelRatioCap,
+        this.isCoarsePointer ? Math.min(1.5, budget.pixelRatioCap) : budget.pixelRatioCap,
       ),
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -379,10 +395,12 @@ export class CityRenderer3D implements IMapRenderer {
               ? [look]
               : [],
     );
-    const eyeOnly = look === 'eye';
+    const budget = meshBudget();
     const lookAt = heroLook();
     const lookPt = project(lookAt.at);
-    const chunkKeepR = eyeOnly ? 2400 * METERS_TO_WORLD : Number.POSITIVE_INFINITY;
+    const chunkKeepR =
+      budget.chunkKeepM != null ? budget.chunkKeepM * METERS_TO_WORLD : Number.POSITIVE_INFINITY;
+    const inKeep = (x: number, z: number) => Math.hypot(x - lookPt.x, z - lookPt.y) <= chunkKeepR;
     const jobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
     const pushNoticed = (entry: NoticedEntry): void => {
@@ -409,10 +427,16 @@ export class CityRenderer3D implements IMapRenderer {
         this.cityGroup.add(group);
       });
     };
+    const allowLandmark = (landmark: (typeof LANDMARKS)[number]): boolean => {
+      if (lookLandmarkKinds.has(landmark.kind)) return true;
+      if (look === 'eye') return false;
+      const p = project(landmark.at);
+      return inKeep(p.x, p.y);
+    };
     for (const entry of this.noticedEntries) {
       if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry);
     }
-    if (!eyeOnly) {
+    if (!budget.skipNoticedStock) {
       for (const entry of this.noticedEntries) {
         if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) pushNoticed(entry);
       }
@@ -428,7 +452,7 @@ export class CityRenderer3D implements IMapRenderer {
       const mesh = buildParks(data);
       if (mesh) this.cityGroup.add(mesh);
     });
-    if (!eyeOnly) {
+    if (!budget.skipTrees) {
       jobs.push(() => {
         const trees = buildParkTrees(data);
         if (trees) {
@@ -448,18 +472,18 @@ export class CityRenderer3D implements IMapRenderer {
         }
       }
     });
-    if (!eyeOnly) {
-      for (const landmark of LANDMARKS) {
-        if (!lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark);
-      }
+    for (const landmark of LANDMARKS) {
+      if (lookLandmarkKinds.has(landmark.kind)) continue;
+      if (allowLandmark(landmark)) pushLandmark(landmark);
     }
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       const col = chunkId % CHUNK_COLS;
       const row = Math.floor(chunkId / CHUNK_COLS);
       const cx = ((col + 0.5) / CHUNK_COLS) * WORLD.width;
       const cz = ((row + 0.5) / CHUNK_ROWS) * WORLD.height;
-      if (Math.hypot(cx - lookPt.x, cz - lookPt.y) > chunkKeepR) continue;
+      if (!inKeep(cx, cz)) continue;
       for (const major of [true, false]) {
+        if (budget.skipMinorChunks && !major) continue;
         jobs.push(() => {
           const mesh = buildChunkTier(data, chunkId, major, landmarkAnchors, this.scratch);
           if (mesh) {
@@ -471,7 +495,7 @@ export class CityRenderer3D implements IMapRenderer {
         });
       }
     }
-    if (!eyeOnly) {
+    if (!budget.skipWindows) {
       jobs.push(() => {
         const windows = buildWindowMesh(this.scratch);
         if (windows) {
@@ -484,6 +508,8 @@ export class CityRenderer3D implements IMapRenderer {
         const signs = buildFacadeSigns(this.scratch);
         if (signs) this.cityGroup.add(signs);
       });
+    }
+    if (!budget.skipLamps) {
       jobs.push(() => {
         const lamps = buildStreetLamps(data);
         if (lamps) {
@@ -492,8 +518,11 @@ export class CityRenderer3D implements IMapRenderer {
           this.cityGroup.add(lamps);
         }
       });
+    }
+    if (!budget.skipNoticedStock) {
       for (const entry of this.noticedEntries) {
         if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
+        if (!inKeep(entry.x, entry.z)) continue;
         pushNoticed(entry);
       }
     }
