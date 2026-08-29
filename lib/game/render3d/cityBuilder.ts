@@ -1127,7 +1127,10 @@ function emitFacadeWindows(
   if (usableU < winW / METERS_TO_WORLD) return;
 
   let cols = Math.max(1, Math.floor(usableU / rhythm.pitchU));
-  let rows = Math.max(1, Math.floor((winEnd - winStart) / (rhythm.pitchV * METERS_TO_WORLD * vScale)));
+  let rows = Math.max(
+    1,
+    Math.floor((winEnd - winStart) / (rhythm.pitchV * METERS_TO_WORLD * vScale)),
+  );
   cols = Math.min(cols, rhythm.colCap);
   rows = Math.min(rows, rhythm.rowCap);
   const maxCount = major ? 48 : 16;
@@ -1402,9 +1405,11 @@ function parkShadeAt(
   dark: THREE.Color,
   lite: THREE.Color,
 ): THREE.Color {
-  const h = Math.imul(Math.round(x * 22), 374761393) ^ Math.imul(Math.round(z * 22), 668265263);
+  const h = Math.imul(Math.round(x * 36), 374761393) ^ Math.imul(Math.round(z * 36), 668265263);
   const u = ((h >>> 0) % 1000) / 1000;
-  return u < 0.32 ? dark : u > 0.7 ? lite : base;
+  if (u < 0.3) return dark;
+  if (u > 0.78) return lite;
+  return base;
 }
 
 function emitParkTriangle(
@@ -1425,7 +1430,7 @@ function emitParkTriangle(
 ): void {
   const areaWorld = Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az)) * 0.5;
   const areaM2 = areaWorld / (METERS_TO_WORLD * METERS_TO_WORLD);
-  if (depth < 2 && areaM2 > 1600) {
+  if (depth < 3 && areaM2 > 900) {
     const mx = (ax + bx + cx) / 3;
     const mz = (az + bz + cz) / 3;
     emitParkTriangle(
@@ -1495,9 +1500,9 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
-  const base = new THREE.Color(pal.PARK);
-  const dark = new THREE.Color(pal.PARK).offsetHSL(0.02, 0.06, -0.11);
-  const lite = new THREE.Color(pal.PARK).offsetHSL(-0.03, -0.04, 0.1);
+  const base = new THREE.Color(pal.PARK).offsetHSL(0.01, -0.14, -0.07);
+  const dark = new THREE.Color(pal.PARK).offsetHSL(0.03, -0.22, -0.16);
+  const lite = new THREE.Color(pal.PARK).offsetHSL(-0.01, -0.24, -0.02);
   for (const p of cityData.parks) {
     const n = p.verts.length / 2;
     if (n < 3) continue;
@@ -1533,18 +1538,20 @@ function buildParkGrass(cityData: CityData): THREE.Mesh | null {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
+  const normals = new Float32Array((positions.length / 3) * 3);
+  for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1;
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.computeBoundingSphere();
   const mesh = new THREE.Mesh(
     geometry,
-    new THREE.MeshLambertMaterial({
+    new THREE.MeshBasicMaterial({
       color: 0xffffff,
       vertexColors: true,
       side: THREE.DoubleSide,
       fog: true,
     }),
   );
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false;
   mesh.castShadow = false;
   return mesh;
 }
@@ -1591,9 +1598,9 @@ export function buildParks(cityData: CityData): THREE.Group | null {
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(
       g,
-      new THREE.MeshLambertMaterial({ color: pal.PARK_PATH, side: THREE.DoubleSide, fog: true }),
+      new THREE.MeshBasicMaterial({ color: pal.PARK_PATH, side: THREE.DoubleSide, fog: true }),
     );
-    mesh.receiveShadow = true;
+    mesh.receiveShadow = false;
     group.add(mesh);
   }
   return group;
@@ -1704,8 +1711,8 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
       counts[shade]!,
     );
     mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     mesh.frustumCulled = false;
     canopies[shade] = mesh;
   }
@@ -1791,8 +1798,8 @@ export function buildParkTrees(cityData: CityData): THREE.Group | null {
         groveCounts[shade]!,
       );
       mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
       mesh.frustumCulled = false;
       mesh.userData.grove = true;
       mesh.visible = false;
@@ -2550,7 +2557,9 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
   const runEnds = collectRunEnds(cityData, overWater);
   const fromRoads = buildCrossingSpans(approaches, overWater);
   const seeds = [
-    ...LANDMARKS.filter((lm) => isDeckLandmark(lm.kind) && lm.kind !== 'oldstreet'),
+    ...LANDMARKS.filter(
+      (lm) => isDeckLandmark(lm.kind) && lm.kind !== 'oldstreet' && lm.kind !== 'towerbridge',
+    ),
     ...THAMES_CROSSINGS,
   ];
   const seeded: CrossingSpan[] = [];

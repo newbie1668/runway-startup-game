@@ -16,6 +16,7 @@ import {
   tintForShape,
 } from './noticedFeatures';
 import { buildNoticedGroup } from './noticedMesh';
+import { ellipseRing, metersToWorld, UNIQUE_NOTICED_IDS } from '../lib/game/render3d/uniqueNoticed';
 import {
   isUsefulName,
   slugify,
@@ -218,6 +219,85 @@ check('taper baker shrinks the crown relative to the podium', () => {
   const podW = pod.max.x - pod.min.x;
   const topW = top.max.x - top.min.x;
   assert.ok(topW < podW * 0.55, `crown ${topW} should be narrower than podium ${podW}`);
+});
+
+check('named Canary towers get photo-true unique meshes, not baker costumes', () => {
+  const charrington = buildNoticedGroup({
+    id: 'charrington-tower',
+    ring: ellipseRing(metersToWorld(16), metersToWorld(12)),
+    heightWorld: 2.1,
+    wall: [0.5, 0.5, 0.52],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 1,
+    shape: 'stepped',
+  });
+  assert.ok(charrington.getObjectByName('charrington-tower-peel'), 'peeled balcony stack');
+  assert.equal(
+    charrington.getObjectByName('charrington-tower-0'),
+    undefined,
+    'not a stepped extrusion',
+  );
+
+  const park = buildNoticedGroup({
+    id: 'one-park-drive',
+    ring: ellipseRing(metersToWorld(15), metersToWorld(15)),
+    heightWorld: 2.4,
+    wall: [0.6, 0.62, 0.64],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 2,
+    shape: 'cylinder',
+  });
+  assert.ok(park.getObjectByName('one-park-drive-disc-0'));
+  assert.ok(park.getObjectByName('one-park-drive-disc-6'), 'stacked discs, not one tapering tube');
+
+  const nf = buildNoticedGroup({
+    id: 'newfoundland-quay',
+    ring: ellipseRing(metersToWorld(14), metersToWorld(12)),
+    heightWorld: 2.2,
+    wall: [0.4, 0.5, 0.55],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 3,
+    shape: 'twist',
+  });
+  assert.ok(nf.getObjectByName('newfoundland-quay-helix'));
+
+  const hsbc = buildNoticedGroup({
+    id: 'hsbc-uk',
+    ring: [
+      [-0.2, -0.2],
+      [0.2, -0.2],
+      [0.2, 0.2],
+      [-0.2, 0.2],
+    ],
+    heightWorld: 2.3,
+    wall: [0.5, 0.55, 0.58],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 4,
+    shape: 'slab',
+  });
+  assert.ok(hsbc.getObjectByName('hsbc-uk-hat'), 'Foster plant-room hat');
+
+  const citi = buildNoticedGroup({
+    id: 'citi',
+    ring: [
+      [-0.22, -0.2],
+      [0.22, -0.2],
+      [0.22, 0.2],
+      [-0.22, 0.2],
+    ],
+    heightWorld: 2.3,
+    wall: [0.45, 0.5, 0.55],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 5,
+    shape: 'slab',
+  });
+  assert.ok(citi.getObjectByName('citi-notch'), 'notched crown');
+  assert.equal(UNIQUE_NOTICED_IDS.length, 5);
 });
 
 console.log(`\nAll ${passed} noticed-factory checks passed.`);

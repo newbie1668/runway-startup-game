@@ -42,12 +42,14 @@ import {
   uniqueSlug,
   wikiTitleFromTags,
 } from './noticedSelect';
+import { isUniqueNoticedId } from '../lib/game/render3d/uniqueNoticed';
 
 const ROOT = process.cwd();
 const CACHE_DIR = path.join(ROOT, 'scripts/.geocache');
 const WIKI_CACHE = path.join(CACHE_DIR, 'wiki');
 const OUT_DIR = path.join(ROOT, 'public/map/noticed');
-const USER_AGENT = 'RunwayStartupGame/0.1 (bake-time noticed-tower photos; +https://github.com/newbie1668/runway-startup-game)';
+const USER_AGENT =
+  'RunwayStartupGame/0.1 (bake-time noticed-tower photos; +https://github.com/newbie1668/runway-startup-game)';
 const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
@@ -109,7 +111,11 @@ function stitchOuterRings(segments: LatLon[][]): LatLon[][] {
   while (remaining.length) {
     let current = remaining.shift()!;
     let guard = remaining.length + 1;
-    while (guard-- > 0 && remaining.length > 0 && !closeEnough(current[0], current[current.length - 1])) {
+    while (
+      guard-- > 0 &&
+      remaining.length > 0 &&
+      !closeEnough(current[0], current[current.length - 1])
+    ) {
       const tail = current[current.length - 1];
       let joined = false;
       for (let i = 0; i < remaining.length; i++) {
@@ -164,14 +170,18 @@ function nearLandmark(x: number, z: number): boolean {
 async function loadBuildingElements(): Promise<OverpassElement[]> {
   let names: string[] = [];
   try {
-    names = (await readdir(CACHE_DIR)).filter((n) => n.startsWith('buildings') && n.endsWith('.json'));
+    names = (await readdir(CACHE_DIR)).filter(
+      (n) => n.startsWith('buildings') && n.endsWith('.json'),
+    );
   } catch {
     return [];
   }
   const seen = new Set<string>();
   const out: OverpassElement[] = [];
   for (const name of names) {
-    const raw = JSON.parse(await readFile(path.join(CACHE_DIR, name), 'utf8')) as { elements?: OverpassElement[] };
+    const raw = JSON.parse(await readFile(path.join(CACHE_DIR, name), 'utf8')) as {
+      elements?: OverpassElement[];
+    };
     for (const el of raw.elements ?? []) {
       const key = `${el.type}/${el.id}`;
       if (seen.has(key)) continue;
@@ -222,7 +232,9 @@ function findElementByName(elements: OverpassElement[], name: string): OverpassE
 async function fetchNamedElements(names: string[]): Promise<OverpassElement[]> {
   const cacheFile = path.join(CACHE_DIR, 'noticed-by-name.json');
   try {
-    const cached = JSON.parse(await readFile(cacheFile, 'utf8')) as { elements?: OverpassElement[] };
+    const cached = JSON.parse(await readFile(cacheFile, 'utf8')) as {
+      elements?: OverpassElement[];
+    };
     if (cached.elements && cached.elements.length > 0) {
       console.log(`  [cache] noticed-by-name: ${cached.elements.length} elements`);
       return cached.elements;
@@ -254,14 +266,16 @@ async function fetchNamedElements(names: string[]): Promise<OverpassElement[]> {
       const json = (await res.json()) as { elements?: OverpassElement[] };
       await mkdir(CACHE_DIR, { recursive: true });
       await writeFile(cacheFile, JSON.stringify(json));
-      console.log(`  [fetch] noticed-by-name via ${endpoint}: ${json.elements?.length ?? 0} elements`);
+      console.log(
+        `  [fetch] noticed-by-name via ${endpoint}: ${json.elements?.length ?? 0} elements`,
+      );
       return json.elements ?? [];
     } catch (err) {
       lastErr = err;
       console.warn(`  [overpass] ${endpoint}: ${err instanceof Error ? err.message : err}`);
     }
   }
-  throw (lastErr instanceof Error ? lastErr : new Error('Overpass failed'));
+  throw lastErr instanceof Error ? lastErr : new Error('Overpass failed');
 }
 
 function candidatesFromManifest(files: ManifestFile[], elements: OverpassElement[]): Candidate[] {
@@ -348,7 +362,8 @@ function collectCandidates(elements: OverpassElement[]): Candidate[] {
     const exclusionM = Math.max(40, Math.round(maxR / METERS_TO_WORLD + 12));
     const wallHex = resolveWallColour(tags);
     const roofHex = resolveRoofColour(tags);
-    const glass = !civic && (/glass|mirror/i.test(tags['building:material'] ?? '') || heightM >= 140);
+    const glass =
+      !civic && (/glass|mirror/i.test(tags['building:material'] ?? '') || heightM >= 140);
     const key = name.toLowerCase();
     const prev = byName.get(key);
     if (prev && prev.heightM >= heightM) continue;
@@ -403,7 +418,9 @@ async function wikiPage(title: string): Promise<{ thumb: string | null; extract:
       format: 'json',
       redirects: '1',
     }).toString();
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+  const res = await fetch(url, {
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+  });
   if (!res.ok) return { thumb: null, extract: '' };
   const json = (await res.json()) as {
     query?: { pages?: Record<string, { thumbnail?: { source?: string }; extract?: string }> };
@@ -430,7 +447,9 @@ async function downloadPhoto(slug: string, url: string): Promise<string | null> 
   return dest;
 }
 
-function samplePhoto(photoPath: string): { wall: [number, number, number]; roof: [number, number, number] } | null {
+function samplePhoto(
+  photoPath: string,
+): { wall: [number, number, number]; roof: [number, number, number] } | null {
   const py = spawnSync('python3', [path.join(ROOT, 'scripts/sample_photo_colours.py'), photoPath], {
     encoding: 'utf8',
   });
@@ -545,7 +564,9 @@ async function main(): Promise<void> {
     } catch (err) {
       console.warn(`OSM lookup failed: ${err instanceof Error ? err.message : err}`);
       for (const f of manifest) {
-        console.log(`  ${String(f.heightM).padStart(3)} m  ${f.name}  shape=${resolveShape(f.id, f.name, '')}`);
+        console.log(
+          `  ${String(f.heightM).padStart(3)} m  ${f.name}  shape=${resolveShape(f.id, f.name, '')}`,
+        );
       }
       if (!dry) {
         console.warn('Skipping GLB rebake — runtime still keeps bake-time façade maps.');
@@ -553,7 +574,9 @@ async function main(): Promise<void> {
       return;
     }
   }
-  console.log(`Selected ${cands.length} noticed buildings (towers ≥${MIN_NOTICED_HEIGHT_M} m + civic silhouettes):`);
+  console.log(
+    `Selected ${cands.length} noticed buildings (towers ≥${MIN_NOTICED_HEIGHT_M} m + civic silhouettes):`,
+  );
   if (dry) {
     assignShapes(cands);
     for (const c of cands) {
@@ -567,7 +590,9 @@ async function main(): Promise<void> {
   const withPhoto = cands.filter((c) => c.photo).length;
   console.log(`Wikimedia thumbnails: ${withPhoto}/${cands.length}`);
   for (const c of cands) {
-    console.log(`  ${c.heightM.toFixed(0).padStart(3)} m  ${c.name}  ${c.shape}${c.photo ? '  photo' : ''}`);
+    console.log(
+      `  ${c.heightM.toFixed(0).padStart(3)} m  ${c.name}  ${c.shape}${c.photo ? '  photo' : ''}`,
+    );
   }
 
   const buildings = cands.map((c) => ({
@@ -594,6 +619,8 @@ async function main(): Promise<void> {
 
   const blender = blenderBin();
   const needsCivicBaker = buildings.some((b) => isCivicShape(b.shape));
+  const unique = buildings.filter((b) => isUniqueNoticedId(b.id));
+  const generic = buildings.filter((b) => !isUniqueNoticedId(b.id));
   if (blender && !needsCivicBaker) {
     console.log(`Blender: ${blender}`);
     runBlender(blender, jobPath);
@@ -603,7 +630,11 @@ async function main(): Promise<void> {
     } else {
       console.log('Blender not found; using three.js noticed baker');
     }
-    await bakeWithThree(buildings, OUT_DIR);
+    await bakeWithThree(generic, OUT_DIR);
+  }
+  if (unique.length > 0) {
+    console.log(`Photo-true unique meshes (${unique.map((b) => b.id).join(', ')})`);
+    await bakeWithThree(unique, OUT_DIR);
   }
 
   const files = [];
@@ -631,7 +662,10 @@ async function main(): Promise<void> {
   }
   const manifest = {
     generatedAt: new Date().toISOString(),
-    hash: createHash('sha1').update(files.map((f) => f.id).join('|')).digest('hex').slice(0, 12),
+    hash: createHash('sha1')
+      .update(files.map((f) => f.id).join('|'))
+      .digest('hex')
+      .slice(0, 12),
     baker: blender ? 'blender' : 'three',
     files,
   };

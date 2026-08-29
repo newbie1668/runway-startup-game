@@ -364,7 +364,7 @@ export interface Landmark {
   yaw?: number;
 }
 
-/** Named civic decks (bridges + Old Street). River spans also get OSM asphalt. */
+/** Named civic decks (bridges + Old Street). River spans also get OSM asphalt, except Tower Bridge which carries its own designed deck. */
 export function isDeckLandmark(kind: LandmarkKind): boolean {
   return (
     kind === 'towerbridge' ||

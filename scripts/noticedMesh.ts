@@ -8,6 +8,7 @@ import earcut from 'earcut';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import type { NoticedBand, NoticedShape } from './noticedFeatures';
 import { bandsForShape, isCircularShape } from './noticedFeatures';
+import { buildUniqueNoticed } from '../lib/game/render3d/uniqueNoticed';
 
 export interface NoticedBakeBuilding {
   id: string;
@@ -177,6 +178,8 @@ function extrudeGeometry(
 }
 
 export function buildNoticedGroup(job: NoticedBakeBuilding): THREE.Group {
+  const unique = buildUniqueNoticed(job);
+  if (unique) return unique;
   const shape = job.shape;
   const bands = job.bands ?? bandsForShape(shape);
   const circular = job.circular ?? isCircularShape(shape);
@@ -262,19 +265,42 @@ function appendCivicSilhouette(
     spire.rotation.y = Math.PI / 4;
     spire.name = `${job.id}-spire`;
     group.add(spire);
-    addBox(group, tw * 0.18, H * 0.22, tw * 0.18, ridge, cx, towerH * 0.55, cz - d * 0.38, `${job.id}-ridge`);
+    addBox(
+      group,
+      tw * 0.18,
+      H * 0.22,
+      tw * 0.18,
+      ridge,
+      cx,
+      towerH * 0.55,
+      cz - d * 0.38,
+      `${job.id}-ridge`,
+    );
   } else if (job.shape === 'station') {
     const clockH = H * 1.15;
     const tw = Math.min(w, d) * 0.28;
     addBox(group, tw, clockH, tw, wallMat, cx + w * 0.32, 0, cz, `${job.id}-clock`);
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(tw * 0.38, tw * 0.38, H * 0.18, 12), ridge);
+    const drum = new THREE.Mesh(
+      new THREE.CylinderGeometry(tw * 0.38, tw * 0.38, H * 0.18, 12),
+      ridge,
+    );
     drum.position.set(cx + w * 0.32, clockH + H * 0.08, cz);
     drum.name = `${job.id}-clockface`;
     group.add(drum);
     addBox(group, w * 0.9, H * 0.12, d * 0.18, roofMat, cx, H * 0.72, cz, `${job.id}-shed`);
   } else if (job.shape === 'theatre') {
     addBox(group, w * 0.42, H * 1.45, d * 0.38, wallMat, cx, 0, cz + d * 0.22, `${job.id}-fly`);
-    addBox(group, w * 0.7, H * 0.16, d * 0.12, ridge, cx, H * 0.42, cz - d * 0.48, `${job.id}-marquee`);
+    addBox(
+      group,
+      w * 0.7,
+      H * 0.16,
+      d * 0.12,
+      ridge,
+      cx,
+      H * 0.42,
+      cz - d * 0.48,
+      `${job.id}-marquee`,
+    );
   } else if (job.shape === 'civic') {
     const domeR = Math.min(w, d) * 0.28;
     const dome = new THREE.Mesh(
@@ -284,7 +310,10 @@ function appendCivicSilhouette(
     dome.position.set(cx, H, cz);
     dome.name = `${job.id}-dome`;
     group.add(dome);
-    const lantern = new THREE.Mesh(new THREE.CylinderGeometry(domeR * 0.18, domeR * 0.22, H * 0.22, 8), ridge);
+    const lantern = new THREE.Mesh(
+      new THREE.CylinderGeometry(domeR * 0.18, domeR * 0.22, H * 0.22, 8),
+      ridge,
+    );
     lantern.position.set(cx, H + domeR * 0.55, cz);
     lantern.name = `${job.id}-lantern`;
     group.add(lantern);

@@ -2,6 +2,9 @@
  * Street-camera / HUD helpers — offline, no DOM.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import * as THREE from 'three';
 import { londonClimate, londonClock, searchPlaces } from '../lib/game/mapSearch';
 import {
   STYLE_HOUSE,
@@ -33,12 +36,11 @@ import {
   countLandRibbonsOverWater,
   spanEndClearanceM,
   landRibbonVerts,
+  buildParks,
   BRIDGE_SPAN_MIN_M,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
 import { decodeCity } from '../lib/game/render3d/format';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -259,7 +261,9 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
     t = Math.max(0, Math.min(1, t));
     return Math.hypot(px - (ax + t * abx), pz - (az + t * abz)) / METERS_TO_WORLD;
   };
-  const named = LANDMARKS.filter((l) => isDeckLandmark(l.kind) && l.kind !== 'oldstreet');
+  const named = LANDMARKS.filter(
+    (l) => isDeckLandmark(l.kind) && l.kind !== 'oldstreet' && l.kind !== 'towerbridge',
+  );
   for (const lm of named) {
     const at = project(lm.at);
     const hit = spans.find((s) => distToSpanM(at.x, at.y, s) < 30);
@@ -282,6 +286,13 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
       `${lm.name} deck misses the bank road (${e0.toFixed(0)}m / ${e1.toFixed(0)}m)`,
     );
   }
+  const tb = LANDMARKS.find((l) => l.kind === 'towerbridge')!;
+  const tbAt = project(tb.at);
+  assert.equal(
+    spans.find((s) => distToSpanM(tbAt.x, tbAt.y, s) < 30),
+    undefined,
+    'Tower Bridge must not get a generic stitch ribbon',
+  );
   const extra = THAMES_CROSSINGS;
   for (const { name, at: ll } of extra) {
     const at = project(ll);
@@ -303,7 +314,35 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
   const keys = extra.map((c) => thamesCrossingLookKey(c.name));
   assert.equal(new Set(keys).size, keys.length);
   assert.ok(keys.includes('chelseabr') && keys.includes('vauxhallbr'));
-  assert.equal(countLandRibbonsOverWater(city), 0, 'OSM land ribbons must not span a water channel');
+  assert.equal(
+    countLandRibbonsOverWater(city),
+    0,
+    'OSM land ribbons must not span a water channel',
+  );
+});
+
+check('park grass is matte mottled green, not a lit plastic lawn', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const parks = buildParks(city);
+  assert.ok(parks, 'expected park meshes');
+  let grass = 0;
+  parks!.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const mat of mats) {
+      assert.equal(mat.type, 'MeshBasicMaterial', `${mat.type} still lights the lawn`);
+      assert.ok(
+        !('metalness' in mat) || (mat as THREE.MeshBasicMaterial).type === 'MeshBasicMaterial',
+      );
+      if (mat.vertexColors) {
+        grass += 1;
+        const colors = obj.geometry.getAttribute('color');
+        assert.ok(colors && colors.count > 12, 'grass needs per-vertex shade');
+      }
+    }
+  });
+  assert.ok(grass >= 1, 'grass mesh must use vertex colours');
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

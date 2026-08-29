@@ -73,6 +73,8 @@ const NOTICED_LOOK: Record<
   parkdrive: { at: [-0.0151, 51.5023], viewH: 2.55, azimuth: 0.95 },
   newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
   wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
+  charrington: { at: [-0.005806, 51.507083], viewH: 2.6, azimuth: 0.72 },
+  hsbc: { at: [-0.0184, 51.5055], viewH: 2.45, azimuth: 0.55 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */

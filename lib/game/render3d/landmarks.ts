@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { METERS_TO_WORLD } from '../geo';
 import type { LandmarkKind } from '../geo';
 import { HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
+import { ASPHALT } from './palette';
 
 /** Name used to find the rotating wheel sub-group for the frame()-driven spin. */
 export const EYE_WHEEL_NAME = 'eyeWheel';
@@ -522,15 +523,23 @@ function buildTowerBridge(): THREE.Group {
   const band = new THREE.MeshLambertMaterial({ color: 0xf4eee4 });
   const iron = new THREE.MeshLambertMaterial({ color: 0x2a5aa8 });
   const voidMat = new THREE.MeshLambertMaterial({ color: 0x5a5048 });
+  const asphalt = new THREE.MeshLambertMaterial({ color: ASPHALT });
 
   const towerHeight = h(65);
   const towerHalfSpan = m(42);
   const shaftW = m(18);
-  const pier = m(3.6);
+  const pier = m(3.2);
   const deckY = LANDMARK_DECK_Y;
-  const deckW = m(11.5);
+  const deckW = m(11.2);
+  const deckLen = m(268);
+  const deckH = m(1.2);
   const archH = deckY + m(12);
   const walkY = towerHeight * 0.78;
+
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(deckW, deckH, deckLen), asphalt);
+  deck.name = 'deck';
+  deck.position.set(0, deckY - deckH / 2, 0);
+  group.add(deck);
 
   for (const side of [-1, 1]) {
     const z = side * towerHalfSpan;
@@ -1199,31 +1208,163 @@ function buildHungerford(): THREE.Group {
   return group;
 }
 
-function buildTowerLondon(): THREE.Group {
-  const group = new THREE.Group();
-  const stone = new THREE.MeshLambertMaterial({ color: 0xe6e0d0 });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x3a342c });
-  const keepH = h(27);
-  addBox(group, m(36), keepH, m(32), stone);
-  for (const [x, z] of [
-    [-16, -14],
-    [16, -14],
-    [-16, 14],
-    [16, 14],
-  ] as const) {
-    addBox(group, m(8), h(36), m(8), stone, m(x), 0, m(z));
-    const turret = new THREE.Mesh(
-      baseAtGround(new THREE.ConeGeometry(m(5.5), h(8), 8), h(8)),
+function addCurtain(
+  group: THREE.Group,
+  innerW: number,
+  innerD: number,
+  thick: number,
+  height: number,
+  mat: THREE.Material,
+  name: string,
+): void {
+  const wall = new THREE.Group();
+  wall.name = name;
+  addBox(wall, innerW + thick * 2, height, thick, mat, 0, 0, -(innerD / 2 + thick / 2));
+  addBox(wall, innerW + thick * 2, height, thick, mat, 0, 0, innerD / 2 + thick / 2);
+  addBox(wall, thick, height, innerD, mat, -(innerW / 2 + thick / 2), 0, 0);
+  addBox(wall, thick, height, innerD, mat, innerW / 2 + thick / 2, 0, 0);
+  group.add(wall);
+}
+
+function addMerlons(
+  group: THREE.Group,
+  innerW: number,
+  innerD: number,
+  thick: number,
+  y: number,
+  mat: THREE.Material,
+  step: number,
+): void {
+  const outerW = innerW + thick * 2;
+  const outerD = innerD + thick * 2;
+  const hw = outerW / 2;
+  const hd = outerD / 2;
+  const merlon = m(1.4);
+  const merlonH = h(1.8);
+  for (const z of [-hd, hd]) {
+    for (let x = -hw + step; x < hw - merlon; x += step) {
+      addBox(group, merlon, merlonH, thick * 0.7, mat, x, y, z);
+    }
+  }
+  for (const x of [-hw, hw]) {
+    for (let z = -hd + step; z < hd - merlon; z += step) {
+      addBox(group, thick * 0.7, merlonH, merlon, mat, x, y, z);
+    }
+  }
+}
+
+function addMuralTower(
+  group: THREE.Group,
+  x: number,
+  z: number,
+  r: number,
+  height: number,
+  stone: THREE.Material,
+  roof: THREE.Material,
+  square: boolean,
+): void {
+  if (square) {
+    addBox(group, r * 1.7, height, r * 1.7, stone, x, 0, z);
+  } else {
+    const drum = new THREE.Mesh(
+      baseAtGround(new THREE.CylinderGeometry(r, r * 1.08, height, 10), height),
       stone,
     );
-    turret.position.set(m(x), h(36), m(z));
-    group.add(turret);
+    drum.position.set(x, 0, z);
+    group.add(drum);
   }
+  const coneH = height * 0.28;
+  const cone = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(r * 1.15, coneH, 8), coneH),
+    roof,
+  );
+  cone.position.set(x, height, z);
+  group.add(cone);
+}
+
+function buildTowerLondon(): THREE.Group {
+  const group = new THREE.Group();
+  const keep = new THREE.MeshLambertMaterial({ color: 0xf2eee4 });
+  const wall = new THREE.MeshLambertMaterial({ color: 0xd4cdc0 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x3a342c });
+  const roof = new THREE.MeshLambertMaterial({ color: 0x6a5848 });
+  const lawn = new THREE.MeshLambertMaterial({ color: 0x4a6a42 });
+
+  const outerW = m(82);
+  const outerD = m(64);
+  const outerThick = m(4.2);
+  const outerH = h(9);
+  const innerW = m(46);
+  const innerD = m(38);
+  const innerThick = m(3.6);
+  const innerH = h(12);
+
+  const outerLawn = new THREE.Mesh(new THREE.BoxGeometry(outerW, m(0.35), outerD), lawn);
+  outerLawn.position.y = m(0.18);
+  group.add(outerLawn);
+  addCurtain(group, outerW, outerD, outerThick, outerH, wall, 'outer-curtain');
+  addMerlons(group, outerW, outerD, outerThick, outerH, wall, m(6.2));
+
+  const innerLawn = new THREE.Mesh(new THREE.BoxGeometry(innerW, m(0.4), innerD), lawn);
+  innerLawn.position.set(0, m(0.22), m(-2));
+  group.add(innerLawn);
+  const inner = new THREE.Group();
+  inner.position.z = m(-2);
+  addCurtain(inner, innerW, innerD, innerThick, innerH, wall, 'inner-curtain');
+  addMerlons(inner, innerW, innerD, innerThick, innerH, wall, m(5.4));
+  group.add(inner);
+
+  const keepG = new THREE.Group();
+  keepG.name = 'white-tower';
+  const keepW = m(32);
+  const keepD = m(36);
+  const keepH = h(27);
+  addBox(keepG, keepW, keepH, keepD, keep);
   for (let i = 0; i < 4; i++) {
-    addBox(group, m(4), h(6), m(1.4), dark, m(-10 + i * 7), h(12), m(16.4));
+    addBox(keepG, m(3.6), h(5.5), m(1.3), dark, m(-10 + i * 6.6), h(11), keepD / 2 + m(0.2));
+    addBox(keepG, m(3.6), h(5.5), m(1.3), dark, m(-10 + i * 6.6), h(11), -(keepD / 2 + m(0.2)));
+    addBox(keepG, m(1.3), h(5.5), m(3.6), dark, keepW / 2 + m(0.2), h(11), m(-12 + i * 8));
+    addBox(keepG, m(1.3), h(5.5), m(3.6), dark, -(keepW / 2 + m(0.2)), h(11), m(-12 + i * 8));
   }
-  addBox(group, m(90), h(10), m(70), stone, 0, 0, 0);
-  group.rotation.y = 0.2;
+  const turretR = m(5.2);
+  const turretH = h(36);
+  const spots: Array<[number, number, boolean]> = [
+    [-keepW / 2, -keepD / 2, false],
+    [keepW / 2, -keepD / 2, true],
+    [-keepW / 2, keepD / 2, false],
+    [keepW / 2, keepD / 2, false],
+  ];
+  for (const [x, z, square] of spots) {
+    addMuralTower(keepG, x, z, turretR, turretH, keep, roof, square);
+  }
+  keepG.position.set(0, 0, m(-2));
+  group.add(keepG);
+
+  const outerCorners: Array<[number, number]> = [
+    [-(outerW / 2 + outerThick), -(outerD / 2 + outerThick)],
+    [outerW / 2 + outerThick, -(outerD / 2 + outerThick)],
+    [-(outerW / 2 + outerThick), outerD / 2 + outerThick],
+    [outerW / 2 + outerThick, outerD / 2 + outerThick],
+  ];
+  for (const [x, z] of outerCorners) {
+    addMuralTower(group, x, z, m(4.4), h(16), wall, roof, false);
+  }
+  addMuralTower(group, 0, -(outerD / 2 + outerThick), m(3.8), h(14), wall, roof, false);
+  addMuralTower(group, 0, outerD / 2 + outerThick, m(3.8), h(14), wall, roof, false);
+  addMuralTower(group, -(outerW / 2 + outerThick), 0, m(3.6), h(14), wall, roof, false);
+  addMuralTower(group, outerW / 2 + outerThick, 0, m(3.6), h(14), wall, roof, false);
+
+  const innerCorners: Array<[number, number]> = [
+    [-(innerW / 2 + innerThick), -(innerD / 2 + innerThick) - m(2)],
+    [innerW / 2 + innerThick, -(innerD / 2 + innerThick) - m(2)],
+    [-(innerW / 2 + innerThick), innerD / 2 + innerThick - m(2)],
+    [innerW / 2 + innerThick, innerD / 2 + innerThick - m(2)],
+  ];
+  for (const [x, z] of innerCorners) {
+    addMuralTower(group, x, z, m(3.2), h(18), wall, roof, false);
+  }
+
+  group.rotation.y = 0.18;
   return group;
 }
 
@@ -1419,10 +1560,7 @@ function buildStCharles(): THREE.Group {
   const towerH = h(28);
   addBox(group, m(8), towerH, m(8), cream, 0, 0, m(-18));
   addBox(group, m(9), h(2), m(9), brick, 0, towerH, m(-18));
-  const cap = new THREE.Mesh(
-    baseAtGround(new THREE.ConeGeometry(m(5.2), h(8), 4), h(8)),
-    brick,
-  );
+  const cap = new THREE.Mesh(baseAtGround(new THREE.ConeGeometry(m(5.2), h(8), 4), h(8)), brick);
   cap.position.set(0, towerH + h(2), m(-18));
   cap.rotation.y = Math.PI / 4;
   group.add(cap);
@@ -1480,14 +1618,14 @@ function buildStPancras(): THREE.Group {
   const towerH = h(48);
   addBox(group, m(16), towerH, m(16), brick, m(-40), 0, 0);
   addBox(group, m(18), h(4), m(18), stone, m(-40), towerH, 0);
-  const roof = new THREE.Mesh(
-    baseAtGround(new THREE.ConeGeometry(m(11), h(16), 4), h(16)),
-    slate,
-  );
+  const roof = new THREE.Mesh(baseAtGround(new THREE.ConeGeometry(m(11), h(16), 4), h(16)), slate);
   roof.position.set(m(-40), towerH + h(4), 0);
   roof.rotation.y = Math.PI / 4;
   group.add(roof);
-  const clock = new THREE.Mesh(new THREE.CylinderGeometry(m(3.2), m(3.2), m(0.8), 16), glowMat(0xf0e6d0));
+  const clock = new THREE.Mesh(
+    new THREE.CylinderGeometry(m(3.2), m(3.2), m(0.8), 16),
+    glowMat(0xf0e6d0),
+  );
   clock.rotation.x = Math.PI / 2;
   clock.position.set(m(-40), towerH * 0.72, m(8.4));
   group.add(clock);
@@ -1513,7 +1651,10 @@ function buildAlbertHall(): THREE.Group {
   band.position.y = h(14);
   group.add(band);
   addWindowGrid(group, m(18), h(8), 3, 2, 0, h(6), m(36.2), 'z', 0x3a4860);
-  const roof = new THREE.Mesh(new THREE.SphereGeometry(m(34), 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), iron);
+  const roof = new THREE.Mesh(
+    new THREE.SphereGeometry(m(34), 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.42),
+    iron,
+  );
   roof.position.y = drumH - m(4);
   group.add(roof);
   const lantern = new THREE.Mesh(

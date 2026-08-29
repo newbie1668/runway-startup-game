@@ -495,9 +495,13 @@ export class MapRenderer implements IMapRenderer {
           ctx.stroke();
           break;
         case 'towerlondon':
-          ctx.strokeRect(-6, -10, 12, 10);
-          ctx.strokeRect(-7, -14, 3, 4);
-          ctx.strokeRect(4, -14, 3, 4);
+          ctx.strokeRect(-11, -8, 22, 16);
+          ctx.strokeRect(-7, -5, 14, 10);
+          ctx.strokeRect(-3, -2, 6, 6);
+          ctx.strokeRect(-4, -8, 2, 3);
+          ctx.strokeRect(2, -8, 2, 3);
+          ctx.strokeRect(-4, 5, 2, 3);
+          ctx.strokeRect(2, 5, 2, 3);
           break;
         case 'buckingham':
           ctx.strokeRect(-12, -8, 24, 8);
