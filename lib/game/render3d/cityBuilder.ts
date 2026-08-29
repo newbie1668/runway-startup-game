@@ -2321,7 +2321,7 @@ function dedupeCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
   const near = 55 * METERS_TO_WORLD;
   for (let i = 0; i < spans.length; i++) {
     if (used.has(i)) continue;
-    let keep = spans[i]!;
+    const keep = spans[i]!;
     const mix = (keep.pts[0].x + keep.pts[1].x) / 2;
     const miz = (keep.pts[0].z + keep.pts[1].z) / 2;
     for (let j = i + 1; j < spans.length; j++) {
