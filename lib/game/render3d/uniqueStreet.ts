@@ -65,9 +65,9 @@ export const POULTRY_SHOP = 0x3a322c;
 export const POULTRY_ROOF = 0x5a625c;
 export const POULTRY_GRANITE = 0x6a6e6a;
 export const POULTRY_WELL = 0x1a1a22;
-/** White clock disk. Cream-on-pink vanished in the street still. */
-export const POULTRY_CLOCK = 0xf7f2e8;
-export const POULTRY_CLOCK_RIM = 0x2a2826;
+/** Stirling watch face. Off-white vanished into the pink/buff stripes under Lambert. */
+export const POULTRY_CLOCK = 0xffffff;
+export const POULTRY_CLOCK_RIM = 0x141210;
 
 /** Lutyens Midland Bank / The Ned. Portland, rusticated base, dark mansard. */
 export const NED_STONE = 0xe6dfd0;
@@ -927,7 +927,10 @@ function emitStripedSegment(
   }
 }
 
-/** Stirling clock on a wall plane. Four clocks on a cylinder is the costume drum. */
+/**
+ * Stirling's two-sided watch: a thick disk in a plane, not a vertical shaft.
+ * Four clocks on a cylinder is the costume drum.
+ */
 function emitClockOnFace(
   ctx: StreetEmit,
   px: number,
@@ -937,84 +940,149 @@ function emitClockOnFace(
   nz: number,
   faceR: number,
 ): void {
-  const rimW = m(0.38);
-  const out = m(0.18);
-  const segs = 12;
+  const nlen = Math.hypot(nx, nz) || 1;
+  nx /= nlen;
+  nz /= nlen;
   const tx = -nz;
   const tz = nx;
-  const ox = nx * out;
-  const oz = nz * out;
-  const c = ctx.pushVertex(px + ox, py, pz + oz, nx, 0, nz, POULTRY_CLOCK);
-  const inner: number[] = [];
-  const outer: number[] = [];
-  for (let s = 0; s < segs; s++) {
-    const t = (s / segs) * Math.PI * 2;
-    const cpx = Math.cos(t);
-    const spy = Math.sin(t);
-    inner.push(
-      ctx.pushVertex(
-        px + tx * cpx * faceR + ox,
-        py + spy * faceR,
-        pz + tz * cpx * faceR + oz,
-        nx,
-        0,
-        nz,
-        POULTRY_CLOCK,
-      ),
-    );
-    outer.push(
-      ctx.pushVertex(
-        px + tx * cpx * (faceR + rimW) + ox,
-        py + spy * (faceR + rimW),
-        pz + tz * cpx * (faceR + rimW) + oz,
-        nx,
-        0,
-        nz,
-        POULTRY_CLOCK_RIM,
-      ),
-    );
-  }
-  for (let s = 0; s < segs; s++) {
-    ctx.pushTri(c, inner[s]!, inner[(s + 1) % segs]!);
-    ctx.pushTri(inner[s]!, outer[s]!, outer[(s + 1) % segs]!);
-    ctx.pushTri(inner[s]!, outer[(s + 1) % segs]!, inner[(s + 1) % segs]!);
-  }
-  const hand = (len: number, ang: number, halfW: number) => {
-    const tipT = Math.sin(ang) * len;
-    const tipY = Math.cos(ang) * len;
-    const baseT = Math.cos(ang) * halfW;
-    const baseY = -Math.sin(ang) * halfW;
-    const i0 = ctx.pushVertex(
-      px + tx * -baseT + ox,
-      py + -baseY,
-      pz + tz * -baseT + oz,
-      nx,
-      0,
-      nz,
-      POULTRY_CLOCK_RIM,
-    );
-    const i1 = ctx.pushVertex(
-      px + tx * baseT + ox,
-      py + baseY,
-      pz + tz * baseT + oz,
-      nx,
-      0,
-      nz,
-      POULTRY_CLOCK_RIM,
-    );
-    const i2 = ctx.pushVertex(
-      px + tx * tipT + ox,
-      py + tipY,
-      pz + tz * tipT + oz,
-      nx,
-      0,
-      nz,
-      POULTRY_CLOCK_RIM,
-    );
-    ctx.pushTri(i0, i1, i2);
+  const segs = 24;
+  const rimW = m(0.7);
+  const halfD = m(0.62);
+  const faceOut = halfD + m(0.1);
+
+  const ringAt = (out: number, radius: number, hex: number, sign: number): number[] => {
+    const ids: number[] = [];
+    const ox = nx * out;
+    const oz = nz * out;
+    const snx = nx * sign;
+    const snz = nz * sign;
+    for (let s = 0; s < segs; s++) {
+      const t = (s / segs) * Math.PI * 2;
+      const cpx = Math.cos(t);
+      const spy = Math.sin(t);
+      ids.push(
+        ctx.pushVertex(
+          px + tx * cpx * radius + ox,
+          py + spy * radius,
+          pz + tz * cpx * radius + oz,
+          snx,
+          0,
+          snz,
+          hex,
+        ),
+      );
+    }
+    return ids;
   };
-  hand(faceR * 0.52, Math.PI * 0.33, m(0.08));
-  hand(faceR * 0.78, -Math.PI * 0.18, m(0.05));
+
+  const emitFace = (out: number, sign: number) => {
+    const ox = nx * out;
+    const oz = nz * out;
+    const snx = nx * sign;
+    const snz = nz * sign;
+    const c = ctx.pushVertex(px + ox, py, pz + oz, snx, 0, snz, POULTRY_CLOCK);
+    const inner = ringAt(out, faceR, POULTRY_CLOCK, sign);
+    const outer = ringAt(out, faceR + rimW, POULTRY_CLOCK_RIM, sign);
+    for (let s = 0; s < segs; s++) {
+      const a = inner[s]!;
+      const b = inner[(s + 1) % segs]!;
+      if (sign > 0) ctx.pushTri(c, a, b);
+      else ctx.pushTri(c, b, a);
+      const o0 = outer[s]!;
+      const o1 = outer[(s + 1) % segs]!;
+      if (sign > 0) {
+        ctx.pushTri(a, o0, o1);
+        ctx.pushTri(a, o1, b);
+      } else {
+        ctx.pushTri(a, o1, o0);
+        ctx.pushTri(a, b, o1);
+      }
+    }
+    const handOut = out + m(0.14) * sign;
+    const hox = nx * handOut;
+    const hoz = nz * handOut;
+    const hand = (len: number, ang: number, halfW: number) => {
+      const tipT = Math.sin(ang) * len;
+      const tipY = Math.cos(ang) * len;
+      const baseT = Math.cos(ang) * halfW;
+      const baseY = -Math.sin(ang) * halfW;
+      const i0 = ctx.pushVertex(
+        px + tx * -baseT + hox,
+        py + -baseY,
+        pz + tz * -baseT + hoz,
+        snx,
+        0,
+        snz,
+        POULTRY_CLOCK_RIM,
+      );
+      const i1 = ctx.pushVertex(
+        px + tx * baseT + hox,
+        py + baseY,
+        pz + tz * baseT + hoz,
+        snx,
+        0,
+        snz,
+        POULTRY_CLOCK_RIM,
+      );
+      const i2 = ctx.pushVertex(
+        px + tx * tipT + hox,
+        py + tipY,
+        pz + tz * tipT + hoz,
+        snx,
+        0,
+        snz,
+        POULTRY_CLOCK_RIM,
+      );
+      if (sign > 0) ctx.pushTri(i0, i1, i2);
+      else ctx.pushTri(i0, i2, i1);
+    };
+    hand(faceR * 0.52, Math.PI * 0.33, m(0.28));
+    hand(faceR * 0.8, -Math.PI * 0.18, m(0.16));
+    for (let h = 0; h < 12; h++) {
+      const ang = (h / 12) * Math.PI * 2;
+      const cpx = Math.cos(ang);
+      const spy = Math.sin(ang);
+      const pxT = -spy;
+      const pyT = cpx;
+      const halfW = h % 3 === 0 ? m(0.22) : m(0.1);
+      const r0 = faceR * 0.78;
+      const r1 = faceR * 0.96;
+      const tick = (r: number, side: number) =>
+        ctx.pushVertex(
+          px + tx * (cpx * r + pxT * side) + hox,
+          py + spy * r + pyT * side,
+          pz + tz * (cpx * r + pxT * side) + hoz,
+          snx,
+          0,
+          snz,
+          POULTRY_CLOCK_RIM,
+        );
+      const t0 = tick(r0, -halfW);
+      const t1 = tick(r0, halfW);
+      const t2 = tick(r1, halfW);
+      const t3 = tick(r1, -halfW);
+      if (sign > 0) {
+        ctx.pushTri(t0, t1, t2);
+        ctx.pushTri(t0, t2, t3);
+      } else {
+        ctx.pushTri(t0, t2, t1);
+        ctx.pushTri(t0, t3, t2);
+      }
+    }
+  };
+
+  emitFace(faceOut, 1);
+  emitFace(-faceOut, -1);
+  const frontOuter = ringAt(faceOut, faceR + rimW, POULTRY_CLOCK_RIM, 1);
+  const backOuter = ringAt(-faceOut, faceR + rimW, POULTRY_CLOCK_RIM, -1);
+  for (let s = 0; s < segs; s++) {
+    const a = frontOuter[s]!;
+    const b = frontOuter[(s + 1) % segs]!;
+    const c = backOuter[(s + 1) % segs]!;
+    const d = backOuter[s]!;
+    ctx.pushTri(a, b, c);
+    ctx.pushTri(a, c, d);
+  }
 }
 
 /** ~30 pointed panes on the apex end of a prow wall. */
@@ -1084,7 +1152,6 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const prowH = Math.max(H * 1.32, m(42));
   const arcadeH = H * 0.15;
   const vTop = Math.max(arcadeH + m(14), H * 0.5);
-  const clockY = arcadeH + (prowH - arcadeH) * 0.62;
   const capDisk: Disk = { x: apex.x, z: apex.z, r: m(8.5) };
 
   emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE);
@@ -1112,34 +1179,43 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   pushDisk(ctx, cx, m(0.35), cz, wellR * 0.98, POULTRY_WELL, 16);
 
   const out = m(0.07);
-  emitStripedSegment(ctx, ePrev, 0.6, 1, arcadeH, prowH, POULTRY_PINK, POULTRY_BUFF, 10, out);
-  emitStripedSegment(ctx, eNext, 0, 0.4, arcadeH, prowH, POULTRY_PINK, POULTRY_BUFF, 10, out);
+  emitStripedSegment(ctx, ePrev, 0.5, 1, arcadeH, prowH, POULTRY_PINK, POULTRY_BUFF, 10, out);
+  emitStripedSegment(ctx, eNext, 0, 0.5, arcadeH, prowH, POULTRY_PINK, POULTRY_BUFF, 10, out);
   emitApexArch(ctx, ePrev, false, 0, arcadeH * 1.35);
   emitApexArch(ctx, eNext, true, 0, arcadeH * 1.35);
   emitProwVGlass(ctx, ePrev, false, arcadeH, vTop);
   emitProwVGlass(ctx, eNext, true, arcadeH, vTop);
-  const pPrev = edgePoint(ePrev, 0.82);
-  const pNext = edgePoint(eNext, 0.18);
+  const faceR = m(5.8);
+  const flankR = m(4.6);
+  const clockY = vTop + faceR + m(1.4);
+  let bx = ePrev.nx + eNext.nx;
+  let bz = ePrev.nz + eNext.nz;
+  const bl = Math.hypot(bx, bz) || 1;
+  bx /= bl;
+  bz /= bl;
+  emitClockOnFace(ctx, apex.x - bx * m(3.2), clockY, apex.z - bz * m(3.2), bx, bz, faceR);
+  const pPrev = edgePoint(ePrev, 0.78);
+  const pNext = edgePoint(eNext, 0.22);
   emitClockOnFace(
     ctx,
-    pPrev.x + ePrev.nx * m(0.1),
+    pPrev.x + ePrev.nx * m(0.28),
     clockY,
-    pPrev.z + ePrev.nz * m(0.1),
+    pPrev.z + ePrev.nz * m(0.28),
     ePrev.nx,
     ePrev.nz,
-    m(3.2),
+    flankR,
   );
   emitClockOnFace(
     ctx,
-    pNext.x + eNext.nx * m(0.1),
+    pNext.x + eNext.nx * m(0.28),
     clockY,
-    pNext.z + eNext.nz * m(0.1),
+    pNext.z + eNext.nz * m(0.28),
     eNext.nx,
     eNext.nz,
-    m(3.2),
+    flankR,
   );
-  emitStripedSegment(ctx, ePrev, 0.6, 1, prowH - m(1.3), prowH, POULTRY_BUFF, POULTRY_PINK, 2, m(0.14));
-  emitStripedSegment(ctx, eNext, 0, 0.4, prowH - m(1.3), prowH, POULTRY_BUFF, POULTRY_PINK, 2, m(0.14));
+  emitStripedSegment(ctx, ePrev, 0.5, 1, prowH - m(1.3), prowH, POULTRY_BUFF, POULTRY_PINK, 2, m(0.14));
+  emitStripedSegment(ctx, eNext, 0, 0.5, prowH - m(1.3), prowH, POULTRY_BUFF, POULTRY_PINK, 2, m(0.14));
 }
 
 function emitNedWalls(ctx: StreetEmit): void {

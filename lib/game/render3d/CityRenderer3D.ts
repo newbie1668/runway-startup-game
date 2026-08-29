@@ -64,6 +64,12 @@ const CITY_BIN_URL = '/map/london-city.bin';
 const BUILD_JOBS_PER_FRAME = 2;
 /** Drain faster while the loading overlay is up — the player isn't watching a half-built city. */
 const BUILD_JOBS_WHILE_LOADING = 16;
+/**
+ * Keep-disk cameras still extrude every stock plate inside the disk. Dumping
+ * those buffers in one burst Aw Snapped the first view=mid. Spread the upload;
+ * do not skip keep-disk stock to save GPU.
+ */
+const BUILD_JOBS_WHILE_LOADING_WIDE = 6;
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 
 /** Fitzrovia / Charlotte St — cream and brick terraces, toy isometric height. */
@@ -571,7 +577,12 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   private drainBuildQueue(): void {
-    const budget = this.readyNotified ? BUILD_JOBS_PER_FRAME : BUILD_JOBS_WHILE_LOADING;
+    const keepLoad = meshBudget().chunkKeepM != null;
+    const budget = this.readyNotified
+      ? BUILD_JOBS_PER_FRAME
+      : keepLoad
+        ? BUILD_JOBS_WHILE_LOADING_WIDE
+        : BUILD_JOBS_WHILE_LOADING;
     for (let i = 0; i < budget && this.buildQueue.length > 0; i++) {
       try {
         this.buildQueue.shift()!();

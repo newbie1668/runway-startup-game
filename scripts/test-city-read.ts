@@ -1030,6 +1030,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let jewryHighN = 0;
   let poultryGlassN = 0;
   let poultryClockN = 0;
+  let poultryClockProwN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
   const highR: number[] = [];
@@ -1122,6 +1123,8 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - poultryClock.b) < 0.04
         ) {
           poultryClockN += 1;
+          const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
+          if (dApex < 30 && yM > 16 && yM < 40) poultryClockProwN += 1;
         }
       }
       const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
@@ -1193,8 +1196,12 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     `Stirling window bands missing (glass=${poultryGlassN}) — blank walls are a fail`,
   );
   assert.ok(
-    poultryClockN > 24,
+    poultryClockN > 80,
     `Poultry clock faces missing (clock=${poultryClockN}) — blank drum is a fail`,
+  );
+  assert.ok(
+    poultryClockProwN > 40,
+    `Stirling clocks missing from the prow (prowClock=${poultryClockProwN})`,
   );
   assert.ok(highR.length > 16, `Poultry prow missing above the wings (${highR.length} high verts)`);
   {
