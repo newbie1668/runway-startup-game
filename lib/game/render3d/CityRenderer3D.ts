@@ -58,7 +58,7 @@ import { createGlowSpriteTexture } from './textures';
 const CITY_BIN_URL = '/map/london-city.bin';
 const BUILD_JOBS_PER_FRAME = 2;
 /** Drain faster while the loading overlay is up — the player isn't watching a half-built city. */
-const BUILD_JOBS_WHILE_LOADING = 10;
+const BUILD_JOBS_WHILE_LOADING = 16;
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 
 /** Fitzrovia / Charlotte St — cream and brick terraces, toy isometric height. */
@@ -70,11 +70,11 @@ const NOTICED_LOOK: Record<
   string,
   { at: readonly [number, number]; viewH: number; azimuth: number }
 > = {
-  parkdrive: { at: [-0.0151, 51.5023], viewH: 2.55, azimuth: 0.95 },
+  parkdrive: { at: [-0.01503, 51.50227], viewH: 2.55, azimuth: 0.95 },
   newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
   wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
-  charrington: { at: [-0.005806, 51.507083], viewH: 2.6, azimuth: 0.72 },
-  hsbc: { at: [-0.0184, 51.5055], viewH: 2.45, azimuth: 0.55 },
+  charrington: { at: [-0.00546, 51.50692], viewH: 2.15, azimuth: 0.72 },
+  hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
