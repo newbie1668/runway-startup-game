@@ -998,8 +998,6 @@ export function buildChunkTier(
       }
     };
 
-    const glassHex = pal.mixHex(baseHex, pal.WINDOW, 0.48);
-    const glassDark = pal.mixHex(pal.WINDOW, pal.AO_DARK, 0.1);
     const bodyY0 = podium ? podiumWorld : 0;
     const bodySpan = Math.max(heightWorld - bodyY0, 4 * METERS_TO_WORLD);
     const setSil = recipe.silhouette;
@@ -1082,7 +1080,6 @@ export function buildChunkTier(
         for (let s = 0; s < setSil.steps; s++) {
           const y1 = bodyY0 + bodySpan * setSil.t1[s]!;
           const stepRing = scaleToward(wallRing, apex.x, apex.z, setSil.scales[s]!);
-          const glassStep = s % 2 === 1;
           emitRingWalls(s === 0 && !podium ? wallRing : stepRing, yPrev, y1, {
             plinth: s === 0 && !podium && shopWorld <= 0.02,
             shop: s === 0 && !podium && shopWorld > 0.02,
@@ -1090,8 +1087,6 @@ export function buildChunkTier(
             doors: s === 0 && !podium,
             windows: stampWindows,
             stringCourses: s === 0,
-            hex: glassStep ? glassHex : undefined,
-            bottomHex: glassStep ? glassHex : undefined,
             ...facadeOpts,
           });
           yPrev = y1;
@@ -1108,8 +1103,6 @@ export function buildChunkTier(
             doors: s === 0 && !podium,
             windows: stampWindows,
             stringCourses: false,
-            hex: s > 0 ? glassHex : undefined,
-            bottomHex: s > 0 ? glassHex : undefined,
             ...facadeOpts,
           });
           yPrev = y1;
@@ -1132,8 +1125,6 @@ export function buildChunkTier(
           cornice: true,
           doors: false,
           windows: stampWindows,
-          hex: glassHex,
-          bottomHex: glassHex,
           ...facadeOpts,
         });
       } else if (massing === 'setback') {
@@ -1152,8 +1143,6 @@ export function buildChunkTier(
           cornice: true,
           doors: false,
           windows: stampWindows,
-          hex: glassHex,
-          bottomHex: glassHex,
           ...facadeOpts,
         });
         if (setbackSteps >= 3) {
@@ -1163,8 +1152,6 @@ export function buildChunkTier(
             cornice: true,
             doors: false,
             windows: stampWindows,
-            hex: glassDark,
-            bottomHex: glassDark,
             ...facadeOpts,
           });
         }

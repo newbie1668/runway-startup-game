@@ -204,10 +204,6 @@ function longestEdges(ring: StreetPt[], take: number): number[] {
   return ranked.slice(0, take).map((e) => e.i);
 }
 
-function scaleRing(ring: StreetPt[], cx: number, cz: number, scale: number): StreetPt[] {
-  return ring.map((p) => ({ x: cx + (p.x - cx) * scale, z: cz + (p.z - cz) * scale }));
-}
-
 function emitWallQuad(
   ctx: StreetEmit,
   ax: number,
@@ -532,14 +528,37 @@ function emitProwArch(ctx: StreetEmit, apex: StreetPt, H: number): void {
   );
 }
 
+function emitAnnularRoof(
+  ctx: StreetRoofEmit,
+  outer: StreetPt[],
+  inner: StreetPt[],
+  y: number,
+  hex: number,
+): void {
+  const n = Math.min(outer.length, inner.length);
+  if (n < 3) return;
+  for (let i = 0; i < n; i++) {
+    const a = outer[i]!;
+    const b = outer[(i + 1) % n]!;
+    const c = inner[(i + 1) % n]!;
+    const d = inner[i]!;
+    const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
+    const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
+    const i2 = ctx.pushVertex(c.x, y, c.z, 0, 1, 0, hex);
+    const i3 = ctx.pushVertex(d.x, y, d.z, 0, 1, 0, hex);
+    ctx.pushTri(i0, i1, i2);
+    ctx.pushTri(i0, i2, i3);
+  }
+}
+
 function emitPoultryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
-  const arcadeH = H * 0.2;
-  const inner = insetRingTowardCentroid(ctx.ring, cx, cz, m(3.2));
+  const arcadeH = H * 0.24;
+  const inner = insetRingTowardCentroid(ctx.ring, cx, cz, m(3.6));
   emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_BUFF);
   emitWallBand(ctx, inner, 0, arcadeH, POULTRY_SHOP, 0);
-  const storeys = 5;
+  const storeys = 3;
   const storeyH = (H - arcadeH) / storeys;
   for (let s = 0; s < storeys; s++) {
     const y0 = arcadeH + s * storeyH;
@@ -551,14 +570,14 @@ function emitPoultryWalls(ctx: StreetEmit): void {
     if (!e || e.len / METERS_TO_WORLD < 18) continue;
     const midX = (e.a.x + e.b.x) / 2;
     const midZ = (e.a.z + e.b.z) / 2;
-    const wedgeH = H * 0.42;
+    const wedgeH = H * 0.38;
     ctx.pushOrientedBox(
-      midX + e.nx * m(0.2),
+      midX + e.nx * m(-0.4),
       arcadeH,
-      midZ + e.nz * m(0.2),
-      Math.min(e.len * 0.28, m(14)),
+      midZ + e.nz * m(-0.4),
+      Math.min(e.len * 0.32, m(16)),
       wedgeH,
-      m(1.8),
+      m(2.4),
       e.tx,
       e.tz,
       e.nx,
@@ -566,16 +585,27 @@ function emitPoultryWalls(ctx: StreetEmit): void {
       POULTRY_GLASS,
     );
   }
-  const wellR = Math.min(ctx.plan.minRM, 11) * 0.42 * METERS_TO_WORLD;
-  pushCylinder(ctx, cx, 0, cz, wellR, H, POULTRY_PINK, 18, false);
-  emitWallBand(ctx, scaleRing(ctx.ring, cx, cz, 0.42), 0, H, POULTRY_SHOP, 0);
+  const wellR = Math.max(m(7.5), Math.min(ctx.plan.minRM, 14) * 0.5 * METERS_TO_WORLD);
+  pushCylinder(ctx, cx, 0, cz, wellR, H, 0x1a1a22, 20, false);
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    ctx.pushBox(
+      cx + Math.cos(a) * wellR * 0.92,
+      H * 0.28,
+      cz + Math.sin(a) * wellR * 0.92,
+      m(1.6),
+      m(2.4),
+      m(0.45),
+      k % 2 === 0 ? 0x3a7a9a : 0xd4c24a,
+    );
+  }
   const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
   emitProwArch(ctx, apex, H);
-  const drumR = m(4.6);
-  const drumY0 = H * 0.42;
-  const drumH = H * 0.98;
-  pushCylinder(ctx, apex.x, drumY0, apex.z, drumR, drumH, POULTRY_PINK, 18, true);
-  pushCylinder(ctx, apex.x, drumY0 + drumH, apex.z, drumR * 0.62, m(2.2), POULTRY_BUFF, 14, true);
+  const drumR = m(6.4);
+  const drumY0 = H * 0.36;
+  const drumH = H * 1.12;
+  pushCylinder(ctx, apex.x, drumY0, apex.z, drumR, drumH, POULTRY_PINK, 20, true);
+  pushCylinder(ctx, apex.x, drumY0 + drumH, apex.z, drumR * 0.7, m(2.6), POULTRY_BUFF, 16, true);
   const clockY = drumY0 + drumH * 0.55;
   const dirx = cx - apex.x;
   const dirz = cz - apex.z;
@@ -770,129 +800,82 @@ function emitMagistratesWalls(ctx: StreetEmit): void {
 
 function emitOldJewryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
-  const { cx, cz } = ctx.plan;
-  const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-  const shopH = H * 0.14;
-  emitWallBand(ctx, ctx.ring, 0, shopH, JEWRY_SHOP, 0);
-  for (const e of edgesOf(ctx, ctx.ring)) {
-    if (e.len / METERS_TO_WORLD < 8) continue;
-    const bays = Math.max(2, Math.min(5, Math.round(e.len / METERS_TO_WORLD / 7)));
-    for (let b = 0; b < bays; b++) {
-      const t = (b + 0.5) / bays;
-      ctx.pushOrientedBox(
-        e.a.x + (e.b.x - e.a.x) * t + e.nx * m(0.8),
-        m(0.25),
-        e.a.z + (e.b.z - e.a.z) * t + e.nz * m(0.8),
-        m(2.8),
-        shopH * 0.78,
-        m(1.4),
-        e.tx,
-        e.tz,
-        e.nx,
-        e.nz,
-        JEWRY_GLASS,
-      );
-    }
-  }
-  emitWallBand(ctx, ctx.ring, shopH, H * 0.55, JEWRY_STONE, 0);
-  const blockB = scaleToward(ctx.ring, apex.x, apex.z, 0.78);
-  emitWallBand(ctx, blockB, H * 0.55, H * 0.82, JEWRY_STONE, 0);
-  const blockC = scaleToward(ctx.ring, cx, cz, 0.62);
-  emitWallBand(ctx, blockC, H * 0.82, H, JEWRY_STONE, 0);
-
+  const shopH = H * 0.12;
   const ranked = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len);
-  const deep = ranked[0];
-  const mid = ranked[1];
-  const flush = ranked[2];
-  if (deep) emitDeepReveals(ctx, deep, shopH, H * 0.55, m(1.35));
-  if (mid) emitDeepReveals(ctx, mid, shopH, H * 0.55, m(0.65));
-  if (flush) {
-    emitEdgeWall(ctx, flush, shopH, H * 0.55, JEWRY_GLASS, m(-0.12));
-  }
-  if (mid) emitBronzeLouvres(ctx, mid, shopH, H * 0.78);
-}
-
-function emitEdgeWall(
-  ctx: StreetEmit,
-  e: Edge,
-  y0: number,
-  y1: number,
-  hex: number,
-  outset: number,
-): void {
-  emitWallQuad(
-    ctx,
-    e.a.x + e.nx * outset,
-    e.a.z + e.nz * outset,
-    e.b.x + e.nx * outset,
-    e.b.z + e.nz * outset,
-    y0,
-    y1,
-    e.nx,
-    e.nz,
-    hex,
-  );
-}
-
-function emitDeepReveals(ctx: StreetEmit, e: Edge, y0: number, y1: number, depth: number): void {
-  const floors = Math.max(3, Math.min(6, Math.round((y1 - y0) / m(3.4))));
-  const bays = Math.max(3, Math.min(7, Math.round(e.len / METERS_TO_WORLD / 4.6)));
-  const winW = Math.min(m(2.2), (e.len / (bays + 1)) * 0.55);
-  const winH = ((y1 - y0) / floors) * 0.58;
-  const frame = JEWRY_STONE;
-  for (let r = 0; r < floors; r++) {
-    const y = y0 + ((r + 0.5) / floors) * (y1 - y0) - winH / 2;
-    for (let c = 0; c < bays; c++) {
-      const t = (c + 0.5) / bays;
-      const mx = e.a.x + (e.b.x - e.a.x) * t;
-      const mz = e.a.z + (e.b.z - e.a.z) * t;
-      ctx.pushOrientedBox(
-        mx + e.nx * (depth / 2),
-        y,
-        mz + e.nz * (depth / 2),
-        winW + m(0.45),
-        winH + m(0.4),
-        depth,
-        e.tx,
-        e.tz,
-        e.nx,
-        e.nz,
-        frame,
-      );
-      ctx.pushOrientedBox(
-        mx + e.nx * (depth * 0.15),
-        y + m(0.18),
-        mz + e.nz * (depth * 0.15),
-        winW,
-        winH,
-        depth * 0.7,
-        e.tx,
-        e.tz,
-        e.nx,
-        e.nz,
-        JEWRY_GLASS,
-      );
-    }
-  }
-}
-
-function emitBronzeLouvres(ctx: StreetEmit, e: Edge, y0: number, y1: number): void {
-  const rows = 7;
-  const along = e.len * 0.88;
-  for (let r = 0; r < rows; r++) {
-    const y = y0 + ((r + 0.5) / rows) * (y1 - y0);
+  emitWallBand(ctx, ctx.ring, 0, shopH, JEWRY_SHOP, 0);
+  emitWallBand(ctx, ctx.ring, shopH, H * 0.42, JEWRY_STONE, 0);
+  const e0 = ranked[0];
+  const e1 = ranked[1];
+  const e2 = ranked[2];
+  if (e0) {
+    const away = {
+      x: (e0.a.x + e0.b.x) / 2 - e0.nx * m(22),
+      z: (e0.a.z + e0.b.z) / 2 - e0.nz * m(22),
+    };
+    const blockB = scaleToward(ctx.ring, away.x, away.z, 0.72);
+    emitWallBand(ctx, blockB, H * 0.42, H * 0.74, JEWRY_STONE, 0);
     ctx.pushOrientedBox(
-      (e.a.x + e.b.x) / 2 + e.nx * m(1.15),
-      y,
-      (e.a.z + e.b.z) / 2 + e.nz * m(1.15),
-      along,
-      m(0.18),
-      m(0.85),
-      e.tx,
-      e.tz,
-      e.nx,
-      e.nz,
+      (e0.a.x + e0.b.x) / 2 + e0.nx * m(-0.6),
+      H * 0.48,
+      (e0.a.z + e0.b.z) / 2 + e0.nz * m(-0.6),
+      Math.min(e0.len * 0.42, m(12)),
+      H * 0.18,
+      m(1.8),
+      e0.tx,
+      e0.tz,
+      e0.nx,
+      e0.nz,
+      JEWRY_GLASS,
+    );
+  }
+  if (e1) {
+    const away = {
+      x: (e1.a.x + e1.b.x) / 2 - e1.nx * m(18),
+      z: (e1.a.z + e1.b.z) / 2 - e1.nz * m(18),
+    };
+    const blockC = scaleToward(ctx.ring, away.x, away.z, 0.55);
+    emitWallBand(ctx, blockC, H * 0.74, H, JEWRY_STONE, 0);
+    ctx.pushOrientedBox(
+      (e1.a.x + e1.b.x) / 2 + e1.nx * m(-0.5),
+      H * 0.78,
+      (e1.a.z + e1.b.z) / 2 + e1.nz * m(-0.5),
+      Math.min(e1.len * 0.38, m(9)),
+      H * 0.14,
+      m(1.6),
+      e1.tx,
+      e1.tz,
+      e1.nx,
+      e1.nz,
+      JEWRY_GLASS,
+    );
+  }
+  const portal = e2 ?? e0;
+  if (portal) {
+    ctx.pushOrientedBox(
+      (portal.a.x + portal.b.x) / 2 + portal.nx * m(1.1),
+      0,
+      (portal.a.z + portal.b.z) / 2 + portal.nz * m(1.1),
+      m(5.2),
+      shopH + m(1.2),
+      m(2.2),
+      portal.tx,
+      portal.tz,
+      portal.nx,
+      portal.nz,
       JEWRY_BRONZE,
+    );
+    ctx.pushOrientedBox(
+      (portal.a.x + portal.b.x) / 2 + portal.nx * m(0.4),
+      m(0.3),
+      (portal.a.z + portal.b.z) / 2 + portal.nz * m(0.4),
+      m(3.4),
+      shopH * 0.82,
+      m(1.4),
+      portal.tx,
+      portal.tz,
+      portal.nx,
+      portal.nz,
+      JEWRY_GLASS,
     );
   }
 }
@@ -1051,16 +1034,18 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
     outwardNormal: ctx.outwardNormal,
   };
   if (kind === 'no-1-poultry') {
-    const ledge = ctx.insetRing(ctx.ring, cx, cz, 0.88);
-    ctx.emitRoof(ledge, () => H, POULTRY_ROOF);
-    const pent = ctx.insetRing(ctx.ring, cx, cz, 0.48);
-    ctx.emitRoof(pent, () => H + m(3.6), POULTRY_BUFF);
-    const wellR = Math.min(ctx.plan.minRM, 11) * 0.42 * METERS_TO_WORLD;
-    pushCylinder(asWall, cx, H, cz, wellR * 1.05, m(1.4), POULTRY_PINK, 16, true);
-    const tobler = ctx.insetRing(ctx.ring, cx, cz, 0.22);
-    ctx.emitRoof(tobler, () => H + m(2.2), POULTRY_GLASS);
-    const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-    ctx.pushBox(apex.x, H * 1.4, apex.z, m(3.4), m(2.8), m(3.4), POULTRY_BUFF);
+    const wellR = Math.max(m(7.5), Math.min(ctx.plan.minRM, 14) * 0.5 * METERS_TO_WORLD);
+    const inner = ctx.ring.map((p) => {
+      const dx = p.x - cx;
+      const dz = p.z - cz;
+      const r = Math.hypot(dx, dz) || 1;
+      return { x: cx + (dx / r) * wellR, z: cz + (dz / r) * wellR };
+    });
+    emitAnnularRoof(ctx, ctx.ring, inner, H, POULTRY_ROOF);
+    const pent = ctx.insetRing(ctx.ring, cx, cz, 0.62);
+    emitAnnularRoof(ctx, pent, inner, H + m(2.8), POULTRY_BUFF);
+    const tobler = ctx.insetRing(ctx.ring, cx, cz, 0.18);
+    ctx.emitRoof(tobler, () => H * 0.55, 0xd4c24a);
     return;
   }
   if (kind === 'the-ned') {
@@ -1115,11 +1100,9 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
     return;
   }
   if (kind === 'old-jewry') {
-    ctx.emitRoof(ctx.ring, () => H * 0.55, JEWRY_STONE);
-    const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-    ctx.emitRoof(scaleToward(ctx.ring, apex.x, apex.z, 0.78), () => H * 0.82, JEWRY_STONE);
-    ctx.emitRoof(scaleToward(ctx.ring, cx, cz, 0.62), () => H, JEWRY_STONE);
-    ctx.pushBox(cx, H, cz, m(8), m(2.4), m(6), 0x4a504c);
+    ctx.emitRoof(ctx.ring, () => H * 0.42, JEWRY_STONE);
+    ctx.emitRoof(ctx.insetRing(ctx.ring, cx, cz, 0.72), () => H * 0.74, JEWRY_STONE);
+    ctx.emitRoof(ctx.insetRing(ctx.ring, cx, cz, 0.55), () => H, JEWRY_STONE);
     return;
   }
   if (kind === 'mansion-house') {
