@@ -1004,8 +1004,8 @@ function buildHeron(): THREE.Group {
 function buildTower42(): THREE.Group {
   const group = new THREE.Group();
   const height = ht(183);
-  const glass = new THREE.MeshLambertMaterial({ color: 0x7a848c });
-  const stone = new THREE.MeshLambertMaterial({ color: 0xc8bdb0 });
+  const glass = new THREE.MeshBasicMaterial({ color: 0x7a848c, fog: true });
+  const stone = new THREE.MeshBasicMaterial({ color: 0xc8bdb0, fog: true });
   addBox(group, m(16), height, m(16), stone);
   for (let i = 0; i < 3; i++) {
     const a = (i * Math.PI * 2) / 3 + Math.PI / 6;
