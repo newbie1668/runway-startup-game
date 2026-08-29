@@ -760,7 +760,7 @@ export function buildChunkTier(
         const glass = pal.windowHex(seed);
         const inPlane =
           opts.windows &&
-          edgeLenM >= 6.2 &&
+          edgeLenM >= 4.2 &&
           spanM > 6 &&
           (face.kind === 'ribbon' ||
             face.kind === 'piers' ||
@@ -822,14 +822,22 @@ export function buildChunkTier(
         };
 
         if (inPlane && face.kind === 'ribbon') {
-          const nFloors = Math.max(2, Math.min(face.floors, 8));
+          const nFloors = Math.max(2, Math.min(face.floors, 6));
           const span = Math.max(wallTop - body0, 1e-6);
+          const weights: number[] = [];
           for (let f = 0; f < nFloors; f++) {
-            const fy0 = body0 + (f / nFloors) * span;
-            const fy1 = body0 + ((f + 1) / nFloors) * span;
-            const gH = (fy1 - fy0) * face.bandRatio;
-            emitQuad(fy0, fy1 - gH, faceBottom, faceHex, bandOut);
-            emitQuad(fy1 - gH, fy1, glass, glass, bandOut);
+            weights.push(1.45 - (f / Math.max(1, nFloors - 1)) * 0.7);
+          }
+          const sum = weights.reduce((a, b) => a + b, 0);
+          let y = body0;
+          for (let f = 0; f < nFloors; f++) {
+            const h = (weights[f]! / sum) * span;
+            const gH = h * face.bandRatio;
+            const sill = (h - gH) * 0.38;
+            emitQuad(y, y + sill, faceBottom, faceHex, bandOut);
+            emitQuad(y + sill, y + sill + gH, glass, glass, bandOut);
+            emitQuad(y + sill + gH, y + h, faceHex, faceHex, bandOut);
+            y += h;
           }
         } else if (inPlane && face.kind === 'piers') {
           paintPunched(face.pitchM, spanM > 12 ? 3 : 2, 0.58, 0.52);
@@ -1168,85 +1176,34 @@ export function buildChunkTier(
       }
     }
 
-    const wantAwning =
-      !streetKind &&
-      (shopWorld > 0.02 || style === STYLE_RETAIL || (style === STYLE_TERRACE && seed % 3 === 0)) &&
-      longestM >= 7;
-    if (wantAwning) {
-      const a = ring[longestI]!;
-      const bp = ring[(longestI + 1) % n]!;
-      const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
-      const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-      const tx = (bp.x - a.x) / elen;
-      const tz = (bp.z - a.z) / elen;
-      const depth = 1.55 * METERS_TO_WORLD;
-      const along = Math.min(elen * 0.72, 8 * METERS_TO_WORLD);
-      const yAwn = shopWorld > 0.02 ? shopWorld : 3.1 * METERS_TO_WORLD * vScale;
-      pushOrientedBox(
-        (a.x + bp.x) / 2 + nx * (depth / 2),
-        yAwn,
-        (a.z + bp.z) / 2 + nz * (depth / 2),
-        along,
-        0.22 * METERS_TO_WORLD,
-        depth,
-        tx,
-        tz,
-        nx,
-        nz,
-        pal.awningHex(seed),
-      );
-    }
-
-    if (
+    const wantSign =
       !streetKind &&
       (style === STYLE_RETAIL || (style === STYLE_OFFICE && seed % 9 === 0)) &&
-      longestM >= 8
-    ) {
+      longestM >= 8;
+    if (wantSign && scratch) {
       const a = ring[longestI]!;
       const bp = ring[(longestI + 1) % n]!;
       const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
       const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-      const tx = (bp.x - a.x) / elen;
-      const tz = (bp.z - a.z) / elen;
       const along = Math.min(4.8 * METERS_TO_WORLD, elen * 0.42);
       const ySign =
         (shopWorld > 0.02 ? shopWorld : 4.2 * METERS_TO_WORLD * vScale) + 0.2 * METERS_TO_WORLD;
       const mx = (a.x + bp.x) / 2 + nx * 0.12 * METERS_TO_WORLD;
       const mz = (a.z + bp.z) / 2 + nz * 0.12 * METERS_TO_WORLD;
-      pushOrientedBox(
-        mx,
-        ySign,
-        mz,
-        along,
-        0.85 * METERS_TO_WORLD,
-        0.16 * METERS_TO_WORLD,
-        tx,
-        tz,
+      scratch.signs.push({
+        x: mx + nx * 0.1 * METERS_TO_WORLD,
+        y: ySign + 0.42 * METERS_TO_WORLD,
+        z: mz + nz * 0.1 * METERS_TO_WORLD,
         nx,
         nz,
-        pal.SIGN_BOARD,
-      );
-      if (scratch) {
-        scratch.signs.push({
-          x: mx + nx * 0.1 * METERS_TO_WORLD,
-          y: ySign + 0.42 * METERS_TO_WORLD,
-          z: mz + nz * 0.1 * METERS_TO_WORLD,
-          nx,
-          nz,
-          w: along * 0.92,
-          h: 0.62 * METERS_TO_WORLD,
-          name: pal.facadeSignName(seed),
-        });
-      }
+        w: along * 0.92,
+        h: 0.62 * METERS_TO_WORLD,
+        name: pal.facadeSignName(seed),
+      });
     }
 
     const roofRing = massing === 'setback' || !podium ? ring : shaftRing;
     const axis = principalAxis(ring, cx, cz);
-    let maxAlong = 1e-6;
-    for (const p of ring) {
-      const d = Math.abs((p.x - cx) * axis.ax + (p.z - cz) * axis.az);
-      if (d > maxAlong) maxAlong = d;
-    }
     const pitched = pitchedKind && n <= 24;
     const eavesY = massing === 'mansard' ? mansardEaves : heightWorld;
     const riseWorld = pitched
@@ -1461,51 +1418,6 @@ export function buildChunkTier(
           indices.push(p0, p1, p2, p0, p2, p3);
         }
       }
-    }
-
-    if (massing === 'sawtooth' && style === STYLE_INDUSTRIAL) {
-      const teeth = 3 + (seed % 3);
-      const toothW = Math.max(3.2 * METERS_TO_WORLD, (axis.maxPerp * 2) / teeth);
-      const toothH = (5.5 + (seed % 4) * 0.8) * METERS_TO_WORLD;
-      const along = maxAlong * 1.7;
-      for (let k = 0; k < teeth; k++) {
-        const t = (k + 0.5) / teeth - 0.5;
-        pushOrientedBox(
-          cx + axis.px * t * axis.maxPerp * 1.6,
-          heightWorld,
-          cz + axis.pz * t * axis.maxPerp * 1.6,
-          along,
-          toothH,
-          toothW * 0.55,
-          axis.ax,
-          axis.az,
-          axis.px,
-          axis.pz,
-          pal.mixHex(roofHex, pal.AO_DARK, k % 2 === 0 ? 0.08 : 0.22),
-        );
-      }
-    }
-
-    if (!streetKind && recipe.plant && b.heightM >= 16) {
-      const plant = recipe.plant;
-      const pentH = plant.hM * METERS_TO_WORLD;
-      const along = plant.along * plan.maxAlongM * METERS_TO_WORLD;
-      const perp = plant.perp * plan.maxPerpM * METERS_TO_WORLD;
-      const px = cx + plan.ax * along + plan.px * perp;
-      const pz = cz + plan.az * along + plan.pz * perp;
-      pushOrientedBox(
-        px,
-        heightWorld,
-        pz,
-        plant.wM * METERS_TO_WORLD,
-        pentH,
-        plant.dM * METERS_TO_WORLD,
-        plan.ax,
-        plan.az,
-        plan.px,
-        plan.pz,
-        pal.mixHex(roofHex, pal.AO_DARK, 0.08),
-      );
     }
 
     if (scratch) {

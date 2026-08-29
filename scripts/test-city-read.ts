@@ -956,6 +956,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.equal(streetUniqueAt(-0.08983, 51.51262), 'walbrook');
   assert.equal(streetUniqueAt(-0.09072, 51.51379), 'old-jewry');
   assert.equal(streetUniqueAt(-0.08938, 51.51311), 'mansion-house');
+  assert.equal(streetUniqueAt(-0.09065, 51.51399), 'gresham-33');
+  assert.equal(streetUniqueAt(-0.09141, 51.51242), 'bloomberg');
+  assert.equal(streetUniqueAt(-0.08839, 51.51408), 'bank-england');
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const at = project(CITYSTREET_AT);

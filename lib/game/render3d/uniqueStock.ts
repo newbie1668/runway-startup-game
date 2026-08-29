@@ -362,7 +362,7 @@ function pickFacade(input: {
   if (plan.aspect >= 2.25 && heightM >= 12) {
     return {
       kind: 'piers',
-      pitchM: clamp(plan.longestEdgeM / Math.max(4, Math.round(plan.longestEdgeM / 5.2)), 3.2, 6.4),
+      pitchM: clamp(plan.longestEdgeM / Math.max(4, Math.round(plan.longestEdgeM / 5.2)), 2.6, 9.5),
       depthM: clamp(1.1 + plan.maxPerpM * 0.04, 1.1, 2.2),
     };
   }
