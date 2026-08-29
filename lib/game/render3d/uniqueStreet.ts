@@ -809,12 +809,12 @@ function plateRhythm(
     Math.min(6, Math.round(hM / (3.2 + plan.compactness * 1.35)) - storey),
   );
   const winU = Math.max(
-    0.3,
-    Math.min(0.7, 0.33 + plan.compactness * 0.24 + (plan.longestEdgeIndex % 3) * 0.05),
+    0.32,
+    Math.min(0.48, 0.34 + plan.compactness * 0.12 + (plan.longestEdgeIndex % 3) * 0.03),
   );
   const winV = Math.max(
     0.4,
-    Math.min(0.8, 0.45 + Math.min(0.22, plan.minRM / 85) + (plan.apexIndex % 4) * 0.04),
+    Math.min(0.52, 0.42 + Math.min(0.08, plan.minRM / 200) + (plan.apexIndex % 4) * 0.02),
   );
   return { pitchM, rows, winU, winV };
 }
@@ -914,8 +914,8 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   // Stirling: unequal stepped terraces toward the well, glass on the inset
   // wall. Shared ribbon is even wrap-around stripes on the OSM extrusion.
   const weights = [1.9, 1.45, 1.08, 0.82, 0.62];
-  const insetsM = [0, 1.5, 3.0, 4.6, 6.2];
-  const capM = Math.max(1.2, ctx.plan.minRM * 0.38);
+  const insetsM = [0, 2.2, 4.4, 6.6, 8.8];
+  const capM = Math.max(1.6, ctx.plan.minRM * 0.42);
   const sum = weights.reduce((a, b) => a + b, 0);
   let y = arcadeH;
   let prevRing = ctx.ring;
@@ -925,7 +925,19 @@ function emitPoultryWalls(ctx: StreetEmit): void {
     const ring =
       inset <= 0.05 ? ctx.ring : insetRingTowardCentroid(ctx.ring, cx, cz, m(inset));
     if (i > 0) emitTerraceCap(ctx, prevRing, ring, y, POULTRY_BUFF);
-    emitRecessedReveal(ctx, ring, y, y + h, POULTRY_BUFF, POULTRY_GLASS, disk);
+    emitPlateSlots(
+      ctx,
+      ring,
+      y,
+      y + h,
+      POULTRY_BUFF,
+      POULTRY_GLASS,
+      4.2 + i * 0.85,
+      1,
+      0.4,
+      0.48,
+      disk,
+    );
     prevRing = ring;
     y += h;
   }
@@ -937,7 +949,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const drumR = m(POULTRY_DRUM_R_M);
   const drumH = Math.max(H * 1.28, m(40));
   pushCylinder(ctx, apex.x, 0, apex.z, drumR, drumH, POULTRY_PINK, 16, true);
-  emitClockFaces(ctx, apex.x, drumH * 0.55, apex.z, drumR, m(1.45), POULTRY_GLASS);
+  emitClockFaces(ctx, apex.x, drumH * 0.55, apex.z, drumR, m(1.8), 0xf0e6d4);
   pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.62, m(2.6), POULTRY_BUFF, 12, true);
 }
 
@@ -1151,7 +1163,18 @@ export function emitCheapsideStockWalls(
       const ring = s === 0 ? ctx.ring : scaleToward(ctx.ring, apex.x, apex.z, sil.scales[s]!);
       if (s > 0) emitTerraceCap(ctx, prev, ring, yPrev, stone);
       const ry = s === 0 ? r0 : s === 1 ? r1 : r2;
-      emitPlateSlots(ctx, ring, yPrev, y1, stone, glass, ry.pitchM, 1, ry.winU, ry.winV);
+      emitPlateSlots(
+        ctx,
+        ring,
+        yPrev,
+        y1,
+        stone,
+        glass,
+        ry.pitchM,
+        Math.max(2, ry.rows > 3 ? 2 : ry.rows),
+        ry.winU,
+        ry.winV,
+      );
       prev = ring;
       yPrev = y1;
     }
@@ -1179,20 +1202,20 @@ export function emitCheapsideStockWalls(
   if (sil.kind === 'ell') {
     const splitY = H * sil.tBreak;
     emitRustication(ctx, ctx.ring, 0, H * 0.14, stone, 2);
-    emitPlateSlots(ctx, ctx.ring, H * 0.14, splitY, stone, glass, r0.pitchM, 2, r0.winU, 0.58);
+    emitPlateSlots(ctx, ctx.ring, H * 0.14, splitY, stone, glass, r0.pitchM, 2, r0.winU, r0.winV);
     const head = ctx.ring.map((p) => ({
       x: cx + (p.x - cx) * sil.shortScale,
       z: cz + (p.z - cz) * sil.shortScale,
     }));
     emitTerraceCap(ctx, ctx.ring, head, splitY, stone);
-    emitPlateSlots(ctx, head, splitY, H, stone, glass, r1.pitchM, 1, r1.winU, 0.76);
+    emitPlateSlots(ctx, head, splitY, H, stone, glass, r1.pitchM, 2, r1.winU, r1.winV);
     return;
   }
   if (sil.kind === 'asymmetric-setback') {
     const yA = H * sil.tBreaks[0]!;
     const yB = H * (sil.tBreaks[1] ?? 0.7);
     emitRustication(ctx, ctx.ring, 0, yA, stone, 3);
-    emitPlateSlots(ctx, ctx.ring, yA, yB, stone, glass, r0.pitchM, 1, r0.winU, r0.winV);
+    emitPlateSlots(ctx, ctx.ring, yA, yB, stone, glass, r0.pitchM, Math.max(2, r0.rows), r0.winU, r0.winV);
     let prev = ctx.ring;
     let yPrev = yB;
     for (let i = 0; i < sil.insetsM.length; i++) {
@@ -1203,7 +1226,7 @@ export function emitCheapsideStockWalls(
           : H * (sil.tBreaks[Math.min(i + 2, sil.tBreaks.length - 1)] ?? 1);
       emitTerraceCap(ctx, prev, ring, yPrev, stone);
       const ry = i === 0 ? r1 : r2;
-      emitPlateSlots(ctx, ring, yPrev, y1, stone, glass, ry.pitchM, 1, ry.winU, ry.winV);
+      emitPlateSlots(ctx, ring, yPrev, y1, stone, glass, ry.pitchM, Math.max(1, ry.rows), ry.winU, ry.winV);
       prev = ring;
       yPrev = y1;
     }
@@ -1232,7 +1255,7 @@ export function emitCheapsideStockWalls(
         stone,
         glass,
         ry.pitchM,
-        1,
+        Math.max(2, ry.rows),
         ry.winU,
         ry.winV,
       );
