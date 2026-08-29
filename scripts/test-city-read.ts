@@ -58,7 +58,12 @@ import {
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex, HVAC_BLUE, HVAC_RED, GROUND } from '../lib/game/render3d/palette';
 import { decodeCity, dequantizeX, dequantizeY } from '../lib/game/render3d/format';
-import { inKeepDisk, meshBudgetFromSearch, type KeepDisk } from '../lib/game/render3d/lookClip';
+import {
+  inKeepDisk,
+  meshBudgetFromSearch,
+  CITYSTREET_AT,
+  type KeepDisk,
+} from '../lib/game/render3d/lookClip';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -605,7 +610,7 @@ check('City offices mass as setbacks or mansards, not forced slabs', () => {
 check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-  const at = project([-0.0905, 51.5134]);
+  const at = project(CITYSTREET_AT);
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
@@ -680,7 +685,7 @@ check('City skyline punch leaves neighbouring streets', () => {
 });
 
 check('look=citystreet sits on stock, not inside a landmark punch-hole', () => {
-  const at = project([-0.0905, 51.5134]);
+  const at = project(CITYSTREET_AT);
   for (const landmark of LANDMARKS) {
     const p = project(landmark.at);
     const d = Math.hypot(at.x - p.x, at.y - p.y) / METERS_TO_WORLD;
@@ -690,6 +695,91 @@ check('look=citystreet sits on stock, not inside a landmark punch-hole', () => {
       `citystreet camera is inside ${landmark.kind} exclusion (${d.toFixed(0)} m vs ${r} m)`,
     );
   }
+});
+
+check('look=citystreet sits on the carriageway, not a courtyard pancake', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const at = project(CITYSTREET_AT);
+  const inRing = (x: number, z: number, ring: { x: number; z: number }[]): boolean => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i]!.x;
+      const zi = ring[i]!.z;
+      const xj = ring[j]!.x;
+      const zj = ring[j]!.z;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  };
+  const ringsOf = (polys: { verts: Uint16Array }[]) =>
+    polys.map((poly) => {
+      const n = poly.verts.length / 2;
+      const ring: { x: number; z: number }[] = [];
+      for (let i = 0; i < n; i++) {
+        ring.push({ x: dequantizeX(poly.verts[i * 2]!), z: dequantizeY(poly.verts[i * 2 + 1]!) });
+      }
+      return ring;
+    });
+  assert.equal(
+    ringsOf(city.parks).some((ring) => inRing(at.x, at.y, ring)),
+    false,
+    'citystreet camera spawned in a park',
+  );
+  assert.equal(
+    ringsOf(city.buildings).some((ring) => inRing(at.x, at.y, ring)),
+    false,
+    'citystreet camera spawned inside a footprint courtyard',
+  );
+  let roadM = Infinity;
+  for (const road of city.roads) {
+    const n = road.pts.length / 2;
+    for (let i = 0; i < n - 1; i++) {
+      const ax = dequantizeX(road.pts[i * 2]!);
+      const az = dequantizeY(road.pts[i * 2 + 1]!);
+      const bx = dequantizeX(road.pts[(i + 1) * 2]!);
+      const bz = dequantizeY(road.pts[(i + 1) * 2 + 1]!);
+      const dx = bx - ax;
+      const dz = bz - az;
+      const len2 = dx * dx + dz * dz || 1e-12;
+      const t = Math.max(0, Math.min(1, ((at.x - ax) * dx + (at.y - az) * dz) / len2));
+      const d = Math.hypot(at.x - (ax + t * dx), at.y - (az + t * dz)) / METERS_TO_WORLD;
+      if (d < roadM) roadM = d;
+    }
+  }
+  assert.ok(roadM < 8, `citystreet camera is ${roadM.toFixed(1)} m from a road`);
+});
+
+check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const at = project(CITYSTREET_AT);
+  const keep: KeepDisk = { x: at.x, z: at.y, r: 1600 * METERS_TO_WORLD };
+  const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
+  const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
+  const chunkId = row * CHUNK_COLS + col;
+  const anchors = LANDMARKS.map((l) => {
+    const p = project(l.at);
+    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
+  });
+  let verts = 0;
+  let tall = 0;
+  for (const major of [true, false]) {
+    const mesh = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
+    if (!mesh) continue;
+    assert.equal(mesh.frustumCulled, false, 'chunk frustum cull empties close zoom');
+    const pos = mesh.geometry.getAttribute('position');
+    verts += pos?.count ?? 0;
+    if (pos) {
+      for (let i = 0; i < pos.count; i++) {
+        if (pos.getY(i) > 8 * METERS_TO_WORLD) tall += 1;
+      }
+    }
+  }
+  assert.ok(verts > 2000, `citystreet keep-disk emptied Cheapside (${verts} verts)`);
+  assert.ok(tall > 80, `citystreet keep-disk is ground pancakes (${tall} tall verts)`);
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {
@@ -711,7 +801,13 @@ check('wide-view mesh budget clips the city; close looks stay full', () => {
   assert.equal(close.skipTrees, false);
   assert.equal(close.skipRoadMarks, false);
   const street = meshBudgetFromSearch(new URLSearchParams('look=citystreet'));
+  assert.equal(street.chunkKeepM, 1600);
+  assert.equal(street.skipMinorChunks, false);
   assert.equal(street.skipRoadMarks, false);
+  assert.equal(street.skipTrees, true);
+  assert.equal(street.skipWindows, true);
+  assert.equal(street.skipAntialias, true);
+  assert.equal(street.pixelRatioCap, 1);
   const buck = meshBudgetFromSearch(new URLSearchParams('look=buckingham'));
   assert.equal(buck.chunkKeepM, 1600);
   assert.equal(buck.skipTrees, true);

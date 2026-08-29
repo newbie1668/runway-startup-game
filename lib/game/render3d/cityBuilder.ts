@@ -412,6 +412,7 @@ export function buildChunkTier(
   major: boolean,
   landmarkAnchors: readonly { x: number; y: number; r: number }[] = [],
   scratch?: CityScratch,
+  keep: KeepDisk | null = null,
 ): THREE.Mesh | null {
   const positions: number[] = [];
   const normals: number[] = [];
@@ -626,6 +627,7 @@ export function buildChunkTier(
     cx /= n;
     cz /= n;
 
+    if (!inKeepDisk(cx, cz, keep, 120 * METERS_TO_WORLD)) continue;
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
     if (nearLondonCityAirport(cx, cz, 10) || ring.some((p) => nearLondonCityAirport(p.x, p.z, 10)))
       continue;

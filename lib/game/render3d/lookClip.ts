@@ -4,10 +4,16 @@
  * once and Aw Snap. look=buckingham sits in Hyde / Green Park / St James's:
  * the unclipped lawn grid fills the frustum with green, then Chrome error 9
  * before the palace job paints. Clip that look the same way as view=mid.
+ * look=citystreet is a street-scale camera on Cheapside. FULL budget still
+ * queued every London chunk behind the roads, so the frame was pavement
+ * pancakes until Chrome error 9. Clip it the same way; keep minor stock.
  * Other close looks still get the neighbourhood around the camera.
  * Minor chunks stay on: they are the terraces / houses. Skipping them made
  * view=mid a field of typed office boxes.
  */
+
+/** Cheapside carriageway — not a courtyard, not a skyline punch-hole. */
+export const CITYSTREET_AT = [-0.09052, 51.51354] as const;
 
 export type KeepDisk = { x: number; z: number; r: number };
 
@@ -67,6 +73,14 @@ export function meshBudgetFromSearch(q: URLSearchParams | null): MeshBudget {
   }
   if (look === 'buckingham') {
     return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 1600 };
+  }
+  if (look === 'citystreet') {
+    return {
+      ...WIDE_BASE,
+      skipMinorChunks: false,
+      skipRoadMarks: false,
+      chunkKeepM: 1600,
+    };
   }
   if (wide) {
     return { ...WIDE_BASE, skipMinorChunks: false, chunkKeepM: 1600 };

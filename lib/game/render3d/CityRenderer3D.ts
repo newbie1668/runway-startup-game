@@ -54,7 +54,7 @@ import {
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
-import { aabbHitsKeep, inKeepDisk, meshBudget, type KeepDisk } from './lookClip';
+import { aabbHitsKeep, CITYSTREET_AT, inKeepDisk, meshBudget, type KeepDisk } from './lookClip';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
@@ -81,7 +81,7 @@ const NOTICED_LOOK: Record<
   charrington: { at: [-0.00546, 51.50692], viewH: 1.85, azimuth: 0.18 },
   hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
   canadastreet: { at: [-0.0184, 51.50495], viewH: 4.25, azimuth: 0.62 },
-  citystreet: { at: [-0.0905, 51.5134], viewH: 3.45, azimuth: 0.38 },
+  citystreet: { at: CITYSTREET_AT, viewH: 2.55, azimuth: 0.22 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
@@ -502,6 +502,7 @@ export class CityRenderer3D implements IMapRenderer {
         pushNoticed(entry, restJobs);
       }
     }
+    const chunkWork: { chunkId: number; major: boolean; dist: number }[] = [];
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       const col = chunkId % CHUNK_COLS;
       const row = Math.floor(chunkId / CHUNK_COLS);
@@ -510,18 +511,32 @@ export class CityRenderer3D implements IMapRenderer {
       const z0 = (row / CHUNK_ROWS) * WORLD.height;
       const z1 = ((row + 1) / CHUNK_ROWS) * WORLD.height;
       if (!aabbHitsKeep(x0, z0, x1, z1, keep)) continue;
+      const dx = (x0 + x1) / 2 - lookPt.x;
+      const dz = (z0 + z1) / 2 - lookPt.y;
+      const dist = dx * dx + dz * dz;
       for (const major of [true, false]) {
         if (budget.skipMinorChunks && !major) continue;
-        chunkJobs.push(() => {
-          const mesh = buildChunkTier(data, chunkId, major, landmarkAnchors, this.scratch);
-          if (mesh) {
-            mesh.material = this.buildingMaterial;
-            this.cityGroup.add(mesh);
-            this.buildingMeshes.push(mesh);
-            if (!major) this.minorMeshes.push(mesh);
-          }
-        });
+        chunkWork.push({ chunkId, major, dist });
       }
+    }
+    chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
+    for (const job of chunkWork) {
+      chunkJobs.push(() => {
+        const mesh = buildChunkTier(
+          data,
+          job.chunkId,
+          job.major,
+          landmarkAnchors,
+          this.scratch,
+          keep,
+        );
+        if (mesh) {
+          mesh.material = this.buildingMaterial;
+          this.cityGroup.add(mesh);
+          this.buildingMeshes.push(mesh);
+          if (!job.major) this.minorMeshes.push(mesh);
+        }
+      });
     }
     if (!budget.skipWindows) {
       restJobs.push(() => {
@@ -850,8 +865,7 @@ export class CityRenderer3D implements IMapRenderer {
     }
     this.syncRig();
 
-    const minorThreshold = this.isCoarsePointer ? 5.5 : 4.8;
-    const minorVisible = this.cam.zoom >= minorThreshold;
+    const minorVisible = true;
     if (minorVisible !== this.lastMinorVisible) {
       for (let i = 0; i < this.minorMeshes.length; i++) this.minorMeshes[i]!.visible = minorVisible;
       this.lastMinorVisible = minorVisible;
@@ -871,7 +885,7 @@ export class CityRenderer3D implements IMapRenderer {
       if (this.lampGroup) this.lampGroup.visible = lampsVisible;
       this.lastLampsVisible = lampsVisible;
     }
-    const windowsVisible = this.cam.zoom >= 7;
+    const windowsVisible = true;
     if (windowsVisible !== this.lastWindowsVisible) {
       if (this.windowMesh) this.windowMesh.visible = windowsVisible;
       this.lastWindowsVisible = windowsVisible;
