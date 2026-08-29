@@ -569,17 +569,15 @@ function emitAnnularRoofRadial(
     const ra = Math.hypot(a.x - cx, a.z - cz);
     const rb = Math.hypot(b.x - cx, b.z - cz);
     if (ra <= wellR + pad || rb <= wellR + pad) continue;
-    let skip = false;
-    for (const h of holes) {
-      if (Math.hypot(a.x - h.x, a.z - h.z) < h.r) skip = true;
-      if (Math.hypot(b.x - h.x, b.z - h.z) < h.r) skip = true;
-      if (distPointToSeg(h.x, h.z, a.x, a.z, b.x, b.z) < h.r) skip = true;
-    }
-    if (skip) continue;
     const iax = cx + ((a.x - cx) / ra) * wellR;
     const iaz = cz + ((a.z - cz) / ra) * wellR;
     const ibx = cx + ((b.x - cx) / rb) * wellR;
     const ibz = cz + ((b.z - cz) / rb) * wellR;
+    let skip = false;
+    for (const h of holes) {
+      if (quadHitsDisk(a, b, { x: ibx, z: ibz }, { x: iax, z: iaz }, h)) skip = true;
+    }
+    if (skip) continue;
     const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
     const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
     const i2 = ctx.pushVertex(ibx, y, ibz, 0, 1, 0, hex);
@@ -829,6 +827,45 @@ function porticoPoint(e: Edge, t: number, out: number): StreetPt {
   };
 }
 
+function pointInTri(
+  px: number,
+  pz: number,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+): boolean {
+  const sign = (x1: number, z1: number, x2: number, z2: number, x3: number, z3: number) =>
+    (x1 - x3) * (z2 - z3) - (x2 - x3) * (z1 - z3);
+  const b1 = sign(px, pz, ax, az, bx, bz) < 0;
+  const b2 = sign(px, pz, bx, bz, cx, cz) < 0;
+  const b3 = sign(px, pz, cx, cz, ax, az) < 0;
+  return b1 === b2 && b2 === b3;
+}
+
+function quadHitsDisk(
+  a: StreetPt,
+  b: StreetPt,
+  c: StreetPt,
+  d: StreetPt,
+  disk: Disk,
+): boolean {
+  const r = disk.r;
+  if (Math.hypot(a.x - disk.x, a.z - disk.z) < r) return true;
+  if (Math.hypot(b.x - disk.x, b.z - disk.z) < r) return true;
+  if (Math.hypot(c.x - disk.x, c.z - disk.z) < r) return true;
+  if (Math.hypot(d.x - disk.x, d.z - disk.z) < r) return true;
+  if (distPointToSeg(disk.x, disk.z, a.x, a.z, b.x, b.z) < r) return true;
+  if (distPointToSeg(disk.x, disk.z, b.x, b.z, c.x, c.z) < r) return true;
+  if (distPointToSeg(disk.x, disk.z, c.x, c.z, d.x, d.z) < r) return true;
+  if (distPointToSeg(disk.x, disk.z, d.x, d.z, a.x, a.z) < r) return true;
+  if (pointInTri(disk.x, disk.z, a.x, a.z, b.x, b.z, c.x, c.z)) return true;
+  if (pointInTri(disk.x, disk.z, a.x, a.z, c.x, c.z, d.x, d.z)) return true;
+  return false;
+}
+
 function emitTerraceCap(
   ctx: StreetEmit,
   outer: StreetPt[],
@@ -844,19 +881,7 @@ function emitTerraceCap(
     const b = outer[(i + 1) % n]!;
     const c = inner[(i + 1) % n]!;
     const d = inner[i]!;
-    if (disk) {
-      const r = disk.r;
-      const hit =
-        Math.hypot(a.x - disk.x, a.z - disk.z) < r ||
-        Math.hypot(b.x - disk.x, b.z - disk.z) < r ||
-        Math.hypot(c.x - disk.x, c.z - disk.z) < r ||
-        Math.hypot(d.x - disk.x, d.z - disk.z) < r ||
-        distPointToSeg(disk.x, disk.z, a.x, a.z, b.x, b.z) < r ||
-        distPointToSeg(disk.x, disk.z, b.x, b.z, c.x, c.z) < r ||
-        distPointToSeg(disk.x, disk.z, c.x, c.z, d.x, d.z) < r ||
-        distPointToSeg(disk.x, disk.z, d.x, d.z, a.x, a.z) < r;
-      if (hit) continue;
-    }
+    if (disk && quadHitsDisk(a, b, c, d, disk)) continue;
     const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
     const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
     const i2 = ctx.pushVertex(c.x, y, c.z, 0, 1, 0, hex);
@@ -882,8 +907,8 @@ function emitDrumWindows(
   const rows = Math.max(1, nRows);
   const span = y1 - y0;
   const rowH = span / rows;
-  const uPad = 0.2;
-  const vPad = 0.18;
+  const uPad = 0.3;
+  const vPad = 0.22;
   for (let i = 0; i < segs; i++) {
     const a0 = (i / segs) * Math.PI * 2;
     const a1 = ((i + 1) / segs) * Math.PI * 2;
@@ -912,9 +937,9 @@ function emitDrumWindows(
 }
 
 function emitStirlingClocks(ctx: StreetEmit, cx: number, cy: number, cz: number, drumR: number): void {
-  const faceR = m(2.45);
-  const rimW = m(0.28);
-  const out = m(0.1);
+  const faceR = m(3.15);
+  const rimW = m(0.38);
+  const out = m(0.18);
   const segs = 12;
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2;
@@ -1007,7 +1032,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const drumR = m(POULTRY_DRUM_R_M);
   const drumH = Math.max(H * 1.28, m(40));
   const wallDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(0.5) };
-  const capDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(1.2) };
+  const capDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(2.4) };
   const arcadeH = H * 0.15;
   emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE, wallDisk);
   const shop = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
@@ -1037,8 +1062,8 @@ function emitPoultryWalls(ctx: StreetEmit): void {
       POULTRY_GLASS,
       4.2 + i * 0.85,
       2,
-      0.34 + i * 0.04,
-      0.5,
+      0.3 + i * 0.03,
+      0.44,
       wallDisk,
     );
     prevRing = ring;
@@ -1049,9 +1074,8 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);
   pushDisk(ctx, cx, m(0.35), cz, wellR * 0.98, POULTRY_WELL, 16);
 
-  emitDrumWindows(ctx, apex.x, apex.z, drumR, 0, drumH * 0.5, POULTRY_PINK, POULTRY_GLASS, 3);
-  emitDrumWindows(ctx, apex.x, apex.z, drumR, drumH * 0.5, drumH, POULTRY_PINK, POULTRY_GLASS, 2);
-  emitStirlingClocks(ctx, apex.x, drumH * 0.62, apex.z, drumR);
+  emitDrumWindows(ctx, apex.x, apex.z, drumR, 0, drumH, POULTRY_PINK, POULTRY_GLASS, 5);
+  emitStirlingClocks(ctx, apex.x, drumH * 0.7, apex.z, drumR);
   pushDisk(ctx, apex.x, drumH, apex.z, drumR, POULTRY_PINK, 16);
   pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.22, m(4.5), POULTRY_BUFF, 10, true);
 }
@@ -1334,7 +1358,7 @@ export function emitCheapsideStockWalls(
   const { cx, cz } = ctx.plan;
   const sil = recipe.silhouette;
   const physicalBays =
-    recipe.facade.kind === 'bays' || sil.kind === 'gable-row' || heightM <= 22;
+    recipe.facade.kind === 'bays' || sil.kind === 'gable-row' || heightM <= 36;
   const paintBand = (
     ring: StreetPt[],
     y0: number,
@@ -1533,7 +1557,7 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
   if (kind === 'no-1-poultry') {
     const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
     emitAnnularRoofRadial(ctx, ctx.ring, poultryWellR(ctx.plan), H, POULTRY_ROOF, [
-      { x: apex.x, z: apex.z, r: m(POULTRY_DRUM_R_M) + m(1.2) },
+      { x: apex.x, z: apex.z, r: m(POULTRY_DRUM_R_M) + m(2.4) },
     ]);
     return;
   }
