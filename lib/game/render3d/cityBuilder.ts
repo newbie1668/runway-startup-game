@@ -42,11 +42,7 @@ import {
   restyleForDistrict,
   districtAt,
   extrusionScale,
-  wantBayWindows,
-  wantFacadeWindows,
   wantPodium,
-  bayCountForEdge,
-  facadeWindowRhythm,
   type DistrictId,
   type StockMassing,
 } from './buildingStyle';
@@ -240,10 +236,6 @@ const HUB_GLOW_SIZE_M = 36;
 const HUB_GLOW_HEIGHT_M = 4;
 
 const tmpColor = new THREE.Color();
-const tmpQuat = new THREE.Quaternion();
-const tmpPos = new THREE.Vector3();
-const tmpScale = new THREE.Vector3();
-const tmpMat = new THREE.Matrix4();
 
 export type BuildingPick = {
   x: number;
@@ -412,30 +404,6 @@ function principalAxis(
     if (d > maxPerp) maxPerp = d;
   }
   return { ax, az, px, pz, maxPerp };
-}
-
-function pushWindowMatrix(
-  scratch: CityScratch,
-  x: number,
-  y: number,
-  z: number,
-  nx: number,
-  nz: number,
-  w: number,
-  h: number,
-  color: number = pal.WINDOW,
-): void {
-  if (scratch.windows.length / 16 >= WINDOW_MAX) return;
-  const yaw = Math.atan2(nx, nz);
-  const hy = Math.sin(yaw / 2);
-  const hw = Math.cos(yaw / 2);
-  tmpQuat.set(0, hy, 0, hw);
-  tmpPos.set(x, y, z);
-  tmpScale.set(w, h, Math.max(0.12 * METERS_TO_WORLD, 0.004));
-  tmpMat.compose(tmpPos, tmpQuat, tmpScale);
-  const e = tmpMat.elements;
-  for (let i = 0; i < 16; i++) scratch.windows.push(e[i]!);
-  scratch.windowColors.push(color);
 }
 
 /** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
@@ -786,27 +754,128 @@ export function buildChunkTier(
 
         const plinthTop = opts.plinth ? y0 + plinthWorld : y0;
         const wallTop = Math.max(plinthTop, y1 - (opts.cornice ? corniceWorld : 0));
-        if (opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85) {
-          emitQuad(y0, y0 + shopWorld, pal.SHOPFRONT, pal.SHOPFRONT, bandOut);
+        const edgeLenM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
+        const spanM = (y1 - y0) / METERS_TO_WORLD;
+        const face = opts.facade ?? recipe.facade;
+        const glass = pal.windowHex(seed);
+        const inPlane =
+          opts.windows &&
+          edgeLenM >= 6.2 &&
+          spanM > 6 &&
+          (face.kind === 'ribbon' ||
+            face.kind === 'piers' ||
+            face.kind === 'colonnade' ||
+            face.kind === 'bays' ||
+            face.kind === 'recess');
+
+        const emitSeg = (t0: number, t1: number, qy0: number, qy1: number, hex: number) => {
+          const ax = a.x + dx * t0 + nx * bandOut;
+          const az = a.z + dz * t0 + nz * bandOut;
+          const bx = a.x + dx * t1 + nx * bandOut;
+          const bz = a.z + dz * t1 + nz * bandOut;
+          const iBottomA = pushVertex(ax, qy0, az, nx, 0, nz, hex);
+          const iBottomB = pushVertex(bx, qy0, bz, nx, 0, nz, hex);
+          const iTopA = pushVertex(ax, qy1, az, nx, 0, nz, hex);
+          const iTopB = pushVertex(bx, qy1, bz, nx, 0, nz, hex);
+          if (!flip) indices.push(iBottomA, iBottomB, iTopB, iBottomA, iTopB, iTopA);
+          else indices.push(iBottomA, iTopB, iBottomB, iBottomA, iTopA, iTopB);
+        };
+
+        const body0 =
+          opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85
+            ? y0 + shopWorld
+            : opts.plinth && plinthWorld > 0.01
+              ? plinthTop
+              : y0;
+        if (body0 > y0 + 1e-6) {
+          const baseC =
+            opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85
+              ? pal.SHOPFRONT
+              : faceBottom;
+          emitQuad(y0, body0, baseC, baseC, bandOut);
+        }
+
+        const paintPunched = (pitchM: number, rows: number, winU: number, winV: number) => {
+          const nRows = Math.max(1, rows);
+          const span = Math.max(wallTop - body0, 1e-6);
+          const rowH = span / nRows;
+          const bays = Math.max(2, Math.min(14, Math.round(edgeLenM / pitchM)));
+          const uPad = (1 - Math.min(0.8, Math.max(0.3, winU))) / 2;
+          const vPad = (1 - Math.min(0.8, Math.max(0.3, winV))) / 2;
+          for (let b = 0; b < bays; b++) {
+            const t0 = b / bays;
+            const t1 = (b + 1) / bays;
+            const w0 = t0 + (t1 - t0) * uPad;
+            const w1 = t1 - (t1 - t0) * uPad;
+            emitSeg(t0, w0, body0, wallTop, faceHex);
+            emitSeg(w1, t1, body0, wallTop, faceHex);
+            for (let r = 0; r < nRows; r++) {
+              const ry0 = body0 + r * rowH;
+              const ry1 = ry0 + rowH;
+              const sill = ry0 + rowH * vPad;
+              const head = ry1 - rowH * vPad;
+              emitSeg(w0, w1, ry0, sill, faceHex);
+              emitSeg(w0, w1, sill, head, glass);
+              emitSeg(w0, w1, head, ry1, faceHex);
+            }
+          }
+        };
+
+        if (inPlane && face.kind === 'ribbon') {
+          const nFloors = Math.max(2, Math.min(face.floors, 8));
+          const span = Math.max(wallTop - body0, 1e-6);
+          for (let f = 0; f < nFloors; f++) {
+            const fy0 = body0 + (f / nFloors) * span;
+            const fy1 = body0 + ((f + 1) / nFloors) * span;
+            const gH = (fy1 - fy0) * face.bandRatio;
+            emitQuad(fy0, fy1 - gH, faceBottom, faceHex, bandOut);
+            emitQuad(fy1 - gH, fy1, glass, glass, bandOut);
+          }
+        } else if (inPlane && face.kind === 'piers') {
+          paintPunched(face.pitchM, spanM > 12 ? 3 : 2, 0.58, 0.52);
+        } else if (inPlane && face.kind === 'colonnade') {
+          const nCol = Math.max(3, Math.min(face.count, 10));
+          const colT = Math.min(0.08, 1.1 / edgeLenM);
+          const colH = Math.min(wallTop - body0, 9.5 * METERS_TO_WORLD);
+          const lintel = body0 + colH;
+          const colHex = pal.mixHex(faceHex, pal.AO_DARK, 0.35);
+          for (let c = 0; c < nCol; c++) {
+            const t = (c + 0.5) / nCol;
+            emitSeg(Math.max(0, t - colT), Math.min(1, t + colT), body0, lintel, colHex);
+          }
+          emitQuad(lintel, wallTop, colHex, colHex, bandOut);
+          for (let c = 0; c < nCol - 1; c++) {
+            const t0 = (c + 0.5) / nCol + colT;
+            const t1 = (c + 1.5) / nCol - colT;
+            if (t1 - t0 < 0.02) continue;
+            emitSeg(t0, t1, body0, lintel, glass);
+          }
+        } else if (inPlane && face.kind === 'bays') {
+          paintPunched(Math.max(3.8, edgeLenM / 5), spanM > 10 ? 3 : 2, 0.62, 0.55);
+        } else if (inPlane && face.kind === 'recess') {
+          paintPunched(
+            face.pitchU,
+            Math.min(face.rowCap, Math.max(2, Math.round(spanM / face.pitchV))),
+            0.6,
+            0.55,
+          );
+        } else if (opts.shop && shopWorld > 0.02 && shopWorld < (y1 - y0) * 0.85) {
           emitQuad(y0 + shopWorld, wallTop, faceBottom, faceHex, bandOut);
         } else if (opts.plinth && plinthWorld > 0.01) {
-          emitQuad(y0, plinthTop, faceBottom, faceBottom, bandOut);
           emitQuad(plinthTop, wallTop, faceBottom, faceHex, bandOut);
         } else {
           emitQuad(y0, wallTop, faceBottom, faceHex, bandOut);
         }
         if (opts.cornice && corniceWorld > 0.008 && wallTop < y1) {
-          emitQuad(wallTop, y1, corniceHex, corniceHex, 1.25 * METERS_TO_WORLD + bandOut);
+          emitQuad(wallTop, y1, corniceHex, corniceHex, bandOut);
         }
 
-        const edgeLenM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
         if (opts.stringCourses && y1 - y0 > 9 * METERS_TO_WORLD && edgeLenM > 8) {
           const courseH = Math.min(1.7 * METERS_TO_WORLD, (y1 - y0) * 0.12);
-          const out = 1.35 * METERS_TO_WORLD;
           const cHex = pal.mixHex(faceHex, pal.CORNICE, 0.38);
           for (const t of [0.32, 0.6]) {
             const cy0 = y0 + (y1 - y0) * t;
-            emitQuad(cy0, cy0 + courseH, cHex, cHex, out);
+            emitQuad(cy0, cy0 + courseH, cHex, cHex, bandOut);
           }
         }
 
@@ -886,7 +955,7 @@ export function buildChunkTier(
               }
             }
             for (let hse = 0; hse < houses; hse++) {
-              const glass = pal.windowHex(seed + hse * 17);
+              const pane = pal.windowHex(seed + hse * 17);
               const u0 = (hse / houses) * elen;
               const spanU = elen / houses;
               for (let c = 0; c < bays; c++) {
@@ -903,96 +972,15 @@ export function buildChunkTier(
                   const z1 = a.z + dz * t1 + nz * alongN;
                   const ySill = yMid - winH / 2;
                   const yHead = yMid + winH / 2;
-                  const s0 = pushVertex(x0, ySill, z0, nx, 0, nz, glass);
-                  const s1 = pushVertex(x1, ySill, z1, nx, 0, nz, glass);
-                  const s2 = pushVertex(x1, yHead, z1, nx, 0, nz, glass);
-                  const s3 = pushVertex(x0, yHead, z0, nx, 0, nz, glass);
+                  const s0 = pushVertex(x0, ySill, z0, nx, 0, nz, pane);
+                  const s1 = pushVertex(x1, ySill, z1, nx, 0, nz, pane);
+                  const s2 = pushVertex(x1, yHead, z1, nx, 0, nz, pane);
+                  const s3 = pushVertex(x0, yHead, z0, nx, 0, nz, pane);
                   if (!flip) indices.push(s0, s1, s2, s0, s2, s3);
                   else indices.push(s0, s2, s1, s0, s3, s2);
                 }
               }
             }
-          }
-        }
-
-        if (opts.windows && scratch) {
-          const spanM = (y1 - y0) / METERS_TO_WORLD;
-          const face = opts.facade ?? recipe.facade;
-          if (face.kind === 'ribbon' && edgeLenM >= 6.5 && spanM > 6) {
-            emitRibbonBands(
-              pushOrientedBox,
-              a,
-              bp,
-              nx,
-              nz,
-              y0,
-              y1,
-              face.floors,
-              face.bandRatio,
-              pal.windowHex(seed),
-              pal.mixHex(faceHex, pal.AO_DARK, 0.28),
-            );
-          } else if (face.kind === 'piers' && edgeLenM >= 7 && spanM > 6) {
-            emitPierFacade(
-              pushOrientedBox,
-              a,
-              bp,
-              nx,
-              nz,
-              y0,
-              y1,
-              face.pitchM,
-              face.depthM,
-              seed,
-              faceHex,
-            );
-          } else if (face.kind === 'colonnade' && edgeLenM >= 10) {
-            emitColonnade(
-              pushOrientedBox,
-              a,
-              bp,
-              nx,
-              nz,
-              y0,
-              y1,
-              face.count,
-              pal.mixHex(faceHex, pal.AO_DARK, 0.35),
-              pal.windowHex(seed),
-            );
-          } else if (wantBayWindows(edgeLenM, spanM, style) && face.kind === 'bays') {
-            emitBayWindows(
-              scratch,
-              pushOrientedBox,
-              a,
-              bp,
-              nx,
-              nz,
-              y0,
-              y1,
-              style,
-              vScale,
-              shopWorld,
-              pal.mixHex(baseHex, pal.CORNICE, 0.12),
-              seed,
-            );
-          } else if (face.kind === 'recess') {
-            emitFacadeWindows(
-              scratch,
-              pushOrientedBox,
-              a,
-              bp,
-              nx,
-              nz,
-              y0,
-              y1,
-              style,
-              major,
-              shopWorld,
-              vScale,
-              seed,
-              faceHex,
-              face,
-            );
           }
         }
       }
@@ -1043,7 +1031,8 @@ export function buildChunkTier(
               ? Math.min(0.76, 0.6 + plan.compactness * 0.12)
               : 1);
 
-    const stampWindows = style === STYLE_HOUSE || style === STYLE_TERRACE;
+    const stampWindows = style !== STYLE_INDUSTRIAL;
+    const houseCourse = style === STYLE_HOUSE || style === STYLE_TERRACE;
     if (streetKind) {
       emitStreetUniqueWalls(streetKind, {
         ring,
@@ -1086,7 +1075,7 @@ export function buildChunkTier(
             cornice: true,
             doors: s === 0 && !podium,
             windows: stampWindows,
-            stringCourses: stampWindows && s === 0,
+            stringCourses: houseCourse && s === 0,
             ...facadeOpts,
           });
           yPrev = y1;
@@ -1115,7 +1104,7 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: stampWindows,
+          stringCourses: houseCourse,
           ...facadeOpts,
         });
         const headRing = insetRing(ring, cx, cz, setSil.shortScale);
@@ -1134,7 +1123,7 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: stampWindows,
+          stringCourses: houseCourse,
           ...facadeOpts,
         });
         emitRingWalls(setbackWall1, setbackYA, setbackYB, {
@@ -1162,7 +1151,7 @@ export function buildChunkTier(
           cornice: true,
           doors: !podium,
           windows: stampWindows,
-          stringCourses: stampWindows,
+          stringCourses: houseCourse,
           ...facadeOpts,
         });
       } else {
@@ -1173,7 +1162,7 @@ export function buildChunkTier(
           doors: !podium,
           windows: stampWindows,
           stringCourses:
-            stampWindows && (massing === 'parapet' || massing === 'slab' || massing === 'sawtooth'),
+            houseCourse && (massing === 'parapet' || massing === 'slab' || massing === 'sawtooth'),
           ...facadeOpts,
         });
       }
@@ -1458,26 +1447,18 @@ export function buildChunkTier(
         const tx = (back.x - front.x) / elen;
         const tz = (back.z - front.z) / elen;
         const ribHex = pal.mixHex(baseHex, pal.AO_DARK, 0.42);
-        const finH = heightWorld + riseWorld * 0.15;
-        const finOut = 1.35 * METERS_TO_WORLD;
-        const finThick = 1.05 * METERS_TO_WORLD;
+        const half = 0.22 * METERS_TO_WORLD;
         for (let hse = 1; hse < houses; hse++) {
           const t = hse / houses;
           const mx = front.x + (back.x - front.x) * t;
           const mz = front.z + (back.z - front.z) * t;
-          pushOrientedBox(
-            mx + nx * (finOut / 2),
-            0,
-            mz + nz * (finOut / 2),
-            finThick,
-            finH,
-            finOut,
-            tx,
-            tz,
-            nx,
-            nz,
-            ribHex,
-          );
+          const hx = tx * half;
+          const hz = tz * half;
+          const p0 = pushVertex(mx - hx, 0, mz - hz, nx, 0, nz, ribHex);
+          const p1 = pushVertex(mx + hx, 0, mz + hz, nx, 0, nz, ribHex);
+          const p2 = pushVertex(mx + hx, heightWorld, mz + hz, nx, 0, nz, ribHex);
+          const p3 = pushVertex(mx - hx, heightWorld, mz - hz, nx, 0, nz, ribHex);
+          indices.push(p0, p1, p2, p0, p2, p3);
         }
       }
     }
@@ -1559,357 +1540,6 @@ export function buildChunkTier(
   mesh.userData.chunkId = chunkId;
   mesh.userData.major = major;
   return mesh;
-}
-
-type OrientedBoxFn = (
-  cx: number,
-  y0: number,
-  cz: number,
-  along: number,
-  height: number,
-  out: number,
-  tx: number,
-  tz: number,
-  nx: number,
-  nz: number,
-  hex: number,
-) => void;
-
-function emitBayWindows(
-  scratch: CityScratch,
-  pushOrientedBox: OrientedBoxFn,
-  a: { x: number; z: number },
-  bp: { x: number; z: number },
-  nx: number,
-  nz: number,
-  y0: number,
-  y1: number,
-  style: number,
-  vScale: number,
-  shopWorld: number,
-  wallHex: number,
-  seed: number,
-): void {
-  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-  const edgeM = elen / METERS_TO_WORLD;
-  const count = bayCountForEdge(edgeM);
-  const tx = (bp.x - a.x) / elen;
-  const tz = (bp.z - a.z) / elen;
-  const depth =
-    (style === STYLE_APARTMENTS || style === STYLE_OFFICE ? 1.45 : 2.15) * METERS_TO_WORLD;
-  const bayW = Math.min(2.6 * METERS_TO_WORLD, elen / (count + 0.6));
-  const sill = y0 + (shopWorld > 0.02 ? shopWorld : 0.55 * METERS_TO_WORLD * vScale);
-  const head = y1 - 0.45 * METERS_TO_WORLD * vScale;
-  const bayH = head - sill;
-  if (bayH < 1.8 * METERS_TO_WORLD) return;
-
-  const glass = pal.windowHex(seed);
-  for (let i = 0; i < count; i++) {
-    const t = (i + 1) / (count + 1);
-    const mx = a.x + (bp.x - a.x) * t;
-    const mz = a.z + (bp.z - a.z) * t;
-    const cx = mx + nx * (depth / 2);
-    const cz = mz + nz * (depth / 2);
-    pushOrientedBox(cx, sill, cz, bayW, bayH, depth, tx, tz, nx, nz, wallHex);
-    const paneW = bayW * 0.62;
-    const paneH = Math.min(bayH * 0.42, 2.1 * METERS_TO_WORLD * vScale);
-    const frontX = mx + nx * (depth + 0.04 * METERS_TO_WORLD);
-    const frontZ = mz + nz * (depth + 0.04 * METERS_TO_WORLD);
-    const rows = bayH > 4.2 * METERS_TO_WORLD ? 2 : 1;
-    for (let r = 0; r < rows; r++) {
-      const py = sill + ((r + 0.5) / rows) * bayH;
-      pushWindowMatrix(scratch, frontX, py, frontZ, nx, nz, paneW, paneH, glass);
-    }
-  }
-}
-
-function emitFacadeWindows(
-  scratch: CityScratch,
-  pushOrientedBox: OrientedBoxFn,
-  a: { x: number; z: number },
-  bp: { x: number; z: number },
-  nx: number,
-  nz: number,
-  y0: number,
-  y1: number,
-  style: number,
-  major: boolean,
-  shopWorld: number,
-  vScale: number,
-  seed: number,
-  wallHex: number,
-  recess?: Extract<UniqueFacade, { kind: 'recess' }>,
-): void {
-  const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
-  const spanY = y1 - y0;
-  const heightM = spanY / METERS_TO_WORLD;
-  if (!recess && !wantFacadeWindows(edgeM, heightM, style)) return;
-
-  const winStart = y0 + (shopWorld > 0.02 ? shopWorld : 0.7 * METERS_TO_WORLD * vScale);
-  const winEnd = y1 - 0.55 * METERS_TO_WORLD * vScale;
-  if (winEnd - winStart < 1.6 * METERS_TO_WORLD) return;
-
-  const rhythm = recess ?? facadeWindowRhythm(style, major, seed);
-  const winW = (major ? 2.05 : 1.9) * METERS_TO_WORLD;
-  const winH = (major ? 2.4 : 2.2) * METERS_TO_WORLD * Math.min(vScale, 1.8);
-  const marginU = 0.5;
-  const usableU = edgeM - marginU * 2;
-  if (usableU < winW / METERS_TO_WORLD) return;
-
-  let cols = Math.max(1, Math.floor(usableU / rhythm.pitchU));
-  let rows = Math.max(
-    1,
-    Math.floor((winEnd - winStart) / (rhythm.pitchV * METERS_TO_WORLD * vScale)),
-  );
-  cols = Math.min(cols, rhythm.colCap);
-  rows = Math.min(rows, rhythm.rowCap);
-  const maxCount = recess ? recess.bakeCap : major ? 48 : 16;
-  if (cols * rows > maxCount) {
-    rows = Math.max(1, Math.floor(maxCount / cols));
-  }
-
-  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-  const tx = (bp.x - a.x) / elen;
-  const tz = (bp.z - a.z) / elen;
-  const inset = -0.08 * METERS_TO_WORLD;
-  const u0 = marginU * METERS_TO_WORLD + winW / 2;
-  const uSpan = elen - 2 * (marginU * METERS_TO_WORLD);
-  const vSpan = winEnd - winStart;
-  const glass = pal.windowHex(seed);
-  const frame = pal.mixHex(wallHex, pal.AO_DARK, 0.22);
-
-  for (let r = 0; r < rows; r++) {
-    const y = winStart + ((r + 0.5) / rows) * vSpan;
-    for (let c = 0; c < cols; c++) {
-      const u = u0 + ((c + 0.5) / cols) * (uSpan - winW);
-      const x = a.x + tx * u - nx * inset;
-      const z = a.z + tz * u - nz * inset;
-      pushWindowMatrix(scratch, x, y, z, nx, nz, winW, winH, glass);
-    }
-  }
-
-  if (edgeM < 8) return;
-  const depth = (recess ? 2.1 : 2.9) * METERS_TO_WORLD;
-  const paneD = 0.55 * METERS_TO_WORLD;
-  let bakeCols = Math.min(cols, recess ? recess.colCap : 6);
-  let bakeRows = Math.min(rows, recess ? Math.min(3, recess.rowCap) : 4);
-  const bakeCap = recess ? recess.bakeCap : major ? 16 : 10;
-  while (bakeCols * bakeRows > bakeCap && bakeRows > 1) bakeRows -= 1;
-  while (bakeCols * bakeRows > bakeCap && bakeCols > 2) bakeCols -= 1;
-  for (let r = 0; r < bakeRows; r++) {
-    const y = winStart + ((r + 0.5) / bakeRows) * vSpan - winH / 2;
-    for (let c = 0; c < bakeCols; c++) {
-      const u = u0 + ((c + 0.5) / bakeCols) * (uSpan - winW);
-      const mx = a.x + tx * u + nx * (depth / 2);
-      const mz = a.z + tz * u + nz * (depth / 2);
-      pushOrientedBox(mx, y, mz, winW * 1.28, winH * 1.08, depth, tx, tz, nx, nz, frame);
-      pushOrientedBox(
-        a.x + tx * u + nx * (depth + paneD / 2),
-        y + winH * 0.14,
-        a.z + tz * u + nz * (depth + paneD / 2),
-        winW * 0.7,
-        winH * 0.68,
-        paneD,
-        tx,
-        tz,
-        nx,
-        nz,
-        glass,
-      );
-    }
-  }
-}
-
-function emitRibbonBands(
-  pushOrientedBox: OrientedBoxFn,
-  a: { x: number; z: number },
-  bp: { x: number; z: number },
-  nx: number,
-  nz: number,
-  y0: number,
-  y1: number,
-  floors: number,
-  bandRatio: number,
-  glass: number,
-  shelf: number,
-): void {
-  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-  const edgeM = elen / METERS_TO_WORLD;
-  if (edgeM < 6.5) return;
-  const tx = (bp.x - a.x) / elen;
-  const tz = (bp.z - a.z) / elen;
-  const mx = (a.x + bp.x) / 2;
-  const mz = (a.z + bp.z) / 2;
-  const span = y1 - y0;
-  const nFloors = Math.max(2, Math.min(floors, 8));
-  const bandH = (span / nFloors) * bandRatio;
-  const along = elen * 0.9;
-  for (let f = 0; f < nFloors; f++) {
-    const y = y0 + ((f + 0.5) / nFloors) * span - bandH / 2;
-    const depth = 1.15 * METERS_TO_WORLD;
-    pushOrientedBox(
-      mx + nx * (depth / 2),
-      y,
-      mz + nz * (depth / 2),
-      along,
-      bandH,
-      depth,
-      tx,
-      tz,
-      nx,
-      nz,
-      glass,
-    );
-    if (f < nFloors - 1) {
-      const shelfH = Math.min(0.35 * METERS_TO_WORLD, bandH * 0.22);
-      const shelfD = 1.65 * METERS_TO_WORLD;
-      pushOrientedBox(
-        mx + nx * (shelfD / 2),
-        y + bandH,
-        mz + nz * (shelfD / 2),
-        along * 1.02,
-        shelfH,
-        shelfD,
-        tx,
-        tz,
-        nx,
-        nz,
-        shelf,
-      );
-    }
-  }
-}
-
-function emitPierFacade(
-  pushOrientedBox: OrientedBoxFn,
-  a: { x: number; z: number },
-  bp: { x: number; z: number },
-  nx: number,
-  nz: number,
-  y0: number,
-  y1: number,
-  pitchM: number,
-  depthM: number,
-  seed: number,
-  wallHex: number,
-): void {
-  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-  const edgeM = elen / METERS_TO_WORLD;
-  const tx = (bp.x - a.x) / elen;
-  const tz = (bp.z - a.z) / elen;
-  const count = Math.max(3, Math.min(10, Math.round(edgeM / pitchM)));
-  const pierW = 0.85 * METERS_TO_WORLD;
-  const depth = depthM * METERS_TO_WORLD;
-  const pierHex = pal.mixHex(wallHex, pal.CORNICE, 0.2);
-  for (let i = 1; i < count; i++) {
-    const t = i / count;
-    const mx = a.x + (bp.x - a.x) * t;
-    const mz = a.z + (bp.z - a.z) * t;
-    pushOrientedBox(
-      mx + nx * (depth / 2),
-      y0,
-      mz + nz * (depth / 2),
-      pierW,
-      y1 - y0,
-      depth,
-      tx,
-      tz,
-      nx,
-      nz,
-      pierHex,
-    );
-  }
-  const slotW = Math.min(2.2 * METERS_TO_WORLD, (elen / (count + 1)) * 0.62);
-  const rows = y1 - y0 > 10 * METERS_TO_WORLD ? 2 : 1;
-  const glass = pal.windowHex(seed);
-  for (let i = 0; i < count; i++) {
-    const t = (i + 0.5) / count;
-    const mx = a.x + (bp.x - a.x) * t;
-    const mz = a.z + (bp.z - a.z) * t;
-    const slotH = ((y1 - y0) / rows) * 0.42;
-    for (let r = 0; r < rows; r++) {
-      const y = y0 + ((r + 0.5) / rows) * (y1 - y0) - slotH / 2;
-      pushOrientedBox(
-        mx + nx * 0.55 * METERS_TO_WORLD,
-        y,
-        mz + nz * 0.55 * METERS_TO_WORLD,
-        slotW,
-        slotH,
-        0.55 * METERS_TO_WORLD,
-        tx,
-        tz,
-        nx,
-        nz,
-        glass,
-      );
-    }
-  }
-}
-
-function emitColonnade(
-  pushOrientedBox: OrientedBoxFn,
-  a: { x: number; z: number },
-  bp: { x: number; z: number },
-  nx: number,
-  nz: number,
-  y0: number,
-  y1: number,
-  count: number,
-  column: number,
-  glass: number,
-): void {
-  const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
-  const tx = (bp.x - a.x) / elen;
-  const tz = (bp.z - a.z) / elen;
-  const nCol = Math.max(3, Math.min(count, 10));
-  const colH = Math.min(y1 - y0, 9.5 * METERS_TO_WORLD);
-  const colW = 1.15 * METERS_TO_WORLD;
-  const depth = 2.2 * METERS_TO_WORLD;
-  for (let i = 0; i < nCol; i++) {
-    const t = (i + 0.5) / nCol;
-    const mx = a.x + (bp.x - a.x) * t;
-    const mz = a.z + (bp.z - a.z) * t;
-    pushOrientedBox(
-      mx + nx * (depth / 2),
-      y0,
-      mz + nz * (depth / 2),
-      colW,
-      colH,
-      depth,
-      tx,
-      tz,
-      nx,
-      nz,
-      column,
-    );
-  }
-  const lintelH = 0.7 * METERS_TO_WORLD;
-  pushOrientedBox(
-    (a.x + bp.x) / 2 + nx * (depth / 2),
-    y0 + colH,
-    (a.z + bp.z) / 2 + nz * (depth / 2),
-    elen * 0.92,
-    lintelH,
-    depth * 1.1,
-    tx,
-    tz,
-    nx,
-    nz,
-    column,
-  );
-  pushOrientedBox(
-    (a.x + bp.x) / 2 + nx * 0.4 * METERS_TO_WORLD,
-    y0 + colH * 0.45,
-    (a.z + bp.z) / 2 + nz * 0.4 * METERS_TO_WORLD,
-    elen * 0.72,
-    colH * 0.55,
-    0.35 * METERS_TO_WORLD,
-    tx,
-    tz,
-    nx,
-    nz,
-    glass,
-  );
 }
 
 export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | null {

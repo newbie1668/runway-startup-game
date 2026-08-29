@@ -29,14 +29,18 @@ import {
 } from '../lib/game/render3d/uniqueStock';
 import {
   JEWRY_BRONZE,
+  JEWRY_GLASS,
   JEWRY_HIGH,
   JEWRY_MID,
   MANSION_COLUMN,
+  NED_GLASS,
   POULTRY_BUFF,
+  POULTRY_GLASS,
   POULTRY_PINK,
   POULTRY_ROOF,
   POULTRY_WELL,
   poultryWellR,
+  STREET_UNIQUE_PINS,
   streetUniqueAt,
 } from '../lib/game/render3d/uniqueStreet';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
@@ -76,7 +80,7 @@ import {
   createScratch,
   onLondonCityAirportSpit,
 } from '../lib/game/render3d/cityBuilder';
-import { wallHex, HVAC_BLUE, HVAC_RED, GROUND } from '../lib/game/render3d/palette';
+import { wallHex, HVAC_BLUE, HVAC_RED, GROUND, windowHex } from '../lib/game/render3d/palette';
 import { decodeCity, dequantizeX, dequantizeY } from '../lib/game/render3d/format';
 import {
   inKeepDisk,
@@ -958,6 +962,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const poultryAt = project([-0.09075, 51.51332]);
   const jewryAt = project([-0.09077, 51.51381]);
   const mansionAt = project([-0.08948, 51.51297]);
+  const nedAt = project([-0.09008, 51.51372]);
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
@@ -1000,6 +1005,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const roofCol = new THREE.Color(POULTRY_ROOF);
   const jewryMid = new THREE.Color(JEWRY_MID);
   const jewryHigh = new THREE.Color(JEWRY_HIGH);
+  const poultryGlass = new THREE.Color(POULTRY_GLASS);
+  const jewryGlass = new THREE.Color(JEWRY_GLASS);
+  const nedGlass = new THREE.Color(NED_GLASS);
   let pinkN = 0;
   let buffN = 0;
   let near = 0;
@@ -1010,6 +1018,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let stickN = 0;
   let jewryMidN = 0;
   let jewryHighN = 0;
+  let poultryGlassN = 0;
+  let jewryGlassN = 0;
+  let nedGlassN = 0;
   const drumKeys = new Set<string>();
   const stickPad = 8 * METERS_TO_WORLD;
   for (const major of [true, false]) {
@@ -1087,6 +1098,13 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         ) {
           buffN += 1;
         }
+        if (
+          Math.abs(r - poultryGlass.r) < 0.04 &&
+          Math.abs(g - poultryGlass.g) < 0.04 &&
+          Math.abs(b - poultryGlass.b) < 0.04
+        ) {
+          poultryGlassN += 1;
+        }
       }
       const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
       if (dj <= 35) {
@@ -1114,6 +1132,26 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         ) {
           jewryHighN += 1;
         }
+        if (
+          Math.abs(r - jewryGlass.r) < 0.05 &&
+          Math.abs(g - jewryGlass.g) < 0.05 &&
+          Math.abs(b - jewryGlass.b) < 0.05
+        ) {
+          jewryGlassN += 1;
+        }
+      }
+      const dn = Math.hypot(x - nedAt.x, z - nedAt.y) / METERS_TO_WORLD;
+      if (dn <= 40) {
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        if (
+          Math.abs(r - nedGlass.r) < 0.05 &&
+          Math.abs(g - nedGlass.g) < 0.05 &&
+          Math.abs(b - nedGlass.b) < 0.05
+        ) {
+          nedGlassN += 1;
+        }
       }
       const dm = Math.hypot(x - mansionAt.x, z - mansionAt.y) / METERS_TO_WORLD;
       if (dm <= 40) {
@@ -1133,6 +1171,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.ok(near > 200, `No 1 Poultry mesh missing (${near} verts)`);
   assert.ok(pinkN > 40 && buffN > 40, `Stirling courses missing pink=${pinkN} buff=${buffN}`);
   assert.ok(
+    poultryGlassN > 80,
+    `Stirling window bands missing (glass=${poultryGlassN}) — blank walls are a fail`,
+  );
+  assert.ok(
     drumKeys.size >= 12,
     `Poultry clock turret is still a box (${drumKeys.size} unique xz above roof)`,
   );
@@ -1144,6 +1186,11 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     jewryMidN > 20 && jewryHighN > 20,
     `1 Old Jewry is not three blocks (mid=${jewryMidN} high=${jewryHighN})`,
   );
+  assert.ok(
+    jewryGlassN > 40,
+    `1 Old Jewry window rhythm missing (glass=${jewryGlassN})`,
+  );
+  assert.ok(nedGlassN > 40, `The Ned palazzo window grid missing (glass=${nedGlassN})`);
   assert.ok(columnN > 20, `Mansion House portico columns missing (${columnN} verts)`);
 });
 
@@ -1162,6 +1209,52 @@ check('City street offices are not a shared punched-window recess costume', () =
     osmRoof: 0,
   });
   assert.notEqual(recipe.facade.kind, 'recess');
+});
+
+check('Cheapside unnamed stock has in-plane window glass, not blank walls', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const at = project(CITYSTREET_AT);
+  const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
+  const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
+  const chunkId = row * CHUNK_COLS + col;
+  const pins = STREET_UNIQUE_PINS.map((p) => project([p.lng, p.lat]));
+  const glassCols = [0, 1, 2, 3, 4, 5].map((s) => new THREE.Color(windowHex(s)));
+  let near = 0;
+  let glassN = 0;
+  for (const major of [true, false]) {
+    const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
+    if (!mesh) continue;
+    const pos = mesh.geometry.getAttribute('position');
+    const colors = mesh.geometry.getAttribute('color');
+    if (!pos || !colors) continue;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const d = Math.hypot(x - at.x, z - at.y) / METERS_TO_WORLD;
+      if (d > 90) continue;
+      near += 1;
+      let pinned = false;
+      for (const pin of pins) {
+        if (Math.hypot(x - pin.x, z - pin.y) / METERS_TO_WORLD <= 42) {
+          pinned = true;
+          break;
+        }
+      }
+      if (pinned) continue;
+      const r = colors.getX(i);
+      const g = colors.getY(i);
+      const b = colors.getZ(i);
+      for (const c of glassCols) {
+        if (Math.abs(r - c.r) < 0.04 && Math.abs(g - c.g) < 0.04 && Math.abs(b - c.b) < 0.04) {
+          glassN += 1;
+          break;
+        }
+      }
+    }
+  }
+  assert.ok(near > 400, `Cheapside stock mesh missing (${near} verts)`);
+  assert.ok(glassN > 200, `unnamed Cheapside walls are blank (glass=${glassN})`);
 });
 
 check('wide-view mesh budget clips the city; close looks stay full', () => {
