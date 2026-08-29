@@ -68,19 +68,33 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
     'deck must stay asphalt under the sun, not pick up river light',
   );
   let cones = 0;
+  let legs = 0;
   bridge.traverse((obj) => {
     if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
+    if (obj.name === 'tb-leg' || obj.name === 'tb-leg-e') legs += 1;
   });
-  assert.ok(cones >= 2, `expected Tower Bridge spires, got ${cones}`);
+  assert.equal(cones, 0, `Disney cones still on the towers (${cones})`);
+  assert.ok(legs >= 2, `two-legged portal frames, got ${legs} named legs`);
+  assert.ok(bridge.getObjectByName('tb-roof'), 'pitched roof over the portal, not a cone');
   assert.ok(bridge.getObjectByName('abutment'), 'stone abutments on the banks');
   assert.ok(bridge.getObjectByName('apron'), 'asphalt apron overlapping the bank road');
   const walk = bridge.getObjectByName('walkway');
   assert.ok(walk instanceof THREE.Mesh, 'high walkways between the towers');
+  assert.ok(Math.abs(walk.rotation.y) < 1e-8, 'walkway must share the deck heading');
+  assert.ok(Math.abs(deck.rotation.y) < 1e-8, 'deck stays on the designed Z axis');
   const walkBox = new THREE.Box3().setFromObject(walk);
   const walkYM = (walkBox.max.y - walkBox.min.y) / METERS_TO_WORLD;
   const walkZM = (walkBox.max.z - walkBox.min.z) / METERS_TO_WORLD;
+  const walkXM = (walkBox.max.x - walkBox.min.x) / METERS_TO_WORLD;
   assert.ok(walkYM < 12, `walkway must sit level, height ${walkYM.toFixed(1)} m`);
-  assert.ok(walkZM > 60, `walkway must span both towers, length ${walkZM.toFixed(0)} m`);
+  assert.ok(walkZM > 70, `walkway must span both towers, length ${walkZM.toFixed(0)} m`);
+  assert.ok(walkZM > walkXM * 8, 'walkway must run with the deck, not across the towers');
+  const walkMat = Array.isArray(walk.material) ? walk.material[0] : walk.material;
+  assert.notEqual(
+    (walkMat as THREE.MeshBasicMaterial).color.getHex(),
+    0x2f62b8,
+    'walkways must not be bright-blue chords',
+  );
   assert.ok(bridge.getObjectByName('portal'), 'Gothic portal on the tower face');
   const deckAt = LANDMARK_DECK_Y;
   let blocking = 0;
@@ -90,7 +104,7 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
     const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
     if (!(mat && 'color' in mat)) return;
     const hex = (mat as THREE.MeshLambertMaterial).color.getHex();
-    if (hex === ASPHALT || hex === 0xd8dce0 || hex === 0x2f62b8 || hex === 0x243040) return;
+    if (hex === ASPHALT || hex === 0xd8dce0 || hex === 0x3c4654 || hex === 0x243040) return;
     const b = new THREE.Box3().setFromObject(obj);
     const inX = b.min.x < 4 * METERS_TO_WORLD && b.max.x > -4 * METERS_TO_WORLD;
     const inY = b.min.y < deckAt + 8 * METERS_TO_WORLD && b.max.y > deckAt - 1 * METERS_TO_WORLD;
@@ -112,7 +126,12 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   });
   assert.equal(tubes, 0, 'chains must be attached cylinders, not floating tubes');
   assert.ok(hangers >= 4, `chains must run from the towers down to the deck, got ${hangers}`);
-  assert.ok(bridge.getObjectByName('chain'), 'chains leave the towers, not the walkway slab');
+  const chain = bridge.getObjectByName('chain');
+  assert.ok(chain, 'chains leave the towers, not the walkway slab');
+  assert.ok(
+    Math.abs(chain.position.x - walk.position.x) < 0.5 * METERS_TO_WORLD,
+    'chains must share the walkway X, not a third axis',
+  );
   const deckBox = new THREE.Box3().setFromObject(deck);
   const walkAxis = new THREE.Box3().setFromObject(walk);
   const deckSpanZ = deckBox.max.z - deckBox.min.z;
@@ -323,11 +342,17 @@ check('Buckingham east front is a Portland palace, not a courtyard doughnut', ()
   const r = (hex >> 16) & 255;
   const g = (hex >> 8) & 255;
   const b = hex & 255;
-  assert.ok(r > 180 && g > 160 && b > 140 && r > b + 20, `Portland not slate (${hex.toString(16)})`);
+  assert.ok(
+    r > 180 && g > 160 && b > 140 && r > b + 20,
+    `Portland not slate (${hex.toString(16)})`,
+  );
   const roof = palace.getObjectByName('palace-roof');
   assert.ok(roof instanceof THREE.Mesh, 'slate roof over the whole footprint');
   const rb = new THREE.Box3().setFromObject(roof);
-  assert.ok(rb.containsPoint(new THREE.Vector3(0, rb.min.y + 0.002, 0)), 'roof must cover the court');
+  assert.ok(
+    rb.containsPoint(new THREE.Vector3(0, rb.min.y + 0.002, 0)),
+    'roof must cover the court',
+  );
   assert.ok((rb.max.x - rb.min.x) / METERS_TO_WORLD > 80, 'roof span east-west');
   assert.ok((rb.max.z - rb.min.z) / METERS_TO_WORLD > 90, 'roof span north-south');
   const ped = palace.getObjectByName('pediment');

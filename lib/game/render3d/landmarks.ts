@@ -536,34 +536,59 @@ function buildStPauls(): THREE.Group {
   return group;
 }
 
+/** Ridge along Z, gables facing ±Z (the portal faces). */
+function addRidgeRoofZ(
+  group: THREE.Group,
+  width: number,
+  rise: number,
+  depth: number,
+  material: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+): THREE.Mesh {
+  const hw = width / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-hw, 0);
+  shape.lineTo(hw, 0);
+  shape.lineTo(0, rise);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
+  geo.translate(0, 0, -depth / 2);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.set(x, y, z);
+  mesh.name = 'tb-roof';
+  group.add(mesh);
+  return mesh;
+}
+
 function buildTowerBridge(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'towerbridge';
-  const stone = new THREE.MeshLambertMaterial({ color: 0xe8dcc8 });
-  const band = new THREE.MeshLambertMaterial({ color: 0xf4eee4 });
-  const iron = new THREE.MeshBasicMaterial({ color: 0x2f62b8, fog: true });
+  const stone = new THREE.MeshLambertMaterial({ color: 0xe6d9c6 });
+  const band = new THREE.MeshLambertMaterial({ color: 0xf2ebe0 });
+  const iron = new THREE.MeshBasicMaterial({ color: 0x3c4654, fog: true });
   const chainMat = new THREE.MeshBasicMaterial({ color: 0x243040, fog: true });
   const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
   const mark = new THREE.MeshBasicMaterial({ color: 0xd8dce0, fog: true });
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0xb8a090 });
-  const win = new THREE.MeshBasicMaterial({ color: 0x3a3430, fog: true });
+  const slate = new THREE.MeshLambertMaterial({ color: 0x5c6570 });
 
-  const towerH = h(62);
-  const towerZ = m(43);
-  const openingW = m(15);
-  const legW = m(10);
-  const legD = m(18);
+  const towerH = h(56);
+  const towerZ = m(44);
+  const openingW = m(24);
+  const legW = m(8);
+  const legD = m(11);
   const legX = openingW / 2 + legW / 2;
   const deckY = LANDMARK_DECK_Y;
-  const deckW = m(12);
+  const deckW = m(11);
   const deckLen = m(420);
   const deckH = m(1.8);
-  const lintelBot = deckY + m(14);
-  const lintelH = m(5.5);
-  const walkH = m(3.6);
-  const walkW = m(4.6);
-  const walkBot = lintelBot + lintelH + m(8);
-  const walkX = m(5.2);
+  const voidH = m(22);
+  const archBaseY = deckY + m(14);
+  const archPeakY = deckY + voidH + m(10);
+  const walkBot = deckY + m(26);
+  const walkH = m(3.2);
+  const walkW = m(3.8);
+  const walkX = m(5.0);
 
   const deck = new THREE.Mesh(new THREE.BoxGeometry(deckW, deckH, deckLen), asphalt);
   deck.name = 'deck';
@@ -579,94 +604,53 @@ function buildTowerBridge(): THREE.Group {
 
   for (const side of [-1, 1]) {
     const z = side * towerZ;
-    addBox(group, legW, towerH, legD, stone, legX, 0, z);
-    addBox(group, legW, towerH, legD, stone, -legX, 0, z);
-    addBox(group, openingW, lintelH, legD, stone, 0, lintelBot, z);
-    addBox(group, openingW + m(1.2), m(1.1), legD + m(0.8), band, 0, lintelBot + lintelH, z);
-
-    const infillBot = lintelBot + lintelH;
-    const infillH = towerH - infillBot - h(10);
-    if (infillH > 0) addBox(group, openingW, infillH, legD, stone, 0, infillBot, z);
-
-    for (const xSign of [-1, 1]) {
-      for (const wy of [h(22), h(34), h(46)]) {
-        addBox(group, m(0.5), h(6.5), m(3.2), win, xSign * (legX + legW / 2 + m(0.2)), wy, z);
-      }
+    const west = addBox(group, legW, towerH, legD, stone, -legX, 0, z);
+    const east = addBox(group, legW, towerH, legD, stone, legX, 0, z);
+    if (side === 1) {
+      west.name = 'tb-leg';
+      east.name = 'tb-leg-e';
     }
 
     for (const zFace of [z - legD / 2, z + legD / 2]) {
-      const gable = new THREE.Mesh(new THREE.BoxGeometry(openingW * 0.62, openingW * 0.42, m(2.2)), stone);
-      gable.rotation.z = Math.PI / 4;
-      gable.position.set(0, lintelBot + lintelH + m(0.2), zFace);
-      if (side === 1 && zFace === z + legD / 2) gable.name = 'portal';
-      group.add(gable);
-    }
-
-    const gallery = addBox(
-      group,
-      openingW + legW * 2 + m(1.6),
-      m(3.2),
-      legD + m(2.4),
-      iron,
-      0,
-      walkBot,
-      z,
-    );
-    if (side === 1) gallery.name = 'gallery';
-    addBox(group, openingW + legW * 2 + m(2.0), m(1.2), legD + m(2.8), band, 0, walkBot + m(1.0), z);
-
-    const upperH = h(10);
-    addBox(group, openingW + legW * 2, upperH, legD * 1.04, stone, 0, towerH, z);
-    const roofH = h(28);
-    const roof = new THREE.Mesh(baseAtGround(new THREE.ConeGeometry(m(12), roofH, 4), roofH), roofMat);
-    roof.position.set(0, towerH + upperH, z);
-    roof.rotation.y = Math.PI / 4;
-    group.add(roof);
-
-    const pinH = h(14);
-    const pinOff = (openingW + legW) * 0.42;
-    for (const dx of [-1, 1]) {
-      for (const dz of [-1, 1]) {
-        const px = dx * pinOff;
-        const pz = z + dz * (legD * 0.38);
-        const pin = new THREE.Mesh(
-          baseAtGround(new THREE.CylinderGeometry(m(1.2), m(1.5), pinH, 8), pinH),
-          stone,
-        );
-        pin.position.set(px, towerH + upperH * 0.08, pz);
-        group.add(pin);
-        const pinRoof = new THREE.Mesh(
-          baseAtGround(new THREE.ConeGeometry(m(2.0), h(7), 4), h(7)),
-          stone,
-        );
-        pinRoof.position.set(px, towerH + upperH * 0.08 + pinH, pz);
-        pinRoof.rotation.y = Math.PI / 4;
-        group.add(pinRoof);
+      addBox(group, legW + m(0.5), m(1.3), m(0.8), band, -legX, walkBot - m(1.1), zFace);
+      addBox(group, legW + m(0.5), m(1.3), m(0.8), band, legX, walkBot - m(1.1), zFace);
+      const peak = new THREE.Vector3(0, archPeakY, zFace);
+      const left = new THREE.Vector3(-openingW / 2, archBaseY, zFace);
+      const right = new THREE.Vector3(openingW / 2, archBaseY, zFace);
+      addCylinderBetween(group, left, peak, m(2.1), stone);
+      addCylinderBetween(group, right, peak, m(2.1), stone);
+      if (side === 1 && zFace === z + legD / 2) {
+        const portal = addBox(group, m(2.2), m(2.2), m(2.4), stone, 0, archPeakY - m(1.1), zFace);
+        portal.name = 'portal';
       }
     }
 
-    const chainZ = z + side * (legD / 2 + m(0.6));
+    addRidgeRoofZ(group, openingW + legW * 2 + m(1.2), m(16), legD + m(1.6), slate, 0, towerH, z);
+
+    for (const xSign of [-1, 1]) {
+      const px = xSign * (openingW / 2 + legW * 0.12);
+      addBox(group, m(2.2), h(7), m(2.2), stone, px, towerH, z);
+      addBox(group, m(1.5), h(3.2), m(1.5), slate, px, towerH + h(7), z);
+    }
+
+    const chainZ = z + side * (legD / 2 + m(0.35));
     for (const x of [-walkX, walkX]) {
-      const room = addBox(group, m(3.0), m(4.0), m(3.0), iron, x, walkBot, chainZ);
+      const room = addBox(group, m(2.6), m(3.6), m(2.6), iron, x, walkBot, chainZ);
       if (side === 1 && x > 0) room.name = 'chain';
-      const start = new THREE.Vector3(x, walkBot + m(2.0), chainZ);
-      const end = new THREE.Vector3(x, deckY + m(0.8), side * m(118));
-      const pts = addCatenary(group, start, end, m(6.5), m(0.5), chainMat, 6);
+      const start = new THREE.Vector3(x, walkBot + m(1.8), chainZ);
+      const end = new THREE.Vector3(x, deckY + m(0.6), side * m(120));
+      const pts = addCatenary(group, start, end, m(7), m(0.45), chainMat, 7);
       for (let i = 1; i < pts.length - 1; i += 2) {
         const p = pts[i]!;
-        addCylinderBetween(group, p, new THREE.Vector3(x, deckY + m(0.4), p.z), m(0.26), chainMat);
+        addCylinderBetween(group, p, new THREE.Vector3(x, deckY + m(0.35), p.z), m(0.22), chainMat);
       }
     }
   }
 
-  const walkLen = towerZ * 2 - legD;
+  const walkLen = towerZ * 2 + legD * 0.55;
   for (const x of [-walkX, walkX]) {
     const walk = addBox(group, walkW, walkH, walkLen, iron, x, walkBot, 0);
     if (x > 0) walk.name = 'walkway';
-    for (let i = 0; i < 6; i++) {
-      const bz = ((i + 0.5) / 6 - 0.5) * walkLen * 0.84;
-      addBox(group, walkW + m(0.2), m(1.4), m(3.4), band, x, walkBot + m(1.1), bz);
-    }
   }
 
   const abutmentZ = m(125);
