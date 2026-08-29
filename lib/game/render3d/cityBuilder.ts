@@ -69,7 +69,6 @@ export const CHUNK_COUNT = CHUNK_COLS * CHUNK_ROWS;
 
 export const WINDOW_MAX = 720_000;
 export const TREE_MAX = 36_000;
-export const ROOFTOP_MAX = 24_000;
 
 const ROAD_WIDTHS_M = [14, 9.5, 5.8];
 /** River-crossing ribbons match a primary street, not a footway. */
@@ -403,27 +402,6 @@ function pushWindowMatrix(
 }
 
 const ROOF_CLUTTER = [pal.HVAC, pal.HVAC_BLACK, pal.HVAC_BLUE, pal.HVAC_RED] as const;
-
-function pushRooftopMatrix(
-  scratch: CityScratch,
-  x: number,
-  y: number,
-  z: number,
-  sx: number,
-  sy: number,
-  sz: number,
-  yaw: number,
-  color: number = pal.HVAC,
-): void {
-  if (scratch.rooftops.length / 16 >= ROOFTOP_MAX) return;
-  tmpQuat.set(0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2));
-  tmpPos.set(x, y + sy / 2, z);
-  tmpScale.set(sx, sy, sz);
-  tmpMat.compose(tmpPos, tmpQuat, tmpScale);
-  const e = tmpMat.elements;
-  for (let i = 0; i < 16; i++) scratch.rooftops.push(e[i]!);
-  scratch.rooftopColors.push(color);
-}
 
 /** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
 export function buildChunkTier(
