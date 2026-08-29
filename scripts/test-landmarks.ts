@@ -324,14 +324,24 @@ check('Buckingham east front is a Portland palace, not a courtyard doughnut', ()
   const g = (hex >> 8) & 255;
   const b = hex & 255;
   assert.ok(r > 180 && g > 160 && b > 140 && r > b + 20, `Portland not slate (${hex.toString(16)})`);
-  assert.ok(palace.getObjectByName('court-roof'), 'courtyard is a roof well, not a hole');
-  assert.ok(palace.getObjectByName('pediment'), 'central pediment on the Mall');
+  const roof = palace.getObjectByName('palace-roof');
+  assert.ok(roof instanceof THREE.Mesh, 'slate roof over the whole footprint');
+  const rb = new THREE.Box3().setFromObject(roof);
+  assert.ok(rb.containsPoint(new THREE.Vector3(0, rb.min.y + 0.002, 0)), 'roof must cover the court');
+  assert.ok((rb.max.x - rb.min.x) / METERS_TO_WORLD > 80, 'roof span east-west');
+  assert.ok((rb.max.z - rb.min.z) / METERS_TO_WORLD > 90, 'roof span north-south');
+  const ped = palace.getObjectByName('pediment');
+  assert.ok(ped instanceof THREE.Mesh, 'central pediment on the Mall');
+  assert.notEqual(ped.geometry.type, 'ConeGeometry', 'pediment must not be a cone nub');
   assert.ok(palace.getObjectByName('balcony'), 'centre balcony');
   let columns = 0;
+  let cones = 0;
   palace.traverse((obj) => {
     if (obj.name === 'column') columns += 1;
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
   });
   assert.ok(columns >= 4, `portico columns, got ${columns}`);
+  assert.equal(cones, 0, 'no cone nubs on the palace');
   const dummy = new THREE.Group();
   dummy.name = 'costume';
   dummy.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 2)));

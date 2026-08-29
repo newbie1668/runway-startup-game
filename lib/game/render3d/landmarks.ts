@@ -104,6 +104,32 @@ function addBox(
   return mesh;
 }
 
+/** Triangular gable facing +X. A ConeGeometry reads as a nub on the Mall. */
+function addGablePediment(
+  group: THREE.Group,
+  width: number,
+  height: number,
+  depth: number,
+  material: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+): THREE.Mesh {
+  const hw = width / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-hw, 0);
+  shape.lineTo(hw, 0);
+  shape.lineTo(0, height);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
+  geo.translate(0, 0, -depth / 2);
+  geo.rotateY(Math.PI / 2);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.set(x, y, z);
+  mesh.name = 'pediment';
+  group.add(mesh);
+  return mesh;
+}
+
 /** Kansas cathedral language: glowing recessed ridges, not textured albedo. */
 function glowMat(color: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color });
@@ -1404,7 +1430,6 @@ function addLawn(
 function buildBuckingham(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'buckingham';
-  // MeshBasic Portland — Lambert cream read as slate-blue under the sky.
   const portland = new THREE.MeshBasicMaterial({ color: 0xeee4d4, fog: true });
   const cream = new THREE.MeshBasicMaterial({ color: 0xe2d4bc, fog: true });
   const rust = new THREE.MeshBasicMaterial({ color: 0xd0c4ae, fog: true });
@@ -1419,75 +1444,63 @@ function buildBuckingham(): THREE.Group {
   addLawn(group, m(110), m(85), m(8), m(-95), 0x6ea84c);
   addLawn(group, m(70), m(55), m(48), m(-70), 0x88bf5e);
 
-  const facade = m(108);
-  const eastX = m(44);
-  const eastD = m(30);
-  const eastH = h(26);
-  const wingH = h(21);
+  // Solid body. Four wings around a hole is the courtyard doughnut in the still.
+  const ns = m(108);
+  const ew = m(92);
+  const bodyH = h(23);
+  addBox(group, ew, bodyH, ns, portland, 0, 0, 0);
+  const roof = addBox(group, ew + m(5), m(3.4), ns + m(5), slate, 0, bodyH, 0);
+  roof.name = 'palace-roof';
 
-  const east = addBox(group, eastD, eastH, facade, portland, eastX, 0, 0);
+  const frontT = m(16);
+  const frontH = h(32);
+  const eastX = ew / 2 + frontT / 2 - m(4);
+  const east = addBox(group, frontT, frontH, ns, portland, eastX, 0, 0);
   east.name = 'east-front';
-  addBox(group, eastD + m(2), h(5.5), facade, cream, eastX, eastH, 0);
-  addBox(group, eastD + m(5), m(2.4), facade + m(3), slate, eastX, eastH + h(5.5), 0);
-  addBox(group, eastD + m(1), h(1.6), facade + m(1), rust, eastX + m(1), h(4), 0);
+  addBox(group, frontT + m(2), h(6), ns, cream, eastX, frontH, 0);
+  addBox(group, frontT + m(5), m(2.6), ns + m(3), slate, eastX, frontH + h(6), 0);
+  addBox(group, frontT + m(1), h(1.8), ns + m(1), rust, eastX + m(1), h(4), 0);
 
   for (const z of [-m(47), m(47)]) {
-    addBox(group, eastD + m(8), eastH + h(7), m(18), portland, eastX + m(3), 0, z);
-    addBox(group, eastD + m(10), m(2.2), m(20), slate, eastX + m(3), eastH + h(7), z);
-    addBox(group, m(3.2), h(5), m(4.2), rust, eastX + m(3), eastH + h(8), z);
+    addBox(group, frontT + m(8), frontH + h(6), m(20), portland, eastX + m(3), 0, z);
+    addBox(group, frontT + m(10), m(2.4), m(22), slate, eastX + m(3), frontH + h(6), z);
+    addBox(group, m(3.4), h(5.5), m(4.4), rust, eastX + m(3), frontH + h(7), z);
   }
 
-  const portH = h(20);
-  addBox(group, m(14), portH, m(40), rust, eastX + m(18), h(5), 0);
-  const balcony = addBox(group, m(16), m(1.2), m(42), portland, eastX + m(19), h(18), 0);
+  addBox(group, m(12), h(22), m(38), rust, eastX + m(10), h(5), 0);
+  const balcony = addBox(group, m(14), m(1.3), m(40), portland, eastX + m(12), h(20), 0);
   balcony.name = 'balcony';
   for (let i = 0; i < 6; i++) {
     const z = (i - 2.5) * m(5.8);
     const col = new THREE.Mesh(
-      baseAtGround(new THREE.CylinderGeometry(m(1.15), m(1.3), h(14), 8), h(14)),
+      baseAtGround(new THREE.CylinderGeometry(m(1.2), m(1.35), h(15), 8), h(15)),
       portland,
     );
     col.name = 'column';
-    col.position.set(eastX + m(22), h(5.5), z);
+    col.position.set(eastX + m(15), h(5.5), z);
     group.add(col);
   }
-  const ped = new THREE.Mesh(baseAtGround(new THREE.ConeGeometry(m(22), h(8), 3), h(8)), portland);
-  ped.name = 'pediment';
-  ped.position.set(eastX + m(18), h(24), 0);
-  ped.rotation.y = Math.PI / 2;
-  group.add(ped);
+  addGablePediment(group, m(40), h(10), m(12), portland, eastX + m(10), h(24), 0);
 
-  const eastFace = eastX + eastD / 2 + m(0.35);
-  addWindowGrid(group, facade - m(24), h(15), 17, 3, eastFace, h(6), 0, 'x', 0x2a3c4c);
-  addWindowGrid(group, m(14), h(8), 3, 2, eastFace + m(0.2), h(7), m(-47), 'x', 0x2a3c4c);
-  addWindowGrid(group, m(14), h(8), 3, 2, eastFace + m(0.2), h(7), m(47), 'x', 0x2a3c4c);
-
-  addBox(group, m(26), wingH, facade * 0.88, cream, m(-42), 0, 0);
-  addBox(group, m(28), m(2.2), facade * 0.9, slate, m(-42), wingH, 0);
-  addWindowGrid(group, facade * 0.72, h(12), 11, 2, m(-42 - 13), h(5), 0, 'x', 0x2a3c4c);
-
-  addBox(group, m(84), wingH, m(28), cream, 0, 0, m(-42));
-  addBox(group, m(84), wingH, m(28), cream, 0, 0, m(42));
-  addBox(group, m(86), m(2.2), m(30), slate, 0, wingH, m(-42));
-  addBox(group, m(86), m(2.2), m(30), slate, 0, wingH, m(42));
-  addWindowGrid(group, m(70), h(12), 13, 2, 0, h(5), m(42) + m(14.2), 'z', 0x2a3c4c);
-  addWindowGrid(group, m(70), h(12), 13, 2, 0, h(5), m(-42) - m(14.2), 'z', 0x2a3c4c);
-
-  const well = addBox(group, m(72), m(4), m(74), slate, 0, wingH - m(1.2), 0);
-  well.name = 'court-roof';
+  const eastFace = eastX + frontT / 2 + m(0.35);
+  addWindowGrid(group, ns - m(24), h(18), 17, 3, eastFace, h(6), 0, 'x', 0x2a3c4c);
+  addWindowGrid(group, m(14), h(9), 3, 2, eastFace + m(0.2), h(7), m(-47), 'x', 0x2a3c4c);
+  addWindowGrid(group, m(14), h(9), 3, 2, eastFace + m(0.2), h(7), m(47), 'x', 0x2a3c4c);
+  addWindowGrid(group, ew * 0.72, h(12), 11, 2, 0, h(5), -ns / 2 - m(0.35), 'z', 0x2a3c4c);
+  addWindowGrid(group, ew * 0.72, h(12), 11, 2, 0, h(5), ns / 2 + m(0.35), 'z', 0x2a3c4c);
 
   for (let i = 0; i < 9; i++) {
-    addBox(group, m(2.6), h(4.8), m(3.4), rust, eastX, eastH + h(6), (i - 4) * m(11));
+    addBox(group, m(2.8), h(5), m(3.6), rust, m(8), bodyH + m(3.4), (i - 4) * m(11));
   }
 
   const flag = new THREE.Mesh(
-    baseAtGround(new THREE.CylinderGeometry(m(0.4), m(0.4), h(18), 6), h(18)),
+    baseAtGround(new THREE.CylinderGeometry(m(0.4), m(0.4), h(16), 6), h(16)),
     dark,
   );
-  flag.position.set(eastX + m(18), h(24) + h(8), 0);
+  flag.position.set(eastX + m(10), h(24) + h(10), 0);
   group.add(flag);
   const cloth = new THREE.Mesh(new THREE.BoxGeometry(m(4.6), m(2.4), m(0.18)), gold);
-  cloth.position.set(eastX + m(20.6), h(24) + h(8) + h(14), 0);
+  cloth.position.set(eastX + m(12.4), h(24) + h(10) + h(12), 0);
   group.add(cloth);
   return group;
 }
