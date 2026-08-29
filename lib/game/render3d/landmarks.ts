@@ -1515,13 +1515,39 @@ function buildTowerLondon(): THREE.Group {
   return group;
 }
 
+function addLawn(
+  group: THREE.Group,
+  w: number,
+  d: number,
+  x: number,
+  z: number,
+  color: number,
+): THREE.Mesh {
+  // Match cityBuilder PARK_Y so this carpet joins OSM Green Park.
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, 0.02, d),
+    new THREE.MeshBasicMaterial({
+      color,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+  );
+  mesh.position.set(x, 0.11, z);
+  mesh.name = 'lawn';
+  mesh.receiveShadow = false;
+  mesh.castShadow = false;
+  group.add(mesh);
+  return mesh;
+}
+
 function buildBuckingham(): THREE.Group {
   const group = new THREE.Group();
   const cream = new THREE.MeshLambertMaterial({ color: 0xe8dcc8 });
   const stone = new THREE.MeshLambertMaterial({ color: 0xd8d0c0 });
   const dark = new THREE.MeshLambertMaterial({ color: 0x3a3228 });
   const gold = emissiveMaterial(0xc45a3a);
-  const lawn = new THREE.MeshLambertMaterial({ color: 0x5a7a52 });
+  const lawnInner = new THREE.MeshBasicMaterial({ color: 0x6b9a4e });
 
   // Quadrangle ~110 m N–S (Mall façade) × ~100 m E–W, east front faces +X.
   const facade = m(110);
@@ -1532,9 +1558,17 @@ function buildBuckingham(): THREE.Group {
   addBox(group, thick, hallH, facade * 0.92, cream, m(-40), 0, 0);
   addBox(group, m(82), hallH, thick, cream, 0, 0, m(-44));
   addBox(group, m(82), hallH, thick, cream, 0, 0, m(44));
-  const court = new THREE.Mesh(new THREE.BoxGeometry(m(72), m(0.4), m(78)), lawn);
+  const court = new THREE.Mesh(new THREE.BoxGeometry(m(72), m(0.4), m(78)), lawnInner);
   court.position.set(0, m(0.2), 0);
+  court.name = 'lawn';
   group.add(court);
+
+  // West private garden + north apron toward Green Park. The east Mall
+  // parade is gravel in OSM; without these plates look=buckingham is dirt.
+  addLawn(group, m(150), m(120), m(-95), m(-10), 0x6b9a4e);
+  addLawn(group, m(90), m(70), m(-40), m(-20), 0x5a8a42);
+  addLawn(group, m(110), m(85), m(8), m(-95), 0x6b9a4e);
+  addLawn(group, m(70), m(55), m(48), m(-70), 0x7eab5c);
 
   const portH = h(32);
   addBox(group, m(14), portH, m(36), stone, m(51), 0, 0);

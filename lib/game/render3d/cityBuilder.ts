@@ -86,7 +86,7 @@ const WATER_BANK_Y = 0.055;
 function landmarkExclusionAt(x: number, z: number): number | null {
   for (const landmark of LANDMARKS) {
     const at = project(landmark.at);
-    const r = (landmark.exclusionM ?? 80) * METERS_TO_WORLD;
+    const r = parkClipRadiusWorld(landmark.kind, landmark.exclusionM);
     const d = Math.hypot(x - at.x, z - at.y);
     if (d < r) return d / METERS_TO_WORLD;
   }
@@ -189,12 +189,15 @@ function triangleHitsExclusion(
   for (const landmark of LANDMARKS) {
     const at = project(landmark.at);
     const r = parkClipRadiusWorld(landmark.kind, landmark.exclusionM);
+    if (Math.hypot(mx - at.x, mz - at.y) < r) return true;
+    // Fortress / runway: punch overlapping fans. Civic palaces must not
+    // drop Green Park because one giant OSM triangle grazes the building.
+    if (landmark.kind !== 'towerlondon' && landmark.kind !== 'lcy') continue;
     const tri = [
       { x: ax, z: az },
       { x: bx, z: bz },
       { x: cx, z: cz },
     ];
-    if (Math.hypot(mx - at.x, mz - at.y) < r) return true;
     if (pointInRing(at.x, at.y, tri)) return true;
     if (distPointToSeg(at.x, at.y, tri[0]!, tri[1]!) < r * 0.45) return true;
     if (distPointToSeg(at.x, at.y, tri[1]!, tri[2]!) < r * 0.45) return true;

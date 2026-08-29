@@ -274,6 +274,26 @@ check('Tower of London is a concentric fortress, not a courtyard slab', () => {
   assert.ok((tol.exclusionM ?? 0) >= 140, 'Tower of London must punch the surrounding park');
 });
 
+check('Buckingham Palace carries MeshBasic garden lawns, not a dirt moat', () => {
+  const palace = build('buckingham');
+  const lawns: THREE.Mesh[] = [];
+  palace.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.name === 'lawn') lawns.push(obj);
+  });
+  assert.ok(lawns.length >= 3, `expected garden plates, got ${lawns.length}`);
+  let west = 0;
+  let north = 0;
+  for (const mesh of lawns) {
+    const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    assert.equal(mat.type, 'MeshBasicMaterial', `${mat.type} would relight the lawn`);
+    const box = new THREE.Box3().setFromObject(mesh);
+    if (box.min.x < -80 * METERS_TO_WORLD) west += 1;
+    if (box.min.z < -60 * METERS_TO_WORLD) north += 1;
+  }
+  assert.ok(west >= 1, 'west private garden missing');
+  assert.ok(north >= 1, 'north Green Park apron missing');
+});
+
 check('One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box', () => {
   const dummy = new THREE.Group();
   dummy.name = 'crushed';

@@ -29,7 +29,7 @@ const LANDMARK_VIEW_H: Record<string, number> = {
   towerbridge: 2.2,
   eye: 2.55,
   hungerford: 2.6,
-  buckingham: 2.4,
+  buckingham: 3.15,
   canadasq: 4.4,
   gherkin: 3.35,
   shard: 2.65,

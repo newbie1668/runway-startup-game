@@ -409,6 +409,7 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
   const buck = LANDMARKS.find((l) => l.kind === 'buckingham')!;
   const at = project(buck.at);
   let garden = 0;
+  let north = 0;
   let parkTris = 0;
   parks!.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
@@ -417,11 +418,15 @@ check('Buckingham gardens keep a lawn; Hyde is not a crumpled fan', () => {
     if (idx) parkTris += idx.count / 3;
     if (!pos) return;
     for (let i = 0; i < pos.count; i++) {
-      const d = Math.hypot(pos.getX(i) - at.x, pos.getZ(i) - at.y) / METERS_TO_WORLD;
+      const dx = pos.getX(i) - at.x;
+      const dz = pos.getZ(i) - at.y;
+      const d = Math.hypot(dx, dz) / METERS_TO_WORLD;
       if (d > 90 && d < 240) garden += 1;
+      if (d > 40 && d < 200 && dz < 0) north += 1;
     }
   });
   assert.ok(garden > 80, `palace gardens / Green Park missing lawn (${garden} verts)`);
+  assert.ok(north > 40, `Green Park north of the palace missing (${north} verts)`);
   assert.ok(parkTris > 200 && parkTris < 80_000, `park triangulation ${parkTris} looks subdivided`);
 });
 
