@@ -15,9 +15,11 @@ import * as THREE from 'three';
 import {
   LANDMARKS,
   METERS_TO_WORLD,
+  THAMES_CROSSINGS,
   WORLD,
   isDeckLandmark,
   project,
+  thamesCrossingLookKey,
   type LandmarkKind,
 } from '../geo';
 import { HUB_POS, MapOverlay } from '../overlay';
@@ -79,6 +81,8 @@ const SUN_DIR = new THREE.Vector3(-0.84, 0.5, 0.78).normalize();
 function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: number } {
   const look = new URLSearchParams(window.location.search).get('look');
   if (look && NOTICED_LOOK[look]) return NOTICED_LOOK[look]!;
+  const crossing = THAMES_CROSSINGS.find((c) => thamesCrossingLookKey(c.name) === look);
+  if (crossing) return { at: crossing.at, viewH: 1.35, azimuth: 0 };
   const hit = LANDMARKS.find((l) => l.kind === look);
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
   if (hit.kind === 'towerbridge') {

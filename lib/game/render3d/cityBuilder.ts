@@ -1952,8 +1952,6 @@ const LAND_OVERLAP_M = 16;
 const CROSSING_STEP_M = 8;
 const CROSSING_MAX_M = 480;
 const CROSSING_SNAP_M = 52;
-/** OSM leftover spans this close are the same crossing (rotated slabs, dual decks). */
-const SPAN_CLUSTER_M = 70;
 const SEED_MATCH_M = 45;
 
 export type RoadRun = { pts: { x: number; z: number }[]; span: boolean };
@@ -2077,10 +2075,6 @@ export type CrossingSpan = {
   tier: number;
 };
 
-function spanLen(s: CrossingSpan): number {
-  return Math.hypot(s.pts[1].x - s.pts[0].x, s.pts[1].z - s.pts[0].z);
-}
-
 function overlapEndpoints(
   a: { x: number; z: number },
   b: { x: number; z: number },
@@ -2177,28 +2171,6 @@ export function walkAcrossWater(
 
 function spanMid(s: CrossingSpan): { x: number; z: number } {
   return { x: (s.pts[0].x + s.pts[1].x) / 2, z: (s.pts[0].z + s.pts[1].z) / 2 };
-}
-
-function thamesCrossAlign(s: CrossingSpan): number {
-  const mid = spanMid(s);
-  const t = thamesTangent(unproject(mid.x, mid.z));
-  const cx = -t.y;
-  const cz = t.x;
-  const dx = s.pts[1].x - s.pts[0].x;
-  const dz = s.pts[1].z - s.pts[0].z;
-  const len = Math.hypot(dx, dz) || 1;
-  return Math.abs((dx / len) * cx + (dz / len) * cz);
-}
-
-function looksLikeThamesBridge(
-  s: CrossingSpan,
-  overWater: (x: number, z: number) => boolean,
-): boolean {
-  const meters = spanLen(s) / METERS_TO_WORLD;
-  if (meters < 180 || meters > CROSSING_MAX_M) return false;
-  const mid = spanMid(s);
-  if (!overWater(mid.x, mid.z)) return false;
-  return thamesCrossAlign(s) > 0.75;
 }
 
 /** Snap a walked span onto the OSM stubs so the deck meets the shoreline road. */
@@ -2318,7 +2290,7 @@ function walkFromSeed(
 function dedupeCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
   const out: CrossingSpan[] = [];
   const used = new Set<number>();
-  const near = 55 * METERS_TO_WORLD;
+  const near = 90 * METERS_TO_WORLD;
   for (let i = 0; i < spans.length; i++) {
     if (used.has(i)) continue;
     const keep = spans[i]!;
@@ -2411,7 +2383,6 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
   ];
   const seeded: CrossingSpan[] = [];
   const matchR = SEED_MATCH_M * METERS_TO_WORLD;
-  const clusterR = SPAN_CLUSTER_M * METERS_TO_WORLD;
   for (const seed of seeds) {
     const at = project(seed.at);
     const t = thamesTangent(seed.at);
@@ -2427,7 +2398,7 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
       const dz = s.pts[1].z - s.pts[0].z;
       const len = Math.hypot(dx, dz) || 1;
       const align = Math.abs((dx / len) * cx + (dz / len) * cz);
-      if (align < 0.78) continue;
+      if (align < 0.9) continue;
       const score = align * 2 - d / matchR;
       if (score > pickedScore) {
         pickedScore = score;
@@ -2438,18 +2409,9 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
     if (!picked) continue;
     seeded.push(snapSpanToApproaches(picked, approaches, overWater));
   }
-  const extras: CrossingSpan[] = [];
-  for (const s of fromRoads) {
-    const m = spanMid(s);
-    const claimed = seeded.some((k) => {
-      const km = spanMid(k);
-      return Math.hypot(m.x - km.x, m.z - km.z) < clusterR;
-    });
-    if (claimed) continue;
-    if (!looksLikeThamesBridge(s, overWater)) continue;
-    extras.push(snapSpanToApproaches(s, approaches, overWater));
-  }
-  return dedupeCrossingSpans([...seeded, ...extras]);
+  // Named seeds only. Unseeded OSM stitches were Rotherhithe / Blackwall
+  // tunnels, rail decks, and dock leftovers — leftover slabs on the river.
+  return dedupeCrossingSpans(seeded);
 }
 
 /** Y rotation for a +X-modelled pier group so +X follows the nearest carriageway span. */

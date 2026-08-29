@@ -378,6 +378,14 @@ export const THAMES_CROSSINGS: readonly { name: string; at: LngLat }[] = [
   { name: 'Southwark Bridge', at: [-0.0942, 51.5086] },
 ] as const;
 
+/** `?look=chelseabr` for unnamed road crossings that still get an asphalt stitch. */
+export function thamesCrossingLookKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+bridge$/, 'br')
+    .replace(/\s+/g, '');
+}
+
 export const LANDMARKS: readonly Landmark[] = [
   { kind: 'eye', name: 'London Eye', at: [-0.1196, 51.5033], exclusionM: 90, yaw: 0.12 },
   { kind: 'shard', name: 'The Shard', at: [-0.0865, 51.5045], exclusionM: 90 },

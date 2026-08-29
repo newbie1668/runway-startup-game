@@ -21,6 +21,7 @@ import {
   THAMES_CROSSINGS,
   isDeckLandmark,
   project,
+  thamesCrossingLookKey,
   thamesTangent,
 } from '../lib/game/geo';
 import {
@@ -80,6 +81,8 @@ check('offline search finds Shard, Shoreditch, Hyde Park', () => {
   assert.ok(shore.some((h) => /shoreditch/i.test(h.label)));
   const park = searchPlaces('hyde');
   assert.ok(park.some((h) => h.label === 'Hyde Park' && h.kind === 'park'));
+  const chelsea = searchPlaces('chelsea');
+  assert.ok(chelsea.some((h) => h.label === 'Chelsea Bridge'));
 });
 
 check('West End 4–6 storey terraces keep bays (not restyled to office)', () => {
@@ -259,6 +262,14 @@ check('named Thames crossings have a land-to-land span in the London bake', () =
     const near = spans.filter((s) => distToSpanM(at.x, at.y, s) < 40);
     assert.equal(near.length, 1, `${name} has ${near.length} overlapping decks`);
   }
+  assert.equal(
+    spans.length,
+    named.length + extra.length,
+    `unexpected extra river decks: ${spans.length} vs ${named.length + extra.length} named crossings`,
+  );
+  const keys = extra.map((c) => thamesCrossingLookKey(c.name));
+  assert.equal(new Set(keys).size, keys.length);
+  assert.ok(keys.includes('chelseabr') && keys.includes('vauxhallbr'));
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);

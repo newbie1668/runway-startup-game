@@ -3,7 +3,14 @@
  * Same-origin data only — no weather APIs, no Exa, no Wikipedia at play time.
  */
 
-import { AREA_LABELS, LANDMARKS, PARKS, project } from './geo';
+import {
+  AREA_LABELS,
+  LANDMARKS,
+  PARKS,
+  THAMES_CROSSINGS,
+  project,
+  thamesCrossingLookKey,
+} from './geo';
 import { HUBS } from './content';
 
 export type PlaceKind = 'landmark' | 'neighbourhood' | 'hub' | 'park';
@@ -93,6 +100,17 @@ export function placeCatalog(): readonly PlaceHit[] {
       x: p.x,
       y: p.y,
       viewH: landmarkViewH(landmark.kind),
+    });
+  }
+  for (const crossing of THAMES_CROSSINGS) {
+    const p = project(crossing.at);
+    hits.push({
+      id: `lm:${thamesCrossingLookKey(crossing.name)}`,
+      label: crossing.name,
+      kind: 'landmark',
+      x: p.x,
+      y: p.y,
+      viewH: 1.35,
     });
   }
   catalog = hits;
