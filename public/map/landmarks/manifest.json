@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-28T20:55:38.293Z",
+  "generatedAt": "2026-08-29T04:38:25.775Z",
   "files": [
     {
       "kind": "eye",
@@ -140,6 +140,46 @@
       "kind": "monument",
       "file": "monument.glb",
       "bytes": 14260
+    },
+    {
+      "kind": "britishmuseum",
+      "file": "britishmuseum.glb",
+      "bytes": 151392
+    },
+    {
+      "kind": "allsouls",
+      "file": "allsouls.glb",
+      "bytes": 56664
+    },
+    {
+      "kind": "goodgest",
+      "file": "goodgest.glb",
+      "bytes": 28404
+    },
+    {
+      "kind": "stcharles",
+      "file": "stcharles.glb",
+      "bytes": 28368
+    },
+    {
+      "kind": "nationaltheatre",
+      "file": "nationaltheatre.glb",
+      "bytes": 43440
+    },
+    {
+      "kind": "tatemodern",
+      "file": "tatemodern.glb",
+      "bytes": 158392
+    },
+    {
+      "kind": "stpancras",
+      "file": "stpancras.glb",
+      "bytes": 88664
+    },
+    {
+      "kind": "alberthall",
+      "file": "alberthall.glb",
+      "bytes": 46364
     }
   ]
 }

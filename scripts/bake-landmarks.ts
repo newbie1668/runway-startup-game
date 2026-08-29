@@ -8,7 +8,8 @@
  * lib/game/render3d/landmarks.ts — re-run this after changing a builder.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
@@ -49,14 +50,21 @@ async function exportGlb(root: THREE.Object3D): Promise<ArrayBuffer> {
 }
 
 async function main(): Promise<void> {
+  const missingOnly = process.argv.includes('--missing');
   await mkdir(OUT_DIR, { recursive: true });
   const kinds = [...new Set(LANDMARKS.map((l) => l.kind))];
   const written: { kind: string; bytes: number }[] = [];
   for (const kind of kinds) {
+    const file = path.join(OUT_DIR, `${kind}.glb`);
+    if (missingOnly && existsSync(file)) {
+      const kept = await stat(file);
+      written.push({ kind, bytes: kept.size });
+      console.log(`  ${kind}.glb  kept ${(kept.size / 1024).toFixed(1)} KB`);
+      continue;
+    }
     const group = build(kind);
     group.name = kind;
     const buf = await exportGlb(group);
-    const file = path.join(OUT_DIR, `${kind}.glb`);
     await writeFile(file, Buffer.from(buf));
     written.push({ kind, bytes: buf.byteLength });
     console.log(`  ${kind}.glb  ${(buf.byteLength / 1024).toFixed(1)} KB`);
