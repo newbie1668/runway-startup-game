@@ -248,12 +248,22 @@ check('named Canary towers get photo-true unique meshes, not baker costumes', ()
     shape: 'stepped',
   });
   assert.ok(charrington.getObjectByName('charrington-tower-peel'), 'peeled balcony stack');
+  assert.ok(charrington.getObjectByName('charrington-tower-shell'), 'C-shell, not a closed tube');
   assert.equal(
     charrington.getObjectByName('charrington-tower-0'),
     undefined,
     'not a stepped extrusion',
   );
   const peel = charrington.getObjectByName('charrington-tower-peel') as THREE.Mesh;
+  assert.ok(peel.position.z > 0, 'balconies face +Z (Thames / south)');
+  const shell = charrington.getObjectByName('charrington-tower-shell') as THREE.Mesh;
+  const cyl = shell.geometry as THREE.CylinderGeometry;
+  assert.equal(cyl.parameters.openEnded, true);
+  assert.ok(
+    cyl.parameters.thetaLength < Math.PI * 2 - 1,
+    `south peel must be a real bite, thetaLength=${cyl.parameters.thetaLength}`,
+  );
+  assert.ok(cyl.parameters.thetaStart < 1.2, 'opening is centered on +Z, not +X');
   const peelMat = Array.isArray(peel.material) ? peel.material[0] : peel.material;
   assert.equal(
     peelMat?.type,

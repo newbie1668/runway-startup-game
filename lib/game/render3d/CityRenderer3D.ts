@@ -52,6 +52,7 @@ import {
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
+import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
 
@@ -73,8 +74,9 @@ const NOTICED_LOOK: Record<
   parkdrive: { at: [-0.01503, 51.50227], viewH: 2.55, azimuth: 0.95 },
   newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
   wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
-  charrington: { at: [-0.00546, 51.50692], viewH: 2.15, azimuth: 0.72 },
+  charrington: { at: [-0.00546, 51.50692], viewH: 1.85, azimuth: 0.18 },
   hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
+  canadastreet: { at: [-0.0184, 51.50495], viewH: 3.05, azimuth: 0.62 },
 };
 
 /** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
@@ -89,7 +91,7 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
   if (isDeckLandmark(hit.kind) && hit.kind !== 'oldstreet') {
     if (hit.kind === 'towerbridge') {
-      return { at: hit.at, viewH: 2.45, azimuth: Math.PI / 2 - 0.32 };
+      return { at: hit.at, viewH: 2.15, azimuth: Math.PI / 2 - 0.32 };
     }
     const azimuth = hit.kind === 'hungerford' ? -Math.PI / 2 : 0;
     return { at: hit.at, viewH: 1.35, azimuth };
@@ -108,6 +110,9 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   }
   if (hit.kind === 'alberthall' || hit.kind === 'allsouls') {
     return { at: hit.at, viewH: 2.4, azimuth: 0.2 };
+  }
+  if (hit.kind === 'towerlondon') {
+    return { at: hit.at, viewH: 1.55, azimuth: 0.35 };
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };
@@ -128,7 +133,6 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
     hit.kind === 'millennium' ||
     hit.kind === 'bigben' ||
     hit.kind === 'abbey' ||
-    hit.kind === 'towerlondon' ||
     hit.kind === 'battersea' ||
     hit.kind === 'o2';
   return { at: hit.at, viewH: wide ? 2.8 : 1.55, azimuth: 0 };
@@ -344,7 +348,81 @@ export class CityRenderer3D implements IMapRenderer {
         r: e.exclusionM * METERS_TO_WORLD,
       })),
     ];
+    const look = new URLSearchParams(window.location.search).get('look');
+    const lookNoticedId =
+      look === 'charrington'
+        ? 'charrington-tower'
+        : look === 'parkdrive'
+          ? 'one-park-drive'
+          : look === 'newfoundland'
+            ? 'newfoundland-quay'
+            : look === 'hsbc' || look === 'canadastreet'
+              ? 'hsbc-uk'
+              : undefined;
     const jobs: BuildJob[] = [];
+    const crossings = riverCrossingSpans(data);
+    const pushNoticed = (entry: NoticedEntry): void => {
+      jobs.push(() => {
+        const prefab = this.noticedPrefabs.get(entry.id) ?? null;
+        if (!prefab && !isUniqueNoticedId(entry.id)) return;
+        const group = instantiateNoticed(entry, prefab);
+        group.position.set(entry.x, 0, entry.z);
+        this.cityGroup.add(group);
+      });
+    };
+    const pushLandmark = (landmark: (typeof LANDMARKS)[number]): void => {
+      jobs.push(() => {
+        const p = project(landmark.at);
+        const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
+        group.position.set(p.x, 0, p.y);
+        const riverDeck = isDeckLandmark(landmark.kind) && landmark.kind !== 'oldstreet';
+        if (riverDeck && landmark.kind !== 'towerbridge') {
+          const yaw = crossingYawAt(p.x, p.y, crossings) ?? landmark.yaw ?? 0;
+          group.rotation.y += yaw;
+        } else if (landmark.yaw) {
+          group.rotation.y += landmark.yaw;
+        }
+        this.cityGroup.add(group);
+      });
+    };
+    for (const entry of this.noticedEntries) {
+      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry);
+    }
+    for (const entry of this.noticedEntries) {
+      if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) pushNoticed(entry);
+    }
+    for (const landmark of LANDMARKS) {
+      if (look && landmark.kind === look) pushLandmark(landmark);
+    }
+    jobs.push(() => {
+      const mesh = buildWater(data);
+      if (mesh) this.cityGroup.add(mesh);
+    });
+    jobs.push(() => {
+      const mesh = buildParks(data);
+      if (mesh) this.cityGroup.add(mesh);
+    });
+    jobs.push(() => {
+      const trees = buildParkTrees(data);
+      if (trees) {
+        trees.visible = true;
+        this.treeGroup = trees;
+        this.cityGroup.add(trees);
+      }
+    });
+    jobs.push(() => {
+      const roadGroup = buildRoads(data);
+      if (roadGroup) {
+        this.cityGroup.add(roadGroup);
+        for (const child of roadGroup.children) {
+          if (child.userData.roadTier === 2) this.tier2RoadMesh = child;
+          if (child.userData.roadMarks) this.markMesh = child;
+        }
+      }
+    });
+    for (const landmark of LANDMARKS) {
+      if (!(look && landmark.kind === look)) pushLandmark(landmark);
+    }
     for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
       for (const major of [true, false]) {
         jobs.push(() => {
@@ -371,16 +449,6 @@ export class CityRenderer3D implements IMapRenderer {
       if (signs) this.cityGroup.add(signs);
     });
     jobs.push(() => {
-      const roadGroup = buildRoads(data);
-      if (roadGroup) {
-        this.cityGroup.add(roadGroup);
-        for (const child of roadGroup.children) {
-          if (child.userData.roadTier === 2) this.tier2RoadMesh = child;
-          if (child.userData.roadMarks) this.markMesh = child;
-        }
-      }
-    });
-    jobs.push(() => {
       const lamps = buildStreetLamps(data);
       if (lamps) {
         lamps.visible = false;
@@ -388,47 +456,9 @@ export class CityRenderer3D implements IMapRenderer {
         this.cityGroup.add(lamps);
       }
     });
-    jobs.push(() => {
-      const mesh = buildParks(data);
-      if (mesh) this.cityGroup.add(mesh);
-    });
-    jobs.push(() => {
-      const trees = buildParkTrees(data);
-      if (trees) {
-        trees.visible = true;
-        this.treeGroup = trees;
-        this.cityGroup.add(trees);
-      }
-    });
-    jobs.push(() => {
-      const mesh = buildWater(data);
-      if (mesh) this.cityGroup.add(mesh);
-    });
-    const crossings = riverCrossingSpans(data);
-    for (let i = 0; i < LANDMARKS.length; i++) {
-      jobs.push(() => {
-        const landmark = LANDMARKS[i];
-        const p = project(landmark.at);
-        const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
-        group.position.set(p.x, 0, p.y);
-        const riverDeck = isDeckLandmark(landmark.kind) && landmark.kind !== 'oldstreet';
-        if (riverDeck && landmark.kind !== 'towerbridge') {
-          const yaw = crossingYawAt(p.x, p.y, crossings) ?? landmark.yaw ?? 0;
-          group.rotation.y += yaw;
-        } else if (landmark.yaw) {
-          group.rotation.y += landmark.yaw;
-        }
-        this.cityGroup.add(group);
-      });
-    }
     for (const entry of this.noticedEntries) {
-      jobs.push(() => {
-        const prefab = this.noticedPrefabs.get(entry.id);
-        if (!prefab) return;
-        const group = instantiateNoticed(entry, prefab);
-        group.position.set(entry.x, 0, entry.z);
-        this.cityGroup.add(group);
-      });
+      if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
+      pushNoticed(entry);
     }
     this.buildQueue = jobs;
     this.cityStreamed = true;

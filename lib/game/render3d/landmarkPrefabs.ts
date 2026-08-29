@@ -15,6 +15,23 @@ import { makeMatteLambert } from './matteGltf';
 
 export const LANDMARK_GLB_DIR = '/map/landmarks';
 
+/** Unique silhouettes stay procedural so pale steel / stone survive playtime. */
+const PLAYTIME_PROCEDURAL: ReadonlySet<LandmarkKind> = new Set([
+  'towerlondon',
+  'canadasq',
+  'gherkin',
+  'walkie',
+  'grater',
+  'shard',
+  'bishop',
+  'heron',
+  'tower42',
+]);
+
+export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
+  return PLAYTIME_PROCEDURAL.has(kind) || (isDeckLandmark(kind) && kind !== 'oldstreet');
+}
+
 export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Object3D>> {
   const loader = new GLTFLoader();
   const kinds = [...new Set(LANDMARKS.map((l) => l.kind))];
@@ -37,10 +54,9 @@ export function instantiateLandmark(
   kind: LandmarkKind,
   prefabs: Map<LandmarkKind, THREE.Object3D>,
 ): THREE.Group {
-  // River decks stay procedural so asphalt/join fixes are not stuck in a stale GLB.
-  // Tower of London too: pale Caen stone must not go through makeMatteLambert's
-  // photogrammetry-white → navy-glass crush.
-  if ((isDeckLandmark(kind) && kind !== 'oldstreet') || kind === 'towerlondon') {
+  // River decks and unique skyline meshes stay procedural so asphalt / pale
+  // steel are not stuck in a stale GLB or crushed by makeMatteLambert.
+  if (isPlaytimeProceduralKind(kind)) {
     return buildLandmark(kind);
   }
   const prefab = prefabs.get(kind);

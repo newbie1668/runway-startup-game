@@ -56,6 +56,18 @@ export async function loadNoticedPrefabs(): Promise<{
   await Promise.all(
     (manifest.files ?? []).map(async (file) => {
       try {
+        if (isUniqueNoticedId(file.id)) {
+          prefabs.set(file.id, new THREE.Group());
+          entries.push({
+            id: file.id,
+            name: file.name,
+            x: file.x,
+            z: file.z,
+            exclusionM: file.exclusionM,
+            heightM: file.heightM ?? 120,
+          });
+          return;
+        }
         const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
         makeMatteLambert(gltf.scene, { keepMaps: true });
         prefabs.set(file.id, gltf.scene);
@@ -75,7 +87,10 @@ export async function loadNoticedPrefabs(): Promise<{
   return { entries, prefabs };
 }
 
-export function instantiateNoticed(entry: NoticedEntry, prefab: THREE.Object3D): THREE.Group {
+export function instantiateNoticed(
+  entry: NoticedEntry,
+  prefab: THREE.Object3D | null = null,
+): THREE.Group {
   if (isUniqueNoticedId(entry.id)) {
     const built = buildUniqueNoticed({
       id: entry.id,
@@ -87,6 +102,7 @@ export function instantiateNoticed(entry: NoticedEntry, prefab: THREE.Object3D):
       return built;
     }
   }
+  if (!prefab) return new THREE.Group();
   const clone = prefab.clone(true);
   const group = clone instanceof THREE.Group ? clone : new THREE.Group();
   if (!(clone instanceof THREE.Group)) group.add(clone);

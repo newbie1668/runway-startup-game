@@ -531,7 +531,7 @@ function buildTowerBridge(): THREE.Group {
   const pier = m(2.6);
   const deckY = LANDMARK_DECK_Y;
   const deckW = m(12.4);
-  const deckLen = m(310);
+  const deckLen = m(420);
   const deckH = m(1.8);
   const archH = deckY + m(12);
   const walkY = towerHeight * 0.78;
@@ -713,6 +713,17 @@ function buildTowerBridge(): THREE.Group {
     }
   }
 
+  const abutmentZ = m(125);
+  for (const side of [-1, 1]) {
+    const z = side * abutmentZ;
+    const abut = addBox(group, m(22), h(9), m(16), stone, 0, 0, z);
+    if (side === 1) abut.name = 'abutment';
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(m(18), deckH, m(48)), asphalt);
+    apron.position.set(0, deckY - deckH / 2, z);
+    if (side === 1) apron.name = 'apron';
+    group.add(apron);
+  }
+
   return group;
 }
 
@@ -852,8 +863,8 @@ function buildCanadaSq(): THREE.Group {
   const group = new THREE.Group();
   const width = m(47);
   const shaftHeight = ht(190);
-  const glass = new THREE.MeshLambertMaterial({ color: 0x8aa0b0 });
-  const steel = new THREE.MeshLambertMaterial({ color: 0xd6dce4 });
+  const glass = new THREE.MeshBasicMaterial({ color: 0x8aa0b0, fog: true });
+  const steel = new THREE.MeshBasicMaterial({ color: 0xd6dce4, fog: true });
   addBox(group, m(52), ht(8), m(52), steel);
   const shaft = new THREE.Mesh(
     baseAtGround(new THREE.BoxGeometry(width, shaftHeight, width), shaftHeight),
@@ -896,6 +907,7 @@ function buildCanadaSq(): THREE.Group {
   );
   cap.position.y = ht(8) + shaftHeight;
   cap.rotation.y = Math.PI / 4;
+  cap.name = 'canadasq-pyramid';
   group.add(cap);
 
   const mastH = ht(14);
@@ -1285,9 +1297,9 @@ function addMuralTower(
 function buildTowerLondon(): THREE.Group {
   const group = new THREE.Group();
   const keep = new THREE.MeshBasicMaterial({ color: 0xe8e0d0, fog: true });
-  const wall = new THREE.MeshLambertMaterial({ color: 0xc8c0b0 });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x3a342c });
-  const roof = new THREE.MeshLambertMaterial({ color: 0x6a5848 });
+  const wall = new THREE.MeshBasicMaterial({ color: 0xd4ccbe, fog: true });
+  const dark = new THREE.MeshBasicMaterial({ color: 0x3a342c, fog: true });
+  const roof = new THREE.MeshBasicMaterial({ color: 0x6a5848, fog: true });
   const lawn = new THREE.MeshBasicMaterial({ color: 0x4a6a42, fog: true });
 
   const outerW = m(82);

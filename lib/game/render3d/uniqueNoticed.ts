@@ -1,7 +1,8 @@
 /**
  * Photo-true unique meshes for named noticed towers the banded baker
  * cannot describe (Kansas: stand-out features in geometry, not a costume
- * on a box). Bake-time and tests share these builders; runtime loads the GLB.
+ * on a box). Bake-time and tests share these builders; playtime builds them
+ * from code so pale stone is not crushed by the GLB Lambert path.
  */
 import * as THREE from 'three';
 import { METERS_TO_WORLD } from '../geo';
@@ -74,61 +75,83 @@ function addBox(
   return mesh;
 }
 
-/** SOM peeled-ellipse: glass/white bands, balconies stacked on the Thames peel (+Z). */
+/**
+ * SOM peeled-ellipse (Blackwall / New Providence Wharf).
+ * Three.js CylinderGeometry theta=0 is +Z; the Thames peel is a ~106° bite
+ * around that, not a closed core with a slit on +X.
+ */
 function buildCharrington(job: UniqueNoticedJob): THREE.Group {
   const group = new THREE.Group();
   group.name = job.id;
   const { cx, cz, rx, rz } = ringExtents(job.ring);
   const H = job.heightWorld;
-  const stone = paint(0xe8e2d6);
+  const stone = paint(0xf3ece3);
   stone.side = THREE.DoubleSide;
-  const glass = paint(0x3a5060);
+  const glass = paint(0x2c4450);
   glass.side = THREE.DoubleSide;
   const dark = paint(0x2a343c);
-  const rxOut = rx * 1.02;
-  const rzOut = rz * 1.02;
-  const rxIn = rx * 0.78;
-  const rzIn = rz * 0.78;
-  const bands = 22;
+  const rxOut = rx * 1.04;
+  const rzOut = rz * 1.04;
+  const rxIn = rx * 0.7;
+  const rzIn = rz * 0.7;
+  const bands = 12;
+  const peel = 1.85;
+  const thetaStart = peel / 2;
+  const thetaLength = Math.PI * 2 - peel;
   for (let i = 0; i < bands; i++) {
     const y0 = (i / bands) * H;
     const y1 = ((i + 1) / bands) * H;
-    const h = y1 - y0;
-    const peel = 0.72 + (i / bands) * 0.95;
-    const thetaStart = Math.PI / 2 + peel / 2;
-    const thetaLength = Math.PI * 2 - peel;
+    const bandH = y1 - y0;
     const isStone = i % 2 === 0;
+    const wallMat = isStone ? stone : glass;
     const shell = new THREE.Mesh(
-      new THREE.CylinderGeometry(1, 1, h, 28, 1, true, thetaStart, thetaLength),
-      isStone ? stone : glass,
+      new THREE.CylinderGeometry(1, 1, bandH * 0.9, 32, 1, true, thetaStart, thetaLength),
+      wallMat,
     );
     shell.scale.set(rxOut, 1, rzOut);
-    shell.position.set(cx, y0 + h / 2, cz);
+    shell.position.set(cx, y0 + bandH / 2, cz);
+    if (i === 0) shell.name = `${job.id}-shell`;
     group.add(shell);
-    const core = new THREE.Mesh(
-      new THREE.CylinderGeometry(1, 1, h, 22, 1, false),
+    const inner = new THREE.Mesh(
+      new THREE.CylinderGeometry(1, 1, bandH * 0.9, 24, 1, true, thetaStart, thetaLength),
       isStone ? glass : stone,
     );
-    core.scale.set(rxIn, 1, rzIn);
-    core.position.set(cx, y0 + h / 2, cz);
-    group.add(core);
-    const balH = h * 0.22;
+    inner.scale.set(rxIn, 1, rzIn);
+    inner.position.set(cx, y0 + bandH / 2, cz);
+    group.add(inner);
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, bandH * 0.1, 28), stone);
+    floor.scale.set(rxOut * 0.98, 1, rzOut * 0.98);
+    floor.position.set(cx, y0 + bandH * 0.05, cz);
+    group.add(floor);
     const bal = addBox(
       group,
-      rxOut * 1.15,
-      balH,
-      rzOut * 0.42,
+      rxOut * 1.08,
+      bandH * 0.18,
+      rzOut * 0.58,
       stone,
       cx,
-      y0 + h * 0.08,
-      cz + rzOut * 0.72,
+      y0 + bandH * 0.1,
+      cz + rzOut * 0.58,
       i === 0 ? `${job.id}-peel` : undefined,
     );
     if (i !== 0) bal.name = `${job.id}-peel-${i}`;
+    for (const sign of [-1, 1]) {
+      const edge = sign * (peel / 2);
+      addBox(
+        group,
+        rxOut * 0.1,
+        bandH * 0.9,
+        rzOut * 0.1,
+        stone,
+        cx + Math.sin(edge) * rxOut,
+        y0 + bandH * 0.05,
+        cz + Math.cos(edge) * rzOut,
+      );
+    }
   }
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, H * 0.02, 24), dark);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, H * 0.025, 24), dark);
   cap.scale.set(rxIn, 1, rzIn);
-  cap.position.set(cx, H + H * 0.01, cz);
+  cap.position.set(cx, H + H * 0.012, cz);
   cap.name = `${job.id}-cap`;
   group.add(cap);
   return group;
@@ -209,14 +232,14 @@ function buildHsbc(job: UniqueNoticedJob): THREE.Group {
   const H = job.heightWorld;
   const w = rx * 2;
   const d = rz * 2;
-  const glass = paint(0x7a8c9a);
-  const steel = paint(0xb8c0c8);
+  const glass = paint(0x4a5c68);
+  const steel = paint(0xc8d0d6);
   const dark = paint(0x3a444c);
   addBox(group, w, H * 0.08, d, steel, cx, 0, cz);
   addBox(group, w * 0.96, H * 0.82, d * 0.96, glass, cx, H * 0.08, cz);
-  const rows = 18;
+  const rows = 16;
   for (let r = 1; r < rows; r++) {
-    addBox(group, w * 0.98, H * 0.008, d * 0.98, steel, cx, H * 0.08 + (r / rows) * H * 0.82, cz);
+    addBox(group, w * 0.98, H * 0.016, d * 0.98, steel, cx, H * 0.08 + (r / rows) * H * 0.82, cz);
   }
   for (let c = 0; c <= 6; c++) {
     const t = c / 6;
@@ -252,16 +275,16 @@ function buildCiti(job: UniqueNoticedJob): THREE.Group {
   addBox(group, w * 0.7, H * 0.08, d * 0.7, steel, cx, H * 0.88, cz);
   const notch = addBox(
     group,
-    w * 0.42,
-    H * 0.12,
-    d * 0.28,
+    w * 0.55,
+    H * 0.16,
+    d * 0.38,
     granite,
-    cx + w * 0.18,
-    H * 0.88,
-    cz + d * 0.22,
+    cx + w * 0.16,
+    H * 0.86,
+    cz + d * 0.28,
     `${job.id}-notch`,
   );
-  notch.rotation.x = -0.42;
+  notch.rotation.x = -0.55;
   return group;
 }
 

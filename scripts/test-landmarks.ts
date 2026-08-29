@@ -8,6 +8,7 @@ import { ROAD_Y } from '../lib/game/render3d/cityBuilder';
 import { EYE_WHEEL_NAME, LANDMARK_DECK_Y, build } from '../lib/game/render3d/landmarks';
 import { HEIGHT_SCALE } from '../lib/game/render3d/buildingStyle';
 import { ASPHALT } from '../lib/game/render3d/palette';
+import { instantiateLandmark } from '../lib/game/render3d/landmarkPrefabs';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -53,7 +54,7 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
   assert.ok(deck instanceof THREE.Mesh, 'Tower Bridge needs a named deck');
   const box = new THREE.Box3().setFromObject(deck);
   const spanM = (box.max.z - box.min.z) / METERS_TO_WORLD;
-  assert.ok(spanM > 220, `deck must reach both banks, got ${spanM.toFixed(0)} m`);
+  assert.ok(spanM > 360, `deck must reach both banks, got ${spanM.toFixed(0)} m`);
   assert.ok(
     box.min.z < -40 * METERS_TO_WORLD && box.max.z > 40 * METERS_TO_WORLD,
     'deck must pass through both towers',
@@ -71,6 +72,8 @@ check('Tower Bridge carries a designed asphalt deck through the Gothic towers', 
     if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
   });
   assert.ok(cones >= 2, `expected Tower Bridge spires, got ${cones}`);
+  assert.ok(bridge.getObjectByName('abutment'), 'stone abutments on the banks');
+  assert.ok(bridge.getObjectByName('apron'), 'asphalt apron overlapping the bank road');
 });
 
 check('Hungerford keeps river piers, not a leftover deck box', () => {
@@ -213,6 +216,19 @@ check('Tower of London is a concentric fortress, not a courtyard slab', () => {
   });
   assert.ok(cones >= 8, `wall and keep turrets need conical roofs, got ${cones}`);
   assert.ok(cylinders >= 6, `round mural towers, got ${cylinders}`);
+});
+
+check('One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box', () => {
+  const dummy = new THREE.Group();
+  dummy.name = 'crushed';
+  dummy.add(
+    new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshLambertMaterial({ color: 0x445566 })),
+  );
+  const prefabs = new Map();
+  prefabs.set('canadasq', dummy);
+  const group = instantiateLandmark('canadasq', prefabs);
+  assert.equal(group.getObjectByName('crushed'), undefined);
+  assert.ok(group.getObjectByName('canadasq-pyramid'), 'Foster pyramid hat');
 });
 
 console.log(`\nAll ${passed} landmark geometry checks passed.`);
