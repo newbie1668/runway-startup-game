@@ -1880,7 +1880,13 @@ function addRunwayDigit(
 function buildLcy(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'lcy';
-  const asphalt = new THREE.MeshBasicMaterial({ color: ASPHALT, fog: true });
+  const asphalt = new THREE.MeshBasicMaterial({
+    color: ASPHALT,
+    fog: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
   const mark = new THREE.MeshBasicMaterial({ color: 0xe8e6dc, fog: true });
   const concrete = new THREE.MeshLambertMaterial({ color: 0xc8c4b8 });
   const hall = new THREE.MeshLambertMaterial({ color: 0xece8dc });

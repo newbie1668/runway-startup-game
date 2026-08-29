@@ -154,16 +154,20 @@ function nearLondonCityAirport(x: number, z: number): boolean {
   const p = lcyLocal(x, z);
   if (!p) return false;
   return (
-    Math.abs(p.lx) < 780 * METERS_TO_WORLD &&
-    p.lz > -55 * METERS_TO_WORLD &&
-    p.lz < 175 * METERS_TO_WORLD
+    Math.abs(p.lx) < 820 * METERS_TO_WORLD &&
+    p.lz > -80 * METERS_TO_WORLD &&
+    p.lz < 210 * METERS_TO_WORLD
   );
 }
 
 function onLcyRunway(x: number, z: number): boolean {
   const p = lcyLocal(x, z);
   if (!p) return false;
-  return Math.abs(p.lx) < 780 * METERS_TO_WORLD && Math.abs(p.lz) < 48 * METERS_TO_WORLD;
+  return Math.abs(p.lx) < 820 * METERS_TO_WORLD && Math.abs(p.lz) < 55 * METERS_TO_WORLD;
+}
+
+export function onLondonCityAirportSpit(x: number, z: number): boolean {
+  return nearLondonCityAirport(x, z);
 }
 
 function parkClipRadiusWorld(
@@ -186,6 +190,13 @@ function triangleHitsExclusion(
   const mx = (ax + bx + cx) / 3;
   const mz = (az + bz + cz) / 3;
   if (nearLondonCityAirport(mx, mz)) return true;
+  if (
+    nearLondonCityAirport(ax, az) ||
+    nearLondonCityAirport(bx, bz) ||
+    nearLondonCityAirport(cx, cz)
+  ) {
+    return true;
+  }
   for (const landmark of LANDMARKS) {
     const at = project(landmark.at);
     const r = parkClipRadiusWorld(landmark.kind, landmark.exclusionM);
@@ -634,7 +645,8 @@ export function buildChunkTier(
     cz /= n;
 
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
-    if (nearLondonCityAirport(cx, cz)) continue;
+    if (nearLondonCityAirport(cx, cz) || ring.some((p) => nearLondonCityAirport(p.x, p.z)))
+      continue;
 
     const areaM2 = footprintAreaM2(ring);
     const [lng, lat] = unproject(cx, cz);
@@ -1770,6 +1782,8 @@ export function buildParks(cityData: CityData, keep: KeepDisk | null = null): TH
     if (!info || info.areaM2 < 18_000) continue;
     if (!inKeepDisk(info.x, info.z, keep)) continue;
     if (landmarkExclusionAt(info.x, info.z) !== null) continue;
+    if (nearLondonCityAirport(info.x, info.z)) continue;
+    if (info.ring.some((p) => nearLondonCityAirport(p.x, p.z))) continue;
     const { ring, x: cx, z: cz } = info;
     let maxI = 0;
     let maxD = 0;

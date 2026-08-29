@@ -39,8 +39,12 @@ import {
   buildParks,
   buildRoads,
   buildWater,
+  buildChunkTier,
   plannedCrosswalks,
   BRIDGE_SPAN_MIN_M,
+  CHUNK_COUNT,
+  createScratch,
+  onLondonCityAirportSpit,
 } from '../lib/game/render3d/cityBuilder';
 import { wallHex } from '../lib/game/render3d/palette';
 import { decodeCity } from '../lib/game/render3d/format';
@@ -500,6 +504,43 @@ check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
     if (pos) eyeWaterVerts += pos.count;
   });
   assert.ok(eyeWaterVerts > 40, `look=eye keep-disk lost the Thames (${eyeWaterVerts} verts)`);
+});
+
+check('LCY spit is not OSM boxes or park mounds on the peninsula', () => {
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const budget = meshBudgetFromSearch(new URLSearchParams('look=lcy'));
+  assert.equal(budget.skipTrees, true);
+  assert.equal(budget.chunkKeepM, 2200);
+  const anchors = LANDMARKS.map((l) => {
+    const p = project(l.at);
+    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
+  });
+  const scratch = createScratch();
+  let boxes = 0;
+  for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
+    for (const major of [true, false]) {
+      const mesh = buildChunkTier(city, chunkId, major, anchors, scratch);
+      if (!mesh) continue;
+      const pos = mesh.geometry.getAttribute('position');
+      if (!pos) continue;
+      for (let i = 0; i < pos.count; i++) {
+        if (onLondonCityAirportSpit(pos.getX(i), pos.getZ(i))) boxes += 1;
+      }
+    }
+  }
+  assert.equal(boxes, 0, `OSM extrusions still sit on the LCY spit (${boxes} verts)`);
+  const parks = buildParks(city);
+  let grass = 0;
+  parks?.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const pos = obj.geometry.getAttribute('position');
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      if (onLondonCityAirportSpit(pos.getX(i), pos.getZ(i))) grass += 1;
+    }
+  });
+  assert.equal(grass, 0, `park mounds still sit on the LCY spit (${grass} verts)`);
 });
 
 console.log(`\nAll ${passed} street-camera checks passed.`);
