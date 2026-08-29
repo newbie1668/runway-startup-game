@@ -12,7 +12,7 @@
 
 import { METERS_TO_WORLD } from '../geo';
 import { insetRingTowardCentroid, scaleToward } from './footprint';
-import type { PlanMetrics, UniqueSilhouette } from './uniqueStock';
+import type { PlanMetrics, UniqueStockRecipe } from './uniqueStock';
 
 export type StreetUniqueId =
   | 'no-1-poultry'
@@ -65,6 +65,9 @@ export const POULTRY_SHOP = 0x3a322c;
 export const POULTRY_ROOF = 0x5a625c;
 export const POULTRY_GRANITE = 0x6a6e6a;
 export const POULTRY_WELL = 0x1a1a22;
+/** White clock disk. Cream-on-pink vanished in the street still. */
+export const POULTRY_CLOCK = 0xf7f2e8;
+export const POULTRY_CLOCK_RIM = 0x2a2826;
 
 /** Lutyens Midland Bank / The Ned. Portland, rusticated base, dark mansard. */
 export const NED_STONE = 0xe6dfd0;
@@ -832,6 +835,7 @@ function emitTerraceCap(
   inner: StreetPt[],
   y: number,
   hex: number,
+  disk: Disk | null = null,
 ): void {
   const n = Math.min(outer.length, inner.length);
   if (n < 3) return;
@@ -840,6 +844,19 @@ function emitTerraceCap(
     const b = outer[(i + 1) % n]!;
     const c = inner[(i + 1) % n]!;
     const d = inner[i]!;
+    if (disk) {
+      const r = disk.r;
+      const hit =
+        Math.hypot(a.x - disk.x, a.z - disk.z) < r ||
+        Math.hypot(b.x - disk.x, b.z - disk.z) < r ||
+        Math.hypot(c.x - disk.x, c.z - disk.z) < r ||
+        Math.hypot(d.x - disk.x, d.z - disk.z) < r ||
+        distPointToSeg(disk.x, disk.z, a.x, a.z, b.x, b.z) < r ||
+        distPointToSeg(disk.x, disk.z, b.x, b.z, c.x, c.z) < r ||
+        distPointToSeg(disk.x, disk.z, c.x, c.z, d.x, d.z) < r ||
+        distPointToSeg(disk.x, disk.z, d.x, d.z, a.x, a.z) < r;
+      if (hit) continue;
+    }
     const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
     const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
     const i2 = ctx.pushVertex(c.x, y, c.z, 0, 1, 0, hex);
@@ -849,35 +866,137 @@ function emitTerraceCap(
   }
 }
 
-function emitClockFaces(
+/** Windowed cylinder. A solid pink extrusion is the 845224a blank drum. */
+function emitDrumWindows(
   ctx: StreetEmit,
   cx: number,
-  cy: number,
   cz: number,
   radius: number,
-  faceR: number,
-  hex: number,
+  y0: number,
+  y1: number,
+  stone: number,
+  glass: number,
+  nRows: number,
 ): void {
-  const segs = 10;
-  const out = m(0.05);
+  const segs = 16;
+  const rows = Math.max(1, nRows);
+  const span = y1 - y0;
+  const rowH = span / rows;
+  const uPad = 0.2;
+  const vPad = 0.18;
+  for (let i = 0; i < segs; i++) {
+    const a0 = (i / segs) * Math.PI * 2;
+    const a1 = ((i + 1) / segs) * Math.PI * 2;
+    const nx = Math.cos((a0 + a1) / 2);
+    const nz = Math.sin((a0 + a1) / 2);
+    const ax = cx + Math.cos(a0) * radius;
+    const az = cz + Math.sin(a0) * radius;
+    const bx = cx + Math.cos(a1) * radius;
+    const bz = cz + Math.sin(a1) * radius;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const leftIn = { x: ax + dx * uPad, z: az + dz * uPad };
+    const rightIn = { x: ax + dx * (1 - uPad), z: az + dz * (1 - uPad) };
+    emitWallQuad(ctx, ax, az, leftIn.x, leftIn.z, y0, y1, nx, nz, stone);
+    emitWallQuad(ctx, rightIn.x, rightIn.z, bx, bz, y0, y1, nx, nz, stone);
+    for (let r = 0; r < rows; r++) {
+      const ry0 = y0 + r * rowH;
+      const ry1 = ry0 + rowH;
+      const sill = ry0 + rowH * vPad;
+      const head = ry1 - rowH * vPad;
+      emitWallQuad(ctx, leftIn.x, leftIn.z, rightIn.x, rightIn.z, ry0, sill, nx, nz, stone);
+      emitWallQuad(ctx, leftIn.x, leftIn.z, rightIn.x, rightIn.z, sill, head, nx, nz, glass);
+      emitWallQuad(ctx, leftIn.x, leftIn.z, rightIn.x, rightIn.z, head, ry1, nx, nz, stone);
+    }
+  }
+}
+
+function emitStirlingClocks(ctx: StreetEmit, cx: number, cy: number, cz: number, drumR: number): void {
+  const faceR = m(2.45);
+  const rimW = m(0.28);
+  const out = m(0.1);
+  const segs = 12;
   for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + 0.35;
+    const a = (i * Math.PI) / 2;
     const nx = Math.cos(a);
     const nz = Math.sin(a);
     const tx = -nz;
     const tz = nx;
-    const px = cx + nx * radius * 0.9;
-    const pz = cz + nz * radius * 0.9;
-    const c = ctx.pushVertex(px + nx * out, cy, pz + nz * out, nx, 0, nz, hex);
-    const rim: number[] = [];
+    const px = cx + nx * drumR;
+    const pz = cz + nz * drumR;
+    const ox = nx * out;
+    const oz = nz * out;
+    const c = ctx.pushVertex(px + ox, cy, pz + oz, nx, 0, nz, POULTRY_CLOCK);
+    const inner: number[] = [];
+    const outer: number[] = [];
     for (let s = 0; s < segs; s++) {
       const t = (s / segs) * Math.PI * 2;
-      const x = px + tx * Math.cos(t) * faceR + nx * out;
-      const y = cy + Math.sin(t) * faceR;
-      const z = pz + tz * Math.cos(t) * faceR + nz * out;
-      rim.push(ctx.pushVertex(x, y, z, nx, 0, nz, hex));
+      const cpx = Math.cos(t);
+      const spy = Math.sin(t);
+      inner.push(
+        ctx.pushVertex(
+          px + tx * cpx * faceR + ox,
+          cy + spy * faceR,
+          pz + tz * cpx * faceR + oz,
+          nx,
+          0,
+          nz,
+          POULTRY_CLOCK,
+        ),
+      );
+      outer.push(
+        ctx.pushVertex(
+          px + tx * cpx * (faceR + rimW) + ox,
+          cy + spy * (faceR + rimW),
+          pz + tz * cpx * (faceR + rimW) + oz,
+          nx,
+          0,
+          nz,
+          POULTRY_CLOCK_RIM,
+        ),
+      );
     }
-    for (let s = 0; s < segs; s++) ctx.pushTri(c, rim[s]!, rim[(s + 1) % segs]!);
+    for (let s = 0; s < segs; s++) {
+      ctx.pushTri(c, inner[s]!, inner[(s + 1) % segs]!);
+      ctx.pushTri(inner[s]!, outer[s]!, outer[(s + 1) % segs]!);
+      ctx.pushTri(inner[s]!, outer[(s + 1) % segs]!, inner[(s + 1) % segs]!);
+    }
+    const hand = (len: number, ang: number, halfW: number) => {
+      const tipT = Math.sin(ang) * len;
+      const tipY = Math.cos(ang) * len;
+      const baseT = Math.cos(ang) * halfW;
+      const baseY = -Math.sin(ang) * halfW;
+      const i0 = ctx.pushVertex(
+        px + tx * -baseT + ox,
+        cy + -baseY,
+        pz + tz * -baseT + oz,
+        nx,
+        0,
+        nz,
+        POULTRY_CLOCK_RIM,
+      );
+      const i1 = ctx.pushVertex(
+        px + tx * baseT + ox,
+        cy + baseY,
+        pz + tz * baseT + oz,
+        nx,
+        0,
+        nz,
+        POULTRY_CLOCK_RIM,
+      );
+      const i2 = ctx.pushVertex(
+        px + tx * tipT + ox,
+        cy + tipY,
+        pz + tz * tipT + oz,
+        nx,
+        0,
+        nz,
+        POULTRY_CLOCK_RIM,
+      );
+      ctx.pushTri(i0, i1, i2);
+    };
+    hand(faceR * 0.52, Math.PI * 0.33, m(0.08));
+    hand(faceR * 0.78, -Math.PI * 0.18, m(0.05));
   }
 }
 
@@ -885,14 +1004,18 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
   const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-  const disk: Disk = { x: apex.x, z: apex.z, r: m(POULTRY_DRUM_R_M) + m(1.2) };
+  const drumR = m(POULTRY_DRUM_R_M);
+  const drumH = Math.max(H * 1.28, m(40));
+  const wallDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(0.5) };
+  const capDisk: Disk = { x: apex.x, z: apex.z, r: drumR + m(1.2) };
   const arcadeH = H * 0.15;
-  emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE, disk);
+  emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE, wallDisk);
   const shop = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
-  emitBandOutsideDisk(ctx, shop, 0, arcadeH * 0.82, POULTRY_SHOP, disk);
+  emitBandOutsideDisk(ctx, shop, 0, arcadeH * 0.82, POULTRY_SHOP, wallDisk);
 
-  // Stirling: unequal stepped terraces toward the well, glass on the inset
-  // wall. Shared ribbon is even wrap-around stripes on the OSM extrusion.
+  // Stirling: unequal stepped terraces toward the well, two window rows on
+  // each inset wall. One row reads as a ribbon slot. Hole every terrace
+  // cap around the drum so the 16-gon cannot punch the ledges.
   const weights = [1.9, 1.45, 1.08, 0.82, 0.62];
   const insetsM = [0, 2.2, 4.4, 6.6, 8.8];
   const capM = Math.max(1.6, ctx.plan.minRM * 0.42);
@@ -904,7 +1027,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
     const inset = Math.min(insetsM[i]!, capM);
     const ring =
       inset <= 0.05 ? ctx.ring : insetRingTowardCentroid(ctx.ring, cx, cz, m(inset));
-    if (i > 0) emitTerraceCap(ctx, prevRing, ring, y, POULTRY_BUFF);
+    if (i > 0) emitTerraceCap(ctx, prevRing, ring, y, POULTRY_BUFF, capDisk);
     emitPlateSlots(
       ctx,
       ring,
@@ -913,10 +1036,10 @@ function emitPoultryWalls(ctx: StreetEmit): void {
       POULTRY_BUFF,
       POULTRY_GLASS,
       4.2 + i * 0.85,
-      1,
-      0.4,
-      0.48,
-      disk,
+      2,
+      0.34 + i * 0.04,
+      0.5,
+      wallDisk,
     );
     prevRing = ring;
     y += h;
@@ -926,11 +1049,11 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);
   pushDisk(ctx, cx, m(0.35), cz, wellR * 0.98, POULTRY_WELL, 16);
 
-  const drumR = m(POULTRY_DRUM_R_M);
-  const drumH = Math.max(H * 1.28, m(40));
-  pushCylinder(ctx, apex.x, 0, apex.z, drumR, drumH, POULTRY_PINK, 16, true);
-  emitClockFaces(ctx, apex.x, drumH * 0.55, apex.z, drumR, m(1.15), 0xf0e6d4);
-  pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.62, m(2.6), POULTRY_BUFF, 12, true);
+  emitDrumWindows(ctx, apex.x, apex.z, drumR, 0, drumH * 0.5, POULTRY_PINK, POULTRY_GLASS, 3);
+  emitDrumWindows(ctx, apex.x, apex.z, drumR, drumH * 0.5, drumH, POULTRY_PINK, POULTRY_GLASS, 2);
+  emitStirlingClocks(ctx, apex.x, drumH * 0.62, apex.z, drumR);
+  pushDisk(ctx, apex.x, drumH, apex.z, drumR, POULTRY_PINK, 16);
+  pushCylinder(ctx, apex.x, drumH, apex.z, drumR * 0.22, m(4.5), POULTRY_BUFF, 10, true);
 }
 
 function emitNedWalls(ctx: StreetEmit): void {
@@ -944,7 +1067,6 @@ function emitNedWalls(ctx: StreetEmit): void {
   emitPlateSlots(ctx, ctx.ring, rustH, pianoH, NED_STONE, NED_GLASS, 8.6, 1, 0.34, 0.8);
   emitPlateSlots(ctx, ctx.ring, pianoH, bodyH, NED_STONE, NED_GLASS, 5.4, 2, 0.36, 0.48);
   const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.8));
-  emitTerraceCap(ctx, ctx.ring, eaves, bodyH, NED_STONE);
   emitWallBand(ctx, eaves, bodyH, H, NED_MANSARD, 0);
   const well = insetRingTowardCentroid(ctx.ring, cx, cz, m(8.5));
   emitRustication(ctx, well, rustH, H, NED_RUST, 4);
@@ -968,7 +1090,6 @@ function emitMagistratesWalls(ctx: StreetEmit): void {
   emitWallBand(ctx, ctx.ring, 0, H * 0.16, MAG_PLINTH, 0);
   emitPlateSlots(ctx, ctx.ring, H * 0.16, H * 0.68, MAG_STONE, MAG_GLASS, 6.8, 2, 0.4, 0.62);
   const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
-  emitTerraceCap(ctx, ctx.ring, eaves, H * 0.68, MAG_STONE);
   emitWallBand(ctx, eaves, H * 0.68, H, MAG_MANSARD, 0);
   const e = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len)[0];
   if (!e || e.len / METERS_TO_WORLD < 12) return;
@@ -1074,11 +1195,9 @@ function emitGreshamWalls(ctx: StreetEmit): void {
   emitRustication(ctx, ctx.ring, 0, H * 0.18, GRESHAM_STONE, 3);
   emitPlateSlots(ctx, ctx.ring, H * 0.18, H * 0.42, GRESHAM_STONE, GRESHAM_GLASS, 5.2, 2, 0.46, 0.7);
   const mid = insetRingTowardCentroid(ctx.ring, cx, cz, m(2.8));
-  emitTerraceCap(ctx, ctx.ring, mid, H * 0.42, GRESHAM_STONE);
   emitVerticalFins(ctx, mid, H * 0.42, H * 0.72, GRESHAM_STONE, GRESHAM_GLASS, 4.8);
   const high = insetRingTowardCentroid(ctx.ring, cx, cz, m(5.6));
-  emitTerraceCap(ctx, mid, high, H * 0.72, GRESHAM_STONE);
-  emitPlateSlots(ctx, high, H * 0.72, H, GRESHAM_STONE, GRESHAM_GLASS, 6.6, 1, 0.28, 0.8);
+  emitPlateSlots(ctx, high, H * 0.72, H, GRESHAM_STONE, GRESHAM_GLASS, 6.6, 2, 0.28, 0.55);
   const e = edgesOf(ctx, ctx.ring).sort((a, b) => b.len - a.len)[0];
   if (e) emitInPlanePortal(ctx, e, 0, H * 0.18, GRESHAM_BRONZE, GRESHAM_GLASS);
 }
@@ -1090,13 +1209,10 @@ function emitBloombergWalls(ctx: StreetEmit): void {
   const t1 = [0.42, 0.7, 1];
   const scales = [1, 0.72, 0.48];
   let yPrev = H * 0.14;
-  let prev = ctx.ring;
   for (let s = 0; s < 3; s++) {
     const y1 = H * t1[s]!;
     const ring = s === 0 ? ctx.ring : scaleToward(ctx.ring, apex.x, apex.z, scales[s]!);
-    if (s > 0) emitTerraceCap(ctx, prev, ring, yPrev, BLOOM_STONE);
     emitVerticalFins(ctx, ring, yPrev, y1, BLOOM_STONE, BLOOM_BRONZE, s === 0 ? 5.4 : 4.4);
-    prev = ring;
     yPrev = y1;
   }
 }
@@ -1118,51 +1234,157 @@ function planWellInsetM(plan: PlanMetrics): number {
   return Math.min(plan.minRM * 0.42, Math.min(plan.maxAlongM, plan.maxPerpM) * 0.38);
 }
 
+function emitStoreyLip(ctx: StreetEmit, ring: StreetPt[], y: number, hex: number): void {
+  emitWallBand(ctx, ring, y, y + m(0.38), hex, m(0.1));
+}
+
 /**
- * Ordinary Cheapside plates: 3D from THIS footprint's silhouette and bay
- * rhythm, not a ribbon/grid costume stamped on every OSM extrusion.
+ * Physical bays on THIS front. Flush punched slots on every OSM extrusion
+ * is the shared costume the street still failed on.
+ */
+function emitProjectingBays(
+  ctx: StreetEmit,
+  ring: StreetPt[],
+  y0: number,
+  y1: number,
+  stone: number,
+  glass: number,
+  pitchM: number,
+  nRows: number,
+  outM: number,
+): void {
+  const out = m(Math.min(0.55, Math.max(0.32, outM)));
+  const rows = Math.max(2, nRows);
+  const span = y1 - y0;
+  const rowH = span / rows;
+  const vPad = 0.16;
+  const uInset = 0.18;
+  for (const e of edgesOf(ctx, ring)) {
+    const edgeM = e.len / METERS_TO_WORLD;
+    if (edgeM < 6.2) {
+      emitEdgeSlots(ctx, e, y0, y1, stone, glass, pitchM, rows, 0.4, 0.5);
+      continue;
+    }
+    const bays = Math.max(2, Math.min(7, Math.round(edgeM / Math.max(4.2, pitchM))));
+    for (let b = 0; b < bays; b++) {
+      const t0 = b / bays;
+      const t1 = (b + 1) / bays;
+      const left = edgePoint(e, t0);
+      const right = edgePoint(e, t1);
+      const u0 = t0 + (t1 - t0) * uInset;
+      const u1 = t1 - (t1 - t0) * uInset;
+      const p0 = edgePoint(e, u0);
+      const p1 = edgePoint(e, u1);
+      emitWallQuad(ctx, left.x, left.z, p0.x, p0.z, y0, y1, e.nx, e.nz, stone);
+      emitWallQuad(ctx, p1.x, p1.z, right.x, right.z, y0, y1, e.nx, e.nz, stone);
+      const midT = (u0 + u1) / 2;
+      const flush = midT < 0.08 || midT > 0.92 || (u1 - u0) * edgeM < 2.6;
+      const a = flush ? p0 : { x: p0.x + e.nx * out, z: p0.z + e.nz * out };
+      const c = flush ? p1 : { x: p1.x + e.nx * out, z: p1.z + e.nz * out };
+      if (!flush) {
+        emitWallQuad(ctx, p0.x, p0.z, a.x, a.z, y0, y1, -e.tx, -e.tz, stone);
+        emitWallQuad(ctx, c.x, c.z, p1.x, p1.z, y0, y1, e.tx, e.tz, stone);
+        const i0 = ctx.pushVertex(p0.x, y1, p0.z, 0, 1, 0, stone);
+        const i1 = ctx.pushVertex(p1.x, y1, p1.z, 0, 1, 0, stone);
+        const i2 = ctx.pushVertex(c.x, y1, c.z, 0, 1, 0, stone);
+        const i3 = ctx.pushVertex(a.x, y1, a.z, 0, 1, 0, stone);
+        ctx.pushTri(i0, i1, i2);
+        ctx.pushTri(i0, i2, i3);
+      }
+      for (let r = 0; r < rows; r++) {
+        const ry0 = y0 + r * rowH;
+        const ry1 = ry0 + rowH;
+        const sill = ry0 + rowH * vPad;
+        const head = ry1 - rowH * vPad;
+        emitWallQuad(ctx, a.x, a.z, c.x, c.z, ry0, sill, e.nx, e.nz, stone);
+        emitWallQuad(ctx, a.x, a.z, c.x, c.z, sill, head, e.nx, e.nz, glass);
+        emitWallQuad(ctx, a.x, a.z, c.x, c.z, head, ry1, e.nx, e.nz, stone);
+      }
+    }
+  }
+}
+
+function emitRoofKit(ctx: StreetEmit, recipe: UniqueStockRecipe, stone: number): void {
+  const { cx, cz, minRM, ax, az, px, pz } = ctx.plan;
+  const H = ctx.heightWorld;
+  if (recipe.silhouette.kind === 'courtyard') return;
+  if (!recipe.plant || minRM <= 6) return;
+  const w = m(Math.min(recipe.plant.wM, minRM * 0.45));
+  const d = m(Math.min(recipe.plant.dM, minRM * 0.35));
+  const h = m(Math.min(recipe.plant.hM, 6.5));
+  const x = cx + ax * m(recipe.plant.along * minRM * 0.25) + px * m(recipe.plant.perp * minRM * 0.2);
+  const z = cz + az * m(recipe.plant.along * minRM * 0.25) + pz * m(recipe.plant.perp * minRM * 0.2);
+  ctx.pushBox(x, H, z, w, h, d, stone);
+}
+
+/**
+ * Ordinary Cheapside plates: 3D from THIS footprint's silhouette, bay
+ * rhythm and roof plant. Not a ribbon/grid costume on every OSM extrusion.
+ * Generic roofs already emit the terrace ledges. Wall caps on those roofs
+ * read as hair-thin sticks.
  */
 export function emitCheapsideStockWalls(
   ctx: StreetEmit,
-  sil: UniqueSilhouette,
+  recipe: UniqueStockRecipe,
   stone: number,
   glass: number,
+  heightM: number,
 ): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
-  const r0 = plateRhythm(ctx.plan, H, 0);
-  const r1 = plateRhythm(ctx.plan, H, 1);
-  const r2 = plateRhythm(ctx.plan, H, 2);
-  if (sil.kind === 'wedge-step') {
-    const apex = ctx.ring[sil.apexIndex] ?? { x: cx, z: cz };
-    emitRustication(ctx, ctx.ring, 0, H * 0.12, stone, 2);
-    let yPrev = H * 0.12;
-    let prev = ctx.ring;
-    for (let s = 0; s < sil.steps; s++) {
-      const y1 = H * sil.t1[s]!;
-      const ring = s === 0 ? ctx.ring : scaleToward(ctx.ring, apex.x, apex.z, sil.scales[s]!);
-      if (s > 0) emitTerraceCap(ctx, prev, ring, yPrev, stone);
-      const ry = s === 0 ? r0 : s === 1 ? r1 : r2;
-      emitPlateSlots(
+  const sil = recipe.silhouette;
+  const physicalBays =
+    recipe.facade.kind === 'bays' || sil.kind === 'gable-row' || heightM <= 22;
+  const paintBand = (
+    ring: StreetPt[],
+    y0: number,
+    y1: number,
+    storey: number,
+    forceArcade: boolean,
+  ) => {
+    const ry = plateRhythm(ctx.plan, H, storey);
+    const rows = Math.max(2, ry.rows);
+    if (forceArcade) {
+      emitArcade(ctx, ring, y0, y1, stone);
+      return;
+    }
+    if (recipe.facade.kind === 'piers') {
+      emitVerticalFins(ctx, ring, y0, y1, stone, glass, ry.pitchM);
+    } else if (physicalBays) {
+      emitProjectingBays(
         ctx,
         ring,
-        yPrev,
+        y0,
         y1,
         stone,
         glass,
         ry.pitchM,
-        Math.max(2, ry.rows > 3 ? 2 : ry.rows),
-        ry.winU,
-        ry.winV,
+        rows,
+        0.42 + storey * 0.08,
       );
-      prev = ring;
+    } else {
+      emitPlateSlots(ctx, ring, y0, y1, stone, glass, ry.pitchM, rows, ry.winU, ry.winV);
+    }
+    emitStoreyLip(ctx, ring, y1 - m(0.32), stone);
+  };
+  const colonnadeBase = recipe.facade.kind === 'colonnade';
+
+  if (sil.kind === 'wedge-step') {
+    const apex = ctx.ring[sil.apexIndex] ?? { x: cx, z: cz };
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.12, stone, glass, 5.2, 1, 0.46, 0.42);
+    let yPrev = H * 0.12;
+    for (let s = 0; s < sil.steps; s++) {
+      const y1 = H * sil.t1[s]!;
+      const ring = s === 0 ? ctx.ring : scaleToward(ctx.ring, apex.x, apex.z, sil.scales[s]!);
+      paintBand(ring, yPrev, y1, s, colonnadeBase && s === 0);
       yPrev = y1;
     }
+    emitRoofKit(ctx, recipe, stone);
     return;
   }
   if (sil.kind === 'courtyard') {
-    emitRustication(ctx, ctx.ring, 0, H * 0.18, stone, 3);
-    emitPlateSlots(ctx, ctx.ring, H * 0.18, H, stone, glass, r0.pitchM, r0.rows, r0.winU, r0.winV);
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.16, stone, glass, 5.4, 1, 0.48, 0.42);
+    paintBand(ctx.ring, H * 0.16, H, 0, colonnadeBase);
     const well = insetRingTowardCentroid(ctx.ring, cx, cz, sil.wellInsetM * METERS_TO_WORLD);
     emitWallBand(ctx, well, 0, H * sil.wellT, stone, 0);
     emitPlateSlots(
@@ -1172,30 +1394,31 @@ export function emitCheapsideStockWalls(
       H * sil.wellT,
       stone,
       glass,
-      r1.pitchM,
-      Math.max(1, r1.rows - 1),
-      r1.winU,
-      r1.winV,
+      plateRhythm(ctx.plan, H, 1).pitchM,
+      2,
+      0.4,
+      0.48,
     );
     return;
   }
   if (sil.kind === 'ell') {
     const splitY = H * sil.tBreak;
-    emitRustication(ctx, ctx.ring, 0, H * 0.14, stone, 2);
-    emitPlateSlots(ctx, ctx.ring, H * 0.14, splitY, stone, glass, r0.pitchM, 2, r0.winU, r0.winV);
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.12, stone, glass, 5.2, 1, 0.46, 0.42);
+    paintBand(ctx.ring, H * 0.12, splitY, 0, colonnadeBase);
     const head = ctx.ring.map((p) => ({
       x: cx + (p.x - cx) * sil.shortScale,
       z: cz + (p.z - cz) * sil.shortScale,
     }));
-    emitTerraceCap(ctx, ctx.ring, head, splitY, stone);
-    emitPlateSlots(ctx, head, splitY, H, stone, glass, r1.pitchM, 2, r1.winU, r1.winV);
+    paintBand(head, splitY, H, 1, false);
+    emitRoofKit(ctx, recipe, stone);
     return;
   }
   if (sil.kind === 'asymmetric-setback') {
     const yA = H * sil.tBreaks[0]!;
     const yB = H * (sil.tBreaks[1] ?? 0.7);
-    emitRustication(ctx, ctx.ring, 0, yA, stone, 3);
-    emitPlateSlots(ctx, ctx.ring, yA, yB, stone, glass, r0.pitchM, Math.max(2, r0.rows), r0.winU, r0.winV);
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.12, stone, glass, 5.4, 1, 0.5, 0.42);
+    paintBand(ctx.ring, H * 0.12, yA, 0, colonnadeBase);
+    paintBand(ctx.ring, yA, yB, 1, false);
     let prev = ctx.ring;
     let yPrev = yB;
     for (let i = 0; i < sil.insetsM.length; i++) {
@@ -1204,19 +1427,19 @@ export function emitCheapsideStockWalls(
         i === sil.insetsM.length - 1
           ? H
           : H * (sil.tBreaks[Math.min(i + 2, sil.tBreaks.length - 1)] ?? 1);
-      emitTerraceCap(ctx, prev, ring, yPrev, stone);
-      const ry = i === 0 ? r1 : r2;
-      emitPlateSlots(ctx, ring, yPrev, y1, stone, glass, ry.pitchM, Math.max(1, ry.rows), ry.winU, ry.winV);
+      paintBand(ring, yPrev, y1, i + 2, false);
       prev = ring;
       yPrev = y1;
     }
-    if (yPrev < H - m(0.4)) emitWallBand(ctx, prev, yPrev, H, stone, 0);
+    if (yPrev < H - m(0.4)) {
+      emitPlateSlots(ctx, prev, yPrev, H, stone, glass, 5.8, 2, 0.42, 0.48);
+    }
+    emitRoofKit(ctx, recipe, stone);
     return;
   }
   if (sil.kind === 'disk') {
-    emitRustication(ctx, ctx.ring, 0, H * 0.12, stone, 2);
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.12, stone, glass, 5.2, 1, 0.46, 0.42);
     let yPrev = H * 0.12;
-    let prev = ctx.ring;
     for (let s = 0; s < sil.bands; s++) {
       const y1 = H * ((s + 1) / sil.bands);
       const ring = insetRingTowardCentroid(
@@ -1225,53 +1448,31 @@ export function emitCheapsideStockWalls(
         cz,
         (1 - sil.scales[s]!) * ctx.plan.minRM * METERS_TO_WORLD,
       );
-      if (s > 0) emitTerraceCap(ctx, prev, ring, yPrev, stone);
-      const ry = s === 0 ? r0 : r1;
-      emitPlateSlots(
-        ctx,
-        s === 0 ? ctx.ring : ring,
-        yPrev,
-        y1,
-        stone,
-        glass,
-        ry.pitchM,
-        Math.max(2, ry.rows),
-        ry.winU,
-        ry.winV,
-      );
-      prev = ring;
+      paintBand(s === 0 ? ctx.ring : ring, yPrev, y1, s, colonnadeBase && s === 0);
       yPrev = y1;
     }
+    emitRoofKit(ctx, recipe, stone);
     return;
   }
   if (sil.kind === 'gable-row' || sil.kind === 'bar-ridge') {
     const bays = sil.kind === 'gable-row' ? Math.max(1, sil.bays) : 5;
     const pitch = Math.max(3.5, ctx.plan.longestEdgeM / bays);
-    emitRustication(ctx, ctx.ring, 0, H * 0.16, stone, 2);
-    emitPlateSlots(ctx, ctx.ring, H * 0.16, H, stone, glass, pitch, 2, 0.52, 0.55);
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.16, stone, glass, pitch, 1, 0.5, 0.42);
+    emitProjectingBays(ctx, ctx.ring, H * 0.16, H, stone, glass, pitch, 2, 0.5);
+    emitRoofKit(ctx, recipe, stone);
     return;
   }
   if (sil.kind === 'mansard-plate') {
-    emitRustication(ctx, ctx.ring, 0, H * 0.18, stone, 3);
-    emitPlateSlots(
-      ctx,
-      ctx.ring,
-      H * 0.18,
-      H * sil.eavesT,
-      stone,
-      glass,
-      r0.pitchM,
-      Math.max(1, r0.rows),
-      r0.winU,
-      r0.winV,
-    );
+    emitPlateSlots(ctx, ctx.ring, 0, H * 0.16, stone, glass, 5.2, 1, 0.48, 0.42);
+    paintBand(ctx.ring, H * 0.16, H * sil.eavesT, 0, colonnadeBase);
     const eaves = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.7));
-    emitTerraceCap(ctx, ctx.ring, eaves, H * sil.eavesT, stone);
-    emitWallBand(ctx, eaves, H * sil.eavesT, H, stone, 0);
+    emitPlateSlots(ctx, eaves, H * sil.eavesT, H, stone, glass, 4.8, 2, 0.36, 0.48);
+    emitRoofKit(ctx, recipe, stone);
     return;
   }
-  emitRustication(ctx, ctx.ring, 0, H * 0.16, stone, 2);
-  emitPlateSlots(ctx, ctx.ring, H * 0.16, H, stone, glass, r0.pitchM, r0.rows, r0.winU, r0.winV);
+  emitPlateSlots(ctx, ctx.ring, 0, H * 0.14, stone, glass, 5.2, 1, 0.46, 0.42);
+  paintBand(ctx.ring, H * 0.14, H, 0, colonnadeBase);
+  emitRoofKit(ctx, recipe, stone);
 }
 
 export function emitStreetUniqueWalls(kind: StreetUniqueId, ctx: StreetEmit): void {

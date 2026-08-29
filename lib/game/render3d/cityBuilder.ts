@@ -1068,7 +1068,7 @@ export function buildChunkTier(
     if (streetKind) {
       emitStreetUniqueWalls(streetKind, streetEmit);
     } else if (cheapsideNotice) {
-      emitCheapsideStockWalls(streetEmit, recipe.silhouette, baseHex, pal.windowHex(seed));
+      emitCheapsideStockWalls(streetEmit, recipe, baseHex, pal.windowHex(seed), b.heightM);
     } else {
       const facadeOpts = { facade: recipe.facade };
       if (podium) {
@@ -1366,6 +1366,7 @@ export function buildChunkTier(
 
     const wantParapet =
       !streetKind &&
+      !cheapsideNotice &&
       !pitched &&
       recipe.roof.kind === 'parapet' &&
       (major || areaM2 > 140) &&

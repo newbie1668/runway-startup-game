@@ -35,6 +35,7 @@ import {
   MANSION_COLUMN,
   NED_GLASS,
   POULTRY_BUFF,
+  POULTRY_CLOCK,
   POULTRY_GLASS,
   POULTRY_PINK,
   POULTRY_ROOF,
@@ -1009,6 +1010,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const jewryMid = new THREE.Color(JEWRY_MID);
   const jewryHigh = new THREE.Color(JEWRY_HIGH);
   const poultryGlass = new THREE.Color(POULTRY_GLASS);
+  const poultryClock = new THREE.Color(POULTRY_CLOCK);
   const jewryGlass = new THREE.Color(JEWRY_GLASS);
   const nedGlass = new THREE.Color(NED_GLASS);
   let pinkN = 0;
@@ -1022,6 +1024,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let jewryMidN = 0;
   let jewryHighN = 0;
   let poultryGlassN = 0;
+  let poultryClockN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
   const drumKeys = new Set<string>();
@@ -1108,6 +1111,13 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         ) {
           poultryGlassN += 1;
         }
+        if (
+          Math.abs(r - poultryClock.r) < 0.04 &&
+          Math.abs(g - poultryClock.g) < 0.04 &&
+          Math.abs(b - poultryClock.b) < 0.04
+        ) {
+          poultryClockN += 1;
+        }
       }
       const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
       if (dj <= 35) {
@@ -1176,6 +1186,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.ok(
     poultryGlassN > 80,
     `Stirling window bands missing (glass=${poultryGlassN}) — blank walls are a fail`,
+  );
+  assert.ok(
+    poultryClockN > 24,
+    `Poultry clock faces missing (clock=${poultryClockN}) — blank drum is a fail`,
   );
   assert.ok(
     drumKeys.size >= 12,
