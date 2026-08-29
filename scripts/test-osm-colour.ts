@@ -14,6 +14,7 @@ import {
   districtAt,
   extrusionScale,
   facadeVForFloors,
+  facadeWindowRhythm,
   resolveStyle,
   restyleForDistrict,
   wantFacadeWindows,
@@ -30,6 +31,7 @@ import {
 } from '../lib/game/render3d/osmColour';
 import {
   clampWallColour,
+  facadeFamily,
   isConfettiHue,
   paletteFor,
   rgbToHsl,
@@ -175,15 +177,47 @@ check('City towers use readable glass, not charcoal silhouettes', () => {
   }
 });
 
-check('West End terraces mix cream and brick instead of one cloned slab', () => {
+check('West End terrace street mixes cream, brick, and grey families', () => {
+  const families = new Set<string>();
+  const hexes = new Set<number>();
+  for (let i = 0; i < 16; i++) {
+    const cx = i * 0.12;
+    const seed = 1000 + i * 7919;
+    hexes.add(wallHex(STYLE_TERRACE, 'westend', cx, 10, seed, null));
+    families.add(facadeFamily(STYLE_TERRACE, 'westend', cx, 10, seed));
+  }
+  assert.ok(hexes.size >= 10, `expected many paints, got ${hexes.size}`);
+  assert.ok(families.size >= 3, `families ${[...families].join(',')}`);
+  assert.ok(families.has('brick'), 'street must include brick');
+  assert.ok(families.has('cream') || families.has('yellow'), 'street must include stucco/yellow');
+  assert.ok(families.has('grey') || families.has('portland'), 'street must include stone/grey');
   const a = wallHex(STYLE_TERRACE, 'westend', 0, 0, 1, null);
   const b = wallHex(STYLE_TERRACE, 'westend', 2.4, 1.1, 99_001, null);
   assert.notEqual(a, b, 'adjacent hashes should pick different swatches');
-  for (const hex of [a, b]) {
-    const { l } = rgbToHsl(hex);
-    assert.ok(l >= 0.28, `westend terrace l=${l}`);
-    assert.equal(isConfettiHue(hex), false);
+});
+
+check('street-scale offices mix stone and brick, not one grey plate', () => {
+  const families = new Set<string>();
+  for (let i = 0; i < 12; i++) {
+    families.add(facadeFamily(STYLE_OFFICE, 'westend', i * 0.2, 4, i * 3331 + 17));
   }
+  assert.ok(families.size >= 3, `office families ${[...families].join(',')}`);
+  assert.ok(families.has('brick') || families.has('cream'), 'offices should not be all grey');
+});
+
+check('generic OSM brick is a family hint, not one cloned hex', () => {
+  const a = wallHex(STYLE_TERRACE, 'westend', 0, 0, 11, 0xb85c3a);
+  const b = wallHex(STYLE_TERRACE, 'westend', 1.1, 0.4, 44_001, 0xb85c3a);
+  assert.notEqual(a, b);
+  const plaster = wallHex(STYLE_TERRACE, 'westend', 0, 0, 11, 0xe8dcc8);
+  assert.notEqual(a, plaster, 'brick vs plaster hints must not share a paint');
+});
+
+check('neighbouring terraces keep different sash pitches', () => {
+  const a = facadeWindowRhythm(STYLE_TERRACE, false, 12);
+  const b = facadeWindowRhythm(STYLE_TERRACE, false, 99_001);
+  assert.notEqual(a.pitchU, b.pitchU);
+  assert.notEqual(`${a.colCap}x${a.rowCap}`, `${b.colCap}x${b.rowCap}`);
 });
 
 check('towers extrude taller than houses', () => {

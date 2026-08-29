@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import { makeMatteLambert } from '../lib/game/render3d/matteGltf';
 import {
   bandsForShape,
+  civicKindFromTags,
   featuresFromText,
   isCircularShape,
+  isCivicShape,
   liftRgb,
   resolveShape,
   roofFromWall,
@@ -71,6 +73,18 @@ check('wiki intro text can fill in unknown towers', () => {
   assert.equal(featuresFromText('a twisted residential tower on the quay'), 'twist');
   assert.equal(featuresFromText('brutalist concrete Barbican slab'), 'brutalist');
   assert.equal(featuresFromText('a cylindrical glass residential tower'), 'cylinder');
+  assert.equal(featuresFromText('the parish church with a tall spire'), 'church');
+  assert.equal(featuresFromText('the railway station terminus'), 'station');
+});
+
+check('OSM civic tags pick church/station/theatre/civic, not navy glass', () => {
+  assert.equal(civicKindFromTags({ building: 'church', name: "St Mary's" }), 'church');
+  assert.equal(civicKindFromTags({ railway: 'station', name: 'Goodge Street' }), 'station');
+  assert.equal(civicKindFromTags({ amenity: 'theatre', name: 'National Theatre' }), 'theatre');
+  assert.equal(civicKindFromTags({ tourism: 'museum', name: 'British Museum' }), 'civic');
+  assert.equal(civicKindFromTags({ building: 'office', name: 'HSBC UK' }), null);
+  assert.equal(isCivicShape('church'), true);
+  assert.equal(isCivicShape('taper'), false);
 });
 
 check('named silhouettes win over a misleading extract', () => {
@@ -130,6 +144,53 @@ check('makeMatteLambert still drops maps on landmarks', () => {
   const mat = mesh.material as THREE.MeshLambertMaterial;
   assert.equal(mat.map, null);
   assert.equal(mat.color.getHex(), 0x7a92a4);
+});
+
+check('church baker adds a tower and spire, not another glass taper', () => {
+  const ring: Array<[number, number]> = [
+    [-0.15, -0.25],
+    [0.15, -0.25],
+    [0.15, 0.25],
+    [-0.15, 0.25],
+  ];
+  const group = buildNoticedGroup({
+    id: 'church-test',
+    ring,
+    heightWorld: 1.2,
+    wall: [0.7, 0.5, 0.42],
+    roof: [0.35, 0.32, 0.3],
+    glass: false,
+    seed: 4,
+    shape: 'church',
+  });
+  assert.ok(group.getObjectByName('church-test-tower'), 'nave needs a tower');
+  assert.ok(group.getObjectByName('church-test-spire'), 'tower needs a spire');
+  let cones = 0;
+  group.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
+  });
+  assert.ok(cones >= 1, `expected a spire cone, got ${cones}`);
+});
+
+check('station baker adds a clock drum instead of navy glass bands only', () => {
+  const ring: Array<[number, number]> = [
+    [-0.2, -0.12],
+    [0.2, -0.12],
+    [0.2, 0.12],
+    [-0.2, 0.12],
+  ];
+  const group = buildNoticedGroup({
+    id: 'station-test',
+    ring,
+    heightWorld: 0.9,
+    wall: [0.45, 0.2, 0.18],
+    roof: [0.25, 0.24, 0.22],
+    glass: false,
+    seed: 8,
+    shape: 'station',
+  });
+  assert.ok(group.getObjectByName('station-test-clock'));
+  assert.ok(group.getObjectByName('station-test-clockface'));
 });
 
 check('taper baker shrinks the crown relative to the podium', () => {

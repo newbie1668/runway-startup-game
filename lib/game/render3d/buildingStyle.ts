@@ -200,6 +200,35 @@ export function bayCountForEdge(edgeM: number): number {
   return 1;
 }
 
+/** Per-building sash pitch so neighbouring plots do not clone one window grid. */
+export function facadeWindowRhythm(
+  style: number,
+  major: boolean,
+  seed: number,
+): { pitchU: number; pitchV: number; colCap: number; rowCap: number } {
+  const uJ = ((seed >>> 3) % 7) * 0.14;
+  const vJ = ((seed >>> 8) % 5) * 0.12;
+  let pitchU = (major ? 2.35 : 2.5) + uJ;
+  let pitchV = (major ? 2.55 : 2.7) + vJ;
+  let colCap = major ? 9 : 5;
+  let rowCap = major ? 12 : 4;
+  if (style === STYLE_HOUSE || style === STYLE_TERRACE) {
+    colCap = 3 + (seed % 3);
+    rowCap = 2 + (seed % 3);
+    pitchU = 2.15 + ((seed >>> 5) % 5) * 0.22;
+    pitchV = 2.4 + ((seed >>> 11) % 4) * 0.18;
+  }
+  if (style === STYLE_TOWER) {
+    colCap = 7;
+    rowCap = 10;
+  }
+  if (style === STYLE_OFFICE && seed % 4 === 0) {
+    pitchU *= 0.82;
+    colCap = Math.min(11, colCap + 2);
+  }
+  return { pitchU, pitchV, colCap, rowCap };
+}
+
 function roofFromTag(shape: string | undefined): number | null {
   if (!shape) return null;
   const s = shape.toLowerCase();

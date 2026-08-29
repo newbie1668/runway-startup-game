@@ -99,6 +99,43 @@ check("St Paul's nave has a window grid and dome ridges", () => {
   assert.ok(boxes >= 40, `nave window grid should add boxes, got ${boxes}`);
 });
 
+check('civic landmarks are unique meshes with their own colours, not type paints', () => {
+  const kinds = [
+    'britishmuseum',
+    'allsouls',
+    'goodgest',
+    'stcharles',
+    'nationaltheatre',
+    'tatemodern',
+    'stpancras',
+    'alberthall',
+  ] as const;
+  const wallHexes = new Set<number>();
+  for (const kind of kinds) {
+    const root = build(kind);
+    let meshes = 0;
+    root.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      meshes += 1;
+      const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      if (mat && 'color' in mat) wallHexes.add((mat as THREE.MeshLambertMaterial).color.getHex());
+    });
+    assert.ok(meshes >= 8, `${kind} is still an extrusion (${meshes} meshes)`);
+  }
+  assert.ok(wallHexes.size >= 6, `civic walls collapsed to ${wallHexes.size} paints`);
+  let cones = 0;
+  build('allsouls').traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
+  });
+  assert.ok(cones >= 1, 'All Souls needs a needle spire');
+  let cylinders = 0;
+  build('britishmuseum').traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'CylinderGeometry') cylinders += 1;
+  });
+  assert.ok(cylinders >= 8, `British Museum colonnade, got ${cylinders} cylinders`);
+  assert.ok(countGlow(build('stpancras')) >= 1, 'St Pancras clock should glow');
+});
+
 check('river prefabs do not carry a competing carriageway slab', () => {
   for (const kind of [
     'westminsterbr',

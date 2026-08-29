@@ -28,7 +28,7 @@ import {
   type CityPoly,
   type CityRoad,
 } from './format';
-import { fromRgb565, isGenericWallPaint } from './osmColour';
+import { fromRgb565 } from './osmColour';
 import {
   ROOF_FLAT,
   ROOF_GABLED,
@@ -47,6 +47,7 @@ import {
   wantFacadeWindows,
   wantPodium,
   bayCountForEdge,
+  facadeWindowRhythm,
   type DistrictId,
 } from './buildingStyle';
 import * as pal from './palette';
@@ -521,8 +522,7 @@ export function buildChunkTier(
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
     const osmWall = fromRgb565(b.wall565);
     const osmRoof = fromRgb565(b.roof565);
-    const wallOsm = osmWall !== null && !isGenericWallPaint(osmWall) ? osmWall : null;
-    const baseHex = pal.wallHex(style, district, cx, cz, seed, wallOsm);
+    const baseHex = pal.wallHex(style, district, cx, cz, seed, osmWall);
     const wallBottomHex = pal.mixHex(baseHex, pal.AO_DARK, 0.1);
     const pitchedKind = roof !== ROOF_FLAT;
     const roofHex = osmRoof
@@ -631,6 +631,17 @@ export function buildChunkTier(
           const mid1 = y0 + (y1 - y0) * 0.58;
           const recess = pal.mixHex(baseHex, pal.AO_DARK, 0.24);
           emitQuad(mid0, mid1, recess, recess, -0.55 * METERS_TO_WORLD);
+        } else if (
+          opts.windows &&
+          (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_APARTMENTS) &&
+          y1 - y0 > 6 * METERS_TO_WORLD &&
+          seed % 3 !== 1
+        ) {
+          const t = 0.28 + ((seed >>> 5) % 5) * 0.08;
+          const bandH = Math.min(2.6 * METERS_TO_WORLD * vScale, (y1 - y0) * 0.18);
+          const by0 = y0 + (y1 - y0) * t;
+          const bandHex = pal.mixHex(baseHex, pal.WINDOW, 0.2 + ((seed >>> 9) % 4) * 0.05);
+          emitQuad(by0, by0 + bandH, bandHex, bandHex, -0.04 * METERS_TO_WORLD);
         }
 
         const wantDoor =
@@ -675,9 +686,23 @@ export function buildChunkTier(
               vScale,
               shopWorld,
               pal.mixHex(baseHex, pal.CORNICE, 0.12),
+              seed,
             );
           } else if (wantFacadeWindows(edgeLenM, spanM, style)) {
-            emitFacadeWindows(scratch, a, bp, nx, nz, y0, y1, style, major, shopWorld, vScale);
+            emitFacadeWindows(
+              scratch,
+              a,
+              bp,
+              nx,
+              nz,
+              y0,
+              y1,
+              style,
+              major,
+              shopWorld,
+              vScale,
+              seed,
+            );
           }
         }
       }
@@ -724,7 +749,7 @@ export function buildChunkTier(
     }
 
     const wantAwning =
-      (shopWorld > 0.02 || style === STYLE_RETAIL || (style === STYLE_TERRACE && seed % 5 === 0)) &&
+      (shopWorld > 0.02 || style === STYLE_RETAIL || (style === STYLE_TERRACE && seed % 3 === 0)) &&
       longestM >= 7;
     if (wantAwning) {
       const a = ring[longestI]!;
@@ -747,7 +772,7 @@ export function buildChunkTier(
         tz,
         nx,
         nz,
-        pal.AWNING,
+        pal.awningHex(seed),
       );
     }
 
@@ -1036,6 +1061,7 @@ function emitBayWindows(
   vScale: number,
   shopWorld: number,
   wallHex: number,
+  seed: number,
 ): void {
   const elen = Math.hypot(bp.x - a.x, bp.z - a.z) || 1;
   const edgeM = elen / METERS_TO_WORLD;
@@ -1050,6 +1076,7 @@ function emitBayWindows(
   const bayH = head - sill;
   if (bayH < 1.8 * METERS_TO_WORLD) return;
 
+  const glass = pal.windowHex(seed);
   for (let i = 0; i < count; i++) {
     const t = (i + 1) / (count + 1);
     const mx = a.x + (bp.x - a.x) * t;
@@ -1064,7 +1091,7 @@ function emitBayWindows(
     const rows = bayH > 4.2 * METERS_TO_WORLD ? 2 : 1;
     for (let r = 0; r < rows; r++) {
       const py = sill + ((r + 0.5) / rows) * bayH;
-      pushWindowMatrix(scratch, frontX, py, frontZ, nx, nz, paneW, paneH, pal.BAY_GLASS);
+      pushWindowMatrix(scratch, frontX, py, frontZ, nx, nz, paneW, paneH, glass);
     }
   }
 }
@@ -1081,6 +1108,7 @@ function emitFacadeWindows(
   major: boolean,
   shopWorld: number,
   vScale: number,
+  seed: number,
 ): void {
   const edgeM = Math.hypot(bp.x - a.x, bp.z - a.z) / METERS_TO_WORLD;
   const spanY = y1 - y0;
@@ -1091,26 +1119,17 @@ function emitFacadeWindows(
   const winEnd = y1 - 0.55 * METERS_TO_WORLD * vScale;
   if (winEnd - winStart < 1.6 * METERS_TO_WORLD) return;
 
-  const pitchU = major ? 2.55 : 2.7;
-  const pitchV = 2.8 * vScale;
+  const rhythm = facadeWindowRhythm(style, major, seed);
   const winW = (major ? 2.05 : 1.9) * METERS_TO_WORLD;
   const winH = (major ? 2.4 : 2.2) * METERS_TO_WORLD * Math.min(vScale, 1.8);
   const marginU = 0.5;
   const usableU = edgeM - marginU * 2;
   if (usableU < winW / METERS_TO_WORLD) return;
 
-  let cols = Math.max(1, Math.floor(usableU / pitchU));
-  let rows = Math.max(1, Math.floor((winEnd - winStart) / (pitchV * METERS_TO_WORLD)));
-  cols = Math.min(cols, major ? 9 : 5);
-  rows = Math.min(rows, major ? 12 : 4);
-  if (style === STYLE_HOUSE || style === STYLE_TERRACE) {
-    cols = Math.min(cols, 4);
-    rows = Math.min(rows, 4);
-  }
-  if (style === STYLE_TOWER) {
-    cols = Math.min(cols, 7);
-    rows = Math.min(rows, 10);
-  }
+  let cols = Math.max(1, Math.floor(usableU / rhythm.pitchU));
+  let rows = Math.max(1, Math.floor((winEnd - winStart) / (rhythm.pitchV * METERS_TO_WORLD * vScale)));
+  cols = Math.min(cols, rhythm.colCap);
+  rows = Math.min(rows, rhythm.rowCap);
   const maxCount = major ? 48 : 16;
   if (cols * rows > maxCount) {
     rows = Math.max(1, Math.floor(maxCount / cols));
@@ -1123,6 +1142,7 @@ function emitFacadeWindows(
   const u0 = marginU * METERS_TO_WORLD + winW / 2;
   const uSpan = elen - 2 * (marginU * METERS_TO_WORLD);
   const vSpan = winEnd - winStart;
+  const glass = pal.windowHex(seed);
 
   for (let r = 0; r < rows; r++) {
     const y = winStart + ((r + 0.5) / rows) * vSpan;
@@ -1130,7 +1150,7 @@ function emitFacadeWindows(
       const u = u0 + ((c + 0.5) / cols) * (uSpan - winW);
       const x = a.x + tx * u - nx * inset;
       const z = a.z + tz * u - nz * inset;
-      pushWindowMatrix(scratch, x, y, z, nx, nz, winW, winH);
+      pushWindowMatrix(scratch, x, y, z, nx, nz, winW, winH, glass);
     }
   }
 }

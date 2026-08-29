@@ -341,7 +341,15 @@ export type LandmarkKind =
   | 'hungerford'
   | 'towerlondon'
   | 'buckingham'
-  | 'monument';
+  | 'monument'
+  | 'britishmuseum'
+  | 'allsouls'
+  | 'goodgest'
+  | 'stcharles'
+  | 'nationaltheatre'
+  | 'tatemodern'
+  | 'stpancras'
+  | 'alberthall';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -463,4 +471,12 @@ export const LANDMARKS: readonly Landmark[] = [
   { kind: 'towerlondon', name: 'Tower of London', at: [-0.0759, 51.5081], exclusionM: 110 },
   { kind: 'buckingham', name: 'Buckingham Palace', at: [-0.1419, 51.5014], exclusionM: 160 },
   { kind: 'monument', name: 'The Monument', at: [-0.0861, 51.5102], exclusionM: 40 },
+  { kind: 'britishmuseum', name: 'British Museum', at: [-0.1269, 51.5194], exclusionM: 140 },
+  { kind: 'allsouls', name: 'All Souls Langham Place', at: [-0.14315, 51.51775], exclusionM: 55 },
+  { kind: 'goodgest', name: 'Goodge Street station', at: [-0.1347, 51.5205], exclusionM: 45 },
+  { kind: 'stcharles', name: 'St Charles Borromeo', at: [-0.1374, 51.5203], exclusionM: 40 },
+  { kind: 'nationaltheatre', name: 'National Theatre', at: [-0.1144, 51.5072], exclusionM: 90 },
+  { kind: 'tatemodern', name: 'Tate Modern', at: [-0.0993, 51.5077], exclusionM: 110 },
+  { kind: 'stpancras', name: 'St Pancras', at: [-0.1254, 51.5304], exclusionM: 140 },
+  { kind: 'alberthall', name: 'Royal Albert Hall', at: [-0.1774, 51.5009], exclusionM: 90 },
 ] as const;

@@ -225,6 +225,13 @@ check('neighbouring terraces do not share one cloned wall paint', () => {
   assert.notEqual(a, b);
 });
 
+check('search finds British Museum and Goodge Street among landmarks', () => {
+  const museum = searchPlaces('british museum');
+  assert.ok(museum.some((h) => h.label === 'British Museum'));
+  const station = searchPlaces('goodge');
+  assert.ok(station.some((h) => /goodge street/i.test(h.label)));
+});
+
 check('land stubs facing across water stitch into an asphalt span', () => {
   const approaches = [
     { x: 0, z: 0, dx: 1, dz: 0, tier: 0 },

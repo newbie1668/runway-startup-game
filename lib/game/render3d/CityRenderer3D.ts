@@ -98,8 +98,14 @@ function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: nu
   if (hit.kind === 'buckingham') {
     return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
   }
-  if (hit.kind === 'stpauls') {
+  if (hit.kind === 'stpauls' || hit.kind === 'britishmuseum') {
     return { at: hit.at, viewH: 2.35, azimuth: 0.72 };
+  }
+  if (hit.kind === 'tatemodern' || hit.kind === 'nationaltheatre' || hit.kind === 'stpancras') {
+    return { at: hit.at, viewH: 2.6, azimuth: 0.35 };
+  }
+  if (hit.kind === 'alberthall' || hit.kind === 'allsouls') {
+    return { at: hit.at, viewH: 2.4, azimuth: 0.2 };
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };

@@ -44,6 +44,14 @@ const LANDMARK_VIEW_H: Record<string, number> = {
   towerlondon: 2.8,
   battersea: 2.8,
   o2: 2.8,
+  britishmuseum: 2.35,
+  allsouls: 2.2,
+  goodgest: 1.55,
+  stcharles: 1.55,
+  nationaltheatre: 2.5,
+  tatemodern: 2.6,
+  stpancras: 2.7,
+  alberthall: 2.5,
 };
 
 function landmarkViewH(kind: string): number {

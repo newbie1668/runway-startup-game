@@ -16,6 +16,7 @@ import {
   STYLE_TOWER,
   type DistrictId,
 } from './buildingStyle';
+import { isGenericWallPaint } from './osmColour';
 
 /** Pale overcast sky — fog, clear colour, and the 2D canvas CSS gradient all match. */
 export const SKY = 0xc5d4e4;
@@ -67,6 +68,30 @@ const SOFT_GREY = [0xa8a49c, 0x9c9890, 0xb4b0a8, 0x8e8a84, 0xaca8a0, 0x96928c];
 const CHARCOAL = [0x7a8794, 0x6e7b88, 0x8894a0, 0x667480, 0x80909c];
 const NAVY_GLASS = [0x7a92a4, 0x6e8698, 0x8aa4b4, 0x668090, 0x7698aa];
 const WAREHOUSE = [0x8a7a68, 0x7a6e60, 0x9a8a76, 0x6e6458, 0xa0907c];
+
+export type FacadeFamily =
+  | 'cream'
+  | 'yellow'
+  | 'brick'
+  | 'portland'
+  | 'grey'
+  | 'charcoal'
+  | 'navy'
+  | 'warehouse';
+
+const FAMILY_SWATCH: Record<FacadeFamily, readonly number[]> = {
+  cream: GEORGIAN_CREAM,
+  yellow: STOCK_YELLOW,
+  brick: VICTORIAN_RED,
+  portland: PORTLAND,
+  grey: SOFT_GREY,
+  charcoal: CHARCOAL,
+  navy: NAVY_GLASS,
+  warehouse: WAREHOUSE,
+};
+
+const WINDOW_GLASS = [WINDOW, BAY_GLASS, 0x4a6880, 0x2a4058, 0x5c7890, 0x3e5a72] as const;
+const AWNING_PAINTS = [AWNING, 0xa8483c, 0x3a5080, 0xc4a060, 0x2a3340] as const;
 
 /** Every legal wall swatch — OSM paints snap into this gamut. */
 export const WALL_GAMUT: readonly number[] = [
@@ -230,66 +255,99 @@ export function clampRoofColour(rgb: number): number {
   return lerpRgb(clamped, nearestSwatch(clamped, ROOF_GAMUT), 0.55);
 }
 
-export function paletteFor(style: number, district: DistrictId): readonly number[] {
+/**
+ * District still biases the mix (Canary glass, East End brick) but never
+ * monopolises it — a terrace street must be able to land cream, brick, and
+ * grey on neighbouring plots.
+ */
+export function familiesFor(style: number, district: DistrictId): readonly FacadeFamily[] {
+  if (style === STYLE_TOWER) {
+    if (district === 'canary' || district === 'city' || district === 'southbank') {
+      return ['navy', 'charcoal'];
+    }
+    return ['charcoal', 'navy', 'grey'];
+  }
+  if (style === STYLE_INDUSTRIAL) return ['warehouse', 'brick', 'grey'];
+  if (style === STYLE_OFFICE) {
+    if (district === 'canary') return ['navy', 'grey', 'portland'];
+    return ['portland', 'brick', 'grey', 'cream', 'charcoal'];
+  }
+  if (style === STYLE_RETAIL) return ['cream', 'brick', 'yellow', 'grey'];
   switch (district) {
     case 'canary':
-      return style === STYLE_TOWER || style === STYLE_OFFICE || style === STYLE_APARTMENTS
-        ? NAVY_GLASS
-        : SOFT_GREY;
+      return ['grey', 'navy', 'portland'];
     case 'city':
-      return style === STYLE_TOWER ? NAVY_GLASS : PORTLAND;
     case 'westminster':
-      return style === STYLE_TOWER ? CHARCOAL : PORTLAND;
+      return ['portland', 'cream', 'brick', 'grey'];
     case 'westend':
     case 'kensington':
-      if (style === STYLE_TOWER) return CHARCOAL;
-      if (style === STYLE_HOUSE || style === STYLE_TERRACE) {
-        return [...GEORGIAN_CREAM, ...STOCK_YELLOW.slice(0, 4), ...VICTORIAN_RED.slice(0, 2)];
-      }
-      return [...GEORGIAN_CREAM, ...PORTLAND.slice(0, 3)];
-    case 'islington':
-      if (style === STYLE_TOWER) return CHARCOAL;
-      if (style === STYLE_TERRACE || style === STYLE_HOUSE) {
-        return [...GEORGIAN_CREAM, ...VICTORIAN_RED.slice(0, 3)];
-      }
-      return GEORGIAN_CREAM;
-    case 'camden':
-      return style === STYLE_TOWER ? CHARCOAL : STOCK_YELLOW;
-    case 'shoreditch':
-      if (style === STYLE_TOWER) return CHARCOAL;
-      if (style === STYLE_INDUSTRIAL) return WAREHOUSE;
-      return [...STOCK_YELLOW, ...VICTORIAN_RED.slice(0, 4)];
+      return ['cream', 'brick', 'yellow', 'grey', 'portland'];
     case 'eastend':
-      return style === STYLE_TOWER ? CHARCOAL : [...VICTORIAN_RED, ...STOCK_YELLOW.slice(0, 3)];
-    case 'southbank':
-      return style === STYLE_TOWER ? NAVY_GLASS : PORTLAND;
     case 'battersea':
-      return style === STYLE_TOWER ? NAVY_GLASS : VICTORIAN_RED;
-    case 'greenwich':
-      return style === STYLE_TOWER ? CHARCOAL : GEORGIAN_CREAM;
     case 'south':
-      return style === STYLE_TOWER ? CHARCOAL : [...VICTORIAN_RED, ...STOCK_YELLOW];
+      return ['brick', 'yellow', 'cream', 'grey'];
+    case 'shoreditch':
+      return ['yellow', 'brick', 'warehouse', 'grey'];
+    case 'camden':
+      return ['yellow', 'brick', 'cream', 'grey'];
+    case 'islington':
+      return ['cream', 'brick', 'yellow', 'grey'];
+    case 'greenwich':
+      return ['cream', 'brick', 'portland', 'grey'];
+    case 'southbank':
+      return ['portland', 'brick', 'grey', 'cream'];
     case 'stratford':
-      return style === STYLE_TOWER || style === STYLE_OFFICE ? SOFT_GREY : GEORGIAN_CREAM;
+      return ['grey', 'cream', 'brick', 'portland'];
     default:
-      break;
+      return ['cream', 'brick', 'yellow', 'grey', 'portland'];
   }
-  switch (style) {
-    case STYLE_HOUSE:
-      return STOCK_YELLOW;
-    case STYLE_TERRACE:
-      return [...STOCK_YELLOW, ...VICTORIAN_RED.slice(0, 4), ...GEORGIAN_CREAM.slice(0, 3)];
-    case STYLE_OFFICE:
-      return [...PORTLAND, ...CHARCOAL.slice(0, 3)];
-    case STYLE_INDUSTRIAL:
-      return WAREHOUSE;
-    case STYLE_RETAIL:
-      return [...GEORGIAN_CREAM, ...VICTORIAN_RED.slice(0, 3)];
-    case STYLE_TOWER:
-      return NAVY_GLASS;
-    default:
-      return [...SOFT_GREY, ...GEORGIAN_CREAM.slice(0, 3), ...VICTORIAN_RED.slice(0, 2)];
+}
+
+export function facadeFamily(
+  style: number,
+  district: DistrictId,
+  cx: number,
+  cz: number,
+  seed: number,
+): FacadeFamily {
+  const fams = familiesFor(style, district);
+  return fams[familyHash(cx, cz, seed) % fams.length]!;
+}
+
+export function paletteFor(style: number, district: DistrictId): readonly number[] {
+  const out: number[] = [];
+  for (const fam of familiesFor(style, district)) {
+    out.push(...FAMILY_SWATCH[fam]);
   }
+  return out;
+}
+
+export function windowHex(seed: number): number {
+  return WINDOW_GLASS[seed % WINDOW_GLASS.length]!;
+}
+
+export function awningHex(seed: number): number {
+  return AWNING_PAINTS[seed % AWNING_PAINTS.length]!;
+}
+
+function familyFromOsmRgb(rgb: number): FacadeFamily {
+  let best: FacadeFamily = 'cream';
+  let bestD = Infinity;
+  (Object.keys(FAMILY_SWATCH) as FacadeFamily[]).forEach((fam) => {
+    for (const swatch of FAMILY_SWATCH[fam]) {
+      const d = distRgb(rgb, swatch);
+      if (d < bestD) {
+        bestD = d;
+        best = fam;
+      }
+    }
+  });
+  return best;
+}
+
+function pickSwatch(family: FacadeFamily, cx: number, cz: number, seed: number): number {
+  const pal = FAMILY_SWATCH[family];
+  return pal[familyHash(cx, cz, seed ^ 0x9e3779b9) % pal.length]!;
 }
 
 export function roofHex(style: number, pitched: boolean, seed: number): number {
@@ -310,7 +368,7 @@ export function roofHex(style: number, pitched: boolean, seed: number): number {
   return seed % 4 === 0 ? ROOF_BROWN : ROOF_SLATE;
 }
 
-/** ~55 m cells: a terrace row shares a family, the next block can shift. */
+/** Per-building salt (cell is only a weak spatial mix). Neighbouring plots differ. */
 const FAMILY_CELL = 0.5;
 
 export function familyHash(cx: number, cz: number, salt = 0): number {
@@ -344,21 +402,25 @@ export function wallHex(
   seed: number,
   osmRgb: number | null,
 ): number {
-  // Glass towers are tagged black/grey in OSM; that paint crushes to a silhouette
-  // under ACES. Neighbourhood palettes stay in the readable navy-glass range.
+  // Glass towers tagged black/grey in OSM crush to a silhouette. Neighbourhood
+  // palettes stay in the readable navy-glass range.
   const allowOsm =
     osmRgb !== null && style !== STYLE_TOWER && !(district === 'canary' && style === STYLE_OFFICE);
-  if (allowOsm) {
-    const clamped = clampWallColour(osmRgb);
-    if (clamped !== null) {
-      const { l } = rgbToHsl(clamped);
-      if (l >= 0.36) return jitterHex(clamped, seed, { h: 0.008, s: 0.02, l: 0.03 });
+  if (allowOsm && osmRgb !== null) {
+    if (!isGenericWallPaint(osmRgb)) {
+      const clamped = clampWallColour(osmRgb);
+      if (clamped !== null) {
+        const { l } = rgbToHsl(clamped);
+        if (l >= 0.36) return jitterHex(clamped, seed, { h: 0.008, s: 0.02, l: 0.03 });
+      }
+    } else {
+      // OSM brick / plaster / stone is a family hint, not one cloned hex.
+      const hinted = familyFromOsmRgb(osmRgb);
+      return jitterHex(pickSwatch(hinted, cx, cz, seed), seed, { h: 0.016, s: 0.045, l: 0.07 });
     }
   }
-  const pal = paletteFor(style, district);
-  const pick = familyHash(cx, cz, seed);
-  const base = pal[pick % pal.length]!;
-  return jitterHex(base, seed, { h: 0.016, s: 0.045, l: 0.07 });
+  const fam = facadeFamily(style, district, cx, cz, seed);
+  return jitterHex(pickSwatch(fam, cx, cz, seed), seed, { h: 0.016, s: 0.045, l: 0.07 });
 }
 
 export function doorHex(seed: number): number {

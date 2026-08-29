@@ -19,7 +19,10 @@ import { LANDMARKS, METERS_TO_WORLD, project } from '../lib/game/geo';
 import { resolveRoofColour, resolveWallColour } from '../lib/game/render3d/osmColour';
 import {
   bandsForShape,
+  civicFallbackHeightM,
+  civicKindFromTags,
   isCircularShape,
+  isCivicShape,
   liftRgb,
   resolveShape,
   roofFromWall,
@@ -29,6 +32,9 @@ import {
 import { buildNoticedGroup, exportNoticedGlb } from './noticedMesh';
 import {
   MAX_NOTICED,
+  MAX_NOTICED_CIVIC,
+  MAX_NOTICED_TOWERS,
+  MIN_CIVIC_HEIGHT_M,
   MIN_NOTICED_HEIGHT_M,
   heightFromTags,
   isUsefulName,
@@ -84,6 +90,7 @@ interface Candidate {
   photo: string | null;
   extract: string;
   shape: NoticedShape;
+  civic: NoticedShape | null;
   seed: number;
 }
 
@@ -273,7 +280,9 @@ function candidatesFromManifest(files: ManifestFile[], elements: OverpassElement
     const heightM = file.heightM || heightFromTags(tags);
     const wallHex = resolveWallColour(tags);
     const roofHex = resolveRoofColour(tags);
-    const glass = /glass|mirror/i.test(tags['building:material'] ?? '') || heightM >= 140;
+    const civic = civicKindFromTags(tags);
+    const glass =
+      !civic && (/glass|mirror/i.test(tags['building:material'] ?? '') || heightM >= 140);
     out.push({
       id: file.id,
       name: file.name,
@@ -290,7 +299,8 @@ function candidatesFromManifest(files: ManifestFile[], elements: OverpassElement
       wikiTitle: wikiTitleFromTags(tags) ?? file.name,
       photo: null,
       extract: '',
-      shape: 'slab',
+      shape: civic ?? 'slab',
+      civic,
       seed: el.id,
     });
   }
@@ -325,8 +335,10 @@ function collectCandidates(elements: OverpassElement[]): Candidate[] {
     if (tags['building:part']) continue;
     const name = tags.name;
     if (!name || !isUsefulName(name)) continue;
-    const heightM = heightFromTags(tags);
-    if (heightM < MIN_NOTICED_HEIGHT_M) continue;
+    const civic = civicKindFromTags(tags);
+    let heightM = heightFromTags(tags);
+    if (civic && heightM < MIN_CIVIC_HEIGHT_M) heightM = civicFallbackHeightM(civic);
+    if (!civic && heightM < MIN_NOTICED_HEIGHT_M) continue;
     const ring = pickLargestRing(el);
     if (!ring) continue;
     const cx = ring.reduce((s, p) => s + p.x, 0) / ring.length;
@@ -336,7 +348,7 @@ function collectCandidates(elements: OverpassElement[]): Candidate[] {
     const exclusionM = Math.max(40, Math.round(maxR / METERS_TO_WORLD + 12));
     const wallHex = resolveWallColour(tags);
     const roofHex = resolveRoofColour(tags);
-    const glass = /glass|mirror/i.test(tags['building:material'] ?? '') || heightM >= 140;
+    const glass = !civic && (/glass|mirror/i.test(tags['building:material'] ?? '') || heightM >= 140);
     const key = name.toLowerCase();
     const prev = byName.get(key);
     if (prev && prev.heightM >= heightM) continue;
@@ -350,18 +362,30 @@ function collectCandidates(elements: OverpassElement[]): Candidate[] {
       worldZ: cz,
       ringLocal: ring.map((p) => [p.x - cx, p.y - cz] as [number, number]),
       exclusionM,
-      wall: rgbTuple(wallHex, glass ? 0x6a7888 : 0xc4b8a8),
+      wall: rgbTuple(wallHex, glass ? 0x6a7888 : civic ? 0xc4b8a8 : 0xc4b8a8),
       roof: rgbTuple(roofHex, 0x4a4a4c),
       glass,
       wikiTitle: wikiTitleFromTags(tags) ?? name,
       photo: null,
       extract: '',
-      shape: 'slab',
+      shape: civic ?? 'slab',
+      civic,
       seed: el.id,
     };
     byName.set(key, cand);
   }
-  return [...byName.values()].sort((a, b) => b.heightM - a.heightM).slice(0, MAX_NOTICED);
+  const all = [...byName.values()];
+  const towers = all
+    .filter((c) => !c.civic && c.heightM >= MIN_NOTICED_HEIGHT_M)
+    .sort((a, b) => b.heightM - a.heightM)
+    .slice(0, MAX_NOTICED_TOWERS);
+  const civics = all
+    .filter((c) => c.civic)
+    .sort((a, b) => b.heightM - a.heightM)
+    .slice(0, MAX_NOTICED_CIVIC);
+  const picked = new Map<string, Candidate>();
+  for (const c of [...towers, ...civics]) picked.set(c.id, c);
+  return [...picked.values()].sort((a, b) => b.heightM - a.heightM).slice(0, MAX_NOTICED);
 }
 
 async function wikiPage(title: string): Promise<{ thumb: string | null; extract: string }> {
@@ -443,9 +467,10 @@ async function attachWiki(cands: Candidate[]): Promise<void> {
 
 function assignShapes(cands: Candidate[]): void {
   for (const c of cands) {
-    c.shape = resolveShape(c.id, c.name, c.extract);
+    c.shape = c.civic ?? resolveShape(c.id, c.name, c.extract);
     c.wall = tintForShape(c.shape, liftRgb(c.wall));
     c.roof = roofFromWall(c.wall);
+    if (isCivicShape(c.shape)) c.glass = false;
   }
 }
 
@@ -528,7 +553,7 @@ async function main(): Promise<void> {
       return;
     }
   }
-  console.log(`Selected ${cands.length} towers (≥${MIN_NOTICED_HEIGHT_M} m, not landmarks):`);
+  console.log(`Selected ${cands.length} noticed buildings (towers ≥${MIN_NOTICED_HEIGHT_M} m + civic silhouettes):`);
   if (dry) {
     assignShapes(cands);
     for (const c of cands) {
@@ -568,11 +593,16 @@ async function main(): Promise<void> {
   await writeFile(jobPath, JSON.stringify(job));
 
   const blender = blenderBin();
-  if (blender) {
+  const needsCivicBaker = buildings.some((b) => isCivicShape(b.shape));
+  if (blender && !needsCivicBaker) {
     console.log(`Blender: ${blender}`);
     runBlender(blender, jobPath);
   } else {
-    console.log('Blender not found; using three.js noticed baker');
+    if (needsCivicBaker) {
+      console.log('Civic silhouettes use the three.js baker (church/station/theatre/civic extras)');
+    } else {
+      console.log('Blender not found; using three.js noticed baker');
+    }
     await bakeWithThree(buildings, OUT_DIR);
   }
 

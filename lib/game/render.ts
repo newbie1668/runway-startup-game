@@ -516,6 +516,63 @@ export class MapRenderer implements IMapRenderer {
           ctx.arc(0, -20, 2, 0, Math.PI * 2);
           ctx.stroke();
           break;
+        case 'britishmuseum':
+          ctx.strokeRect(-12, -8, 24, 8);
+          for (let i = -4; i <= 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * 2.4, 0);
+            ctx.lineTo(i * 2.4, -8);
+            ctx.stroke();
+          }
+          break;
+        case 'allsouls':
+          ctx.beginPath();
+          ctx.arc(0, -6, 5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-3, -10);
+          ctx.lineTo(0, -22);
+          ctx.lineTo(3, -10);
+          ctx.stroke();
+          break;
+        case 'goodgest':
+          ctx.strokeRect(-8, -6, 16, 6);
+          ctx.beginPath();
+          ctx.arc(6, -9, 4, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case 'stcharles':
+          ctx.strokeRect(-6, -8, 12, 8);
+          ctx.strokeRect(-2, -18, 4, 10);
+          ctx.beginPath();
+          ctx.moveTo(-3, -18);
+          ctx.lineTo(0, -22);
+          ctx.lineTo(3, -18);
+          ctx.stroke();
+          break;
+        case 'nationaltheatre':
+          ctx.strokeRect(-10, -6, 20, 6);
+          ctx.strokeRect(-8, -12, 10, 6);
+          ctx.strokeRect(2, -16, 6, 10);
+          break;
+        case 'tatemodern':
+          ctx.strokeRect(-10, -8, 20, 8);
+          ctx.strokeRect(-8, -18, 4, 10);
+          break;
+        case 'stpancras':
+          ctx.strokeRect(-12, -8, 24, 8);
+          ctx.strokeRect(-12, -18, 5, 10);
+          ctx.beginPath();
+          ctx.moveTo(-14, -18);
+          ctx.lineTo(-9.5, -24);
+          ctx.lineTo(-5, -18);
+          ctx.stroke();
+          break;
+        case 'alberthall':
+          ctx.beginPath();
+          ctx.ellipse(0, -8, 10, 8, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
       }
       ctx.restore();
     }

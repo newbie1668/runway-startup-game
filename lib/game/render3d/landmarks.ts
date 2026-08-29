@@ -1303,6 +1303,230 @@ function buildMonument(): THREE.Group {
   return group;
 }
 
+function buildBritishMuseum(): THREE.Group {
+  const group = new THREE.Group();
+  const stone = new THREE.MeshLambertMaterial({ color: 0xe2d8c4 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x3a3630 });
+  const glass = 0x6a88a0;
+  addBox(group, m(110), h(22), m(36), stone);
+  addBox(group, m(36), h(18), m(90), stone, 0, 0, 0);
+  addWindowGrid(group, m(96), h(12), 14, 2, 0, h(5), m(18.2), 'z', glass);
+  addWindowGrid(group, m(96), h(12), 14, 2, 0, h(5), -m(18.2), 'z', glass);
+  const colMat = new THREE.MeshLambertMaterial({ color: 0xf0eadc });
+  for (let i = 0; i < 11; i++) {
+    const z = (i - 5) * m(6.4);
+    const col = new THREE.Mesh(
+      baseAtGround(new THREE.CylinderGeometry(m(1.15), m(1.3), h(16), 8), h(16)),
+      colMat,
+    );
+    col.position.set(m(56), h(4), z);
+    group.add(col);
+  }
+  addBox(group, m(8), h(4), m(72), stone, m(56), h(20), 0);
+  const ped = new THREE.Mesh(baseAtGround(new THREE.ConeGeometry(m(18), h(7), 3), h(7)), stone);
+  ped.position.set(m(56), h(24), 0);
+  ped.rotation.y = Math.PI / 2;
+  group.add(ped);
+  const lantern = new THREE.Mesh(
+    baseAtGround(new THREE.CylinderGeometry(m(6), m(7), h(10), 12), h(10)),
+    stone,
+  );
+  lantern.position.y = h(22);
+  group.add(lantern);
+  const ridge = glowMat(0xf4eee0);
+  addBox(group, m(2), h(6), m(18), ridge, m(56.6), h(10), 0);
+  addBox(group, m(14), h(8), m(14), dark, 0, h(18), 0);
+  group.rotation.y = 0.08;
+  return group;
+}
+
+function buildAllSouls(): THREE.Group {
+  const group = new THREE.Group();
+  const stone = new THREE.MeshLambertMaterial({ color: 0xe8dfcc });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x4a4038 });
+  const naveH = h(18);
+  addBox(group, m(22), naveH, m(38), stone, 0, 0, m(-8));
+  addWindowGrid(group, m(30), h(10), 5, 2, 0, h(5), m(11), 'z', 0x5a7090);
+  const drumH = h(14);
+  const drum = new THREE.Mesh(
+    baseAtGround(new THREE.CylinderGeometry(m(9), m(9), drumH, 16), drumH),
+    stone,
+  );
+  drum.position.set(0, naveH, m(14));
+  group.add(drum);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const col = new THREE.Mesh(
+      baseAtGround(new THREE.CylinderGeometry(m(0.7), m(0.8), drumH, 6), drumH),
+      stone,
+    );
+    col.position.set(Math.cos(a) * m(10.2), naveH, m(14) + Math.sin(a) * m(10.2));
+    group.add(col);
+  }
+  const spireH = h(42);
+  const spire = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(6.5), spireH, 8), spireH),
+    stone,
+  );
+  spire.position.set(0, naveH + drumH, m(14));
+  group.add(spire);
+  const needle = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(1.4), h(16), 6), h(16)),
+    glowMat(0xf2ead8),
+  );
+  needle.position.set(0, naveH + drumH + spireH, m(14));
+  group.add(needle);
+  addBox(group, m(3), h(4), m(2), dark, 0, h(6), m(23));
+  return group;
+}
+
+function buildGoodgeSt(): THREE.Group {
+  const group = new THREE.Group();
+  const oxblood = new THREE.MeshLambertMaterial({ color: 0x6a2428 });
+  const cream = new THREE.MeshLambertMaterial({ color: 0xe4d8c4 });
+  const roof = new THREE.MeshLambertMaterial({ color: 0x4a4540 });
+  addBox(group, m(28), h(9), m(16), oxblood);
+  addBox(group, m(30), h(1.2), m(18), cream, 0, h(9), 0);
+  addWindowGrid(group, m(22), h(5.5), 5, 1, 0, h(2.2), m(8.2), 'z', 0x2a3040);
+  for (const x of [-m(8), 0, m(8)]) {
+    addBox(group, m(3.2), h(4.2), m(0.6), cream, x, h(2.4), m(8.4));
+  }
+  const drumH = h(6);
+  const drum = new THREE.Mesh(
+    baseAtGround(new THREE.CylinderGeometry(m(5.5), m(5.5), drumH, 14), drumH),
+    oxblood,
+  );
+  drum.position.set(m(10), h(9), 0);
+  group.add(drum);
+  const lid = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(6.2), h(3.5), 14), h(3.5)),
+    roof,
+  );
+  lid.position.set(m(10), h(9) + drumH, 0);
+  group.add(lid);
+  addBox(group, m(8), h(3.2), m(2.2), glowMat(0x1a1a1c), 0, h(5.5), m(8.5));
+  return group;
+}
+
+function buildStCharles(): THREE.Group {
+  const group = new THREE.Group();
+  const cream = new THREE.MeshLambertMaterial({ color: 0xe6dcc8 });
+  const brick = new THREE.MeshLambertMaterial({ color: 0x8a5648 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x3c3830 });
+  addBox(group, m(18), h(16), m(32), cream);
+  addWindowGrid(group, m(26), h(9), 4, 2, 0, h(4), m(9.2), 'z', 0x5a7090);
+  addBox(group, m(20), h(4), m(8), cream, 0, h(16), 0);
+  const towerH = h(28);
+  addBox(group, m(8), towerH, m(8), cream, 0, 0, m(-18));
+  addBox(group, m(9), h(2), m(9), brick, 0, towerH, m(-18));
+  const cap = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(5.2), h(8), 4), h(8)),
+    brick,
+  );
+  cap.position.set(0, towerH + h(2), m(-18));
+  cap.rotation.y = Math.PI / 4;
+  group.add(cap);
+  addBox(group, m(2.2), h(3.5), m(1.4), dark, 0, h(7), m(16.2));
+  addBox(group, m(1.1), h(6), m(1.1), glowMat(0xf0ead8), 0, towerH + h(8), m(-18));
+  return group;
+}
+
+function buildNationalTheatre(): THREE.Group {
+  const group = new THREE.Group();
+  const concrete = new THREE.MeshLambertMaterial({ color: 0x9a968c });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x5a5852 });
+  addBox(group, m(70), h(12), m(48), concrete);
+  addBox(group, m(52), h(10), m(36), concrete, m(-4), h(12), m(-4));
+  addBox(group, m(28), h(22), m(22), concrete, m(-18), h(22), m(8));
+  addBox(group, m(18), h(16), m(16), concrete, m(16), h(22), m(-10));
+  addWindowGrid(group, m(40), h(8), 8, 2, 0, h(3), m(24.2), 'z', 0x3a4a58);
+  addBox(group, m(36), h(2.2), m(8), dark, 0, h(10), m(22));
+  addBox(group, m(24), h(1.6), m(24), glowMat(0xc8c0b0), m(-18), h(42), m(8));
+  addBox(group, m(14), h(1.4), m(14), glowMat(0xc8c0b0), m(16), h(36), m(-10));
+  group.rotation.y = -0.35;
+  return group;
+}
+
+function buildTateModern(): THREE.Group {
+  const group = new THREE.Group();
+  const brick = new THREE.MeshLambertMaterial({ color: 0x8a4e42 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x3a3834 });
+  const hallH = h(32);
+  addBox(group, m(80), hallH, m(32), brick);
+  addWindowGrid(group, m(68), h(20), 10, 4, 0, h(6), m(16.2), 'z', 0x2a3848);
+  addWindowGrid(group, m(68), h(20), 10, 4, 0, h(6), -m(16.2), 'z', 0x2a3848);
+  addBox(group, m(82), h(4), m(10), dark, 0, hallH, 0);
+  const stackH = h(55);
+  const stack = new THREE.Mesh(
+    baseAtGround(new THREE.BoxGeometry(m(14), stackH, m(14)), stackH),
+    brick,
+  );
+  stack.position.set(m(-28), 0, 0);
+  group.add(stack);
+  addBox(group, m(16), h(3), m(16), dark, m(-28), stackH, 0);
+  addBox(group, m(18), h(8), m(18), glowMat(0xd8c8b0), m(22), hallH, 0);
+  group.rotation.y = 0.2;
+  return group;
+}
+
+function buildStPancras(): THREE.Group {
+  const group = new THREE.Group();
+  const brick = new THREE.MeshLambertMaterial({ color: 0x7a3a34 });
+  const stone = new THREE.MeshLambertMaterial({ color: 0xd8cbb8 });
+  const slate = new THREE.MeshLambertMaterial({ color: 0x4a5058 });
+  addBox(group, m(90), h(22), m(28), brick);
+  addWindowGrid(group, m(78), h(14), 12, 3, 0, h(5), m(14.2), 'z', 0x3a4a60);
+  addBox(group, m(92), h(10), m(16), slate, 0, h(22), 0);
+  const towerH = h(48);
+  addBox(group, m(16), towerH, m(16), brick, m(-40), 0, 0);
+  addBox(group, m(18), h(4), m(18), stone, m(-40), towerH, 0);
+  const roof = new THREE.Mesh(
+    baseAtGround(new THREE.ConeGeometry(m(11), h(16), 4), h(16)),
+    slate,
+  );
+  roof.position.set(m(-40), towerH + h(4), 0);
+  roof.rotation.y = Math.PI / 4;
+  group.add(roof);
+  const clock = new THREE.Mesh(new THREE.CylinderGeometry(m(3.2), m(3.2), m(0.8), 16), glowMat(0xf0e6d0));
+  clock.rotation.x = Math.PI / 2;
+  clock.position.set(m(-40), towerH * 0.72, m(8.4));
+  group.add(clock);
+  for (const x of [m(-20), m(0), m(20), m(38)]) {
+    addBox(group, m(3), h(8), m(3), stone, x, h(22), m(8));
+  }
+  group.rotation.y = 0.12;
+  return group;
+}
+
+function buildAlbertHall(): THREE.Group {
+  const group = new THREE.Group();
+  const brick = new THREE.MeshLambertMaterial({ color: 0x8a4a40 });
+  const terracotta = new THREE.MeshLambertMaterial({ color: 0xb86848 });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x4a545c });
+  const drumH = h(22);
+  const drum = new THREE.Mesh(
+    baseAtGround(new THREE.CylinderGeometry(m(34), m(36), drumH, 24), drumH),
+    brick,
+  );
+  group.add(drum);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(m(36.4), m(36.4), h(3.2), 24), terracotta);
+  band.position.y = h(14);
+  group.add(band);
+  addWindowGrid(group, m(18), h(8), 3, 2, 0, h(6), m(36.2), 'z', 0x3a4860);
+  const roof = new THREE.Mesh(new THREE.SphereGeometry(m(34), 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), iron);
+  roof.position.y = drumH - m(4);
+  group.add(roof);
+  const lantern = new THREE.Mesh(
+    baseAtGround(new THREE.CylinderGeometry(m(4), m(5), h(6), 10), h(6)),
+    terracotta,
+  );
+  lantern.position.y = drumH + m(18);
+  group.add(lantern);
+  addBox(group, m(22), h(10), m(8), brick, 0, 0, m(38));
+  addBox(group, m(16), h(1.8), m(4), glowMat(0xe8c45a), 0, h(8), m(42));
+  return group;
+}
+
 const BUILDERS: Record<LandmarkKind, () => THREE.Group> = {
   shard: buildShard,
   gherkin: buildGherkin,
@@ -1332,6 +1556,14 @@ const BUILDERS: Record<LandmarkKind, () => THREE.Group> = {
   towerlondon: buildTowerLondon,
   buckingham: buildBuckingham,
   monument: buildMonument,
+  britishmuseum: buildBritishMuseum,
+  allsouls: buildAllSouls,
+  goodgest: buildGoodgeSt,
+  stcharles: buildStCharles,
+  nationaltheatre: buildNationalTheatre,
+  tatemodern: buildTateModern,
+  stpancras: buildStPancras,
+  alberthall: buildAlbertHall,
 };
 
 export function build(kind: LandmarkKind): THREE.Group {
