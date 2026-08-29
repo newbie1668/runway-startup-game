@@ -366,22 +366,7 @@ function pickFacade(input: {
       depthM: clamp(1.1 + plan.maxPerpM * 0.04, 1.1, 2.2),
     };
   }
-  const pitchU = clamp(
-    plan.longestEdgeM / Math.max(3, Math.round(plan.longestEdgeM / 4.1)),
-    2.05,
-    4.6,
-  );
-  const pitchV = clamp(heightM / Math.max(2, floors), 2.35, 4.1);
-  const colCap = clamp(Math.round(plan.longestEdgeM / pitchU), 2, 8);
-  const rowCap = clamp(floors, 2, 6);
-  return {
-    kind: 'recess',
-    pitchU,
-    pitchV,
-    colCap,
-    rowCap,
-    bakeCap: clamp(colCap * Math.min(rowCap, 3), 4, 12),
-  };
+  return { kind: 'ribbon', floors, bandRatio: clamp(0.34 + plan.compactness * 0.12, 0.32, 0.5) };
 }
 
 function pickRoof(silhouette: UniqueSilhouette, osmRoof: number): UniqueRoof {
