@@ -910,31 +910,6 @@ function emitJambReturn(
   );
 }
 
-function foldedFace(
-  e: Edge,
-  t0: number,
-  t1: number,
-  out0: number,
-  out1: number,
-): { ax: number; az: number; bx: number; bz: number; nx: number; nz: number } {
-  const a = edgePoint(e, t0);
-  const b = edgePoint(e, t1);
-  const ax = a.x + e.nx * out0;
-  const az = a.z + e.nz * out0;
-  const bx = b.x + e.nx * out1;
-  const bz = b.z + e.nz * out1;
-  let nx = -(bz - az);
-  let nz = bx - ax;
-  const nl = Math.hypot(nx, nz) || 1;
-  nx /= nl;
-  nz /= nl;
-  if (nx * e.nx + nz * e.nz < 0) {
-    nx = -nx;
-    nz = -nz;
-  }
-  return { ax, az, bx, bz, nx, nz };
-}
-
 function edgeOut(e: Edge, t: number, out: number): { x: number; z: number } {
   const p = edgePoint(e, t);
   return { x: p.x + e.nx * out, z: p.z + e.nz * out };
@@ -993,7 +968,7 @@ function emitPunchedFront(
   stone: number,
 ): void {
   const winH = m(3.9);
-  const sill = y0 + m(5.0);
+  const sill = y0 + m(6.4);
   const head = sill + winH;
   if (head + m(1.6) >= y1 || tR - tL < 0.02) {
     emitOutQuad(ctx, e, tL, tR, y0, y1, out, stone);
@@ -1002,8 +977,11 @@ function emitPunchedFront(
   const pierU = 0.18;
   const tA = tL + (tR - tL) * pierU;
   const tB = tR - (tR - tL) * pierU;
-  emitOutQuad(ctx, e, tL, tA, y0, y1, out, stone);
-  emitOutQuad(ctx, e, tB, tR, y0, y1, out, stone);
+  const yMid = (y0 + y1) / 2;
+  emitOutQuad(ctx, e, tL, tA, y0, yMid, out, stone);
+  emitOutQuad(ctx, e, tL, tA, yMid, y1, out, stone);
+  emitOutQuad(ctx, e, tB, tR, y0, yMid, out, stone);
+  emitOutQuad(ctx, e, tB, tR, yMid, y1, out, stone);
   emitOutQuad(ctx, e, tA, tB, y0, sill, out, stone);
   emitOutQuad(ctx, e, tA, tB, head, y1, out, stone);
   const glassIn = m(0.9);
@@ -1056,48 +1034,67 @@ function emitPunchedFront(
   emitYCap(ctx, s0, s1, s2, s3, sill, -1, stone);
 }
 
-function emitYTri(
-  ctx: StreetEmit,
-  a: { x: number; z: number },
-  b: { x: number; z: number },
-  c: { x: number; z: number },
-  y: number,
-  ny: number,
-  stone: number,
-): void {
-  const i0 = ctx.pushVertex(a.x, y, a.z, 0, ny, 0, stone);
-  const i1 = ctx.pushVertex(b.x, y, b.z, 0, ny, 0, stone);
-  const i2 = ctx.pushVertex(c.x, y, c.z, 0, ny, 0, stone);
-  if (ny > 0) ctx.pushTri(i0, i1, i2);
-  else ctx.pushTri(i0, i2, i1);
-}
-
 /**
- * Thick triangular limestone on the roof. Full-height N-S returns read as
- * hair-thin sticks on the Cheapside still; this prism is 3 m tall, not 30.
+ * One projecting limestone bay on the street volume. Thick side masses, not
+ * 1 px N-S returns. Window sits in the projecting front, not as a slot in a
+ * flush box. Roof is the top of this volume, not a sawtooth hat.
  */
-function emitConcertinaCap(
+function emitProjectingBay(
   ctx: StreetEmit,
   e: Edge,
   t0: number,
   t1: number,
-  y: number,
+  y0: number,
+  y1: number,
   stone: number,
 ): void {
-  const out0 = m(0.4);
-  const out1 = m(6.8);
-  const capH = m(3.2);
-  const tMid = (t0 + t1) / 2;
+  const out0 = m(0.45);
+  const out1 = m(6.5);
+  const sideW = m(2.6);
+  const inset = 0.18;
+  const tFL = t0 + (t1 - t0) * inset;
+  const tFR = t1 - (t1 - t0) * inset;
+  const putSide = (ta: number, tb: number, outA: number, outB: number) => {
+    const pA = edgeOut(e, ta, outA);
+    const pB = edgeOut(e, tb, outB);
+    const dx = pB.x - pA.x;
+    const dz = pB.z - pA.z;
+    const alen = Math.hypot(dx, dz) || 1;
+    let txs = dx / alen;
+    let tzs = dz / alen;
+    let nxs = -tzs;
+    let nzs = txs;
+    if (nxs * e.nx + nzs * e.nz < 0) {
+      nxs = -nxs;
+      nzs = -nzs;
+    }
+    ctx.pushOrientedBox(
+      (pA.x + pB.x) / 2,
+      y0,
+      (pA.z + pB.z) / 2,
+      alen,
+      y1 - y0,
+      sideW,
+      txs,
+      tzs,
+      nxs,
+      nzs,
+      stone,
+    );
+  };
+  putSide(t0, tFL, out0, out1);
+  putSide(t1, tFR, out0, out1);
+  emitPunchedFront(ctx, e, tFL, tFR, y0, y1, out1, stone);
   const a = edgeOut(e, t0, out0);
   const b = edgeOut(e, t1, out0);
-  const c = edgeOut(e, tMid, out1);
-  const y1 = y + capH;
-  const left = foldedFace(e, t0, tMid, out0, out1);
-  emitWallQuad(ctx, left.ax, left.az, left.bx, left.bz, y, y1, left.nx, left.nz, stone);
-  const right = foldedFace(e, tMid, t1, out1, out0);
-  emitWallQuad(ctx, right.ax, right.az, right.bx, right.bz, y, y1, right.nx, right.nz, stone);
-  emitYTri(ctx, a, c, b, y1, 1, stone);
-  emitYTri(ctx, a, b, c, y, -1, stone);
+  const c = edgeOut(e, tFR, out1);
+  const d = edgeOut(e, tFL, out1);
+  const capH = m(2.1);
+  const slices = 4;
+  for (let s = 0; s <= slices; s++) {
+    emitYCap(ctx, d, c, b, a, y1 + (capH * s) / slices, 1, stone);
+  }
+  emitYCap(ctx, d, a, b, c, y0, -1, stone);
 }
 
 function emitStirlingElevation(
@@ -1112,35 +1109,20 @@ function emitStirlingElevation(
   const spanT = tHi - tLo;
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
-  const outW = m(0.4);
+  const outW = m(0.45);
   if (edgeM < 12) {
     emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, outW);
-    if (edgeM >= 8) {
-      emitPunchedFront(
-        ctx,
-        e,
-        tLo + spanT * 0.22,
-        tHi - spanT * 0.22,
-        y0,
-        y1,
-        outW,
-        stone,
-      );
-    }
     return;
   }
-  const nBays = edgeM >= 26 ? 2 : 1;
-  const bayM = Math.min(14.5, Math.max(10.5, (edgeM * 0.55) / nBays));
+  const nBays = edgeM >= 28 ? 2 : 1;
+  const bayM = Math.min(13.5, Math.max(10.0, (edgeM * 0.52) / nBays));
   const pierEach = (edgeM - nBays * bayM) / (nBays + 1);
   const tAt = (meters: number) => tLo + spanT * (meters / edgeM);
   let cursor = 0;
   for (let i = 0; i < nBays; i++) {
     emitLimestoneLedge(ctx, e, tAt(cursor), tAt(cursor + pierEach), y0, y1, stone, outW);
     cursor += pierEach;
-    const t0 = tAt(cursor);
-    const t1 = tAt(cursor + bayM);
-    emitPunchedFront(ctx, e, t0, t1, y0, y1, outW, stone);
-    emitConcertinaCap(ctx, e, t0, t1, y1, stone);
+    emitProjectingBay(ctx, e, tAt(cursor), tAt(cursor + bayM), y0, y1, stone);
     cursor += bayM;
   }
   emitLimestoneLedge(ctx, e, tAt(cursor), tHi, y0, y1, stone, outW);
@@ -1350,66 +1332,69 @@ function emitProwVGlass(
 ): void {
   const tLo = apexAtStart ? 0 : 0.62;
   const tHi = apexAtStart ? 0.38 : 1;
-  const cols = 3;
   const glassOut = m(-0.5);
-  const mullionOut = m(0.48);
-  const uPad = 0.08;
-  const vPad = 0.04;
-  const mullionU = 0.045;
-  for (let c = 0; c <= cols; c++) {
-    const u = tLo + ((tHi - tLo) * c) / cols;
-    emitLimestoneLedge(
+  const jambOut = m(0.7);
+  const jambU = 0.1;
+  emitLimestoneLedge(ctx, e, tLo, tLo + (tHi - tLo) * jambU, y0, y1, POULTRY_BUFF, jambOut);
+  emitLimestoneLedge(ctx, e, tHi - (tHi - tLo) * jambU, tHi, y0, y1, POULTRY_BUFF, jambOut);
+  const left = edgePoint(e, tLo + (tHi - tLo) * 0.12);
+  const right = edgePoint(e, tHi - (tHi - tLo) * 0.12);
+  const sill = y0 + (y1 - y0) * 0.06;
+  const head = y1 - (y1 - y0) * 0.06;
+  const tA = tLo + (tHi - tLo) * 0.12;
+  const tB = tHi - (tHi - tLo) * 0.12;
+  const tM = (tA + tB) / 2;
+  const yM = (sill + head) / 2;
+  const panes: [number, number, number, number][] = [
+    [tA, tM, sill, yM],
+    [tM, tB, sill, yM],
+    [tA, tM, yM, head],
+    [tM, tB, yM, head],
+  ];
+  for (const [ta, tb, ya, yb] of panes) {
+    const p0 = edgePoint(e, ta);
+    const p1 = edgePoint(e, tb);
+    emitWallQuad(
       ctx,
-      e,
-      Math.max(tLo, u - mullionU),
-      Math.min(tHi, u + mullionU),
-      y0,
-      y1,
-      POULTRY_BUFF,
-      mullionOut,
-    );
-  }
-  for (let c = 0; c < cols; c++) {
-    const u0 = tLo + ((tHi - tLo) * c) / cols;
-    const u1 = tLo + ((tHi - tLo) * (c + 1)) / cols;
-    const left = edgePoint(e, u0 + (u1 - u0) * uPad);
-    const right = edgePoint(e, u1 - (u1 - u0) * uPad);
-    const ax = left.x + e.nx * glassOut;
-    const az = left.z + e.nz * glassOut;
-    const bx = right.x + e.nx * glassOut;
-    const bz = right.z + e.nz * glassOut;
-    const sill = y0 + (y1 - y0) * vPad;
-    const head = y1 - (y1 - y0) * vPad;
-    emitWallQuad(ctx, ax, az, bx, bz, sill, head, e.nx, e.nz, POULTRY_GLASS);
-    emitJambReturn(
-      ctx,
-      left.x,
-      left.z,
+      p0.x + e.nx * glassOut,
+      p0.z + e.nz * glassOut,
+      p1.x + e.nx * glassOut,
+      p1.z + e.nz * glassOut,
+      ya,
+      yb,
       e.nx,
       e.nz,
-      mullionOut,
-      glassOut,
-      sill,
-      head,
-      e.tx,
-      e.tz,
-      POULTRY_BUFF,
-    );
-    emitJambReturn(
-      ctx,
-      right.x,
-      right.z,
-      e.nx,
-      e.nz,
-      mullionOut,
-      glassOut,
-      sill,
-      head,
-      -e.tx,
-      -e.tz,
-      POULTRY_BUFF,
+      POULTRY_GLASS,
     );
   }
+  emitJambReturn(
+    ctx,
+    left.x,
+    left.z,
+    e.nx,
+    e.nz,
+    jambOut,
+    glassOut,
+    sill,
+    head,
+    e.tx,
+    e.tz,
+    POULTRY_BUFF,
+  );
+  emitJambReturn(
+    ctx,
+    right.x,
+    right.z,
+    e.nx,
+    e.nz,
+    jambOut,
+    glassOut,
+    sill,
+    head,
+    -e.tx,
+    -e.tz,
+    POULTRY_BUFF,
+  );
 }
 
 function emitApexArch(
