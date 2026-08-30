@@ -1056,36 +1056,48 @@ function emitPunchedFront(
   emitYCap(ctx, s0, s1, s2, s3, sill, -1, stone);
 }
 
+function emitYTri(
+  ctx: StreetEmit,
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+  c: { x: number; z: number },
+  y: number,
+  ny: number,
+  stone: number,
+): void {
+  const i0 = ctx.pushVertex(a.x, y, a.z, 0, ny, 0, stone);
+  const i1 = ctx.pushVertex(b.x, y, b.z, 0, ny, 0, stone);
+  const i2 = ctx.pushVertex(c.x, y, c.z, 0, ny, 0, stone);
+  if (ny > 0) ctx.pushTri(i0, i1, i2);
+  else ctx.pushTri(i0, i2, i1);
+}
+
 /**
- * One concertina fold: street-parallel limestone front, steep returns, roof
- * slab. Not a wrapping V-rake and not a full-height arris stick.
+ * Thick triangular limestone on the roof. Full-height N-S returns read as
+ * hair-thin sticks on the Cheapside still; this prism is 3 m tall, not 30.
  */
-function emitConcertinaBay(
+function emitConcertinaCap(
   ctx: StreetEmit,
   e: Edge,
   t0: number,
   t1: number,
-  y0: number,
-  y1: number,
+  y: number,
   stone: number,
 ): void {
-  const outW = m(0.25);
-  const outF = m(4.6);
+  const out0 = m(0.4);
+  const out1 = m(6.8);
+  const capH = m(3.2);
   const tMid = (t0 + t1) / 2;
-  const frontHalf = (t1 - t0) * 0.25;
-  const tL = tMid - frontHalf;
-  const tR = tMid + frontHalf;
-  const w0 = edgeOut(e, t0, outW);
-  const fL = edgeOut(e, tL, outF);
-  const fR = edgeOut(e, tR, outF);
-  const w1 = edgeOut(e, t1, outW);
-  const left = foldedFace(e, t0, tL, outW, outF);
-  emitWallQuad(ctx, left.ax, left.az, left.bx, left.bz, y0, y1, left.nx, left.nz, stone);
-  const right = foldedFace(e, tR, t1, outF, outW);
-  emitWallQuad(ctx, right.ax, right.az, right.bx, right.bz, y0, y1, right.nx, right.nz, stone);
-  emitPunchedFront(ctx, e, tL, tR, y0, y1, outF, stone);
-  emitYCap(ctx, fL, fR, w1, w0, y1, 1, stone);
-  emitYCap(ctx, fL, w0, w1, fR, y0, -1, stone);
+  const a = edgeOut(e, t0, out0);
+  const b = edgeOut(e, t1, out0);
+  const c = edgeOut(e, tMid, out1);
+  const y1 = y + capH;
+  const left = foldedFace(e, t0, tMid, out0, out1);
+  emitWallQuad(ctx, left.ax, left.az, left.bx, left.bz, y, y1, left.nx, left.nz, stone);
+  const right = foldedFace(e, tMid, t1, out1, out0);
+  emitWallQuad(ctx, right.ax, right.az, right.bx, right.bz, y, y1, right.nx, right.nz, stone);
+  emitYTri(ctx, a, c, b, y1, 1, stone);
+  emitYTri(ctx, a, b, c, y, -1, stone);
 }
 
 function emitStirlingElevation(
@@ -1100,20 +1112,35 @@ function emitStirlingElevation(
   const spanT = tHi - tLo;
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
-  const outW = m(0.25);
-  if (edgeM < 7.5) {
+  const outW = m(0.4);
+  if (edgeM < 12) {
     emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, outW);
+    if (edgeM >= 8) {
+      emitPunchedFront(
+        ctx,
+        e,
+        tLo + spanT * 0.22,
+        tHi - spanT * 0.22,
+        y0,
+        y1,
+        outW,
+        stone,
+      );
+    }
     return;
   }
-  const nBays = edgeM >= 28 ? 3 : edgeM >= 16 ? 2 : 1;
-  const bayM = Math.min(8.8, Math.max(6.0, (edgeM * 0.58) / nBays));
+  const nBays = edgeM >= 26 ? 2 : 1;
+  const bayM = Math.min(14.5, Math.max(10.5, (edgeM * 0.55) / nBays));
   const pierEach = (edgeM - nBays * bayM) / (nBays + 1);
   const tAt = (meters: number) => tLo + spanT * (meters / edgeM);
   let cursor = 0;
   for (let i = 0; i < nBays; i++) {
     emitLimestoneLedge(ctx, e, tAt(cursor), tAt(cursor + pierEach), y0, y1, stone, outW);
     cursor += pierEach;
-    emitConcertinaBay(ctx, e, tAt(cursor), tAt(cursor + bayM), y0, y1, stone);
+    const t0 = tAt(cursor);
+    const t1 = tAt(cursor + bayM);
+    emitPunchedFront(ctx, e, t0, t1, y0, y1, outW, stone);
+    emitConcertinaCap(ctx, e, t0, t1, y1, stone);
     cursor += bayM;
   }
   emitLimestoneLedge(ctx, e, tAt(cursor), tHi, y0, y1, stone, outW);
