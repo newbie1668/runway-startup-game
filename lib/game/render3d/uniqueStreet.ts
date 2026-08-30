@@ -954,6 +954,33 @@ function emitFrontSpan(
   emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y1, e.nx, e.nz, hex);
 }
 
+/** Storey-height rake. Not a full-height N-S slab and not a repeating V-accordion. */
+function emitRakeSpan(
+  ctx: StreetEmit,
+  e: Edge,
+  t0: number,
+  t1: number,
+  y0: number,
+  y1: number,
+  out0: number,
+  out1: number,
+  hex: number,
+): void {
+  if (t1 - t0 < 0.008 || y1 - y0 < m(0.12)) return;
+  const a = edgeOut(e, t0, out0);
+  const b = edgeOut(e, t1, out1);
+  let nx = -(b.z - a.z);
+  let nz = b.x - a.x;
+  const nl = Math.hypot(nx, nz) || 1;
+  nx /= nl;
+  nz /= nl;
+  if (nx * e.nx + nz * e.nz < 0) {
+    nx = -nx;
+    nz = -nz;
+  }
+  emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y1, nx, nz, hex);
+}
+
 /** Inset glass in a south front. Reveals are window-height, not full-height N-S fins. */
 function emitShelfWindows(
   ctx: StreetEmit,
@@ -1034,9 +1061,50 @@ function emitShelfWindows(
   }
 }
 
+function emitSlopeFront(
+  ctx: StreetEmit,
+  e: Edge,
+  t0: number,
+  t1: number,
+  yLo: number,
+  yHi: number,
+  outLo: number,
+  outHi: number,
+  hex: number,
+): void {
+  if (t1 - t0 < 0.008 || yHi - yLo < m(0.12)) return;
+  const a = edgeOut(e, t0, outLo);
+  const b = edgeOut(e, t1, outLo);
+  const c = edgeOut(e, t1, outHi);
+  const d = edgeOut(e, t0, outHi);
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const sx = e.nx * (outHi - outLo);
+  const sz = e.nz * (outHi - outLo);
+  const sy = yHi - yLo;
+  let nx = -dz * sy;
+  let ny = dz * sx - dx * sz;
+  let nz = dx * sy;
+  const nl = Math.hypot(nx, ny, nz) || 1;
+  nx /= nl;
+  ny /= nl;
+  nz /= nl;
+  if (nx * e.nx + nz * e.nz < 0) {
+    nx = -nx;
+    ny = -ny;
+    nz = -nz;
+  }
+  const i0 = ctx.pushVertex(a.x, yLo, a.z, nx, ny, nz, hex);
+  const i1 = ctx.pushVertex(b.x, yLo, b.z, nx, ny, nz, hex);
+  const i2 = ctx.pushVertex(c.x, yHi, c.z, nx, ny, nz, hex);
+  const i3 = ctx.pushVertex(d.x, yHi, d.z, nx, ny, nz, hex);
+  ctx.pushTri(i0, i1, i2);
+  ctx.pushTri(i0, i2, i3);
+}
+
 /**
- * One limestone volume on the south street: storey-height, same stone, visible top.
- * Not a V-fold, not a painted course, not a full-height N-S slab.
+ * One limestone volume: trapezoid in plan, storey-height, same stone, exposed top.
+ * Rakes replace N-S returns. Not a painted course and not a full-height accordion.
  */
 function emitStoneShelf(
   ctx: StreetEmit,
@@ -1047,18 +1115,23 @@ function emitStoneShelf(
   y1: number,
   out: number,
 ): void {
-  if (t1 - t0 < 0.05 || y1 - y0 < m(2.4) || out < m(0.8)) return;
+  if (t1 - t0 < 0.08 || y1 - y0 < m(2.4) || out < m(0.8)) return;
   const back = m(0.35);
-  emitShelfWindows(ctx, e, t0, t1, y0, y1, out);
-  const p0 = edgePoint(e, t0);
-  const p1 = edgePoint(e, t1);
-  emitJambReturn(ctx, p0.x, p0.z, e.nx, e.nz, back, out, y0, y1, -e.tx, -e.tz, POULTRY_PINK);
-  emitJambReturn(ctx, p1.x, p1.z, e.nx, e.nz, back, out, y0, y1, e.tx, e.tz, POULTRY_PINK);
+  const rake = Math.min(0.28, (t1 - t0) * 0.26);
+  const tL = t0 + rake;
+  const tR = t1 - rake;
+  const chamferH = Math.min(m(1.9), (y1 - y0) * 0.24);
+  const chamferD = Math.min(m(1.7), out * 0.32);
+  const wallTop = y1 - chamferH;
+  emitRakeSpan(ctx, e, t0, tL, y0, y1, back, out, POULTRY_PINK);
+  emitRakeSpan(ctx, e, tR, t1, y0, y1, out, back, POULTRY_PINK);
+  emitShelfWindows(ctx, e, tL, tR, y0, wallTop, out);
+  emitSlopeFront(ctx, e, tL, tR, wallTop, y1, out, out - chamferD, POULTRY_PINK);
   const a = edgeOut(e, t0, back);
   const b = edgeOut(e, t1, back);
-  const c = edgeOut(e, t1, out);
-  const d = edgeOut(e, t0, out);
-  emitYCap(ctx, d, c, b, a, y1, 1, POULTRY_PINK);
+  const cL = edgeOut(e, tL, out - chamferD);
+  const cR = edgeOut(e, tR, out - chamferD);
+  emitYCap(ctx, cL, cR, b, a, y1, 1, POULTRY_PINK);
 }
 
 function emitStirlingElevation(
@@ -1078,11 +1151,11 @@ function emitStirlingElevation(
   emitLimestoneLedge(ctx, e, tLo, tHi, y0, yMid, stone, m(0.35));
   emitLimestoneLedge(ctx, e, tLo, tHi, yMid, y1, stone, m(0.35));
   if (!fold || edgeM < 14) return;
-  const yB = y0 + (y1 - y0) * 0.52;
-  const yC = y0 + (y1 - y0) * 0.78;
-  emitStoneShelf(ctx, e, tLo + spanT * 0.0, tLo + spanT * 0.78, y0, yB, m(5.6));
-  emitStoneShelf(ctx, e, tLo + spanT * 0.22, tLo + spanT * 1.0, yB, yC, m(3.2));
-  emitStoneShelf(ctx, e, tLo + spanT * 0.08, tLo + spanT * 0.7, yC, y1, m(1.15));
+  const yB = y0 + (y1 - y0) * 0.5;
+  const yC = y0 + (y1 - y0) * 0.76;
+  emitStoneShelf(ctx, e, tLo + spanT * 0.0, tLo + spanT * 0.56, y0, yB, m(6.2));
+  emitStoneShelf(ctx, e, tLo + spanT * 0.4, tLo + spanT * 0.98, yB - m(0.7), yC, m(4.1));
+  emitStoneShelf(ctx, e, tLo + spanT * 0.14, tLo + spanT * 0.68, yC - m(0.5), y1, m(2.3));
 }
 
 /**
