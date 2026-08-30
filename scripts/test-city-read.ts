@@ -1059,13 +1059,15 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
       const r = colors.getX(i);
       const g = colors.getY(i);
       const b = colors.getZ(i);
-      const poultryTint =
+      const wingTint =
         (Math.abs(r - pink.r) < 0.04 &&
           Math.abs(g - pink.g) < 0.04 &&
           Math.abs(b - pink.b) < 0.04) ||
         (Math.abs(r - buff.r) < 0.04 &&
           Math.abs(g - buff.g) < 0.04 &&
-          Math.abs(b - buff.b) < 0.04) ||
+          Math.abs(b - buff.b) < 0.04);
+      const poultryTint =
+        wingTint ||
         (Math.abs(r - wellCol.r) < 0.05 &&
           Math.abs(g - wellCol.g) < 0.05 &&
           Math.abs(b - wellCol.b) < 0.05) ||
@@ -1078,7 +1080,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
       if (d <= 40 && yM > 30 && poultryTint) {
         turretR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
       }
-      if (d <= 40 && yM > 10 && yM < 26 && poultryTint) {
+      if (d <= 40 && yM > 10 && yM < 26 && wingTint) {
         midR.push(Math.hypot(x - poultryCx, z - poultryCz) / METERS_TO_WORLD);
       }
       if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
@@ -1214,7 +1216,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.ok(pinkN > 40 && buffN > 40, `Stirling courses missing pink=${pinkN} buff=${buffN}`);
   assert.ok(
     poultryGlassN > 80,
-    `Stirling window bands missing (glass=${poultryGlassN}) — blank walls are a fail`,
+    `Stirling glazing missing (glass=${poultryGlassN}) — blank walls are a fail`,
   );
   assert.ok(
     poultryClockN > 40,
@@ -1240,9 +1242,15 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
       midR.length > 0 ? midR.reduce((a, v) => a + (v - mean) ** 2, 0) / midR.length : 0;
     const std = Math.sqrt(variance);
     const circ = mean > 0.4 ? 1 - std / mean : 1;
+    const spread = midR.length > 0 ? Math.max(...midR) - Math.min(...midR) : 0;
+    assert.ok(midR.length > 80, `Poultry limestone wings missing at mid-height (n=${midR.length})`);
     assert.ok(
-      circ < 0.76,
+      circ < 0.88,
       `Poultry wings are still a cylinder (circularity=${circ.toFixed(2)}, n=${midR.length})`,
+    );
+    assert.ok(
+      spread > 5,
+      `Poultry concertina has no plan fold (spread=${spread.toFixed(1)} m, n=${midR.length})`,
     );
   }
   assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);
