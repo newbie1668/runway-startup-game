@@ -979,11 +979,33 @@ function emitFoldQuad(
   return f;
 }
 
+function emitCourseLedge(
+  ctx: StreetEmit,
+  e: Edge,
+  t0: number,
+  t1: number,
+  y: number,
+  out0: number,
+  out1: number,
+  hex: number,
+): void {
+  if (t1 - t0 < 0.02) return;
+  const lip = m(0.32);
+  const thick = m(0.36);
+  const f = foldedFace(e, t0, t1, out0, out1);
+  const o0 = { x: f.ax + f.nx * lip, z: f.az + f.nz * lip };
+  const o1 = { x: f.bx + f.nx * lip, z: f.bz + f.nz * lip };
+  const i0 = { x: f.ax, z: f.az };
+  const i1 = { x: f.bx, z: f.bz };
+  emitWallQuad(ctx, o0.x, o0.z, o1.x, o1.z, y - thick, y, f.nx, f.nz, hex);
+  emitYCap(ctx, o0, o1, i1, i0, y, 1, hex);
+}
+
 /**
- * Storey punch in a raked limestone plane. Glass sits back along the rake
- * normal, not along the street normal (that N-S jamb is a hair stick).
+ * Pink and buff limestone courses wrapping a fold. The courses are 3D ledges,
+ * not a dusty-rose accordion paint and not vertical colour bays.
  */
-function emitRakePunch(
+function emitCoursedPlane(
   ctx: StreetEmit,
   e: Edge,
   t0: number,
@@ -992,35 +1014,40 @@ function emitRakePunch(
   y1: number,
   out0: number,
   out1: number,
-  stone: number,
+  punch: boolean,
 ): void {
   const spanT = t1 - t0;
-  const outAt = (t: number) => out0 + (out1 - out0) * ((t - t0) / (spanT || 1));
+  if (spanT < 0.02) return;
+  const n = Math.max(4, Math.round((y1 - y0) / m(2.15)));
+  const h = (y1 - y0) / n;
+  const outAt = (t: number) => out0 + (out1 - out0) * ((t - t0) / spanT);
   const paint = (ta: number, tb: number, ya: number, yb: number, hex: number) =>
     emitFoldQuad(ctx, e, ta, tb, ya, yb, outAt(ta), outAt(tb), hex);
-  const yMid = (y0 + y1) / 2;
   const winH = m(3.9);
-  const sill = y0 + m(6.4);
+  const sill = y0 + m(6.2);
   const head = sill + winH;
-  if (head + m(1.6) >= y1 || spanT < 0.03) {
-    paint(t0, t1, y0, yMid, stone);
-    paint(t0, t1, yMid, y1, stone);
-    return;
+  const doPunch = punch && head + m(1.4) < y1 && spanT > 0.03;
+  const tL = t0 + spanT * 0.18;
+  const tR = t1 - spanT * 0.18;
+  for (let i = 0; i < n; i++) {
+    const ya = y0 + i * h;
+    const yb = y0 + (i + 1) * h;
+    const hex = i % 2 === 0 ? POULTRY_PINK : POULTRY_BUFF;
+    if (!doPunch) {
+      paint(t0, t1, ya, yb, hex);
+    } else {
+      paint(t0, tL, ya, yb, hex);
+      paint(tR, t1, ya, yb, hex);
+      if (yb <= sill + 1e-6 || ya >= head - 1e-6) {
+        paint(tL, tR, ya, yb, hex);
+      } else {
+        if (ya < sill) paint(tL, tR, ya, Math.min(yb, sill), hex);
+        if (yb > head) paint(tL, tR, Math.max(ya, head), yb, hex);
+      }
+    }
+    if (i < n - 1) emitCourseLedge(ctx, e, t0, t1, yb, out0, out1, hex);
   }
-  const pierU = 0.18;
-  const tL = t0 + spanT * pierU;
-  const tR = t1 - spanT * pierU;
-  paint(t0, tL, y0, yMid, stone);
-  paint(t0, tL, yMid, y1, stone);
-  paint(tR, t1, y0, yMid, stone);
-  paint(tR, t1, yMid, y1, stone);
-  paint(tL, tR, y0, sill, stone);
-  if (yMid > head + m(0.4) && yMid < y1 - m(0.4)) {
-    paint(tL, tR, head, yMid, stone);
-    paint(tL, tR, yMid, y1, stone);
-  } else {
-    paint(tL, tR, head, y1, stone);
-  }
+  if (!doPunch) return;
   const glassIn = m(1.15);
   const tM = (tL + tR) / 2;
   const yM = (sill + head) / 2;
@@ -1051,8 +1078,6 @@ function emitRakePunch(
   const rakeDx = whole.bx - whole.ax;
   const rakeDz = whole.bz - whole.az;
   const rakeLen = Math.hypot(rakeDx, rakeDz) || 1;
-  const rtx = rakeDx / rakeLen;
-  const rtz = rakeDz / rakeLen;
   emitWallQuad(
     ctx,
     pL.x,
@@ -1061,8 +1086,8 @@ function emitRakePunch(
     pL.z - whole.nz * glassIn,
     sill,
     head,
-    rtx,
-    rtz,
+    rakeDx / rakeLen,
+    rakeDz / rakeLen,
     POULTRY_MORTAR,
   );
   emitWallQuad(
@@ -1073,53 +1098,44 @@ function emitRakePunch(
     pR.z - whole.nz * glassIn,
     sill,
     head,
-    -rtx,
-    -rtz,
+    -rakeDx / rakeLen,
+    -rakeDz / rakeLen,
     POULTRY_MORTAR,
   );
+  const sillHex = Math.floor((sill - y0) / h) % 2 === 0 ? POULTRY_PINK : POULTRY_BUFF;
   const sillOut = m(0.35);
-  const s0 = {
-    x: pL.x + whole.nx * sillOut,
-    z: pL.z + whole.nz * sillOut,
-  };
-  const s1 = {
-    x: pR.x + whole.nx * sillOut,
-    z: pR.z + whole.nz * sillOut,
-  };
-  emitWallQuad(ctx, s0.x, s0.z, s1.x, s1.z, sill - m(0.32), sill, whole.nx, whole.nz, stone);
-  emitYCap(ctx, s0, s1, pR, pL, sill, -1, stone);
+  const s0 = { x: pL.x + whole.nx * sillOut, z: pL.z + whole.nz * sillOut };
+  const s1 = { x: pR.x + whole.nx * sillOut, z: pR.z + whole.nz * sillOut };
+  emitWallQuad(ctx, s0.x, s0.z, s1.x, s1.z, sill - m(0.32), sill, whole.nx, whole.nz, sillHex);
+  emitYCap(ctx, s0, s1, pR, pL, sill, -1, sillHex);
 }
 
 /**
- * One projecting limestone bay: two raked cheeks and a short south nose.
- * Not a wall-length accordion, not an N-S side slab, not a wide trapezoid box.
- * Roof of the volume sits at wall height.
+ * One fold of the street concertina: raked limestone with wrapping courses.
+ * A short south nose kills the 1 px ridge. No N-S slab, no cap above the wall.
  */
-function emitProjectingBay(
+function emitStoneFold(
   ctx: StreetEmit,
   e: Edge,
   t0: number,
   t1: number,
   y0: number,
   y1: number,
-  stone: number,
 ): void {
   const out0 = m(0.4);
-  const out1 = m(4.8);
-  const noseU = 0.18;
+  const out1 = m(4.6);
+  const noseU = 0.12;
   const tL = t0 + (t1 - t0) * (0.5 - noseU / 2);
   const tR = t1 - (t1 - t0) * (0.5 - noseU / 2);
-  emitRakePunch(ctx, e, t0, tL, y0, y1, out0, out1, stone);
-  emitRakePunch(ctx, e, tR, t1, y0, y1, out1, out0, stone);
-  const yMid = (y0 + y1) / 2;
-  emitFoldQuad(ctx, e, tL, tR, y0, yMid, out1, out1, stone);
-  emitFoldQuad(ctx, e, tL, tR, yMid, y1, out1, out1, stone);
+  emitCoursedPlane(ctx, e, t0, tL, y0, y1, out0, out1, true);
+  emitCoursedPlane(ctx, e, tL, tR, y0, y1, out1, out1, false);
+  emitCoursedPlane(ctx, e, tR, t1, y0, y1, out1, out0, true);
   const a = edgeOut(e, t0, out0);
   const nL = edgeOut(e, tL, out1);
   const nR = edgeOut(e, tR, out1);
   const b = edgeOut(e, t1, out0);
-  emitYCap(ctx, a, nL, nR, b, y1, 1, stone);
-  emitYCap(ctx, a, b, nR, nL, y0, -1, stone);
+  emitYCap(ctx, a, nL, nR, b, y1, 1, POULTRY_BUFF);
+  emitYCap(ctx, a, b, nR, nL, y0, -1, POULTRY_BUFF);
 }
 
 function emitStirlingElevation(
@@ -1135,28 +1151,16 @@ function emitStirlingElevation(
   const spanT = tHi - tLo;
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
-  const outW = m(0.4);
   const yMid = (y0 + y1) / 2;
-  const ledge = (ta: number, tb: number) => {
-    emitLimestoneLedge(ctx, e, ta, tb, y0, yMid, stone, outW);
-    emitLimestoneLedge(ctx, e, ta, tb, yMid, y1, stone, outW);
-  };
   if (!fold || edgeM < 14) {
-    ledge(tLo, tHi);
+    emitLimestoneLedge(ctx, e, tLo, tHi, y0, yMid, stone, m(0.4));
+    emitLimestoneLedge(ctx, e, tLo, tHi, yMid, y1, stone, m(0.4));
     return;
   }
-  const nBays = edgeM >= 36 ? 2 : 1;
-  const bayM = Math.min(13.2, Math.max(12.0, (edgeM * 0.48) / nBays));
-  const pierEach = (edgeM - nBays * bayM) / (nBays + 1);
-  const tAt = (meters: number) => tLo + spanT * (meters / edgeM);
-  let cursor = 0;
-  for (let i = 0; i < nBays; i++) {
-    ledge(tAt(cursor), tAt(cursor + pierEach));
-    cursor += pierEach;
-    emitProjectingBay(ctx, e, tAt(cursor), tAt(cursor + bayM), y0, y1, stone);
-    cursor += bayM;
+  const nFolds = edgeM >= 40 ? 4 : 3;
+  for (let f = 0; f < nFolds; f++) {
+    emitStoneFold(ctx, e, tLo + (spanT * f) / nFolds, tLo + (spanT * (f + 1)) / nFolds, y0, y1);
   }
-  ledge(tAt(cursor), tHi);
 }
 
 /**
@@ -1491,15 +1495,15 @@ function emitPoultryWalls(ctx: StreetEmit): void {
     // Only the south street. West-wall folds sit N-S and read as roof sticks.
     const fold = e.nz > 0.55;
     if (e.i === ePrev.i) {
-      emitStirlingElevation(ctx, e, 0, 0.62, arcadeH, H, POULTRY_PINK, fold);
+      emitStirlingElevation(ctx, e, 0, 0.62, arcadeH, H, POULTRY_BUFF, fold);
     } else if (e.i === eNext.i) {
-      emitStirlingElevation(ctx, e, 0.38, 1, arcadeH, H, POULTRY_PINK, fold);
+      emitStirlingElevation(ctx, e, 0.38, 1, arcadeH, H, POULTRY_BUFF, fold);
     } else {
-      emitStirlingElevation(ctx, e, 0, 1, arcadeH, H, POULTRY_PINK, fold);
+      emitStirlingElevation(ctx, e, 0, 1, arcadeH, H, POULTRY_BUFF, fold);
     }
   }
-  emitLimestoneLedge(ctx, ePrev, 0.62, 1, vTop, H, POULTRY_PINK, m(0.25));
-  emitLimestoneLedge(ctx, eNext, 0, 0.38, vTop, H, POULTRY_PINK, m(0.25));
+  emitLimestoneLedge(ctx, ePrev, 0.62, 1, vTop, H, POULTRY_BUFF, m(0.25));
+  emitLimestoneLedge(ctx, eNext, 0, 0.38, vTop, H, POULTRY_BUFF, m(0.25));
 
   const wellR = poultryWellR(ctx.plan);
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);
