@@ -1039,6 +1039,8 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let poultryMortarN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
+  let apexPinkN = 0;
+  let apexEastPinkN = 0;
   const highR: number[] = [];
   const turretR: number[] = [];
   const midR: number[] = [];
@@ -1048,6 +1050,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     if (!mesh) continue;
     const pos = mesh.geometry.getAttribute('position');
     const colors = mesh.geometry.getAttribute('color');
+    const nrm = mesh.geometry.getAttribute('normal');
     if (!pos || !colors) continue;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -1118,6 +1121,17 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - pink.b) < 0.04
         ) {
           pinkN += 1;
+          const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
+          if (dApex < 10 && yM > 6 && yM < 48) {
+            apexPinkN += 1;
+            if (
+              nrm &&
+              Math.abs(nrm.getX(i)) > 0.85 &&
+              Math.abs(nrm.getY(i)) < 0.25
+            ) {
+              apexEastPinkN += 1;
+            }
+          }
         }
         if (
           Math.abs(r - buff.r) < 0.04 &&
@@ -1235,7 +1249,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     const turretNear = turretR.filter((r) => r > 3 && r < 12);
     assert.ok(
       turretNear.length > 24,
-      `Stirling prow lantern missing at the apex (lantern=${turretNear.length})`,
+      `Stirling prow missing at the apex (prow=${turretNear.length})`,
     );
     const mean = midR.length > 0 ? midR.reduce((a, v) => a + v, 0) / midR.length : 0;
     const variance =
@@ -1256,6 +1270,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);
   assert.ok(holeRoof < 12, `Poultry courtyard well is roofed over (${holeRoof} hole verts)`);
   assert.ok(stickN < 8, `Poultry bands stick through the facade (${stickN} verts)`);
+  assert.ok(
+    apexPinkN < 8 || apexEastPinkN / apexPinkN < 0.22,
+    `Poultry prow still has N-S limestone poles at the apex (eastFacing=${apexEastPinkN}/${apexPinkN})`,
+  );
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
   assert.ok(
     jewryMidN > 20 && jewryHighN > 20,
