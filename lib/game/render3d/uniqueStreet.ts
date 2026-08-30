@@ -1022,11 +1022,11 @@ function emitProwFold(
 ): { tPrev: number; tFlank: number } {
   const prevM = ePrev.len / METERS_TO_WORLD;
   const flankM = eFlank.len / METERS_TO_WORLD;
-  const tPrev = 1 - Math.min(17, prevM * 0.4) / Math.max(prevM, 1);
-  const tFlank = Math.min(15, flankM * 0.32) / Math.max(flankM, 1);
+  const tPrev = 1 - Math.min(26, prevM * 0.58) / Math.max(prevM, 1);
+  const tFlank = Math.min(22, flankM * 0.46) / Math.max(flankM, 1);
   const left = edgeOut(ePrev, tPrev, m(0.4));
   const right = edgeOut(eFlank, tFlank, m(0.4));
-  const tip = { x: apex.x + hx * m(6.2), z: apex.z + hz * m(6.2) };
+  const tip = { x: apex.x + hx * m(7.0), z: apex.z + hz * m(7.0) };
   const cheek = (a: StreetPt, b: StreetPt) => {
     let nx = -(b.z - a.z);
     let nz = b.x - a.x;
@@ -1072,7 +1072,7 @@ function emitProwFold(
       POULTRY_GLASS,
     );
   }
-  const clockY = y1 - m(5.5);
+  const clockY = y1 - m(3.2);
   const faceR = m(2.3);
   for (const f of [fA, fB]) {
     if (f.nz < 0.38) continue;
@@ -1321,7 +1321,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const bl = Math.hypot(bx, bz) || 1;
   bx /= bl;
   bz /= bl;
-  const fold = emitProwFold(ctx, ePrev, eFlank, apex, bx, bz, 0, H + m(15));
+  const fold = emitProwFold(ctx, ePrev, eFlank, apex, bx, bz, 0, H + m(6));
 
   for (const e of edges) {
     if (stub(e)) continue;
