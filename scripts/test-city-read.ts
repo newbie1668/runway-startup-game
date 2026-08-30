@@ -1074,7 +1074,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         (Math.abs(r - roofCol.r) < 0.05 &&
           Math.abs(g - roofCol.g) < 0.05 &&
           Math.abs(b - roofCol.b) < 0.05);
-      if (d <= 40 && yM > 36 && poultryTint) {
+      if (d <= 40 && yM > 32 && poultryTint) {
         highR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
       }
       if (d <= 40 && yM > 30 && poultryTint) {
@@ -1213,14 +1213,14 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     }
   }
   assert.ok(near > 200, `No 1 Poultry mesh missing (${near} verts)`);
-  assert.ok(pinkN > 40 && buffN > 40, `Stirling courses missing pink=${pinkN} buff=${buffN}`);
+  assert.ok(pinkN > 40 && buffN > 40, `Stirling pink limestone / yellow clock hoods missing pink=${pinkN} buff=${buffN}`);
   assert.ok(
     poultryGlassN > 80,
     `Stirling glazing missing (glass=${poultryGlassN}) — blank walls are a fail`,
   );
   assert.ok(
     poultryClockN > 40,
-    `Poultry clock faces missing (clock=${poultryClockN}) — blank drum is a fail`,
+    `Poultry clock faces missing (clock=${poultryClockN})`,
   );
   assert.ok(
     poultryClockProwN > 24,
@@ -1235,7 +1235,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     const turretNear = turretR.filter((r) => r > 3 && r < 12);
     assert.ok(
       turretNear.length > 24,
-      `Stirling clock turret missing at the prow (turret=${turretNear.length})`,
+      `Stirling prow lantern missing at the apex (lantern=${turretNear.length})`,
     );
     const mean = midR.length > 0 ? midR.reduce((a, v) => a + v, 0) / midR.length : 0;
     const variance =
