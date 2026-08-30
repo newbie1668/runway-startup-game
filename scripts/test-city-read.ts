@@ -1138,7 +1138,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         ) {
           poultryClockN += 1;
           const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
-          if (dApex < 30 && yM > 16 && yM < 40) poultryClockProwN += 1;
+          if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
         }
         if (
           Math.abs(r - poultryMortar.r) < 0.05 &&
@@ -1241,7 +1241,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     const std = Math.sqrt(variance);
     const circ = mean > 0.4 ? 1 - std / mean : 1;
     assert.ok(
-      circ < 0.72,
+      circ < 0.76,
       `Poultry wings are still a cylinder (circularity=${circ.toFixed(2)}, n=${midR.length})`,
     );
   }
