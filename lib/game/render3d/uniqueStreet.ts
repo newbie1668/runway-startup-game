@@ -935,88 +935,99 @@ function foldedFace(
   return { ax, az, bx, bz, nx, nz };
 }
 
-function emitFoldTop(
-  ctx: StreetEmit,
-  f: { ax: number; az: number; bx: number; bz: number; nx: number; nz: number },
-  y: number,
-  stone: number,
-): void {
-  const inset = m(1.8);
-  const i0 = ctx.pushVertex(f.ax, y, f.az, 0, 1, 0, stone);
-  const i1 = ctx.pushVertex(f.bx, y, f.bz, 0, 1, 0, stone);
-  const i2 = ctx.pushVertex(f.bx - f.nx * inset, y, f.bz - f.nz * inset, 0, 1, 0, stone);
-  const i3 = ctx.pushVertex(f.ax - f.nx * inset, y, f.az - f.nz * inset, 0, 1, 0, stone);
-  ctx.pushTri(i0, i1, i2);
-  ctx.pushTri(i0, i2, i3);
-  emitWallQuad(ctx, f.ax, f.az, f.bx, f.bz, y, y + m(0.55), f.nx, f.nz, stone);
+function edgeOut(e: Edge, t: number, out: number): { x: number; z: number } {
+  const p = edgePoint(e, t);
+  return { x: p.x + e.nx * out, z: p.z + e.nz * out };
 }
 
-/**
- * One limestone plane of a V. Optional storey-height punch: one window,
- * not a full-height glass strip and not a vertical colour bay.
- */
-function emitFoldPlane(
+function emitYCap(
+  ctx: StreetEmit,
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+  c: { x: number; z: number },
+  d: { x: number; z: number },
+  y: number,
+  ny: number,
+  stone: number,
+): void {
+  const i0 = ctx.pushVertex(a.x, y, a.z, 0, ny, 0, stone);
+  const i1 = ctx.pushVertex(b.x, y, b.z, 0, ny, 0, stone);
+  const i2 = ctx.pushVertex(c.x, y, c.z, 0, ny, 0, stone);
+  const i3 = ctx.pushVertex(d.x, y, d.z, 0, ny, 0, stone);
+  if (ny > 0) {
+    ctx.pushTri(i0, i1, i2);
+    ctx.pushTri(i0, i2, i3);
+  } else {
+    ctx.pushTri(i0, i2, i1);
+    ctx.pushTri(i0, i3, i2);
+  }
+}
+
+function emitOutQuad(
   ctx: StreetEmit,
   e: Edge,
   t0: number,
   t1: number,
   y0: number,
   y1: number,
-  out0: number,
-  out1: number,
-  stone: number,
-  window: boolean,
+  out: number,
+  hex: number,
 ): void {
-  const outAt = (t: number) => out0 + (out1 - out0) * ((t - t0) / (t1 - t0 || 1));
-  const paint = (ta: number, tb: number, ya: number, yb: number, hex: number) => {
-    const f = foldedFace(e, ta, tb, outAt(ta), outAt(tb));
-    emitWallQuad(ctx, f.ax, f.az, f.bx, f.bz, ya, yb, f.nx, f.nz, hex);
-    return f;
-  };
-  const whole = foldedFace(e, t0, t1, out0, out1);
-  emitFoldTop(ctx, whole, y1, stone);
+  const a = edgeOut(e, t0, out);
+  const b = edgeOut(e, t1, out);
+  emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y1, e.nx, e.nz, hex);
+}
+
+/**
+ * One storey punch in a street-parallel limestone front. Not a full-height
+ * glass strip and not a hairline mullion.
+ */
+function emitPunchedFront(
+  ctx: StreetEmit,
+  e: Edge,
+  tL: number,
+  tR: number,
+  y0: number,
+  y1: number,
+  out: number,
+  stone: number,
+): void {
   const winH = m(3.9);
   const sill = y0 + m(5.0);
   const head = sill + winH;
-  const punch = window && head + m(1.4) < y1 && t1 - t0 > 0.03;
-  if (!punch) {
-    emitWallQuad(ctx, whole.ax, whole.az, whole.bx, whole.bz, y0, y1, whole.nx, whole.nz, stone);
+  if (head + m(1.6) >= y1 || tR - tL < 0.02) {
+    emitOutQuad(ctx, e, tL, tR, y0, y1, out, stone);
     return;
   }
-  const pierU = 0.2;
-  const tL = t0 + (t1 - t0) * pierU;
-  const tR = t1 - (t1 - t0) * pierU;
-  const tM = (tL + tR) / 2;
-  const mull = (tR - tL) * 0.08;
+  const pierU = 0.18;
+  const tA = tL + (tR - tL) * pierU;
+  const tB = tR - (tR - tL) * pierU;
+  emitOutQuad(ctx, e, tL, tA, y0, y1, out, stone);
+  emitOutQuad(ctx, e, tB, tR, y0, y1, out, stone);
+  emitOutQuad(ctx, e, tA, tB, y0, sill, out, stone);
+  emitOutQuad(ctx, e, tA, tB, head, y1, out, stone);
+  const glassIn = m(0.9);
+  const tM = (tA + tB) / 2;
   const yM = (sill + head) / 2;
-  const trans = m(0.22);
-  paint(t0, tL, y0, y1, stone);
-  paint(tR, t1, y0, y1, stone);
-  paint(tL, tR, y0, sill, stone);
-  paint(tL, tR, head, y1, stone);
-  paint(tM - mull, tM + mull, sill, head, stone);
-  paint(tL, tR, yM - trans, yM + trans, stone);
-  const glassIn = m(0.75);
   const panes: Array<[number, number, number, number]> = [
-    [tL, tM - mull, sill, yM - trans],
-    [tM + mull, tR, sill, yM - trans],
-    [tL, tM - mull, yM + trans, head],
-    [tM + mull, tR, yM + trans, head],
+    [tA, tM, sill, yM],
+    [tM, tB, sill, yM],
+    [tA, tM, yM, head],
+    [tM, tB, yM, head],
   ];
   for (const [ta, tb, ya, yb] of panes) {
-    const g = foldedFace(e, ta, tb, outAt(ta) - glassIn, outAt(tb) - glassIn);
-    emitWallQuad(ctx, g.ax, g.az, g.bx, g.bz, ya, yb, g.nx, g.nz, POULTRY_GLASS);
+    emitOutQuad(ctx, e, ta, tb, ya, yb, out - glassIn, POULTRY_GLASS);
   }
-  const pL = edgePoint(e, tL);
-  const pR = edgePoint(e, tR);
+  const pL = edgePoint(e, tA);
+  const pR = edgePoint(e, tB);
   emitJambReturn(
     ctx,
     pL.x,
     pL.z,
     e.nx,
     e.nz,
-    outAt(tL),
-    outAt(tL) - glassIn,
+    out,
+    out - glassIn,
     sill,
     head,
     e.tx,
@@ -1029,54 +1040,52 @@ function emitFoldPlane(
     pR.z,
     e.nx,
     e.nz,
-    outAt(tR),
-    outAt(tR) - glassIn,
+    out,
+    out - glassIn,
     sill,
     head,
     -e.tx,
     -e.tz,
     POULTRY_MORTAR,
   );
-  const sillFace = foldedFace(e, tL, tR, outAt(tL), outAt(tR));
-  const sillOut = m(0.38);
-  emitWallQuad(
-    ctx,
-    sillFace.ax + sillFace.nx * sillOut,
-    sillFace.az + sillFace.nz * sillOut,
-    sillFace.bx + sillFace.nx * sillOut,
-    sillFace.bz + sillFace.nz * sillOut,
-    sill - m(0.32),
-    sill,
-    sillFace.nx,
-    sillFace.nz,
-    stone,
-  );
+  const s0 = edgeOut(e, tA, out + m(0.4));
+  const s1 = edgeOut(e, tB, out + m(0.4));
+  const s2 = edgeOut(e, tB, out);
+  const s3 = edgeOut(e, tA, out);
+  emitWallQuad(ctx, s0.x, s0.z, s1.x, s1.z, sill - m(0.32), sill, e.nx, e.nz, stone);
+  emitYCap(ctx, s0, s1, s2, s3, sill, -1, stone);
 }
 
-function emitFoldArris(
+/**
+ * One concertina fold: street-parallel limestone front, steep returns, roof
+ * slab. Not a wrapping V-rake and not a full-height arris stick.
+ */
+function emitConcertinaBay(
   ctx: StreetEmit,
   e: Edge,
-  t: number,
+  t0: number,
+  t1: number,
   y0: number,
   y1: number,
-  out: number,
-  size: number,
   stone: number,
 ): void {
-  const p = edgePoint(e, t);
-  ctx.pushOrientedBox(
-    p.x + e.nx * out,
-    y0,
-    p.z + e.nz * out,
-    size,
-    y1 - y0 + m(0.55),
-    size,
-    e.tx,
-    e.tz,
-    e.nx,
-    e.nz,
-    stone,
-  );
+  const outW = m(0.25);
+  const outF = m(4.6);
+  const tMid = (t0 + t1) / 2;
+  const frontHalf = (t1 - t0) * 0.25;
+  const tL = tMid - frontHalf;
+  const tR = tMid + frontHalf;
+  const w0 = edgeOut(e, t0, outW);
+  const fL = edgeOut(e, tL, outF);
+  const fR = edgeOut(e, tR, outF);
+  const w1 = edgeOut(e, t1, outW);
+  const left = foldedFace(e, t0, tL, outW, outF);
+  emitWallQuad(ctx, left.ax, left.az, left.bx, left.bz, y0, y1, left.nx, left.nz, stone);
+  const right = foldedFace(e, tR, t1, outF, outW);
+  emitWallQuad(ctx, right.ax, right.az, right.bx, right.bz, y0, y1, right.nx, right.nz, stone);
+  emitPunchedFront(ctx, e, tL, tR, y0, y1, outF, stone);
+  emitYCap(ctx, fL, fR, w1, w0, y1, 1, stone);
+  emitYCap(ctx, fL, w0, w1, fR, y0, -1, stone);
 }
 
 function emitStirlingElevation(
@@ -1091,24 +1100,23 @@ function emitStirlingElevation(
   const spanT = tHi - tLo;
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
-  if (edgeM < 4.2) {
-    emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, m(1.2));
+  const outW = m(0.25);
+  if (edgeM < 7.5) {
+    emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, outW);
     return;
   }
-  // One V per ~5 m: ridge + solid return + one punched window. Not a whole-bay rake.
-  const folds = Math.max(3, Math.min(7, Math.round(edgeM / 5.0)));
-  const outLo = m(0.2);
-  const outHi = m(3.3);
-  for (let f = 0; f < folds; f++) {
-    const t0 = tLo + (spanT * f) / folds;
-    const t1 = tLo + (spanT * (f + 1)) / folds;
-    const tMid = (t0 + t1) / 2;
-    emitFoldPlane(ctx, e, t0, tMid, y0, y1, outLo, outHi, stone, true);
-    emitFoldPlane(ctx, e, tMid, t1, y0, y1, outHi, outLo, stone, false);
-    emitFoldArris(ctx, e, tMid, y0, y1, outHi, m(0.9), stone);
-    emitFoldArris(ctx, e, t0, y0, y1, outLo, m(0.4), stone);
-    if (f === folds - 1) emitFoldArris(ctx, e, t1, y0, y1, outLo, m(0.4), stone);
+  const nBays = edgeM >= 28 ? 3 : edgeM >= 16 ? 2 : 1;
+  const bayM = Math.min(8.8, Math.max(6.0, (edgeM * 0.58) / nBays));
+  const pierEach = (edgeM - nBays * bayM) / (nBays + 1);
+  const tAt = (meters: number) => tLo + spanT * (meters / edgeM);
+  let cursor = 0;
+  for (let i = 0; i < nBays; i++) {
+    emitLimestoneLedge(ctx, e, tAt(cursor), tAt(cursor + pierEach), y0, y1, stone, outW);
+    cursor += pierEach;
+    emitConcertinaBay(ctx, e, tAt(cursor), tAt(cursor + bayM), y0, y1, stone);
+    cursor += bayM;
   }
+  emitLimestoneLedge(ctx, e, tAt(cursor), tHi, y0, y1, stone, outW);
 }
 
 /**
@@ -1445,8 +1453,8 @@ function emitPoultryWalls(ctx: StreetEmit): void {
       emitStirlingElevation(ctx, e, 0, 1, arcadeH, H, POULTRY_PINK);
     }
   }
-  emitStirlingElevation(ctx, ePrev, 0.62, 1, vTop, H, POULTRY_PINK);
-  emitStirlingElevation(ctx, eNext, 0, 0.38, vTop, H, POULTRY_PINK);
+  emitLimestoneLedge(ctx, ePrev, 0.62, 1, vTop, H, POULTRY_PINK, m(0.25));
+  emitLimestoneLedge(ctx, eNext, 0, 0.38, vTop, H, POULTRY_PINK, m(0.25));
 
   const wellR = poultryWellR(ctx.plan);
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);
