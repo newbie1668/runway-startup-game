@@ -938,22 +938,6 @@ function emitYCap(
   }
 }
 
-function emitYTri(
-  ctx: StreetEmit,
-  a: { x: number; z: number },
-  b: { x: number; z: number },
-  c: { x: number; z: number },
-  y: number,
-  ny: number,
-  stone: number,
-): void {
-  const i0 = ctx.pushVertex(a.x, y, a.z, 0, ny, 0, stone);
-  const i1 = ctx.pushVertex(b.x, y, b.z, 0, ny, 0, stone);
-  const i2 = ctx.pushVertex(c.x, y, c.z, 0, ny, 0, stone);
-  if (ny > 0) ctx.pushTri(i0, i1, i2);
-  else ctx.pushTri(i0, i2, i1);
-}
-
 type FoldedFace = {
   ax: number;
   az: number;
@@ -1107,9 +1091,9 @@ function emitRakePunch(
 }
 
 /**
- * One limestone fold of the street concertina. Two raked faces meet at an
- * outward ridge. No street-parallel trapezoid front, no N-S side slab (those
- * read as roof fins from the south isometric), no cap above wall height.
+ * One projecting limestone bay: two raked cheeks and a short south nose.
+ * Not a wall-length accordion, not an N-S side slab, not a wide trapezoid box.
+ * Roof of the volume sits at wall height.
  */
 function emitProjectingBay(
   ctx: StreetEmit,
@@ -1121,15 +1105,21 @@ function emitProjectingBay(
   stone: number,
 ): void {
   const out0 = m(0.4);
-  const outRidge = m(5.2);
-  const tMid = (t0 + t1) / 2;
-  emitRakePunch(ctx, e, t0, tMid, y0, y1, out0, outRidge, stone);
-  emitRakePunch(ctx, e, tMid, t1, y0, y1, outRidge, out0, stone);
+  const out1 = m(4.8);
+  const noseU = 0.18;
+  const tL = t0 + (t1 - t0) * (0.5 - noseU / 2);
+  const tR = t1 - (t1 - t0) * (0.5 - noseU / 2);
+  emitRakePunch(ctx, e, t0, tL, y0, y1, out0, out1, stone);
+  emitRakePunch(ctx, e, tR, t1, y0, y1, out1, out0, stone);
+  const yMid = (y0 + y1) / 2;
+  emitFoldQuad(ctx, e, tL, tR, y0, yMid, out1, out1, stone);
+  emitFoldQuad(ctx, e, tL, tR, yMid, y1, out1, out1, stone);
   const a = edgeOut(e, t0, out0);
-  const ridge = edgeOut(e, tMid, outRidge);
+  const nL = edgeOut(e, tL, out1);
+  const nR = edgeOut(e, tR, out1);
   const b = edgeOut(e, t1, out0);
-  emitYTri(ctx, a, ridge, b, y1, 1, stone);
-  emitYTri(ctx, a, b, ridge, y0, -1, stone);
+  emitYCap(ctx, a, nL, nR, b, y1, 1, stone);
+  emitYCap(ctx, a, b, nR, nL, y0, -1, stone);
 }
 
 function emitStirlingElevation(
@@ -1146,16 +1136,27 @@ function emitStirlingElevation(
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
   const outW = m(0.4);
-  if (!fold || edgeM < 12) {
-    emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, outW);
+  const yMid = (y0 + y1) / 2;
+  const ledge = (ta: number, tb: number) => {
+    emitLimestoneLedge(ctx, e, ta, tb, y0, yMid, stone, outW);
+    emitLimestoneLedge(ctx, e, ta, tb, yMid, y1, stone, outW);
+  };
+  if (!fold || edgeM < 14) {
+    ledge(tLo, tHi);
     return;
   }
-  const nFolds = Math.max(1, Math.min(3, Math.round(edgeM / 16)));
-  for (let f = 0; f < nFolds; f++) {
-    const t0 = tLo + (spanT * f) / nFolds;
-    const t1 = tLo + (spanT * (f + 1)) / nFolds;
-    emitProjectingBay(ctx, e, t0, t1, y0, y1, stone);
+  const nBays = edgeM >= 36 ? 2 : 1;
+  const bayM = Math.min(13.2, Math.max(12.0, (edgeM * 0.48) / nBays));
+  const pierEach = (edgeM - nBays * bayM) / (nBays + 1);
+  const tAt = (meters: number) => tLo + spanT * (meters / edgeM);
+  let cursor = 0;
+  for (let i = 0; i < nBays; i++) {
+    ledge(tAt(cursor), tAt(cursor + pierEach));
+    cursor += pierEach;
+    emitProjectingBay(ctx, e, tAt(cursor), tAt(cursor + bayM), y0, y1, stone);
+    cursor += bayM;
   }
+  ledge(tAt(cursor), tHi);
 }
 
 /**
@@ -1487,9 +1488,8 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   emitWallBand(ctx, shop, 0, arcadeH * 0.82, POULTRY_SHOP, 0);
 
   for (const e of edges) {
-    // Cheapside-north folds only show as a roof hat from the south camera.
-    // Street volume is the south/west edges the isometric actually sees.
-    const fold = e.nz > -0.45;
+    // Only the south street. West-wall folds sit N-S and read as roof sticks.
+    const fold = e.nz > 0.55;
     if (e.i === ePrev.i) {
       emitStirlingElevation(ctx, e, 0, 0.62, arcadeH, H, POULTRY_PINK, fold);
     } else if (e.i === eNext.i) {
