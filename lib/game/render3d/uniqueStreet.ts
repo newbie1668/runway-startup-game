@@ -1060,8 +1060,8 @@ function emitProjectingBay(
     const dx = pB.x - pA.x;
     const dz = pB.z - pA.z;
     const alen = Math.hypot(dx, dz) || 1;
-    let txs = dx / alen;
-    let tzs = dz / alen;
+    const txs = dx / alen;
+    const tzs = dz / alen;
     let nxs = -tzs;
     let nzs = txs;
     if (nxs * e.nx + nzs * e.nz < 0) {
