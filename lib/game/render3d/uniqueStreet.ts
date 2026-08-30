@@ -1107,10 +1107,9 @@ function emitRakePunch(
 }
 
 /**
- * One triangular limestone bay on the street volume. Two raked faces meet at
- * an outward ridge so Lambert can shade the concertina. No street-parallel
- * front (that paints as a flat box), no raised roof zigzag, no full-height
- * N-S return.
+ * One limestone fold of the street concertina. Two raked faces meet at an
+ * outward ridge. No street-parallel trapezoid front, no N-S side slab (those
+ * read as roof fins from the south isometric), no cap above wall height.
  */
 function emitProjectingBay(
   ctx: StreetEmit,
@@ -1121,8 +1120,8 @@ function emitProjectingBay(
   y1: number,
   stone: number,
 ): void {
-  const out0 = m(0.45);
-  const outRidge = m(6.8);
+  const out0 = m(0.4);
+  const outRidge = m(5.2);
   const tMid = (t0 + t1) / 2;
   emitRakePunch(ctx, e, t0, tMid, y0, y1, out0, outRidge, stone);
   emitRakePunch(ctx, e, tMid, t1, y0, y1, outRidge, out0, stone);
@@ -1141,27 +1140,22 @@ function emitStirlingElevation(
   y0: number,
   y1: number,
   stone: number,
+  fold: boolean,
 ): void {
   const spanT = tHi - tLo;
   if (spanT < 0.04) return;
   const edgeM = (e.len * spanT) / METERS_TO_WORLD;
-  const outW = m(0.45);
-  if (edgeM < 12) {
+  const outW = m(0.4);
+  if (!fold || edgeM < 12) {
     emitLimestoneLedge(ctx, e, tLo, tHi, y0, y1, stone, outW);
     return;
   }
-  const nBays = edgeM >= 28 ? 2 : 1;
-  const bayM = Math.min(14.5, Math.max(11.0, (edgeM * 0.68) / nBays));
-  const pierEach = (edgeM - nBays * bayM) / (nBays + 1);
-  const tAt = (meters: number) => tLo + spanT * (meters / edgeM);
-  let cursor = 0;
-  for (let i = 0; i < nBays; i++) {
-    emitLimestoneLedge(ctx, e, tAt(cursor), tAt(cursor + pierEach), y0, y1, stone, outW);
-    cursor += pierEach;
-    emitProjectingBay(ctx, e, tAt(cursor), tAt(cursor + bayM), y0, y1, stone);
-    cursor += bayM;
+  const nFolds = Math.max(1, Math.min(3, Math.round(edgeM / 16)));
+  for (let f = 0; f < nFolds; f++) {
+    const t0 = tLo + (spanT * f) / nFolds;
+    const t1 = tLo + (spanT * (f + 1)) / nFolds;
+    emitProjectingBay(ctx, e, t0, t1, y0, y1, stone);
   }
-  emitLimestoneLedge(ctx, e, tAt(cursor), tHi, y0, y1, stone, outW);
 }
 
 /**
@@ -1493,12 +1487,15 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   emitWallBand(ctx, shop, 0, arcadeH * 0.82, POULTRY_SHOP, 0);
 
   for (const e of edges) {
+    // Cheapside-north folds only show as a roof hat from the south camera.
+    // Street volume is the south/west edges the isometric actually sees.
+    const fold = e.nz > -0.45;
     if (e.i === ePrev.i) {
-      emitStirlingElevation(ctx, e, 0, 0.62, arcadeH, H, POULTRY_PINK);
+      emitStirlingElevation(ctx, e, 0, 0.62, arcadeH, H, POULTRY_PINK, fold);
     } else if (e.i === eNext.i) {
-      emitStirlingElevation(ctx, e, 0.38, 1, arcadeH, H, POULTRY_PINK);
+      emitStirlingElevation(ctx, e, 0.38, 1, arcadeH, H, POULTRY_PINK, fold);
     } else {
-      emitStirlingElevation(ctx, e, 0, 1, arcadeH, H, POULTRY_PINK);
+      emitStirlingElevation(ctx, e, 0, 1, arcadeH, H, POULTRY_PINK, fold);
     }
   }
   emitLimestoneLedge(ctx, ePrev, 0.62, 1, vTop, H, POULTRY_PINK, m(0.25));
