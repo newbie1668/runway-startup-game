@@ -45,6 +45,7 @@ import {
   poultryWellR,
   STREET_UNIQUE_PINS,
   streetUniqueAt,
+  streetUniqueBlocksStock,
 } from '../lib/game/render3d/uniqueStreet';
 import { CameraRig, ISO_PITCH_DEG } from '../lib/game/render3d/cameraRig';
 import {
@@ -865,6 +866,7 @@ check('Cheapside stock is unique meshes from each footprint, not one office cost
     }
     const areaM2 = (Math.abs(acc) * 0.5) / (METERS_TO_WORLD * METERS_TO_WORLD);
     const [lng, lat] = unproject(cx, cz);
+    if (streetUniqueAt(lng, lat)) continue;
     const district = districtAt(lng, lat);
     const style = restyleForDistrict(
       resolveStyle(b.style, b.heightM, areaM2),
@@ -956,6 +958,12 @@ check('acute and courtyard plans get stand-out massing, not a shared setback box
   assert.notEqual(recipeFingerprint(a), recipeFingerprint(b));
 });
 
+check('No 1 Poultry is locked off uniqueStockRecipe (wedge-step, ribbon, bays)', () => {
+  assert.equal(streetUniqueBlocksStock('no-1-poultry'), true);
+  assert.equal(streetUniqueBlocksStock('the-ned'), false);
+  assert.equal(streetUniqueBlocksStock(null), false);
+});
+
 check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () => {
   assert.equal(streetUniqueAt(-0.09087, 51.51339), 'no-1-poultry');
   assert.equal(streetUniqueAt(-0.08996, 51.51374), 'the-ned');
@@ -1044,6 +1052,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let nedGlassN = 0;
   let apexPinkN = 0;
   let apexEastPinkN = 0;
+  let southGlassN = 0;
+  let poultrySouthZ = -Infinity;
+  let clockSouthZ = -Infinity;
   const highR: number[] = [];
   const turretR: number[] = [];
   const midR: number[] = [];
@@ -1116,6 +1127,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         const r = colors.getX(i);
         const g = colors.getY(i);
         const b = colors.getZ(i);
+        if (wingTint) poultrySouthZ = Math.max(poultrySouthZ, z);
         if (
           Math.abs(r - pink.r) < 0.04 &&
           Math.abs(g - pink.g) < 0.04 &&
@@ -1143,6 +1155,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - poultryGlass.b) < 0.04
         ) {
           poultryGlassN += 1;
+          if (nrm && yM > 6 && yM < 32 && nrm.getZ(i) > 0.72 && dC < 32 * METERS_TO_WORLD) {
+            southGlassN += 1;
+          }
         }
         if (
           Math.abs(r - poultryClock.r) < 0.04 &&
@@ -1150,6 +1165,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - poultryClock.b) < 0.04
         ) {
           poultryClockN += 1;
+          if (yM > 16 && yM < 90) clockSouthZ = Math.max(clockSouthZ, z);
           const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
           if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
         }
@@ -1278,6 +1294,17 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.ok(
     apexPinkN < 8 || apexEastPinkN / apexPinkN < 0.22,
     `Poultry prow still has N-S limestone poles at the apex (eastFacing=${apexEastPinkN}/${apexPinkN})`,
+  );
+  {
+    const southGapM = (poultrySouthZ - clockSouthZ) / METERS_TO_WORLD;
+    assert.ok(
+      southGapM < 8,
+      `Poultry clock turret is behind the south silhouette (gap=${southGapM.toFixed(1)} m)`,
+    );
+  }
+  assert.ok(
+    southGlassN < 40,
+    `Poultry still has a south black-wedge glass wall (southGlass=${southGlassN})`,
   );
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
   assert.ok(

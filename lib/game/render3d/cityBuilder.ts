@@ -654,6 +654,37 @@ export function buildChunkTier(
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
     const plan = analyzeFootprint(ring, METERS_TO_WORLD);
+    if (streetKind === 'no-1-poultry') {
+      const heightWorld = b.heightM * METERS_TO_WORLD * extrusionScale(style, b.heightM, district);
+      const streetEmit: StreetEmit = {
+        ring,
+        plan,
+        heightWorld,
+        emitRingWalls: () => undefined,
+        pushBox,
+        pushOrientedBox,
+        pushVertex,
+        pushTri: (i0, i1, i2) => {
+          indices.push(i0, i1, i2);
+        },
+        outwardNormal,
+      };
+      emitStreetUniqueWalls(streetKind, streetEmit);
+      if (scratch) {
+        scratch.picks.push({
+          x: cx,
+          z: cz,
+          heightWorld,
+          heightM: b.heightM,
+          areaM2,
+          style,
+          district,
+          label: STREET_UNIQUE_LABEL[streetKind].use,
+          address: STREET_UNIQUE_LABEL[streetKind].name,
+        });
+      }
+      continue;
+    }
     const recipe = uniqueStockRecipe({
       plan,
       heightM: b.heightM,

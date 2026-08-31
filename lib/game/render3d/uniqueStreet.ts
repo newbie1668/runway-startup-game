@@ -140,6 +140,15 @@ export function streetUniqueAt(lng: number, lat: number): StreetUniqueId | null 
   return best;
 }
 
+/**
+ * No. 1 Poultry is a dedicated Stirling mesh (same class as uniqueNoticed):
+ * bake-time still to stand-out volumes. uniqueStockRecipe (wedge-step, ribbon,
+ * accordion, projecting bays) must never run for this address.
+ */
+export function streetUniqueBlocksStock(kind: StreetUniqueId | null): boolean {
+  return kind === 'no-1-poultry';
+}
+
 export type StreetPt = { x: number; z: number };
 
 export type StreetWallOpts = {
@@ -553,52 +562,6 @@ function emitAnnularRoof(
   }
 }
 
-/** Map each outer edge onto the well circle. Skip verts already inside so concave spikes cannot form. */
-function emitAnnularRoofRadial(
-  ctx: StreetRoofEmit,
-  outer: StreetPt[],
-  wellR: number,
-  y: number,
-  hex: number,
-  holes: readonly { x: number; z: number; r: number }[] = [],
-  skipNear: StreetPt | null = null,
-  skipR = 0,
-): void {
-  const { cx, cz } = ctx.plan;
-  const pad = m(0.4);
-  const n = outer.length;
-  for (let i = 0; i < n; i++) {
-    const a = outer[i]!;
-    const b = outer[(i + 1) % n]!;
-    if (
-      skipNear &&
-      skipR > 0 &&
-      Math.hypot(a.x - skipNear.x, a.z - skipNear.z) < skipR &&
-      Math.hypot(b.x - skipNear.x, b.z - skipNear.z) < skipR
-    ) {
-      continue;
-    }
-    const ra = Math.hypot(a.x - cx, a.z - cz);
-    const rb = Math.hypot(b.x - cx, b.z - cz);
-    if (ra <= wellR + pad || rb <= wellR + pad) continue;
-    const iax = cx + ((a.x - cx) / ra) * wellR;
-    const iaz = cz + ((a.z - cz) / ra) * wellR;
-    const ibx = cx + ((b.x - cx) / rb) * wellR;
-    const ibz = cz + ((b.z - cz) / rb) * wellR;
-    let skip = false;
-    for (const h of holes) {
-      if (quadHitsDisk(a, b, { x: ibx, z: ibz }, { x: iax, z: iaz }, h)) skip = true;
-    }
-    if (skip) continue;
-    const i0 = ctx.pushVertex(a.x, y, a.z, 0, 1, 0, hex);
-    const i1 = ctx.pushVertex(b.x, y, b.z, 0, 1, 0, hex);
-    const i2 = ctx.pushVertex(ibx, y, ibz, 0, 1, 0, hex);
-    const i3 = ctx.pushVertex(iax, y, iaz, 0, 1, 0, hex);
-    ctx.pushTri(i0, i1, i2);
-    ctx.pushTri(i0, i2, i3);
-  }
-}
-
 function emitInPlanePortal(
   ctx: StreetEmit,
   e: Edge,
@@ -833,47 +796,6 @@ function porticoPoint(e: Edge, t: number, out: number): StreetPt {
   };
 }
 
-function pointInTri(
-  px: number,
-  pz: number,
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  cx: number,
-  cz: number,
-): boolean {
-  const sign = (x1: number, z1: number, x2: number, z2: number, x3: number, z3: number) =>
-    (x1 - x3) * (z2 - z3) - (x2 - x3) * (z1 - z3);
-  const b1 = sign(px, pz, ax, az, bx, bz) < 0;
-  const b2 = sign(px, pz, bx, bz, cx, cz) < 0;
-  const b3 = sign(px, pz, cx, cz, ax, az) < 0;
-  return b1 === b2 && b2 === b3;
-}
-
-function quadHitsDisk(a: StreetPt, b: StreetPt, c: StreetPt, d: StreetPt, disk: Disk): boolean {
-  const r = disk.r;
-  if (Math.hypot(a.x - disk.x, a.z - disk.z) < r) return true;
-  if (Math.hypot(b.x - disk.x, b.z - disk.z) < r) return true;
-  if (Math.hypot(c.x - disk.x, c.z - disk.z) < r) return true;
-  if (Math.hypot(d.x - disk.x, d.z - disk.z) < r) return true;
-  if (distPointToSeg(disk.x, disk.z, a.x, a.z, b.x, b.z) < r) return true;
-  if (distPointToSeg(disk.x, disk.z, b.x, b.z, c.x, c.z) < r) return true;
-  if (distPointToSeg(disk.x, disk.z, c.x, c.z, d.x, d.z) < r) return true;
-  if (distPointToSeg(disk.x, disk.z, d.x, d.z, a.x, a.z) < r) return true;
-  const mx = (a.x + b.x + c.x + d.x) / 4;
-  const mz = (a.z + b.z + c.z + d.z) / 4;
-  if (Math.hypot(mx - disk.x, mz - disk.z) < r) return true;
-  if (pointInTri(disk.x, disk.z, a.x, a.z, b.x, b.z, c.x, c.z)) return true;
-  if (pointInTri(disk.x, disk.z, a.x, a.z, c.x, c.z, d.x, d.z)) return true;
-  return false;
-}
-
-function edgeOut(e: Edge, t: number, out: number): { x: number; z: number } {
-  const p = edgePoint(e, t);
-  return { x: p.x + e.nx * out, z: p.z + e.nz * out };
-}
-
 function outwardOf(a: StreetPt, b: StreetPt, cx: number, cz: number): [number, number] {
   let nx = b.z - a.z;
   let nz = -(b.x - a.x);
@@ -993,29 +915,6 @@ function emitStripedPier(
   emitStripedWall(ctx, c1, c2, y0, y1, tx, tz, false);
   emitStripedWall(ctx, c2, c3, y0, y1, nx, nz, false);
   emitStripedWall(ctx, c3, c0, y0, y1, -tx, -tz, false);
-}
-
-function bulgePoly(
-  a: StreetPt,
-  b: StreetPt,
-  nx: number,
-  nz: number,
-  bulge: number,
-  segs: number,
-  cx: number,
-  cz: number,
-  maxR: number,
-): StreetPt[] {
-  const pts: StreetPt[] = [];
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs;
-    const raw: StreetPt = {
-      x: a.x + (b.x - a.x) * t + nx * bulge * Math.sin(Math.PI * t),
-      z: a.z + (b.z - a.z) * t + nz * bulge * Math.sin(Math.PI * t),
-    };
-    pts.push(clampToPlate(raw, cx, cz, maxR));
-  }
-  return pts;
 }
 
 function emitCornice(
@@ -1338,83 +1237,93 @@ function emitProwArch(
   }
 }
 
-function nearApexStub(e: Edge, apex: StreetPt): boolean {
-  const lenM = e.len / METERS_TO_WORLD;
-  const aM = Math.hypot(e.a.x - apex.x, e.a.z - apex.z) / METERS_TO_WORLD;
-  const bM = Math.hypot(e.b.x - apex.x, e.b.z - apex.z) / METERS_TO_WORLD;
-  return lenM < 8 && aM < 10 && bM < 10;
-}
-
-function hairReturn(e: Edge): boolean {
-  const lenM = e.len / METERS_TO_WORLD;
-  return lenM < 8 && Math.abs(e.nx) > 0.82;
-}
-
+/**
+ * Dedicated Stirling volumes. The OSM ring is a keep-disk only. Never
+ * walked as concertina, ribbon, wedge-step, or cat-ear bays.
+ */
 function emitPoultryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
-  const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-  const edges = edgesOf(ctx, ctx.ring);
-  const n = edges.length;
-  const apexI = ctx.plan.apexIndex;
-  const ePrev = edges[(apexI + n - 1) % n]!;
-  const eFlank =
-    edges.find((e) => e.i !== ePrev.i && e.nz > 0.4 && e.len / METERS_TO_WORLD > 20) ??
-    edges[(apexI + 2) % n]!;
-  const maxR = plateMaxR(ctx.ring, cx, cz) + m(6.2);
-  const clamp = (p: StreetPt) => clampToPlate(p, cx, cz, maxR);
+  const keepR = plateMaxR(ctx.ring, cx, cz) - m(1.2);
+  const clamp = (p: StreetPt) => clampToPlate(p, cx, cz, keepR);
+  const arcadeH = m(5.8);
 
-  const arcadeH = m(5.6);
-  const tip = clamp({ x: apex.x + m(0.8), z: apex.z + m(5.8) });
-  const curveFar = eFlank.b;
-  const curveNear = clamp(edgeOut(eFlank, 0.22, m(0.12)));
-  const prowFoot = clamp(edgeOut(ePrev, 0.7, m(0.12)));
+  const tur = clamp({ x: cx + m(16), z: cz + m(22) });
+  const tip = clamp({ x: cx + m(30), z: cz + m(21) });
+  const west = clamp({ x: cx - m(22), z: cz + m(18) });
+  const cheek = clamp({ x: tur.x - m(8.4), z: cz + m(21.5) });
 
-  const curve = bulgePoly(curveFar, curveNear, eFlank.nx, eFlank.nz, m(4.0), 7, cx, cz, maxR);
-  for (let i = 0; i < curve.length - 1; i++) {
-    const a = curve[i]!;
-    const b = curve[i + 1]!;
+  const bulge = m(5.4);
+  const mx = (west.x + cheek.x) / 2;
+  const mz = (west.z + cheek.z) / 2;
+  const chord = Math.hypot(cheek.x - west.x, cheek.z - west.z);
+  const arcR = bulge / 2 + (chord * chord) / (8 * bulge);
+  const [onx, onz] = outwardOf(west, cheek, cx, cz);
+  const arcC = { x: mx - onx * (arcR - bulge), z: mz - onz * (arcR - bulge) };
+  const tWest = Math.atan2(west.z - arcC.z, west.x - arcC.x);
+  const tCheek = Math.atan2(cheek.z - arcC.z, cheek.x - arcC.x);
+  let dt = tCheek - tWest;
+  while (dt > Math.PI) dt -= Math.PI * 2;
+  while (dt < -Math.PI) dt += Math.PI * 2;
+  const segs = 18;
+  const rIn = arcR - m(7.4);
+  const outer: StreetPt[] = [];
+  const inner: StreetPt[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = tWest + dt * (i / segs);
+    outer.push(clamp({ x: arcC.x + Math.cos(t) * arcR, z: arcC.z + Math.sin(t) * arcR }));
+    inner.push(clamp({ x: arcC.x + Math.cos(t) * rIn, z: arcC.z + Math.sin(t) * rIn }));
+  }
+
+  for (let i = 0; i < segs; i++) {
+    const a = outer[i]!;
+    const b = outer[i + 1]!;
+    const ia = inner[i]!;
+    const ib = inner[i + 1]!;
     const [nx, nz] = outwardOf(a, b, cx, cz);
     emitStripedWall(ctx, a, b, 0, arcadeH, nx, nz, false);
     emitStripedWall(ctx, a, b, arcadeH, H, nx, nz, true);
+    emitWallQuad(ctx, ib.x, ib.z, ia.x, ia.z, 0, H, -nx, -nz, POULTRY_WELL);
     const span = Math.hypot(b.x - a.x, b.z - a.z);
-    if (span > m(5.5)) {
+    if (i % 2 === 0 && span > m(4.2)) {
       const mid = lerpPt(a, b, 0.5);
       const tx = (b.x - a.x) / span;
       const tz = (b.z - a.z) / span;
-      const half = m(1.05);
+      const half = m(1.14);
       emitStripedPier(ctx, mid.x + nx * half, mid.z + nz * half, 0, arcadeH, half, tx, tz, nx, nz);
     }
+    const r0 = ctx.pushVertex(a.x, H, a.z, 0, 1, 0, POULTRY_ROOF);
+    const r1 = ctx.pushVertex(b.x, H, b.z, 0, 1, 0, POULTRY_ROOF);
+    const r2 = ctx.pushVertex(ib.x, H, ib.z, 0, 1, 0, POULTRY_ROOF);
+    const r3 = ctx.pushVertex(ia.x, H, ia.z, 0, 1, 0, POULTRY_ROOF);
+    ctx.pushTri(r0, r1, r2);
+    ctx.pushTri(r0, r2, r3);
   }
 
-  const [cNx, cNz] = outwardOf(curveNear, tip, cx, cz);
-  const [pNx, pNz] = outwardOf(prowFoot, tip, cx, cz);
-  emitStripedWall(ctx, curveNear, tip, 0, H, cNx, cNz, false);
-  emitStripedWall(ctx, prowFoot, tip, 0, H, pNx, pNz, false);
-  emitProwArch(ctx, tip, 0, 1, 0, m(7.2));
+  const o0 = outer[0]!;
+  const i0 = inner[0]!;
+  const [wNx, wNz] = outwardOf(o0, i0, cx, cz);
+  emitStripedWall(ctx, o0, i0, 0, H, wNx, wNz, false);
 
-  const g0 = lerpPt(ePrev.a, ePrev.b, 0.02);
-  const g1 = lerpPt(ePrev.a, ePrev.b, 0.52);
-  const gin = m(8.2);
-  emitGlassCurtain(
-    ctx,
-    { x: g0.x - ePrev.nx * gin, z: g0.z - ePrev.nz * gin },
-    { x: g1.x - ePrev.nx * gin, z: g1.z - ePrev.nz * gin },
-    arcadeH,
-    H,
-    ePrev.nx,
-    ePrev.nz,
-  );
-
-  const tur = clamp({ x: apex.x + m(0.4), z: apex.z + m(3.2) });
-  emitStirlingTurret(ctx, tur.x, tur.z, H - m(0.4), H + m(18));
-
-  for (const e of edges) {
-    if (nearApexStub(e, apex) || hairReturn(e)) continue;
-    if (e.i === ePrev.i || e.i === eFlank.i) continue;
-    if (e.len / METERS_TO_WORLD < 5) continue;
-    emitStripedWall(ctx, e.a, e.b, 0, H, e.nx, e.nz, false);
+  const innerEast = inner[segs]!;
+  const [pNx, pNz] = outwardOf(cheek, tip, cx, cz);
+  emitStripedWall(ctx, cheek, tip, 0, H, pNx, pNz, false);
+  const [nNx, nNz] = outwardOf(tip, innerEast, cx, cz);
+  emitStripedWall(ctx, tip, innerEast, 0, H, nNx, nNz, false);
+  {
+    const a = ctx.pushVertex(cheek.x, H, cheek.z, 0, 1, 0, POULTRY_ROOF);
+    const b = ctx.pushVertex(tip.x, H, tip.z, 0, 1, 0, POULTRY_ROOF);
+    const c = ctx.pushVertex(innerEast.x, H, innerEast.z, 0, 1, 0, POULTRY_ROOF);
+    ctx.pushTri(a, b, c);
   }
+  const dir = Math.hypot(tip.x - tur.x, tip.z - tur.z) || 1;
+  emitProwArch(ctx, tip, (tip.x - tur.x) / dir, (tip.z - tur.z) / dir, 0, m(7.4));
+
+  const g0 = clamp({ x: tur.x + m(1.4), z: tur.z - m(8) });
+  const g1 = clamp({ x: tur.x + m(1.4), z: tur.z - m(20) });
+  emitGlassCurtain(ctx, g0, g1, arcadeH, H + m(2.4), 1, 0);
+
+  emitStirlingTurret(ctx, tur.x, tur.z, H * 0.48, H + m(22));
 
   const wellR = poultryWellR(ctx.plan);
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);
@@ -1879,8 +1788,6 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
     outwardNormal: ctx.outwardNormal,
   };
   if (kind === 'no-1-poultry') {
-    const well = insetRingTowardCentroid(ctx.ring, cx, cz, poultryWellR(ctx.plan));
-    emitAnnularRoof(ctx, ctx.ring, well, H, POULTRY_ROOF);
     return;
   }
   if (kind === 'the-ned') {
