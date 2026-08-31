@@ -58,8 +58,8 @@ export const STREET_UNIQUE_LABEL: Record<StreetUniqueId, { name: string; use: st
 };
 
 /** Rose-pink and yellow Portland limestone courses (Stirling, not a painted ribbon). */
-export const POULTRY_BUFF = 0xe8d4a4;
-export const POULTRY_PINK = 0xd8a0a8;
+export const POULTRY_BUFF = 0xf0dc9a;
+export const POULTRY_PINK = 0xe0909a;
 export const POULTRY_GLASS = 0x2a4050;
 export const POULTRY_SHOP = 0x3a322c;
 export const POULTRY_ROOF = 0x5a625c;
@@ -919,7 +919,7 @@ function emitStripedWall(
   const span = Math.hypot(b.x - a.x, b.z - a.z);
   if (span < m(0.4)) return;
   const along = (t: number): StreetPt => lerpPt(a, b, t);
-  const course = m(0.92);
+  const course = m(2.15);
   const yWin0 = y0 + (y1 - y0) * 0.3;
   const yWin1 = y0 + (y1 - y0) * 0.76;
   let y = y0;
@@ -928,7 +928,7 @@ function emitStripedWall(
     const yb = Math.min(y + course, y1);
     const buff = i % 2 === 1;
     const hex = buff ? POULTRY_BUFF : POULTRY_PINK;
-    const out = buff ? m(0.18) : m(0.05);
+    const out = buff ? m(0.38) : m(0.06);
     const mortar = Math.min(m(0.07), (yb - y) * 0.14);
     const yStone = yb - mortar;
     const ax = a.x + nx * out;
@@ -1087,7 +1087,7 @@ function emitGlassCurtain(
       emitWallQuad(ctx, qa.x, qa.z, qb.x, qb.z, ya, yb, nx, nz, POULTRY_GLASS);
     }
   }
-  const mull = m(0.16);
+  const mull = m(0.4);
   for (let c = 0; c <= cols; c++) {
     const t = c / cols;
     const q = lerpPt({ x: gx0, z: gz0 }, { x: gx1, z: gz1 }, t);
@@ -1095,11 +1095,11 @@ function emitGlassCurtain(
       x: q.x + (gx1 - gx0) * (mull / Math.max(span, m(1))),
       z: q.z + (gz1 - gz0) * (mull / Math.max(span, m(1))),
     };
-    emitWallQuad(ctx, q.x, q.z, q2.x, q2.z, y0, y1, nx, nz, POULTRY_MORTAR);
+    emitWallQuad(ctx, q.x, q.z, q2.x, q2.z, y0, y1, nx, nz, POULTRY_METAL);
   }
   for (let r = 0; r <= rows; r++) {
     const y = y0 + ((y1 - y0) * r) / rows;
-    emitWallQuad(ctx, gx0, gz0, gx1, gz1, y, y + m(0.14), nx, nz, POULTRY_MORTAR);
+    emitWallQuad(ctx, gx0, gz0, gx1, gz1, y, y + m(0.28), nx, nz, POULTRY_METAL);
   }
   emitCornice(ctx, a, b, y1, nx, nz, m(1.7), m(1.15), POULTRY_PINK);
 }
@@ -1119,13 +1119,13 @@ function emitDarkClock(
   const tx = -nz;
   const tz = nx;
   const segs = 24;
-  const out = m(0.2);
+  const out = m(0.45);
   const ox = nx * out;
   const oz = nz * out;
   const c = ctx.pushVertex(px + ox, py, pz + oz, nx, 0, nz, POULTRY_CLOCK);
   const inner: number[] = [];
   const outer: number[] = [];
-  const rim = faceR + m(0.18);
+  const rim = faceR + m(0.32);
   for (let s = 0; s < segs; s++) {
     const t = (s / segs) * Math.PI * 2;
     const cp = Math.cos(t);
@@ -1199,8 +1199,8 @@ function emitDarkClock(
     );
     ctx.pushTri(i0, i1, i2);
   };
-  hand(faceR * 0.5, Math.PI * 0.28, m(0.22));
-  hand(faceR * 0.78, -Math.PI * 0.12, m(0.12));
+  hand(faceR * 0.55, Math.PI * 0.28, m(0.42));
+  hand(faceR * 0.82, -Math.PI * 0.12, m(0.28));
   const hubR = faceR * 0.1;
   const hub = ctx.pushVertex(px + hox, py, pz + hoz, nx, 0, nz, POULTRY_CLOCK_HAND);
   const hubN = 8;
@@ -1238,20 +1238,7 @@ function emitTurretBalcony(
   const tz = nx;
   const px = cx + nx * (radius + m(1.05));
   const pz = cz + nz * (radius + m(1.05));
-  ctx.pushOrientedBox(px, y, pz, m(1.4), m(0.32), m(2.1), tx, tz, nx, nz, POULTRY_METAL);
-  ctx.pushOrientedBox(
-    px + nx * m(0.15),
-    y + m(0.32),
-    pz + nz * m(0.15),
-    m(1.25),
-    m(0.85),
-    m(0.12),
-    tx,
-    tz,
-    nx,
-    nz,
-    POULTRY_GLASS,
-  );
+  ctx.pushOrientedBox(px, y, pz, m(1.8), m(0.42), m(2.4), tx, tz, nx, nz, POULTRY_METAL);
 }
 
 function emitStirlingTurret(
@@ -1263,9 +1250,9 @@ function emitStirlingTurret(
   faceX: number,
   faceZ: number,
 ): void {
-  const R = m(3.45);
+  const R = m(4.8);
   const segs = 18;
-  const course = m(0.82);
+  const course = m(1.85);
   let y = y0;
   let i = 0;
   while (y + m(0.05) < y1) {
@@ -1291,7 +1278,7 @@ function emitStirlingTurret(
   pushDisk(ctx, cx, y1, cz, R + m(0.12), POULTRY_PINK, segs);
   const ang = Math.atan2(faceZ, faceX);
   const clockY = y0 + (y1 - y0) * 0.4;
-  const clockR = m(1.85);
+  const clockR = m(2.85);
   const clockOn = (a: number) =>
     emitDarkClock(
       ctx,
@@ -1446,7 +1433,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
 
   emitFoldedCheek(ctx, curveNear, tip, 0, H, cx, cz, false);
   emitFoldedCheek(ctx, glassNear, tip, 0, H, cx, cz, false);
-  emitProwArch(ctx, tip, bx, bz, 0, m(4.4));
+  emitProwArch(ctx, tip, bx, bz, 0, m(6.2));
 
   const tur = clamp({
     x: apex.x + (cx - apex.x) * 0.08,
