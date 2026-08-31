@@ -826,7 +826,10 @@ function emitFlatFan(ctx: StreetEmit, pts: StreetPt[], y: number, hex: number): 
   const c = ctx.pushVertex(cx, y, cz, 0, 1, 0, hex);
   const ids = pts.map((p) => ctx.pushVertex(p.x, y, p.z, 0, 1, 0, hex));
   for (let i = 0; i < ids.length; i++) {
-    ctx.pushTri(c, ids[i]!, ids[(i + 1) % ids.length]!);
+    const a = ids[i]!;
+    const b = ids[(i + 1) % ids.length]!;
+    ctx.pushTri(c, a, b);
+    ctx.pushTri(c, b, a);
   }
 }
 
@@ -1145,7 +1148,7 @@ function emitTurretBalcony(
 }
 
 function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number, y1: number): void {
-  const R = m(6.4);
+  const R = m(5.4);
   const segs = 20;
   const course = m(1.9);
   let y = y0;
@@ -1173,7 +1176,7 @@ function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number,
   pushDisk(ctx, cx, y1 + m(0.1), cz, R * 0.55, POULTRY_PINK, segs);
   const south = Math.PI / 2;
   const clockY = y0 + (y1 - y0) * 0.38;
-  emitDarkClock(ctx, cx, clockY, cz + R + m(0.25), 0, 1, m(3.6));
+  emitDarkClock(ctx, cx, clockY, cz + R + m(0.25), 0, 1, m(5.2));
   emitDarkClock(
     ctx,
     cx + Math.cos(south - 0.7) * (R + m(0.18)),
@@ -1181,7 +1184,7 @@ function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number,
     cz + Math.sin(south - 0.7) * (R + m(0.18)),
     Math.cos(south - 0.7),
     Math.sin(south - 0.7),
-    m(2.8),
+    m(3.4),
   );
   const by = y1 - m(2.4);
   emitTurretBalcony(ctx, cx, cz, by, south + Math.PI * 0.25, R);
@@ -1253,16 +1256,12 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const { cx, cz } = ctx.plan;
   const arcadeH = m(6.2);
 
-  const tip = { x: cx + m(5), z: cz + m(28) };
-  const left = { x: cx - m(8), z: cz + m(12) };
-  const right = { x: cx + m(18), z: cz + m(12) };
-  const tur = { x: cx + m(5), z: cz + m(16) };
-  const wing: StreetPt[] = [
-    left,
-    { x: cx - m(18), z: cz + m(6) },
-    { x: cx - m(26), z: cz - m(2) },
-    { x: cx - m(28), z: cz - m(12) },
-  ];
+  const tip = { x: cx + m(5), z: cz + m(30) };
+  const left = { x: cx - m(12), z: cz + m(10) };
+  const right = { x: cx + m(20), z: cz + m(10) };
+  const tur = { x: cx + m(5), z: cz + m(17) };
+  const wingEnd = { x: cx - m(22), z: cz + m(4) };
+  const wing: StreetPt[] = [left, wingEnd];
 
   const [lNx, lNz] = outwardOf(left, tip, cx, cz);
   const [rNx, rNz] = outwardOf(tip, right, cx, cz);
@@ -1270,7 +1269,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   emitStripedWall(ctx, left, tip, arcadeH, H, lNx, lNz, true);
   emitStripedWall(ctx, tip, right, 0, arcadeH, rNx, rNz, false);
   emitGlassCurtain(ctx, tip, right, arcadeH, H + m(2.8), rNx, rNz);
-  emitProwArch(ctx, tip, 0, 1, 0, m(6.4));
+  emitProwArch(ctx, tip, 0, 1, 0, m(8.2));
   emitCornice(ctx, left, tip, H, lNx, lNz, m(1.4), m(1.0), POULTRY_PINK);
 
   for (let i = 0; i < wing.length - 1; i++) {
@@ -1291,7 +1290,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   }
 
   emitFlatFan(ctx, [left, tip, right], H, POULTRY_BUFF);
-  emitFlatFan(ctx, wing, H, POULTRY_BUFF);
+  emitFlatFan(ctx, [left, wingEnd, { x: left.x, z: wingEnd.z }], H, POULTRY_BUFF);
   emitStirlingTurret(ctx, tur.x, tur.z, arcadeH, H + m(24));
 
   const wellR = poultryWellR(ctx.plan);
