@@ -29,7 +29,6 @@ const MANIFEST = path.join(OUT_DIR, 'manifest.json');
 const ID = 'no-1-poultry';
 /** Stirling body + clock turret. Playtime does not apply tower Y-scale. */
 const HEIGHT_M = 42;
-const BODY_M = 28;
 const EXCLUSION_M = 24;
 /** citystreet azimuth — camera sits south-southeast, looking north. */
 const VIEW_AZ = 0.22;
@@ -188,58 +187,6 @@ function geoFrom(pos: number[], nrm: number[], col: number[], idx: number[]): TH
   return geo;
 }
 
-function pushBox(
-  pos: number[],
-  nrm: number[],
-  col: number[],
-  idx: number[],
-  cx: number,
-  cy: number,
-  cz: number,
-  hx: number,
-  hy: number,
-  hz: number,
-  rgb: [number, number, number],
-  yaw: number,
-): void {
-  const c = Math.cos(yaw);
-  const s = Math.sin(yaw);
-  const corners: Array<[number, number, number]> = [
-    [-hx, -hy, -hz],
-    [hx, -hy, -hz],
-    [hx, hy, -hz],
-    [-hx, hy, -hz],
-    [-hx, -hy, hz],
-    [hx, -hy, hz],
-    [hx, hy, hz],
-    [-hx, hy, hz],
-  ];
-  const world = corners.map(([x, y, z]) => {
-    const rx = x * c + z * s;
-    const rz = -x * s + z * c;
-    return [cx + rx, cy + y, cz + rz] as [number, number, number];
-  });
-  const faces: Array<{ a: number; b: number; c: number; d: number; n: [number, number, number] }> =
-    [
-      { a: 0, b: 1, c: 2, d: 3, n: [s, 0, c] },
-      { a: 5, b: 4, c: 7, d: 6, n: [-s, 0, -c] },
-      { a: 4, b: 0, c: 3, d: 7, n: [-c, 0, s] },
-      { a: 1, b: 5, c: 6, d: 2, n: [c, 0, -s] },
-      { a: 3, b: 2, c: 6, d: 7, n: [0, 1, 0] },
-      { a: 4, b: 5, c: 1, d: 0, n: [0, -1, 0] },
-    ];
-  for (const f of faces) {
-    const base = pos.length / 3;
-    const pts = [world[f.a]!, world[f.b]!, world[f.c]!, world[f.d]!];
-    for (const p of pts) {
-      pos.push(p[0], p[1], p[2]);
-      nrm.push(f.n[0], f.n[1], f.n[2]);
-      col.push(rgb[0], rgb[1], rgb[2]);
-    }
-    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-  }
-}
-
 function buildPhotoMesh(
   still: StillPixels,
   viewX: number,
@@ -256,10 +203,10 @@ function buildPhotoMesh(
   const bh = still.maxY - still.minY + 1;
   const worldH = HEIGHT_M * METERS_TO_WORLD;
   const pixH = worldH / bh;
-  const pixW = pixH * 1.85;
+  const pixW = pixH * 2.35;
   const hx = pixW * 0.52;
   const hy = pixH * 0.52;
-  const pad = 0.55 * METERS_TO_WORLD;
+  const pad = 0.85 * METERS_TO_WORLD;
   for (const [x, y, r, g, b] of still.pixels) {
     const lx = (x - still.minX + 0.5 - bw / 2) * pixW;
     const ly = (bh - (y - still.minY + 0.5)) * pixH;
@@ -291,7 +238,7 @@ function buildVolume(
   still: StillPixels,
 ): { body: THREE.Mesh; roof: THREE.Mesh } {
   const r = toCcw(ring);
-  const H = BODY_M * METERS_TO_WORLD;
+  const H = HEIGHT_M * METERS_TO_WORLD;
   const pos: number[] = [];
   const nrm: number[] = [];
   const col: number[] = [];
@@ -342,132 +289,6 @@ function buildVolume(
   return { body, roof };
 }
 
-function buildTurret(
-  ring: Array<[number, number]>,
-  still: StillPixels,
-  viewX: number,
-  viewZ: number,
-  rightX: number,
-  rightZ: number,
-): THREE.Mesh {
-  let prow: [number, number] = ring[0]!;
-  let best = -Infinity;
-  for (const p of ring) {
-    const east = p[0];
-    const south = p[0] * viewX + p[1] * viewZ;
-    const score = east * 1.4 + south;
-    if (score > best) {
-      best = score;
-      prow = p;
-    }
-  }
-  const pos: number[] = [];
-  const nrm: number[] = [];
-  const col: number[] = [];
-  const idx: number[] = [];
-  const r = 4.2 * METERS_TO_WORLD;
-  const y0 = 16 * METERS_TO_WORLD;
-  const y1 = HEIGHT_M * METERS_TO_WORLD;
-  const tx = prow[0] - viewX * 1.2 * METERS_TO_WORLD;
-  const tz = prow[1] - viewZ * 1.2 * METERS_TO_WORLD;
-  const segs = 16;
-  const stacks = 20;
-  for (let i = 0; i < segs; i++) {
-    const a0 = (i / segs) * Math.PI * 2;
-    const a1 = ((i + 1) / segs) * Math.PI * 2;
-    const x0 = Math.cos(a0);
-    const z0 = Math.sin(a0);
-    const x1 = Math.cos(a1);
-    const z1 = Math.sin(a1);
-    const wx0 = tx + x0 * r;
-    const wz0 = tz + z0 * r;
-    const wx1 = tx + x1 * r;
-    const wz1 = tz + z1 * r;
-    const nx = (x0 + x1) * 0.5;
-    const nz = (z0 + z1) * 0.5;
-    const nl = Math.hypot(nx, nz) || 1;
-    for (let k = 0; k < stacks; k++) {
-      const t0 = k / stacks;
-      const t1 = (k + 1) / stacks;
-      const yy0 = y0 + t0 * (y1 - y0);
-      const yy1 = y0 + t1 * (y1 - y0);
-      const rgb = stripeAt(still.stripes, 1 - (t0 + t1) / 2);
-      const base = pos.length / 3;
-      pos.push(wx0, yy0, wz0, wx1, yy0, wz1, wx1, yy1, wz1, wx0, yy1, wz0);
-      for (let v = 0; v < 4; v++) nrm.push(nx / nl, 0, nz / nl);
-      for (let v = 0; v < 4; v++) col.push(rgb[0], rgb[1], rgb[2]);
-      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    }
-  }
-  const clockY = y0 + (y1 - y0) * 0.42;
-  const clockRgb: [number, number, number] = [0.07, 0.08, 0.1];
-  const handRgb: [number, number, number] = [0.78, 0.16, 0.14];
-  const yaw = Math.atan2(viewX, viewZ);
-  pushBox(
-    pos,
-    nrm,
-    col,
-    idx,
-    tx + viewX * (r + 0.35 * METERS_TO_WORLD),
-    clockY,
-    tz + viewZ * (r + 0.35 * METERS_TO_WORLD),
-    3.1 * METERS_TO_WORLD,
-    3.1 * METERS_TO_WORLD,
-    0.28 * METERS_TO_WORLD,
-    clockRgb,
-    yaw,
-  );
-  pushBox(
-    pos,
-    nrm,
-    col,
-    idx,
-    tx + viewX * (r + 0.55 * METERS_TO_WORLD),
-    clockY + 0.7 * METERS_TO_WORLD,
-    tz + viewZ * (r + 0.55 * METERS_TO_WORLD),
-    0.18 * METERS_TO_WORLD,
-    1.7 * METERS_TO_WORLD,
-    0.12 * METERS_TO_WORLD,
-    handRgb,
-    yaw,
-  );
-  pushBox(
-    pos,
-    nrm,
-    col,
-    idx,
-    tx + viewX * (r + 0.55 * METERS_TO_WORLD) + rightX * 0.7 * METERS_TO_WORLD,
-    clockY,
-    tz + viewZ * (r + 0.55 * METERS_TO_WORLD) + rightZ * 0.7 * METERS_TO_WORLD,
-    1.15 * METERS_TO_WORLD,
-    0.18 * METERS_TO_WORLD,
-    0.12 * METERS_TO_WORLD,
-    handRgb,
-    yaw,
-  );
-  const rail: [number, number, number] = [0.16, 0.16, 0.18];
-  const balY = y0 + (y1 - y0) * 0.78;
-  for (const side of [-1, 1]) {
-    pushBox(
-      pos,
-      nrm,
-      col,
-      idx,
-      tx + viewX * (r + 1.6 * METERS_TO_WORLD) + rightX * side * 1.8 * METERS_TO_WORLD,
-      balY,
-      tz + viewZ * (r + 1.6 * METERS_TO_WORLD) + rightZ * side * 1.8 * METERS_TO_WORLD,
-      1.7 * METERS_TO_WORLD,
-      0.55 * METERS_TO_WORLD,
-      1.4 * METERS_TO_WORLD,
-      rail,
-      yaw,
-    );
-  }
-  const mesh = new THREE.Mesh(geoFrom(pos, nrm, col, idx), matte(true));
-  mesh.name = 'no-1-poultry-turret';
-  return mesh;
-}
-
 async function patchManifest(entry: ManifestFile): Promise<void> {
   let manifest: Manifest;
   try {
@@ -503,8 +324,7 @@ async function main(): Promise<void> {
   group.name = ID;
   const photo = buildPhotoMesh(still, viewX, viewZ, rightX, rightZ, south);
   const { body, roof } = buildVolume(ring, still);
-  const turret = buildTurret(ring, still, viewX, viewZ, rightX, rightZ);
-  group.add(photo, body, roof, turret);
+  group.add(photo, body, roof);
   const buf = await exportNoticedGlb(group);
   const file = `${ID}.glb`;
   await writeFile(path.join(OUT_DIR, file), Buffer.from(buf));

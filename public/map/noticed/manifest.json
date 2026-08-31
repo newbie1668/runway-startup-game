@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-31T16:12:24.107Z",
+  "generatedAt": "2026-08-31T16:15:14.108Z",
   "hash": "a36ac8679a70",
   "baker": "three-unique",
   "files": [
@@ -391,7 +391,7 @@
       "id": "no-1-poultry",
       "name": "No 1 Poultry",
       "file": "no-1-poultry.glb",
-      "bytes": 1248588,
+      "bytes": 1192792,
       "x": 108.39556889437335,
       "z": 38.614290074006796,
       "exclusionM": 24,
