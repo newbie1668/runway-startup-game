@@ -387,26 +387,6 @@ function pushDome(
   }
 }
 
-function pushDisk(
-  ctx: StreetEmit,
-  cx: number,
-  y: number,
-  cz: number,
-  radius: number,
-  hex: number,
-  segs = 20,
-): void {
-  const c = ctx.pushVertex(cx, y, cz, 0, 1, 0, hex);
-  const rim: number[] = [];
-  for (let i = 0; i < segs; i++) {
-    const a = (i / segs) * Math.PI * 2;
-    rim.push(ctx.pushVertex(cx + Math.cos(a) * radius, y, cz + Math.sin(a) * radius, 0, 1, 0, hex));
-  }
-  for (let i = 0; i < segs; i++) {
-    ctx.pushTri(c, rim[i]!, rim[(i + 1) % segs]!);
-  }
-}
-
 function edgePoint(e: Edge, t: number): StreetPt {
   return { x: e.a.x + (e.b.x - e.a.x) * t, z: e.a.z + (e.b.z - e.a.z) * t };
 }
@@ -778,19 +758,6 @@ function porticoPoint(e: Edge, t: number, out: number): StreetPt {
     x: e.a.x + (e.b.x - e.a.x) * t + e.nx * out,
     z: e.a.z + (e.b.z - e.a.z) * t + e.nz * out,
   };
-}
-
-function outwardOf(a: StreetPt, b: StreetPt, cx: number, cz: number): [number, number] {
-  let nx = b.z - a.z;
-  let nz = -(b.x - a.x);
-  const mx = (a.x + b.x) / 2;
-  const mz = (a.z + b.z) / 2;
-  if (nx * (cx - mx) + nz * (cz - mz) > 0) {
-    nx = -nx;
-    nz = -nz;
-  }
-  const len = Math.hypot(nx, nz) || 1;
-  return [nx / len, nz / len];
 }
 
 function emitNedWalls(ctx: StreetEmit): void {
