@@ -1075,6 +1075,8 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let dueSouthPink = 0;
   let balconyWest = 0;
   let balconyEast = 0;
+  let clockYMin = Infinity;
+  let clockYMax = -Infinity;
   const southBand: { x: number; z: number }[] = [];
   const highR: number[] = [];
   const turretR: number[] = [];
@@ -1222,6 +1224,8 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
             Math.abs(b - poultryClock.b) < 0.04
           ) {
             poultryClockN += 1;
+            clockYMin = Math.min(clockYMin, yM);
+            clockYMax = Math.max(clockYMax, yM);
             if (yM > 16 && yM < 90 && z >= clockSouthZ) {
               clockSouthZ = z;
               clockSouthX = x;
@@ -1317,6 +1321,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     `Stirling glazing missing (glass=${poultryGlassN}) — blank walls are a fail`,
   );
   assert.ok(poultryClockN > 40, `Poultry dark clock faces missing (clock=${poultryClockN})`);
+  assert.ok(
+    clockYMax - clockYMin > 8,
+    `Poultry clock is a pin, not a readable face (span=${(clockYMax - clockYMin).toFixed(1)} m)`,
+  );
   assert.ok(
     poultryClockProwN > 24,
     `Stirling clocks missing from the prow turret (prowClock=${poultryClockProwN})`,
