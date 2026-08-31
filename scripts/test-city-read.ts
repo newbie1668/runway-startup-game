@@ -93,6 +93,7 @@ import {
   buildJobsThisFrame,
   drainBuildJobKinds,
   BUILD_JOBS_WHILE_LOADING_KEEP,
+  BUILD_JOBS_WHILE_LOADING_WIDE,
   type KeepDisk,
 } from '../lib/game/render3d/lookClip';
 
@@ -1456,8 +1457,17 @@ check('wide-view mesh budget clips the city; close looks stay full', () => {
 
 check('keep-disk drain finishes; cover never packs with chunks', () => {
   assert.equal(BUILD_JOBS_WHILE_LOADING_KEEP, 6);
+  assert.equal(BUILD_JOBS_WHILE_LOADING_WIDE, 3);
   assert.equal(buildJobsThisFrame({ ready: false, keepDisk: true, kind: 'chunk' }), 6);
+  assert.equal(
+    buildJobsThisFrame({ ready: false, keepDisk: true, kind: 'chunk', wideFrust: true }),
+    3,
+  );
   assert.equal(buildJobsThisFrame({ ready: false, keepDisk: true, kind: 'cover' }), 1);
+  assert.equal(
+    buildJobsThisFrame({ ready: false, keepDisk: true, kind: 'cover', wideFrust: true }),
+    1,
+  );
   assert.equal(buildJobsThisFrame({ ready: false, keepDisk: false, kind: 'chunk' }), 16);
   assert.equal(buildJobsThisFrame({ ready: true, keepDisk: true, kind: 'chunk' }), 2);
   assert.equal(buildJobsThisFrame({ ready: true, keepDisk: true, kind: 'cover' }), 1);
@@ -1477,6 +1487,17 @@ check('keep-disk drain finishes; cover never packs with chunks', () => {
   assert.ok(coverFrames.every((f) => f.length === 1));
   assert.equal(frames[0]?.length, 6);
   assert.equal(frames[0]?.[0], 'chunk');
+  const wideFrames = drainBuildJobKinds(kinds, { keepDisk: true, wideFrust: true });
+  assert.equal(wideFrames[0]?.length, 3);
+  assert.equal(wideFrames[0]?.[0], 'chunk');
+  assert.ok(wideFrames.filter((f) => f[0] === 'cover').every((f) => f.length === 1));
+});
+
+check('No 1 Poultry is outside the view=mid keep-disk', () => {
+  const hero = project([-0.1358, 51.5196]);
+  const poultry = project([-0.09075, 51.51332]);
+  const keep: KeepDisk = { x: hero.x, z: hero.y, r: 1600 * METERS_TO_WORLD };
+  assert.equal(inKeepDisk(poultry.x, poultry.y, keep, 120 * METERS_TO_WORLD), false);
 });
 
 check('view=mid keep-disk does not tessellate the whole 23 km map', () => {

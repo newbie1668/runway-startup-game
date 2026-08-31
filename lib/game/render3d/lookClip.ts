@@ -102,34 +102,49 @@ export function meshBudget(): MeshBudget {
  * mesh per frame so leftover chunk slots cannot pack those with chunks
  * and Aw Snap the first view=mid. Do not skip keep-disk stock. Do not
  * park-carpet.
+ *
+ * view=mid uses an 8.5 wu frustum on the same 1600 m disk. Six chunk
+ * uploads plus that draw Aw Snapped (sky, then error 9). Citystreet
+ * stays at six — it is street-scale and HOLD. No 1 Poultry is outside
+ * this disk; do not clip keep-disk stock to "fix" a Cheapside unique.
  */
 export type BuildJobKind = 'hero' | 'chunk' | 'cover' | 'rest';
 
 export const BUILD_JOBS_PER_FRAME = 2;
 export const BUILD_JOBS_WHILE_LOADING = 16;
 export const BUILD_JOBS_WHILE_LOADING_KEEP = 6;
+/** view=mid / view=default while the keep-disk is still streaming. */
+export const BUILD_JOBS_WHILE_LOADING_WIDE = 3;
 
 export function buildJobsThisFrame(args: {
   ready: boolean;
   keepDisk: boolean;
   kind: BuildJobKind;
+  wideFrust?: boolean;
 }): number {
   if (args.kind === 'cover') return 1;
   if (args.ready) return BUILD_JOBS_PER_FRAME;
-  if (args.keepDisk) return BUILD_JOBS_WHILE_LOADING_KEEP;
+  if (args.keepDisk) {
+    return args.wideFrust ? BUILD_JOBS_WHILE_LOADING_WIDE : BUILD_JOBS_WHILE_LOADING_KEEP;
+  }
   return BUILD_JOBS_WHILE_LOADING;
 }
 
 /** Group a queued kind list into per-frame drains. Same kind only. */
 export function drainBuildJobKinds(
   kinds: readonly BuildJobKind[],
-  opts: { keepDisk: boolean },
+  opts: { keepDisk: boolean; wideFrust?: boolean },
 ): BuildJobKind[][] {
   const q = kinds.slice();
   const frames: BuildJobKind[][] = [];
   while (q.length > 0) {
     const kind = q[0]!;
-    const n = buildJobsThisFrame({ ready: false, keepDisk: opts.keepDisk, kind });
+    const n = buildJobsThisFrame({
+      ready: false,
+      keepDisk: opts.keepDisk,
+      kind,
+      wideFrust: opts.wideFrust,
+    });
     const frame: BuildJobKind[] = [];
     while (frame.length < n && q.length > 0 && q[0] === kind) {
       frame.push(q.shift()!);

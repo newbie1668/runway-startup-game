@@ -589,10 +589,12 @@ export class CityRenderer3D implements IMapRenderer {
       if (this.cityStreamed) this.markReady();
       return;
     }
+    const view = viewParam();
     const n = buildJobsThisFrame({
       ready: this.readyNotified,
       keepDisk: keepLoad,
       kind: head.kind,
+      wideFrust: view === 'mid' || view === 'default',
     });
     let i = 0;
     while (i < n && this.buildQueue.length > 0 && this.buildQueue[0]!.kind === head.kind) {
