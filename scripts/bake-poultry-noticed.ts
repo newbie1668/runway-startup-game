@@ -150,13 +150,14 @@ function liftStone(r: number, g: number, b: number): [number, number, number] {
   let nr = r;
   let ng = g;
   let nb = b;
-  if (warm > 6 && r > 70) {
-    nr = Math.min(255, Math.round(r + 36));
-    ng = Math.min(255, Math.round(g + 8));
-    nb = Math.max(0, Math.round(b - 10));
-  } else if (r > 120 && g > 110 && sat > 12) {
-    nr = Math.min(255, Math.round(r + 18));
-    ng = Math.min(255, Math.round(g + 16));
+  if (warm > 4 && r > 55) {
+    nr = Math.min(255, Math.round(r * 1.42 + 28));
+    ng = Math.min(255, Math.round(g * 1.12 + 14));
+    nb = Math.max(0, Math.round(b * 0.82));
+  } else if (r > 110 && g > 100 && sat > 8) {
+    nr = Math.min(255, Math.round(r + 28));
+    ng = Math.min(255, Math.round(g + 22));
+    nb = Math.max(0, Math.round(b + 4));
   }
   return rgb01(nr, ng, nb);
 }
@@ -254,13 +255,14 @@ function buildPhotoMesh(
   const bw = still.maxX - still.minX + 1;
   const bh = still.maxY - still.minY + 1;
   const worldH = HEIGHT_M * METERS_TO_WORLD;
-  const pix = worldH / bh;
-  const hx = pix * 0.52;
-  const hy = pix * 0.52;
+  const pixH = worldH / bh;
+  const pixW = pixH * 1.85;
+  const hx = pixW * 0.52;
+  const hy = pixH * 0.52;
   const pad = 0.55 * METERS_TO_WORLD;
   for (const [x, y, r, g, b] of still.pixels) {
-    const lx = (x - still.minX + 0.5 - bw / 2) * pix;
-    const ly = (bh - (y - still.minY + 0.5)) * pix;
+    const lx = (x - still.minX + 0.5 - bw / 2) * pixW;
+    const ly = (bh - (y - still.minY + 0.5)) * pixH;
     const lz = south + pad;
     const cx = lx * rightX + lz * viewX;
     const cz = lx * rightZ + lz * viewZ;
@@ -287,8 +289,6 @@ function buildPhotoMesh(
 function buildVolume(
   ring: Array<[number, number]>,
   still: StillPixels,
-  viewX: number,
-  viewZ: number,
 ): { body: THREE.Mesh; roof: THREE.Mesh } {
   const r = toCcw(ring);
   const H = BODY_M * METERS_TO_WORLD;
@@ -305,8 +305,6 @@ function buildVolume(
     const len = Math.hypot(dx, dz) || 1e-6;
     const nx = dz / len;
     const nz = -dx / len;
-    const facing = nx * viewX + nz * viewZ;
-    if (facing > 0.35) continue;
     for (let k = 0; k < bands; k++) {
       const t0 = k / bands;
       const t1 = (k + 1) / bands;
@@ -328,12 +326,11 @@ function buildVolume(
   const roofCol: number[] = [];
   const roofIdx: number[] = [];
   const flat: number[] = [];
-  const roofRgb = stripeAt(still.stripes, 0.12);
-  const dark: [number, number, number] = [roofRgb[0] * 0.42, roofRgb[1] * 0.42, roofRgb[2] * 0.4];
+  const roofRgb = stripeAt(still.stripes, 0.55);
   for (const p of r) {
     roofPos.push(p[0], H, p[1]);
     roofNrm.push(0, 1, 0);
-    roofCol.push(dark[0], dark[1], dark[2]);
+    roofCol.push(roofRgb[0], roofRgb[1], roofRgb[2]);
     flat.push(p[0], p[1]);
   }
   const tris = earcut(flat, undefined, 2);
@@ -505,7 +502,7 @@ async function main(): Promise<void> {
   const group = new THREE.Group();
   group.name = ID;
   const photo = buildPhotoMesh(still, viewX, viewZ, rightX, rightZ, south);
-  const { body, roof } = buildVolume(ring, still, viewX, viewZ);
+  const { body, roof } = buildVolume(ring, still);
   const turret = buildTurret(ring, still, viewX, viewZ, rightX, rightZ);
   group.add(photo, body, roof, turret);
   const buf = await exportNoticedGlb(group);
