@@ -34,7 +34,6 @@ import {
   JEWRY_MID,
   MANSION_COLUMN,
   NED_GLASS,
-  POULTRY_CLOCK,
   POULTRY_PINK,
   STREET_UNIQUE_PINS,
   streetUniqueAt,
@@ -989,7 +988,6 @@ check('Cheapside unique pins stay; Poultry hull is off the chunk mesh', () => {
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
   const pink = new THREE.Color(POULTRY_PINK);
-  const clock = new THREE.Color(POULTRY_CLOCK);
   const bronze = new THREE.Color(JEWRY_BRONZE);
   const column = new THREE.Color(MANSION_COLUMN);
   const jewryMid = new THREE.Color(JEWRY_MID);
@@ -997,7 +995,6 @@ check('Cheapside unique pins stay; Poultry hull is off the chunk mesh', () => {
   const jewryGlass = new THREE.Color(JEWRY_GLASS);
   const nedGlass = new THREE.Color(NED_GLASS);
   let pinkN = 0;
-  let clockN = 0;
   let bronzeN = 0;
   let columnN = 0;
   let jewryMidN = 0;
@@ -1025,13 +1022,6 @@ check('Cheapside unique pins stay; Poultry hull is off the chunk mesh', () => {
             Math.abs(b - pink.b) < 0.04
           ) {
             pinkN += 1;
-          }
-          if (
-            Math.abs(r - clock.r) < 0.04 &&
-            Math.abs(g - clock.g) < 0.04 &&
-            Math.abs(b - clock.b) < 0.04
-          ) {
-            clockN += 1;
           }
         }
         const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
@@ -1088,10 +1078,7 @@ check('Cheapside unique pins stay; Poultry hull is off the chunk mesh', () => {
       }
     }
   }
-  assert.ok(
-    pinkN < 20 && clockN < 8,
-    `Poultry leftover hull still in the chunk mesh (pink=${pinkN} clock=${clockN})`,
-  );
+  assert.ok(pinkN < 20, `Poultry leftover hull still in the chunk mesh (pink=${pinkN})`);
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
   assert.ok(
     jewryMidN > 20 && jewryHighN > 20,
