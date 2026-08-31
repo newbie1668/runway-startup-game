@@ -63,15 +63,17 @@ import {
   streetUniqueAt,
   type StreetEmit,
 } from './uniqueStreet';
+import { splitChunkCells } from './chunkCells';
 import {
   aabbHitsKeep,
   CITYSTREET_AT,
   clipPolylineToKeep,
-  DRAW_CELL_M,
   inKeepDisk,
   ptsHitKeep,
   type KeepDisk,
 } from './lookClip';
+
+export { chunkTierMeshes } from './chunkCells';
 
 export { HEIGHT_SCALE, TOWER_HEIGHT_SCALE, NOTICED_BAKE_HEIGHT_SCALE } from './buildingStyle';
 
@@ -410,33 +412,10 @@ function principalAxis(
   return { ax, az, px, pz, maxPerp };
 }
 
-type ChunkCellBuf = {
-  positions: number[];
-  normals: number[];
-  colors: number[];
-  indices: number[];
-};
-
-function drawCellKey(x: number, z: number): string {
-  const s = DRAW_CELL_M * METERS_TO_WORLD;
-  return `${Math.floor(x / s)},${Math.floor(z / s)}`;
-}
-
-/** Cell meshes under a chunk group. The group itself is not culled. */
-export function chunkTierMeshes(root: THREE.Object3D | null): THREE.Mesh[] {
-  if (!root) return [];
-  const out: THREE.Mesh[] = [];
-  root.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) out.push(obj);
-  });
-  return out;
-}
-
 /**
- * Keep-disk stock for (chunkId, major), split into DRAW_CELL_M cells.
- * One kilometre-scale mesh cannot frustum-cull; the 8.5 wu mid camera
- * then vertex-shades the whole disk and Aw Snaps. Cells stay in the
- * scene (stock is not clipped). Off-screen cells skip render().
+ * Keep-disk stock for (chunkId, major). Emit as one buffer, then split
+ * into DRAW_CELL_M cells so the 8.5 wu mid frustum can skip off-screen
+ * stock. The keep-disk is not clipped.
  */
 export function buildChunkTier(
   cityData: CityData,
@@ -446,24 +425,10 @@ export function buildChunkTier(
   scratch?: CityScratch,
   keep: KeepDisk | null = null,
 ): THREE.Group | null {
-  const cells = new Map<string, ChunkCellBuf>();
-  let positions: number[] = [];
-  let normals: number[] = [];
-  let colors: number[] = [];
-  let indices: number[] = [];
-
-  const useCell = (x: number, z: number): void => {
-    const key = drawCellKey(x, z);
-    let buf = cells.get(key);
-    if (!buf) {
-      buf = { positions: [], normals: [], colors: [], indices: [] };
-      cells.set(key, buf);
-    }
-    positions = buf.positions;
-    normals = buf.normals;
-    colors = buf.colors;
-    indices = buf.indices;
-  };
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
 
   const pushVertex = (
     x: number,
@@ -679,7 +644,6 @@ export function buildChunkTier(
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
     if (nearLondonCityAirport(cx, cz, 10) || ring.some((p) => nearLondonCityAirport(p.x, p.z, 10)))
       continue;
-    useCell(cx, cz);
 
     const areaM2 = footprintAreaM2(ring);
     const [lng, lat] = unproject(cx, cz);
@@ -1524,29 +1488,8 @@ export function buildChunkTier(
     }
   }
 
-  if (cells.size === 0) return null;
-
-  const group = new THREE.Group();
-  group.frustumCulled = false;
-  group.userData.chunkId = chunkId;
-  group.userData.major = major;
-  for (const buf of cells.values()) {
-    if (buf.positions.length === 0) continue;
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(buf.positions, 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(buf.normals, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(buf.colors, 3));
-    geometry.setIndex(buf.indices);
-    geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.frustumCulled = true;
-    mesh.userData.chunkId = chunkId;
-    mesh.userData.major = major;
-    group.add(mesh);
-  }
-  return group.children.length > 0 ? group : null;
+  if (positions.length === 0) return null;
+  return splitChunkCells({ positions, normals, colors, indices, chunkId, major });
 }
 
 export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | null {
