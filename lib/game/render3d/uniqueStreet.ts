@@ -1216,8 +1216,9 @@ function emitStirlingTurret(
 ): void {
   const segs = 22;
   const south = Math.PI / 2;
-  const clockY = arcadeH + (y1 - arcadeH) * 0.52;
-  const bayTop = clockY - m(4.2);
+  const clockR = m(6.4);
+  const clockY = arcadeH + (y1 - arcadeH) * 0.58;
+  const bayTop = clockY - clockR - m(1.8);
   for (let s = 0; s < segs; s++) {
     const a0 = (s / segs) * Math.PI * 2;
     const a1 = ((s + 1) / segs) * Math.PI * 2;
@@ -1238,7 +1239,7 @@ function emitStirlingTurret(
   pushDisk(ctx, cx, y1 + m(0.12), cz, radius * 0.48, POULTRY_PINK, segs);
   emitProwArch(ctx, { x: cx, z: cz + radius }, 0, 1, 0, arcadeH * 0.92);
   emitProwGlassBay(ctx, cx, cz, radius, arcadeH, bayTop);
-  emitDarkClock(ctx, cx, clockY, cz + radius + m(0.35), 0, 1, m(6.4));
+  emitDarkClock(ctx, cx, clockY, cz + radius + m(2.6), 0, 1, clockR);
   const by = y1 - m(3.4);
   emitTurretBalcony(ctx, cx, cz, by, south + 0.34, radius);
   emitTurretBalcony(ctx, cx, cz, by, south - 0.34, radius);
