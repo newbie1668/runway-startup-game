@@ -1174,7 +1174,14 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - poultryGlass.b) < 0.04
         ) {
           poultryGlassN += 1;
-          if (nrm && yM > 6 && yM < 32 && nrm.getZ(i) > 0.72 && dC < 32 * METERS_TO_WORLD) {
+          if (
+            nrm &&
+            yM > 8 &&
+            yM < 32 &&
+            nrm.getZ(i) > 0.85 &&
+            Math.abs(nrm.getX(i)) < 0.25 &&
+            dC < 32 * METERS_TO_WORLD
+          ) {
             southGlassN += 1;
           }
         }
