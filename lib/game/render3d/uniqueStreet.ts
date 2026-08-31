@@ -1201,6 +1201,27 @@ function emitDarkClock(
   };
   hand(faceR * 0.5, Math.PI * 0.28, m(0.22));
   hand(faceR * 0.78, -Math.PI * 0.12, m(0.12));
+  const hubR = faceR * 0.1;
+  const hub = ctx.pushVertex(px + hox, py, pz + hoz, nx, 0, nz, POULTRY_CLOCK_HAND);
+  const hubN = 8;
+  const hubIds: number[] = [];
+  for (let s = 0; s < hubN; s++) {
+    const t = (s / hubN) * Math.PI * 2;
+    hubIds.push(
+      ctx.pushVertex(
+        px + tx * Math.cos(t) * hubR + hox,
+        py + Math.sin(t) * hubR,
+        pz + tz * Math.cos(t) * hubR + hoz,
+        nx,
+        0,
+        nz,
+        POULTRY_CLOCK_HAND,
+      ),
+    );
+  }
+  for (let s = 0; s < hubN; s++) {
+    ctx.pushTri(hub, hubIds[s]!, hubIds[(s + 1) % hubN]!);
+  }
 }
 
 function emitTurretBalcony(
@@ -1261,6 +1282,7 @@ function emitStirlingTurret(
       const z1 = cz + Math.sin(a1) * r;
       const nx = Math.cos((a0 + a1) / 2);
       const nz = Math.sin((a0 + a1) / 2);
+      if (nz < 0.58) continue;
       emitWallQuad(ctx, x0, z0, x1, z1, y, yb, nx, nz, hex);
     }
     y = yb;
@@ -1270,15 +1292,18 @@ function emitStirlingTurret(
   const ang = Math.atan2(faceZ, faceX);
   const clockY = y0 + (y1 - y0) * 0.4;
   const clockR = m(1.85);
-  emitDarkClock(
-    ctx,
-    cx + Math.cos(ang) * (R + m(0.12)),
-    clockY,
-    cz + Math.sin(ang) * (R + m(0.12)),
-    Math.cos(ang),
-    Math.sin(ang),
-    clockR,
-  );
+  const clockOn = (a: number) =>
+    emitDarkClock(
+      ctx,
+      cx + Math.cos(a) * (R + m(0.12)),
+      clockY,
+      cz + Math.sin(a) * (R + m(0.12)),
+      Math.cos(a),
+      Math.sin(a),
+      clockR,
+    );
+  clockOn(ang);
+  clockOn(ang + Math.PI * 0.62);
   const by = y1 - m(1.85);
   emitTurretBalcony(ctx, cx, cz, by, ang + Math.PI * 0.25, R);
   emitTurretBalcony(ctx, cx, cz, by, ang - Math.PI * 0.25, R);
