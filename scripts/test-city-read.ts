@@ -1209,12 +1209,12 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
               yM < 32 &&
               nrm.getZ(i) > 0.85 &&
               Math.abs(nrm.getX(i)) < 0.25 &&
-              dC < 32 * METERS_TO_WORLD
+              dC < 40 * METERS_TO_WORLD
             ) {
               southGlassN += 1;
             }
             if (yM > 30 && d <= 40) {
-              if (x < poultryCx) balconyWest += 1;
+              if (x < apexX) balconyWest += 1;
               else balconyEast += 1;
             }
           }

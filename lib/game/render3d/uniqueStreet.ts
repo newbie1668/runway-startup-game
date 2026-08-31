@@ -1148,6 +1148,19 @@ function emitProwGlassBay(
     emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y0 + m(0.28), nx, nz, POULTRY_METAL);
     emitWallQuad(ctx, a.x, a.z, b.x, b.z, y1 - m(0.28), y1, nx, nz, POULTRY_METAL);
   }
+  const half = m(5.4);
+  const zFace = cz + radius + m(1.2);
+  const cols = 4;
+  const rows = 5;
+  for (let r = 0; r < rows; r++) {
+    const ya = y0 + ((y1 - y0) * r) / rows;
+    const yb = y0 + ((y1 - y0) * (r + 1)) / rows;
+    for (let c = 0; c < cols; c++) {
+      const x0 = cx - half + (2 * half * c) / cols;
+      const x1 = cx - half + (2 * half * (c + 1)) / cols;
+      emitWallQuad(ctx, x0, zFace, x1, zFace, ya, yb, 0, 1, POULTRY_GLASS);
+    }
+  }
 }
 
 function emitStripedPrism(
