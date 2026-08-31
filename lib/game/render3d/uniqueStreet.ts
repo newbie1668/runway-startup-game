@@ -898,32 +898,6 @@ function emitStripedWall(
   }
 }
 
-function emitStripedPier(
-  ctx: StreetEmit,
-  px: number,
-  pz: number,
-  y0: number,
-  y1: number,
-  half: number,
-  tx: number,
-  tz: number,
-  nx: number,
-  nz: number,
-): void {
-  const c = (sx: number, so: number): StreetPt => ({
-    x: px + tx * sx + nx * so,
-    z: pz + tz * sx + nz * so,
-  });
-  const c0 = c(-half, -half);
-  const c1 = c(half, -half);
-  const c2 = c(half, half);
-  const c3 = c(-half, half);
-  emitStripedWall(ctx, c0, c1, y0, y1, -nx, -nz, false);
-  emitStripedWall(ctx, c1, c2, y0, y1, tx, tz, false);
-  emitStripedWall(ctx, c2, c3, y0, y1, nx, nz, false);
-  emitStripedWall(ctx, c3, c0, y0, y1, -tx, -tz, false);
-}
-
 function emitCornice(
   ctx: StreetEmit,
   a: StreetPt,
@@ -1142,53 +1116,110 @@ function emitTurretBalcony(
   const nz = Math.sin(ang);
   const tx = -nz;
   const tz = nx;
-  const px = cx + nx * (radius + m(1.05));
-  const pz = cz + nz * (radius + m(1.05));
-  ctx.pushOrientedBox(px, y, pz, m(1.8), m(0.42), m(2.4), tx, tz, nx, nz, POULTRY_METAL);
+  const px = cx + nx * (radius + m(2.2));
+  const pz = cz + nz * (radius + m(2.2));
+  ctx.pushOrientedBox(px, y, pz, m(3.8), m(1.35), m(3.4), tx, tz, nx, nz, POULTRY_GLASS);
+  ctx.pushOrientedBox(px, y - m(0.12), pz, m(4.0), m(0.22), m(3.6), tx, tz, nx, nz, POULTRY_METAL);
 }
 
-function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number, y1: number): void {
-  const R = m(5.4);
-  const segs = 20;
-  const course = m(1.9);
-  let y = y0;
-  let i = 0;
-  while (y + m(0.05) < y1) {
-    const yb = Math.min(y + course, y1);
-    const buff = i % 2 === 1;
-    const r = R + (buff ? m(0.14) : 0);
-    for (let s = 0; s < segs; s++) {
-      const a0 = (s / segs) * Math.PI * 2;
-      const a1 = ((s + 1) / segs) * Math.PI * 2;
-      const x0 = cx + Math.cos(a0) * r;
-      const z0 = cz + Math.sin(a0) * r;
-      const x1 = cx + Math.cos(a1) * r;
-      const z1 = cz + Math.sin(a1) * r;
-      const nx = Math.cos((a0 + a1) / 2);
-      const nz = Math.sin((a0 + a1) / 2);
-      const hex = Math.abs(nx) > 0.82 ? POULTRY_BUFF : buff ? POULTRY_BUFF : POULTRY_PINK;
-      emitWallQuad(ctx, x0, z0, x1, z1, y, yb, nx, nz, hex);
-    }
-    y = yb;
-    i += 1;
+function emitProwGlassBay(
+  ctx: StreetEmit,
+  cx: number,
+  cz: number,
+  radius: number,
+  y0: number,
+  y1: number,
+): void {
+  const angs = [-0.46, -0.23, 0, 0.23, 0.46].map((d) => Math.PI / 2 + d);
+  const out = radius + m(0.7);
+  const pts = angs.map((a) => ({ x: cx + Math.cos(a) * out, z: cz + Math.sin(a) * out }));
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const [nx, nz] = outwardOf(a, b, cx, cz);
+    emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y1, nx, nz, POULTRY_GLASS);
+    emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y0 + m(0.28), nx, nz, POULTRY_METAL);
+    emitWallQuad(ctx, a.x, a.z, b.x, b.z, y1 - m(0.28), y1, nx, nz, POULTRY_METAL);
   }
-  pushDisk(ctx, cx, y1, cz, R + m(0.2), POULTRY_BUFF, segs);
-  pushDisk(ctx, cx, y1 + m(0.1), cz, R * 0.55, POULTRY_PINK, segs);
+}
+
+function emitStripedPrism(
+  ctx: StreetEmit,
+  ring: StreetPt[],
+  y0: number,
+  arcadeH: number,
+  y1: number,
+  glassEdge: number | null,
+): void {
+  if (ring.length < 3) return;
+  let rcx = 0;
+  let rcz = 0;
+  for (const p of ring) {
+    rcx += p.x;
+    rcz += p.z;
+  }
+  rcx /= ring.length;
+  rcz /= ring.length;
+  let longI = 0;
+  let longL = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!;
+    const b = ring[(i + 1) % ring.length]!;
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len > longL) {
+      longL = len;
+      longI = i;
+    }
+  }
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!;
+    const b = ring[(i + 1) % ring.length]!;
+    const [nx, nz] = outwardOf(a, b, rcx, rcz);
+    emitStripedWall(ctx, a, b, y0, arcadeH, nx, nz, false);
+    if (glassEdge === i) {
+      emitGlassCurtain(ctx, a, b, arcadeH, y1 + m(1.4), nx, nz);
+    } else {
+      emitStripedWall(ctx, a, b, arcadeH, y1, nx, nz, i === longI);
+      emitCornice(ctx, a, b, y1, nx, nz, m(1.1), m(0.85), POULTRY_PINK);
+    }
+  }
+  emitFlatFan(ctx, ring, y1, POULTRY_BUFF);
+}
+
+function emitStirlingTurret(
+  ctx: StreetEmit,
+  cx: number,
+  cz: number,
+  y0: number,
+  y1: number,
+  arcadeH: number,
+  radius: number,
+): void {
+  const segs = 22;
   const south = Math.PI / 2;
-  const clockY = y0 + (y1 - y0) * 0.38;
-  emitDarkClock(ctx, cx, clockY, cz + R + m(0.25), 0, 1, m(5.2));
-  emitDarkClock(
-    ctx,
-    cx + Math.cos(south - 0.7) * (R + m(0.18)),
-    clockY,
-    cz + Math.sin(south - 0.7) * (R + m(0.18)),
-    Math.cos(south - 0.7),
-    Math.sin(south - 0.7),
-    m(3.4),
-  );
-  const by = y1 - m(2.4);
-  emitTurretBalcony(ctx, cx, cz, by, south + Math.PI * 0.25, R);
-  emitTurretBalcony(ctx, cx, cz, by, south - Math.PI * 0.25, R);
+  for (let s = 0; s < segs; s++) {
+    const a0 = (s / segs) * Math.PI * 2;
+    const a1 = ((s + 1) / segs) * Math.PI * 2;
+    const mid = (a0 + a1) / 2;
+    const p0 = { x: cx + Math.cos(a0) * radius, z: cz + Math.sin(a0) * radius };
+    const p1 = { x: cx + Math.cos(a1) * radius, z: cz + Math.sin(a1) * radius };
+    const nx = Math.cos(mid);
+    const nz = Math.sin(mid);
+    let dSouth = Math.abs(mid - south);
+    if (dSouth > Math.PI) dSouth = Math.PI * 2 - dSouth;
+    const arch = dSouth < 0.58;
+    if (!arch) emitStripedWall(ctx, p0, p1, y0, arcadeH, nx, nz, false);
+    emitStripedWall(ctx, p0, p1, arcadeH, y1, nx, nz, false);
+  }
+  pushDisk(ctx, cx, y1, cz, radius + m(0.15), POULTRY_BUFF, segs);
+  pushDisk(ctx, cx, y1 + m(0.12), cz, radius * 0.52, POULTRY_PINK, segs);
+  const clockY = arcadeH + (y1 - arcadeH) * 0.46;
+  emitProwArch(ctx, { x: cx, z: cz + radius }, 0, 1, 0, arcadeH * 0.82);
+  emitProwGlassBay(ctx, cx, cz, radius, arcadeH, clockY - m(3.2));
+  emitDarkClock(ctx, cx, clockY, cz + radius + m(0.2), 0, 1, m(3.5));
+  const by = y1 - m(4.8);
+  emitTurretBalcony(ctx, cx, cz, by, south + 0.52, radius);
+  emitTurretBalcony(ctx, cx, cz, by, south - 0.52, radius);
 }
 
 function emitProwArch(
@@ -1245,53 +1276,52 @@ function emitProwArch(
 }
 
 /**
- * Stirling hull aimed at look=citystreet (from the south, azimuth 0.22).
- * A south-facing QV arc with an east tip is a crescent+cylinder+fin from that
- * camera: the prow must occupy the south silhouette, clock on that prow, glass
- * on the receding east cheek. The west wing steps back; it is not another
- * south wall. No N-S end-cap. Terrace is limestone, not an olive annulus.
+ * Stirling volumes for look=citystreet (from the south). Two striped walls
+ * meeting at a tip plus a cylinder is a wedge+drum from that camera. The
+ * drum is the south prow. Thick wings butt into it. Clock, arch, faceted
+ * bay, and glass balconies sit on that drum. Wings recede; they are not
+ * another south wall. No N-S end-cap. Terrace is limestone, not an olive
+ * annulus.
  */
 function emitPoultryWalls(ctx: StreetEmit): void {
   const H = ctx.heightWorld;
   const { cx, cz } = ctx.plan;
-  const arcadeH = m(6.2);
-
-  const tip = { x: cx + m(5), z: cz + m(30) };
-  const left = { x: cx - m(12), z: cz + m(10) };
-  const right = { x: cx + m(20), z: cz + m(10) };
-  const tur = { x: cx + m(5), z: cz + m(17) };
-  const wingEnd = { x: cx - m(22), z: cz + m(4) };
-  const wing: StreetPt[] = [left, wingEnd];
-
-  const [lNx, lNz] = outwardOf(left, tip, cx, cz);
-  const [rNx, rNz] = outwardOf(tip, right, cx, cz);
-  emitStripedWall(ctx, left, tip, 0, arcadeH, lNx, lNz, false);
-  emitStripedWall(ctx, left, tip, arcadeH, H, lNx, lNz, true);
-  emitStripedWall(ctx, tip, right, 0, arcadeH, rNx, rNz, false);
-  emitGlassCurtain(ctx, tip, right, arcadeH, H + m(2.8), rNx, rNz);
-  emitProwArch(ctx, tip, 0, 1, 0, m(8.2));
-  emitCornice(ctx, left, tip, H, lNx, lNz, m(1.4), m(1.0), POULTRY_PINK);
-
-  for (let i = 0; i < wing.length - 1; i++) {
-    const a = wing[i]!;
-    const b = wing[i + 1]!;
-    const [nx, nz] = outwardOf(a, b, cx, cz);
-    emitStripedWall(ctx, a, b, 0, arcadeH, nx, nz, false);
-    emitStripedWall(ctx, a, b, arcadeH, H, nx, nz, true);
-    const span = Math.hypot(b.x - a.x, b.z - a.z);
-    if (span > m(3.2)) {
-      const mid = lerpPt(a, b, 0.5);
-      const tx = (b.x - a.x) / span;
-      const tz = (b.z - a.z) / span;
-      const half = m(1.15);
-      emitStripedPier(ctx, mid.x + nx * half, mid.z + nz * half, 0, arcadeH, half, tx, tz, nx, nz);
-    }
-    emitCornice(ctx, a, b, H, nx, nz, m(1.2), m(0.9), POULTRY_PINK);
+  const arcadeH = m(6.4);
+  const drumR = m(6.8);
+  let plateR = 0;
+  for (const p of ctx.ring) {
+    plateR = Math.max(plateR, Math.hypot(p.x - cx, p.z - cz));
   }
+  const south = Math.min(m(16), Math.max(m(8), plateR - drumR - m(2.5)));
+  const dx = cx + m(1.6);
+  const dz = cz + south;
+  const clamp = (p: StreetPt): StreetPt => {
+    const vx = p.x - cx;
+    const vz = p.z - cz;
+    const r = Math.hypot(vx, vz);
+    const maxR = plateR - m(1.2);
+    if (r <= maxR || maxR < m(4)) return p;
+    const s = maxR / r;
+    return { x: cx + vx * s, z: cz + vz * s };
+  };
+  const onDrum = (ang: number): StreetPt => ({
+    x: dx + Math.cos(ang) * (drumR - m(0.35)),
+    z: dz + Math.sin(ang) * (drumR - m(0.35)),
+  });
 
-  emitFlatFan(ctx, [left, tip, right], H, POULTRY_BUFF);
-  emitFlatFan(ctx, [left, wingEnd, { x: left.x, z: wingEnd.z }], H, POULTRY_BUFF);
-  emitStirlingTurret(ctx, tur.x, tur.z, arcadeH, H + m(24));
+  emitStirlingTurret(ctx, dx, dz, 0, H + m(16), arcadeH, drumR);
+
+  const w0 = onDrum(Math.PI * 0.72);
+  const w1 = clamp({ x: dx - m(20), z: dz - m(7) });
+  const w2 = clamp({ x: dx - m(15), z: dz - m(15) });
+  const w3 = onDrum(Math.PI * 0.95);
+  emitStripedPrism(ctx, [w0, w1, w2, w3], 0, arcadeH, H, null);
+
+  const e0 = onDrum(Math.PI * 0.28);
+  const e1 = clamp({ x: dx + m(18), z: dz - m(3) });
+  const e2 = clamp({ x: dx + m(13), z: dz - m(13) });
+  const e3 = onDrum(Math.PI * 0.05);
+  emitStripedPrism(ctx, [e0, e1, e2, e3], 0, arcadeH, H, 0);
 
   const wellR = poultryWellR(ctx.plan);
   pushCylinder(ctx, cx, 0, cz, wellR, H * 0.9, POULTRY_WELL, 16, false);

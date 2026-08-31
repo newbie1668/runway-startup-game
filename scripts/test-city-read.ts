@@ -1064,6 +1064,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let nedGlassN = 0;
   let apexPinkN = 0;
   let apexEastPinkN = 0;
+  const apexPoleZ: number[] = [];
   let southGlassN = 0;
   let poultrySouthZ = -Infinity;
   let clockSouthZ = -Infinity;
@@ -1072,6 +1073,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let prowWestPink = 0;
   let prowEastPink = 0;
   let dueSouthPink = 0;
+  let balconyWest = 0;
+  let balconyEast = 0;
+  const southBand: { x: number; z: number }[] = [];
   const highR: number[] = [];
   const turretR: number[] = [];
   const midR: number[] = [];
@@ -1155,6 +1159,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
             poultrySouthZ = z;
             poultrySouthX = x;
           }
+          if (wingTint && yM > 6 && yM < 40) {
+            southBand.push({ x, z });
+          }
           if (
             Math.abs(r - pink.r) < 0.04 &&
             Math.abs(g - pink.g) < 0.04 &&
@@ -1166,6 +1173,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
               apexPinkN += 1;
               if (nrm && Math.abs(nrm.getX(i)) > 0.85 && Math.abs(nrm.getY(i)) < 0.25) {
                 apexEastPinkN += 1;
+                apexPoleZ.push(z);
               }
             }
             if (
@@ -1202,6 +1210,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
               dC < 32 * METERS_TO_WORLD
             ) {
               southGlassN += 1;
+            }
+            if (yM > 30 && d <= 40) {
+              if (x < poultryCx) balconyWest += 1;
+              else balconyEast += 1;
             }
           }
           if (
@@ -1340,10 +1352,14 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);
   assert.ok(holeRoof < 12, `Poultry courtyard well is roofed over (${holeRoof} hole verts)`);
   assert.ok(stickN < 8, `Poultry bands stick through the facade (${stickN} verts)`);
-  assert.ok(
-    apexPinkN < 8 || apexEastPinkN / apexPinkN < 0.22,
-    `Poultry prow still has N-S limestone poles at the apex (eastFacing=${apexEastPinkN}/${apexPinkN})`,
-  );
+  {
+    const poleSpan =
+      apexPoleZ.length > 1 ? (Math.max(...apexPoleZ) - Math.min(...apexPoleZ)) / METERS_TO_WORLD : 0;
+    assert.ok(
+      poleSpan < 14,
+      `Poultry prow still has N-S limestone poles at the apex (span=${poleSpan.toFixed(1)} m, eastFacing=${apexEastPinkN}/${apexPinkN})`,
+    );
+  }
   {
     const southGapM = (poultrySouthZ - clockSouthZ) / METERS_TO_WORLD;
     assert.ok(
@@ -1356,16 +1372,30 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     `Poultry prow does not face citystreet (westCheek=${prowWestPink} eastCheek=${prowEastPink})`,
   );
   assert.ok(
-    dueSouthPink < prowWestPink + prowEastPink,
-    `Poultry south silhouette is a facing crescent, not a prow V (dueSouth=${dueSouthPink} cheeks=${prowWestPink + prowEastPink})`,
+    dueSouthPink > 16,
+    `Poultry south silhouette is a V of two walls, not a prow drum (dueSouth=${dueSouthPink})`,
   );
   assert.ok(
     Math.abs(poultrySouthX - clockSouthX) / METERS_TO_WORLD < 10,
     `Poultry tip and clock turret are split in plan (dx=${((poultrySouthX - clockSouthX) / METERS_TO_WORLD).toFixed(1)} m)`,
   );
+  {
+    const xs = southBand
+      .filter((p) => (poultrySouthZ - p.z) / METERS_TO_WORLD < 3.5)
+      .map((p) => p.x);
+    const spread = xs.length > 1 ? (Math.max(...xs) - Math.min(...xs)) / METERS_TO_WORLD : 0;
+    assert.ok(
+      spread > 8,
+      `Poultry south silhouette is still a knife-tip V (spread=${spread.toFixed(1)} m, n=${xs.length})`,
+    );
+  }
   assert.ok(
-    southGlassN < 40,
-    `east glass must sit on the receding cheek, not as a south-facing curtain (got ${southGlassN})`,
+    southGlassN > 24,
+    `Stirling prow glass bay missing from the south drum (got ${southGlassN})`,
+  );
+  assert.ok(
+    balconyWest > 8 && balconyEast > 8,
+    `Stirling turret balconies missing (west=${balconyWest} east=${balconyEast})`,
   );
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
   assert.ok(
