@@ -431,7 +431,7 @@ export function uniqueStockRecipe(input: {
   osmRoof: number;
 }): UniqueStockRecipe {
   // No. 1 Poultry never reaches here from cityBuilder. streetUniqueBlocksStock
-  // cuts that plate off before pickSilhouette can assign wedge-step / ribbon.
+  // skips that plate so the noticed-tray GLB can sit on the pin.
   const silhouette = pickSilhouette(input);
   return {
     silhouette,

@@ -2,6 +2,8 @@
  * Noticed-tower factory helpers — offline, no DOM.
  */
 import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import * as THREE from 'three';
 import { makeMatteLambert, makeUnlitBasic } from '../lib/game/render3d/matteGltf';
 import {
@@ -16,8 +18,17 @@ import {
   tintForShape,
 } from './noticedFeatures';
 import { buildNoticedGroup } from './noticedMesh';
-import { instantiateNoticed } from '../lib/game/render3d/noticedPrefabs';
-import { ellipseRing, metersToWorld, UNIQUE_NOTICED_IDS } from '../lib/game/render3d/uniqueNoticed';
+import {
+  instantiateNoticed,
+  isStreetNoticedId,
+  shouldLoadNoticedGlb,
+} from '../lib/game/render3d/noticedPrefabs';
+import {
+  ellipseRing,
+  isUniqueNoticedId,
+  metersToWorld,
+  UNIQUE_NOTICED_IDS,
+} from '../lib/game/render3d/uniqueNoticed';
 import {
   isUsefulName,
   slugify,
@@ -353,6 +364,49 @@ check('runtime instantiate uses the unique mesh, not the stepped GLB costume', (
   );
   assert.ok(group.getObjectByName('charrington-tower-peel'));
   assert.equal(group.getObjectByName('charrington-tower-0'), undefined);
+});
+
+check('Poultry is a committed photo GLB on the noticed tray, not a uniqueNoticed hull', () => {
+  assert.equal(isUniqueNoticedId('no-1-poultry'), false);
+  assert.equal(isStreetNoticedId('no-1-poultry'), true);
+  assert.equal(shouldLoadNoticedGlb('no-1-poultry', true), true);
+  assert.equal(shouldLoadNoticedGlb('hampton-tower', true), false);
+  assert.equal(shouldLoadNoticedGlb('charrington-tower', false), false);
+  const glbPath = join(process.cwd(), 'public/map/noticed/no-1-poultry.glb');
+  const manifestPath = join(process.cwd(), 'public/map/noticed/manifest.json');
+  assert.equal(existsSync(glbPath), true, 'no-1-poultry.glb missing');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    files?: Array<{ id: string; file: string; photo?: boolean }>;
+  };
+  const entry = manifest.files?.find((f) => f.id === 'no-1-poultry');
+  assert.ok(entry, 'no-1-poultry missing from noticed manifest');
+  assert.equal(entry?.photo, true);
+  const buf = readFileSync(glbPath);
+  assert.ok(buf.byteLength > 40_000, `Poultry GLB too small (${buf.byteLength} bytes)`);
+  const jsonLen = buf.readUInt32LE(12);
+  const json = buf
+    .subarray(20, 20 + jsonLen)
+    .toString('utf8')
+    .replace(/\0+$/, '');
+  const doc = JSON.parse(json) as { images?: unknown[] };
+  assert.ok(Array.isArray(doc.images) && doc.images.length > 0, 'Poultry GLB has no albedo image');
+  const dummy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+  dummy.name = 'no-1-poultry-south';
+  const prefab = new THREE.Group();
+  prefab.add(dummy);
+  const group = instantiateNoticed(
+    {
+      id: 'no-1-poultry',
+      name: 'No 1 Poultry',
+      x: 0,
+      z: 0,
+      exclusionM: 24,
+      heightM: 42,
+    },
+    prefab,
+  );
+  assert.equal(group.scale.y, 1, 'Poultry must not take tower Y-scale');
+  assert.ok(group.getObjectByName('no-1-poultry-south'));
 });
 
 console.log(`\nAll ${passed} noticed-factory checks passed.`);

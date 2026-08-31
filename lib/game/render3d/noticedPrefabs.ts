@@ -17,6 +17,19 @@ import { meshBudget } from './lookClip';
 
 export const NOTICED_DIR = '/map/noticed';
 
+/** Street stills on the noticed tray. Loaded even when the wide budget skips GLBs. */
+export const STREET_NOTICED_ID = 'no-1-poultry';
+
+export function isStreetNoticedId(id: string): boolean {
+  return id === STREET_NOTICED_ID;
+}
+
+export function shouldLoadNoticedGlb(id: string, skipGlb: boolean): boolean {
+  if (isUniqueNoticedId(id)) return false;
+  if (isStreetNoticedId(id)) return true;
+  return !skipGlb;
+}
+
 export interface NoticedEntry {
   id: string;
   name: string;
@@ -58,7 +71,7 @@ export async function loadNoticedPrefabs(): Promise<{
   await Promise.all(
     (manifest.files ?? []).map(async (file) => {
       try {
-        if (isUniqueNoticedId(file.id) || skipGlb) {
+        if (!shouldLoadNoticedGlb(file.id, skipGlb)) {
           prefabs.set(file.id, new THREE.Group());
           entries.push({
             id: file.id,
@@ -108,6 +121,8 @@ export function instantiateNoticed(
   const clone = prefab.clone(true);
   const group = clone instanceof THREE.Group ? clone : new THREE.Group();
   if (!(clone instanceof THREE.Group)) group.add(clone);
-  group.scale.y = TOWER_HEIGHT_SCALE / NOTICED_BAKE_HEIGHT_SCALE;
+  if (!isStreetNoticedId(entry.id)) {
+    group.scale.y = TOWER_HEIGHT_SCALE / NOTICED_BAKE_HEIGHT_SCALE;
+  }
   return group;
 }

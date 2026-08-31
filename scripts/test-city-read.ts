@@ -34,15 +34,8 @@ import {
   JEWRY_MID,
   MANSION_COLUMN,
   NED_GLASS,
-  POULTRY_BUFF,
   POULTRY_CLOCK,
-  POULTRY_CLOCK_HAND,
-  POULTRY_GLASS,
-  POULTRY_MORTAR,
   POULTRY_PINK,
-  POULTRY_ROOF,
-  POULTRY_WELL,
-  poultryWellR,
   STREET_UNIQUE_PINS,
   streetUniqueAt,
   streetUniqueBlocksStock,
@@ -976,7 +969,7 @@ check('No 1 Poultry is locked off uniqueStockRecipe (wedge-step, ribbon, bays)',
   assert.equal(streetUniqueBlocksStock(null), false);
 });
 
-check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () => {
+check('Cheapside unique pins stay; Poultry hull is off the chunk mesh', () => {
   assert.equal(streetUniqueAt(-0.09087, 51.51339), 'no-1-poultry');
   assert.equal(streetUniqueAt(-0.08996, 51.51374), 'the-ned');
   assert.equal(streetUniqueAt(-0.08983, 51.51262), 'walbrook');
@@ -995,264 +988,54 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
-  let wellR = 8 * METERS_TO_WORLD;
-  let poultryMaxR = 40 * METERS_TO_WORLD;
-  let poultryCx = poultryAt.x;
-  let poultryCz = poultryAt.y;
-  let apexX = poultryAt.x;
-  let apexZ = poultryAt.y;
-  for (const b of city.buildings) {
-    if (b.chunkId !== chunkId) continue;
-    const n = b.verts.length / 2;
-    const ring: { x: number; z: number }[] = [];
-    let cx = 0;
-    let cz = 0;
-    for (let i = 0; i < n; i++) {
-      const x = dequantizeX(b.verts[i * 2]!);
-      const z = dequantizeY(b.verts[i * 2 + 1]!);
-      ring.push({ x, z });
-      cx += x;
-      cz += z;
-    }
-    cx /= n;
-    cz /= n;
-    const [lng, lat] = unproject(cx, cz);
-    if (streetUniqueAt(lng, lat) !== 'no-1-poultry') continue;
-    const plan = analyzeFootprint(ring, METERS_TO_WORLD);
-    wellR = poultryWellR(plan);
-    poultryCx = plan.cx;
-    poultryCz = plan.cz;
-    poultryMaxR = 0;
-    const apex = ring[plan.apexIndex] ?? { x: plan.cx, z: plan.cz };
-    apexX = apex.x;
-    apexZ = apex.z;
-    for (const p of ring) {
-      poultryMaxR = Math.max(poultryMaxR, Math.hypot(p.x - plan.cx, p.z - plan.cz));
-    }
-    break;
-  }
   const pink = new THREE.Color(POULTRY_PINK);
-  const buff = new THREE.Color(POULTRY_BUFF);
+  const clock = new THREE.Color(POULTRY_CLOCK);
   const bronze = new THREE.Color(JEWRY_BRONZE);
   const column = new THREE.Color(MANSION_COLUMN);
-  const wellCol = new THREE.Color(POULTRY_WELL);
-  const roofCol = new THREE.Color(POULTRY_ROOF);
   const jewryMid = new THREE.Color(JEWRY_MID);
   const jewryHigh = new THREE.Color(JEWRY_HIGH);
-  const poultryGlass = new THREE.Color(POULTRY_GLASS);
-  const poultryClock = new THREE.Color(POULTRY_CLOCK);
-  const poultryHand = new THREE.Color(POULTRY_CLOCK_HAND);
-  const poultryMortar = new THREE.Color(POULTRY_MORTAR);
   const jewryGlass = new THREE.Color(JEWRY_GLASS);
   const nedGlass = new THREE.Color(NED_GLASS);
   let pinkN = 0;
-  let buffN = 0;
-  let near = 0;
+  let clockN = 0;
   let bronzeN = 0;
   let columnN = 0;
-  let holeRoof = 0;
-  let wellN = 0;
-  let stickN = 0;
   let jewryMidN = 0;
   let jewryHighN = 0;
-  let poultryGlassN = 0;
-  let poultryClockN = 0;
-  let poultryClockProwN = 0;
-  let poultryHandN = 0;
-  let poultryMortarN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
-  let apexPinkN = 0;
-  let apexEastPinkN = 0;
-  const apexPoleZ: number[] = [];
-  let southGlassN = 0;
-  let poultrySouthZ = -Infinity;
-  let clockSouthZ = -Infinity;
-  let poultrySouthX = 0;
-  let clockSouthX = 0;
-  let prowWestPink = 0;
-  let prowEastPink = 0;
-  let dueSouthPink = 0;
-  let balconyWest = 0;
-  let balconyEast = 0;
-  let clockYMin = Infinity;
-  let clockYMax = -Infinity;
-  const southBand: { x: number; z: number }[] = [];
-  const highR: number[] = [];
-  const turretR: number[] = [];
-  const midR: number[] = [];
-  const stickPad = 8 * METERS_TO_WORLD;
   for (const major of [true, false]) {
     const built = buildChunkTier(city, chunkId, major, [], createScratch());
     if (!built) continue;
     for (const mesh of chunkTierMeshes(built)) {
       const pos = mesh.geometry.getAttribute('position');
       const colors = mesh.geometry.getAttribute('color');
-      const nrm = mesh.geometry.getAttribute('normal');
       if (!pos || !colors) continue;
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i);
-        const y = pos.getY(i);
         const z = pos.getZ(i);
-        const d = Math.hypot(x - poultryAt.x, z - poultryAt.y) / METERS_TO_WORLD;
-        const yM = y / METERS_TO_WORLD;
-        const dC = Math.hypot(x - poultryCx, z - poultryCz);
         const r = colors.getX(i);
         const g = colors.getY(i);
         const b = colors.getZ(i);
-        const wingTint =
-          (Math.abs(r - pink.r) < 0.04 &&
-            Math.abs(g - pink.g) < 0.04 &&
-            Math.abs(b - pink.b) < 0.04) ||
-          (Math.abs(r - buff.r) < 0.04 &&
-            Math.abs(g - buff.g) < 0.04 &&
-            Math.abs(b - buff.b) < 0.04);
-        const poultryTint =
-          wingTint ||
-          (Math.abs(r - wellCol.r) < 0.05 &&
-            Math.abs(g - wellCol.g) < 0.05 &&
-            Math.abs(b - wellCol.b) < 0.05) ||
-          (Math.abs(r - roofCol.r) < 0.05 &&
-            Math.abs(g - roofCol.g) < 0.05 &&
-            Math.abs(b - roofCol.b) < 0.05);
-        if (d <= 40 && yM > 32 && poultryTint) {
-          highR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
-        }
-        if (d <= 40 && yM > 30 && poultryTint) {
-          turretR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
-        }
-        if (d <= 40 && yM > 10 && yM < 26 && wingTint) {
-          midR.push(Math.hypot(x - poultryCx, z - poultryCz) / METERS_TO_WORLD);
-        }
-        if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
-        if (
-          dC < wellR * 1.08 &&
-          Math.abs(r - wellCol.r) < 0.05 &&
-          Math.abs(g - wellCol.g) < 0.05 &&
-          Math.abs(b - wellCol.b) < 0.05
-        ) {
-          wellN += 1;
-        }
-        if (dC < wellR * 0.55 && yM > 8) {
-          const r = colors.getX(i);
-          const g = colors.getY(i);
-          const b = colors.getZ(i);
-          if (
-            Math.abs(r - roofCol.r) < 0.05 &&
-            Math.abs(g - roofCol.g) < 0.05 &&
-            Math.abs(b - roofCol.b) < 0.05
-          ) {
-            holeRoof += 1;
-          }
-          if (
-            Math.abs(r - 0.831) < 0.05 &&
-            Math.abs(g - 0.761) < 0.05 &&
-            Math.abs(b - 0.29) < 0.08
-          ) {
-            holeRoof += 1;
-          }
-        }
-        if (d <= 45) {
-          near += 1;
-          const r = colors.getX(i);
-          const g = colors.getY(i);
-          const b = colors.getZ(i);
-          if (wingTint && z >= poultrySouthZ) {
-            poultrySouthZ = z;
-            poultrySouthX = x;
-          }
-          if (wingTint && yM > 6 && yM < 40) {
-            southBand.push({ x, z });
-          }
+        const dPoultry = Math.hypot(x - poultryAt.x, z - poultryAt.y) / METERS_TO_WORLD;
+        if (dPoultry <= 45) {
           if (
             Math.abs(r - pink.r) < 0.04 &&
             Math.abs(g - pink.g) < 0.04 &&
             Math.abs(b - pink.b) < 0.04
           ) {
             pinkN += 1;
-            const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
-            if (dApex < 10 && yM > 6 && yM < 48) {
-              apexPinkN += 1;
-              if (nrm && Math.abs(nrm.getX(i)) > 0.85 && Math.abs(nrm.getY(i)) < 0.25) {
-                apexEastPinkN += 1;
-                apexPoleZ.push(z);
-              }
-            }
-            if (
-              nrm &&
-              yM > 6 &&
-              yM < 36 &&
-              (z - poultryCz) / METERS_TO_WORLD > 14 &&
-              nrm.getZ(i) > 0.15
-            ) {
-              if (nrm.getX(i) < -0.32) prowWestPink += 1;
-              if (nrm.getX(i) > 0.32) prowEastPink += 1;
-              if (nrm.getZ(i) > 0.85 && Math.abs(nrm.getX(i)) < 0.2) dueSouthPink += 1;
-            }
           }
           if (
-            Math.abs(r - buff.r) < 0.04 &&
-            Math.abs(g - buff.g) < 0.04 &&
-            Math.abs(b - buff.b) < 0.04
+            Math.abs(r - clock.r) < 0.04 &&
+            Math.abs(g - clock.g) < 0.04 &&
+            Math.abs(b - clock.b) < 0.04
           ) {
-            buffN += 1;
-          }
-          if (
-            Math.abs(r - poultryGlass.r) < 0.04 &&
-            Math.abs(g - poultryGlass.g) < 0.04 &&
-            Math.abs(b - poultryGlass.b) < 0.04
-          ) {
-            poultryGlassN += 1;
-            if (
-              nrm &&
-              yM > 8 &&
-              yM < 32 &&
-              nrm.getZ(i) > 0.85 &&
-              Math.abs(nrm.getX(i)) < 0.25 &&
-              dC < 40 * METERS_TO_WORLD
-            ) {
-              southGlassN += 1;
-            }
-            if (yM > 30 && d <= 40) {
-              if (x < apexX) balconyWest += 1;
-              else balconyEast += 1;
-            }
-          }
-          if (
-            Math.abs(r - poultryClock.r) < 0.04 &&
-            Math.abs(g - poultryClock.g) < 0.04 &&
-            Math.abs(b - poultryClock.b) < 0.04
-          ) {
-            poultryClockN += 1;
-            clockYMin = Math.min(clockYMin, yM);
-            clockYMax = Math.max(clockYMax, yM);
-            if (yM > 16 && yM < 90 && z >= clockSouthZ) {
-              clockSouthZ = z;
-              clockSouthX = x;
-            }
-            const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
-            if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
-          }
-          if (
-            Math.abs(r - poultryHand.r) < 0.05 &&
-            Math.abs(g - poultryHand.g) < 0.05 &&
-            Math.abs(b - poultryHand.b) < 0.05
-          ) {
-            poultryHandN += 1;
-          }
-          if (
-            Math.abs(r - poultryMortar.r) < 0.05 &&
-            Math.abs(g - poultryMortar.g) < 0.05 &&
-            Math.abs(b - poultryMortar.b) < 0.05
-          ) {
-            poultryMortarN += 1;
+            clockN += 1;
           }
         }
         const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
         if (dj <= 35) {
-          const r = colors.getX(i);
-          const g = colors.getY(i);
-          const b = colors.getZ(i);
           if (
             Math.abs(r - bronze.r) < 0.05 &&
             Math.abs(g - bronze.g) < 0.05 &&
@@ -1284,9 +1067,6 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         }
         const dn = Math.hypot(x - nedAt.x, z - nedAt.y) / METERS_TO_WORLD;
         if (dn <= 40) {
-          const r = colors.getX(i);
-          const g = colors.getY(i);
-          const b = colors.getZ(i);
           if (
             Math.abs(r - nedGlass.r) < 0.05 &&
             Math.abs(g - nedGlass.g) < 0.05 &&
@@ -1297,9 +1077,6 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         }
         const dm = Math.hypot(x - mansionAt.x, z - mansionAt.y) / METERS_TO_WORLD;
         if (dm <= 40) {
-          const r = colors.getX(i);
-          const g = colors.getY(i);
-          const b = colors.getZ(i);
           if (
             Math.abs(r - column.r) < 0.05 &&
             Math.abs(g - column.g) < 0.05 &&
@@ -1311,99 +1088,9 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
       }
     }
   }
-  assert.ok(near > 200, `No 1 Poultry mesh missing (${near} verts)`);
   assert.ok(
-    pinkN > 80 && buffN > 80,
-    `Stirling pink / yellow limestone courses missing pink=${pinkN} buff=${buffN}`,
-  );
-  assert.ok(
-    poultryGlassN > 80,
-    `Stirling glazing missing (glass=${poultryGlassN}) — blank walls are a fail`,
-  );
-  assert.ok(poultryClockN > 40, `Poultry dark clock faces missing (clock=${poultryClockN})`);
-  assert.ok(
-    clockYMax - clockYMin > 8,
-    `Poultry clock is a pin, not a readable face (span=${(clockYMax - clockYMin).toFixed(1)} m)`,
-  );
-  assert.ok(
-    poultryClockProwN > 24,
-    `Stirling clocks missing from the prow turret (prowClock=${poultryClockProwN})`,
-  );
-  assert.ok(poultryHandN > 8, `Stirling clock red hands missing (hands=${poultryHandN})`);
-  assert.ok(
-    poultryMortarN > 30,
-    `Poultry limestone is a band shader, not modelled courses (mortar=${poultryMortarN})`,
-  );
-  assert.ok(highR.length > 16, `Poultry prow missing above the wings (${highR.length} high verts)`);
-  {
-    const turretNear = turretR.filter((r) => r > 3 && r < 12);
-    assert.ok(
-      turretNear.length > 24,
-      `Stirling prow missing at the apex (prow=${turretNear.length})`,
-    );
-    const mean = midR.length > 0 ? midR.reduce((a, v) => a + v, 0) / midR.length : 0;
-    const variance =
-      midR.length > 0 ? midR.reduce((a, v) => a + (v - mean) ** 2, 0) / midR.length : 0;
-    const std = Math.sqrt(variance);
-    const circ = mean > 0.4 ? 1 - std / mean : 1;
-    const spread = midR.length > 0 ? Math.max(...midR) - Math.min(...midR) : 0;
-    assert.ok(midR.length > 80, `Poultry limestone wings missing at mid-height (n=${midR.length})`);
-    assert.ok(
-      circ < 0.88,
-      `Poultry wings are still a cylinder (circularity=${circ.toFixed(2)}, n=${midR.length})`,
-    );
-    assert.ok(
-      spread > 5,
-      `Poultry concertina has no plan fold (spread=${spread.toFixed(1)} m, n=${midR.length})`,
-    );
-  }
-  assert.ok(wellN > 40, `Poultry courtyard well missing (${wellN} verts)`);
-  assert.ok(holeRoof < 12, `Poultry courtyard well is roofed over (${holeRoof} hole verts)`);
-  assert.ok(stickN < 8, `Poultry bands stick through the facade (${stickN} verts)`);
-  {
-    const poleSpan =
-      apexPoleZ.length > 1 ? (Math.max(...apexPoleZ) - Math.min(...apexPoleZ)) / METERS_TO_WORLD : 0;
-    assert.ok(
-      poleSpan < 14,
-      `Poultry prow still has N-S limestone poles at the apex (span=${poleSpan.toFixed(1)} m, eastFacing=${apexEastPinkN}/${apexPinkN})`,
-    );
-  }
-  {
-    const southGapM = (poultrySouthZ - clockSouthZ) / METERS_TO_WORLD;
-    assert.ok(
-      southGapM < 8,
-      `Poultry clock turret is behind the south silhouette (gap=${southGapM.toFixed(1)} m)`,
-    );
-  }
-  assert.ok(
-    prowWestPink > 12 && prowEastPink > 12,
-    `Poultry prow does not face citystreet (westCheek=${prowWestPink} eastCheek=${prowEastPink})`,
-  );
-  assert.ok(
-    dueSouthPink > 16,
-    `Poultry south silhouette is a V of two walls, not a prow drum (dueSouth=${dueSouthPink})`,
-  );
-  assert.ok(
-    Math.abs(poultrySouthX - clockSouthX) / METERS_TO_WORLD < 10,
-    `Poultry tip and clock turret are split in plan (dx=${((poultrySouthX - clockSouthX) / METERS_TO_WORLD).toFixed(1)} m)`,
-  );
-  {
-    const xs = southBand
-      .filter((p) => (poultrySouthZ - p.z) / METERS_TO_WORLD < 3.5)
-      .map((p) => p.x);
-    const spread = xs.length > 1 ? (Math.max(...xs) - Math.min(...xs)) / METERS_TO_WORLD : 0;
-    assert.ok(
-      spread > 8,
-      `Poultry south silhouette is still a knife-tip V (spread=${spread.toFixed(1)} m, n=${xs.length})`,
-    );
-  }
-  assert.ok(
-    southGlassN > 24,
-    `Stirling prow glass bay missing from the south drum (got ${southGlassN})`,
-  );
-  assert.ok(
-    balconyWest > 8 && balconyEast > 8,
-    `Stirling turret balconies missing (west=${balconyWest} east=${balconyEast})`,
+    pinkN < 20 && clockN < 8,
+    `Poultry leftover hull still in the chunk mesh (pink=${pinkN} clock=${clockN})`,
   );
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
   assert.ok(

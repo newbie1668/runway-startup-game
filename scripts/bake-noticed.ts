@@ -660,6 +660,23 @@ async function main(): Promise<void> {
       shape: c.shape,
     });
   }
+  const poultryGlb = path.join(OUT_DIR, 'no-1-poultry.glb');
+  if (existsSync(poultryGlb) && !files.some((f) => f.id === 'no-1-poultry')) {
+    const prev = (await loadExistingManifest()).find((f) => f.id === 'no-1-poultry');
+    const pin = project([-0.09075, 51.51332]);
+    files.push({
+      id: 'no-1-poultry',
+      name: prev?.name ?? 'No 1 Poultry',
+      file: 'no-1-poultry.glb',
+      bytes: (await readFile(poultryGlb)).byteLength,
+      x: prev?.x ?? pin.x,
+      z: prev?.z ?? pin.y,
+      exclusionM: prev?.exclusionM ?? 24,
+      heightM: prev?.heightM ?? 42,
+      photo: true,
+      shape: 'photo',
+    });
+  }
   const manifest = {
     generatedAt: new Date().toISOString(),
     hash: createHash('sha1')
