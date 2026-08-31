@@ -57,7 +57,7 @@ export const STREET_UNIQUE_LABEL: Record<StreetUniqueId, { name: string; use: st
   'bank-england': { name: 'Bank of England', use: 'Soane' },
 };
 
-/** Rose-pink limestone body. Buff is the yellow stone around the prow clocks, not a drum. */
+/** Rose-pink and yellow Portland limestone courses (Stirling, not a painted ribbon). */
 export const POULTRY_BUFF = 0xe8d4a4;
 export const POULTRY_PINK = 0xd8a0a8;
 export const POULTRY_GLASS = 0x2a4050;
@@ -66,9 +66,11 @@ export const POULTRY_ROOF = 0x5a625c;
 export const POULTRY_GRANITE = 0x6a6e6a;
 export const POULTRY_WELL = 0x1a1a22;
 export const POULTRY_MORTAR = 0x6a5a50;
-/** Stirling watch face. Off-white vanished into the pink/buff stripes under Lambert. */
-export const POULTRY_CLOCK = 0xffffff;
-export const POULTRY_CLOCK_RIM = 0x141210;
+export const POULTRY_METAL = 0x5a6572;
+/** Dark clock face with red hands — the Stirling turret, not gold rings on a slab. */
+export const POULTRY_CLOCK = 0x1e3348;
+export const POULTRY_CLOCK_HAND = 0xc21c24;
+export const POULTRY_CLOCK_RIM = 0x0c1016;
 
 /** Lutyens Midland Bank / The Ned. Portland, rusticated base, dark mansard. */
 export const NED_STONE = 0xe6dfd0;
@@ -872,219 +874,183 @@ function edgeOut(e: Edge, t: number, out: number): { x: number; z: number } {
   return { x: p.x + e.nx * out, z: p.z + e.nz * out };
 }
 
-function emitFrontSpan(
-  ctx: StreetEmit,
-  e: Edge,
-  t0: number,
-  t1: number,
-  y0: number,
-  y1: number,
-  out: number,
-  hex: number,
-): void {
-  if (t1 - t0 < 0.008 || y1 - y0 < m(0.12)) return;
-  const a = edgeOut(e, t0, out);
-  const b = edgeOut(e, t1, out);
-  emitWallQuad(ctx, a.x, a.z, b.x, b.z, y0, y1, e.nx, e.nz, hex);
-}
-
-/** Stirling's dark glazed book-cover, not a punched office grid. */
-function emitPoultryGlass(
-  ctx: StreetEmit,
-  e: Edge,
-  t0: number,
-  t1: number,
-  y0: number,
-  y1: number,
-  out: number,
-): void {
-  const spanT = t1 - t0;
-  const edgeM = (e.len * spanT) / METERS_TO_WORLD;
-  if (spanT < 0.08 || edgeM < 8) {
-    emitFrontSpan(ctx, e, t0, t1, y0, y1, out, POULTRY_PINK);
-    return;
+function outwardOf(a: StreetPt, b: StreetPt, cx: number, cz: number): [number, number] {
+  let nx = b.z - a.z;
+  let nz = -(b.x - a.x);
+  const mx = (a.x + b.x) / 2;
+  const mz = (a.z + b.z) / 2;
+  if (nx * (cx - mx) + nz * (cz - mz) > 0) {
+    nx = -nx;
+    nz = -nz;
   }
-  const nBay = edgeM >= 28 ? 2 : 1;
-  const glassIn = m(0.45);
-  const spanY = y1 - y0;
-  const sill = y0 + Math.max(m(2.2), spanY * 0.32);
-  const head = y0 + Math.min(spanY - m(2.2), spanY * 0.58);
-  const gutter = 0.12;
-  const baySpan = (1 - gutter * 2) / nBay;
-  emitFrontSpan(ctx, e, t0, t0 + spanT * gutter, y0, y1, out, POULTRY_PINK);
-  emitFrontSpan(ctx, e, t1 - spanT * gutter, t1, y0, y1, out, POULTRY_PINK);
-  for (let i = 0; i < nBay; i++) {
-    const u0 = gutter + i * baySpan;
-    const u1 = u0 + baySpan;
-    const tA = t0 + spanT * u0;
-    const tB = t0 + spanT * u1;
-    const tL = t0 + spanT * (u0 + baySpan * 0.18);
-    const tR = t0 + spanT * (u1 - baySpan * 0.18);
-    emitFrontSpan(ctx, e, tA, tL, y0, y1, out, POULTRY_PINK);
-    emitFrontSpan(ctx, e, tR, tB, y0, y1, out, POULTRY_PINK);
-    emitFrontSpan(ctx, e, tL, tR, y0, sill, out, POULTRY_PINK);
-    emitFrontSpan(ctx, e, tL, tR, head, y1, out, POULTRY_PINK);
-    const tM = (tL + tR) / 2;
-    const yM = (sill + head) / 2;
-    const panes: Array<[number, number, number, number]> = [
-      [tL, tM, sill, yM],
-      [tM, tR, sill, yM],
-      [tL, tM, yM, head],
-      [tM, tR, yM, head],
-    ];
-    for (const [ta, tb, ya, yb] of panes) {
-      emitFrontSpan(ctx, e, ta, tb, ya, yb, out - glassIn, POULTRY_GLASS);
-    }
-    const mull = Math.min(0.018, (tR - tL) * 0.08);
-    emitFrontSpan(ctx, e, tM - mull, tM + mull, sill, head, out, POULTRY_MORTAR);
-    emitFrontSpan(ctx, e, tL, tR, yM - m(0.14), yM + m(0.14), out, POULTRY_MORTAR);
-  }
+  const len = Math.hypot(nx, nz) || 1;
+  return [nx / len, nz / len];
 }
 
-/** One limestone plane with book-cover glass. A mid-height Y-cap is a shelf. */
-function emitPoultryWing(
+function clampToPlate(p: StreetPt, cx: number, cz: number, maxR: number): StreetPt {
+  const d = Math.hypot(p.x - cx, p.z - cz);
+  if (d <= maxR) return p;
+  const s = maxR / d;
+  return { x: cx + (p.x - cx) * s, z: cz + (p.z - cz) * s };
+}
+
+function lerpPt(a: StreetPt, b: StreetPt, t: number): StreetPt {
+  return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+}
+
+function plateMaxR(ring: StreetPt[], cx: number, cz: number): number {
+  let r = 0;
+  for (const p of ring) r = Math.max(r, Math.hypot(p.x - cx, p.z - cz));
+  return r;
+}
+
+/** Horizontal ashlar: each course is a volume with mortar and a buff kick, not paint. */
+function emitStripedWall(
   ctx: StreetEmit,
-  e: Edge,
-  tLo: number,
-  tHi: number,
+  a: StreetPt,
+  b: StreetPt,
   y0: number,
   y1: number,
-): void {
-  if (tHi - tLo < 0.04) return;
-  const out = e.nz > 0.4 ? m(0.45) : m(0.3);
-  emitPoultryGlass(ctx, e, tLo, tHi, y0, y1, out);
-}
-
-function emitBuffClockHood(
-  ctx: StreetEmit,
-  px: number,
-  py: number,
-  pz: number,
   nx: number,
   nz: number,
-  radius: number,
+  openings: boolean,
 ): void {
-  const nlen = Math.hypot(nx, nz) || 1;
-  nx /= nlen;
-  nz /= nlen;
-  const tx = -nz;
-  const tz = nx;
-  const segs = 20;
-  const r0 = radius;
-  const r1 = radius + m(0.85);
-  const out = m(0.25);
-  const ring = (r: number): number[] => {
-    const ids: number[] = [];
-    for (let s = 0; s < segs; s++) {
-      const t = (s / segs) * Math.PI * 2;
-      const cpx = Math.cos(t);
-      const spy = Math.sin(t);
-      ids.push(
-        ctx.pushVertex(
-          px + tx * cpx * r + nx * out,
-          py + spy * r,
-          pz + tz * cpx * r + nz * out,
-          nx,
-          0,
-          nz,
-          POULTRY_BUFF,
-        ),
+  if (y1 - y0 < m(0.2)) return;
+  const span = Math.hypot(b.x - a.x, b.z - a.z);
+  if (span < m(0.4)) return;
+  const along = (t: number): StreetPt => lerpPt(a, b, t);
+  const course = m(0.92);
+  const yWin0 = y0 + (y1 - y0) * 0.3;
+  const yWin1 = y0 + (y1 - y0) * 0.76;
+  let y = y0;
+  let i = 0;
+  while (y + m(0.06) < y1) {
+    const yb = Math.min(y + course, y1);
+    const buff = i % 2 === 1;
+    const hex = buff ? POULTRY_BUFF : POULTRY_PINK;
+    const out = buff ? m(0.18) : m(0.05);
+    const mortar = Math.min(m(0.07), (yb - y) * 0.14);
+    const yStone = yb - mortar;
+    const ax = a.x + nx * out;
+    const az = a.z + nz * out;
+    const bx = b.x + nx * out;
+    const bz = b.z + nz * out;
+    const winRow = openings && span > m(8) && y >= yWin0 && yb <= yWin1 && i % 3 === 1;
+    if (winRow) {
+      const p0 = along(0.2);
+      const p1 = along(0.8);
+      const ox0 = p0.x + nx * out;
+      const oz0 = p0.z + nz * out;
+      const ox1 = p1.x + nx * out;
+      const oz1 = p1.z + nz * out;
+      emitWallQuad(ctx, ax, az, ox0, oz0, y, yStone, nx, nz, hex);
+      emitWallQuad(ctx, ox1, oz1, bx, bz, y, yStone, nx, nz, hex);
+      const gin = m(0.4);
+      emitWallQuad(
+        ctx,
+        p0.x + nx * (out - gin),
+        p0.z + nz * (out - gin),
+        p1.x + nx * (out - gin),
+        p1.z + nz * (out - gin),
+        y,
+        yStone,
+        nx,
+        nz,
+        POULTRY_GLASS,
       );
+    } else {
+      emitWallQuad(ctx, ax, az, bx, bz, y, yStone, nx, nz, hex);
     }
-    return ids;
-  };
-  const inner = ring(r0);
-  const outer = ring(r1);
-  for (let s = 0; s < segs; s++) {
-    const a = inner[s]!;
-    const b = inner[(s + 1) % segs]!;
-    const c = outer[(s + 1) % segs]!;
-    const d = outer[s]!;
-    ctx.pushTri(a, b, c);
-    ctx.pushTri(a, c, d);
+    if (mortar > m(0.02)) {
+      emitWallQuad(ctx, ax, az, bx, bz, yStone, yb, nx, nz, POULTRY_MORTAR);
+    }
+    y = yb;
+    i += 1;
   }
+}
+
+function emitStripedPier(
+  ctx: StreetEmit,
+  px: number,
+  pz: number,
+  y0: number,
+  y1: number,
+  half: number,
+  tx: number,
+  tz: number,
+  nx: number,
+  nz: number,
+): void {
+  const c = (sx: number, so: number): StreetPt => ({
+    x: px + tx * sx + nx * so,
+    z: pz + tz * sx + nz * so,
+  });
+  const c0 = c(-half, -half);
+  const c1 = c(half, -half);
+  const c2 = c(half, half);
+  const c3 = c(-half, half);
+  emitStripedWall(ctx, c0, c1, y0, y1, -nx, -nz, false);
+  emitStripedWall(ctx, c1, c2, y0, y1, tx, tz, false);
+  emitStripedWall(ctx, c2, c3, y0, y1, nx, nz, false);
+  emitStripedWall(ctx, c3, c0, y0, y1, -tx, -tz, false);
+}
+
+function bulgePoly(
+  a: StreetPt,
+  b: StreetPt,
+  nx: number,
+  nz: number,
+  bulge: number,
+  segs: number,
+  cx: number,
+  cz: number,
+  maxR: number,
+): StreetPt[] {
+  const pts: StreetPt[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const raw: StreetPt = {
+      x: a.x + (b.x - a.x) * t + nx * bulge * Math.sin(Math.PI * t),
+      z: a.z + (b.z - a.z) * t + nz * bulge * Math.sin(Math.PI * t),
+    };
+    pts.push(clampToPlate(raw, cx, cz, maxR));
+  }
+  return pts;
+}
+
+function emitCornice(
+  ctx: StreetEmit,
+  a: StreetPt,
+  b: StreetPt,
+  y: number,
+  nx: number,
+  nz: number,
+  outW: number,
+  thick: number,
+  hex: number,
+): void {
+  const y1 = y + thick;
+  const a1 = { x: a.x + nx * outW, z: a.z + nz * outW };
+  const b1 = { x: b.x + nx * outW, z: b.z + nz * outW };
+  emitWallQuad(ctx, a1.x, a1.z, b1.x, b1.z, y, y1, nx, nz, hex);
+  const i0 = ctx.pushVertex(a.x, y, a.z, 0, -1, 0, hex);
+  const i1 = ctx.pushVertex(b.x, y, b.z, 0, -1, 0, hex);
+  const i2 = ctx.pushVertex(b1.x, y, b1.z, 0, -1, 0, hex);
+  const i3 = ctx.pushVertex(a1.x, y, a1.z, 0, -1, 0, hex);
+  ctx.pushTri(i0, i1, i2);
+  ctx.pushTri(i0, i2, i3);
+  const t0 = ctx.pushVertex(a.x, y1, a.z, 0, 1, 0, hex);
+  const t1 = ctx.pushVertex(b.x, y1, b.z, 0, 1, 0, hex);
+  const t2 = ctx.pushVertex(b1.x, y1, b1.z, 0, 1, 0, hex);
+  const t3 = ctx.pushVertex(a1.x, y1, a1.z, 0, 1, 0, hex);
+  ctx.pushTri(t0, t3, t2);
+  ctx.pushTri(t0, t2, t1);
 }
 
 /**
- * Stirling prow: two limestone cheeks folding to a south-pointing tip, clocks
- * on those faces. Built from the two long south streets. The 2 m east OSM
- * stubs at the apex are N-S poles from this camera and must not be extruded.
+ * Dark-mullion glass curtain on the east bay, plus the cantilevered stone cornice.
  */
-function emitProwFold(
-  ctx: StreetEmit,
-  ePrev: Edge,
-  eFlank: Edge,
-  apex: StreetPt,
-  hx: number,
-  hz: number,
-  y0: number,
-  y1: number,
-): { tPrev: number; tFlank: number } {
-  const prevM = ePrev.len / METERS_TO_WORLD;
-  const flankM = eFlank.len / METERS_TO_WORLD;
-  const tPrev = 1 - Math.min(26, prevM * 0.58) / Math.max(prevM, 1);
-  const tFlank = Math.min(22, flankM * 0.46) / Math.max(flankM, 1);
-  const left = edgeOut(ePrev, tPrev, m(0.4));
-  const right = edgeOut(eFlank, tFlank, m(0.4));
-  const tip = { x: apex.x + hx * m(7.0), z: apex.z + hz * m(7.0) };
-  const cheek = (a: StreetPt, b: StreetPt) => {
-    let nx = -(b.z - a.z);
-    let nz = b.x - a.x;
-    const nl = Math.hypot(nx, nz) || 1;
-    nx /= nl;
-    nz /= nl;
-    if (nx * hx + nz * hz < 0) {
-      nx = -nx;
-      nz = -nz;
-    }
-    emitCheekLimestone(ctx, a, b, y0, y1, nx, nz);
-    return { nx, nz, a, b };
-  };
-  const fA = cheek(left, tip);
-  const fB = cheek(tip, right);
-  const i0 = ctx.pushVertex(left.x, y1, left.z, 0, 1, 0, POULTRY_PINK);
-  const i1 = ctx.pushVertex(tip.x, y1, tip.z, 0, 1, 0, POULTRY_PINK);
-  const i2 = ctx.pushVertex(right.x, y1, right.z, 0, 1, 0, POULTRY_PINK);
-  ctx.pushTri(i0, i1, i2);
-  const gL = {
-    x: left.x + (tip.x - left.x) * 0.78,
-    z: left.z + (tip.z - left.z) * 0.78,
-  };
-  const gR = {
-    x: right.x + (tip.x - right.x) * 0.78,
-    z: right.z + (tip.z - right.z) * 0.78,
-  };
-  const chordM = Math.hypot(gR.x - gL.x, gR.z - gL.z) / METERS_TO_WORLD;
-  if (chordM >= 4) {
-    const inset = m(0.35);
-    const gy0 = y0 + (y1 - y0) * 0.14;
-    const gy1 = y0 + (y1 - y0) * 0.48;
-    emitWallQuad(
-      ctx,
-      gL.x - hx * inset,
-      gL.z - hz * inset,
-      gR.x - hx * inset,
-      gR.z - hz * inset,
-      gy0,
-      gy1,
-      hx,
-      hz,
-      POULTRY_GLASS,
-    );
-  }
-  const clockY = y1 - m(3.2);
-  const faceR = m(2.3);
-  for (const f of [fA, fB]) {
-    if (f.nz < 0.38) continue;
-    const mx = f.a.x + (f.b.x - f.a.x) * 0.42;
-    const mz = f.a.z + (f.b.z - f.a.z) * 0.42;
-    emitBuffClockHood(ctx, mx, clockY, mz, f.nx, f.nz, faceR);
-    emitClockOnFace(ctx, mx + f.nx * m(0.4), clockY, mz + f.nz * m(0.4), f.nx, f.nz, faceR);
-  }
-  return { tPrev, tFlank };
-}
-
-function emitCheekLimestone(
+function emitGlassCurtain(
   ctx: StreetEmit,
   a: StreetPt,
   b: StreetPt,
@@ -1093,62 +1059,52 @@ function emitCheekLimestone(
   nx: number,
   nz: number,
 ): void {
-  const span = Math.hypot(b.x - a.x, b.z - a.z) / METERS_TO_WORLD;
-  const along = (t: number): StreetPt => ({
-    x: a.x + (b.x - a.x) * t,
-    z: a.z + (b.z - a.z) * t,
-  });
-  const sill = m(11);
-  const yB = m(16.5);
-  const head = m(22);
-  const pier = (qa: StreetPt, qb: StreetPt) => {
-    emitWallQuad(ctx, qa.x, qa.z, qb.x, qb.z, y0, sill, nx, nz, POULTRY_PINK);
-    emitWallQuad(ctx, qa.x, qa.z, qb.x, qb.z, sill, yB, nx, nz, POULTRY_PINK);
-    emitWallQuad(ctx, qa.x, qa.z, qb.x, qb.z, yB, head, nx, nz, POULTRY_PINK);
-    emitWallQuad(ctx, qa.x, qa.z, qb.x, qb.z, head, y1, nx, nz, POULTRY_PINK);
-  };
-  if (span < 10) {
-    pier(a, b);
+  const span = Math.hypot(b.x - a.x, b.z - a.z);
+  if (span < m(6)) {
+    emitStripedWall(ctx, a, b, y0, y1, nx, nz, false);
     return;
   }
-  const p0 = along(0.14);
-  const p1 = along(0.68);
-  pier(a, p0);
-  pier(p1, b);
-  emitWallQuad(ctx, p0.x, p0.z, p1.x, p1.z, y0, sill, nx, nz, POULTRY_PINK);
-  emitWallQuad(ctx, p0.x, p0.z, p1.x, p1.z, head, y1, nx, nz, POULTRY_PINK);
-  emitWallQuad(ctx, p0.x, p0.z, p1.x, p1.z, yB - m(0.45), yB + m(0.45), nx, nz, POULTRY_PINK);
-  emitWallQuad(ctx, p0.x, p0.z, p1.x, p1.z, m(19), m(20.4), nx, nz, POULTRY_PINK);
-  const inset = m(0.4);
-  const gx0 = p0.x - nx * inset;
-  const gz0 = p0.z - nz * inset;
-  const gx1 = p1.x - nx * inset;
-  const gz1 = p1.z - nz * inset;
-  const mid = along(0.41);
-  const mx = mid.x - nx * inset;
-  const mz = mid.z - nz * inset;
-  const yM = (sill + head) / 2;
-  emitWallQuad(ctx, gx0, gz0, mx, mz, sill, yM, nx, nz, POULTRY_GLASS);
-  emitWallQuad(ctx, mx, mz, gx1, gz1, sill, yM, nx, nz, POULTRY_GLASS);
-  emitWallQuad(ctx, gx0, gz0, mx, mz, yM, head, nx, nz, POULTRY_GLASS);
-  emitWallQuad(ctx, mx, mz, gx1, gz1, yM, head, nx, nz, POULTRY_GLASS);
-  const mull0 = along(0.4);
-  const mull1 = along(0.42);
-  emitWallQuad(ctx, mull0.x, mull0.z, mull1.x, mull1.z, sill, head, nx, nz, POULTRY_MORTAR);
+  const pier = m(1.4) / (span / METERS_TO_WORLD);
+  const p0 = lerpPt(a, b, Math.min(0.12, pier));
+  const p1 = lerpPt(a, b, 1 - Math.min(0.12, pier));
+  emitStripedWall(ctx, a, p0, y0, y1, nx, nz, false);
+  emitStripedWall(ctx, p1, b, y0, y1, nx, nz, false);
+  const gin = m(0.35);
+  const gx0 = p0.x - nx * gin;
+  const gz0 = p0.z - nz * gin;
+  const gx1 = p1.x - nx * gin;
+  const gz1 = p1.z - nz * gin;
+  const cols = Math.max(4, Math.min(9, Math.round(span / m(2.6))));
+  const rows = Math.max(3, Math.min(7, Math.round((y1 - y0) / m(3.4))));
+  for (let r = 0; r < rows; r++) {
+    const ya = y0 + ((y1 - y0) * r) / rows;
+    const yb = y0 + ((y1 - y0) * (r + 1)) / rows;
+    for (let c = 0; c < cols; c++) {
+      const t0 = c / cols;
+      const t1 = (c + 1) / cols;
+      const qa = lerpPt({ x: gx0, z: gz0 }, { x: gx1, z: gz1 }, t0);
+      const qb = lerpPt({ x: gx0, z: gz0 }, { x: gx1, z: gz1 }, t1);
+      emitWallQuad(ctx, qa.x, qa.z, qb.x, qb.z, ya, yb, nx, nz, POULTRY_GLASS);
+    }
+  }
+  const mull = m(0.16);
+  for (let c = 0; c <= cols; c++) {
+    const t = c / cols;
+    const q = lerpPt({ x: gx0, z: gz0 }, { x: gx1, z: gz1 }, t);
+    const q2 = {
+      x: q.x + (gx1 - gx0) * (mull / Math.max(span, m(1))),
+      z: q.z + (gz1 - gz0) * (mull / Math.max(span, m(1))),
+    };
+    emitWallQuad(ctx, q.x, q.z, q2.x, q2.z, y0, y1, nx, nz, POULTRY_MORTAR);
+  }
+  for (let r = 0; r <= rows; r++) {
+    const y = y0 + ((y1 - y0) * r) / rows;
+    emitWallQuad(ctx, gx0, gz0, gx1, gz1, y, y + m(0.14), nx, nz, POULTRY_MORTAR);
+  }
+  emitCornice(ctx, a, b, y1, nx, nz, m(1.7), m(1.15), POULTRY_PINK);
 }
 
-function nearApexStub(e: Edge, apex: StreetPt): boolean {
-  const lenM = e.len / METERS_TO_WORLD;
-  const aM = Math.hypot(e.a.x - apex.x, e.a.z - apex.z) / METERS_TO_WORLD;
-  const bM = Math.hypot(e.b.x - apex.x, e.b.z - apex.z) / METERS_TO_WORLD;
-  return lenM < 8 && aM < 10 && bM < 10;
-}
-
-/**
- * Stirling's two-sided watch: a thick disk in a plane, not a vertical shaft.
- * Four clocks on a cylinder is the costume drum.
- */
-function emitClockOnFace(
+function emitDarkClock(
   ctx: StreetEmit,
   px: number,
   py: number,
@@ -1163,139 +1119,258 @@ function emitClockOnFace(
   const tx = -nz;
   const tz = nx;
   const segs = 24;
-  const rimW = m(0.7);
-  const halfD = m(0.62);
-  const faceOut = halfD + m(0.1);
-
-  const ringAt = (out: number, radius: number, hex: number): number[] => {
-    const ids: number[] = [];
-    const ox = nx * out;
-    const oz = nz * out;
-    for (let s = 0; s < segs; s++) {
-      const t = (s / segs) * Math.PI * 2;
-      const cpx = Math.cos(t);
-      const spy = Math.sin(t);
-      ids.push(
-        ctx.pushVertex(
-          px + tx * cpx * radius + ox,
-          py + spy * radius,
-          pz + tz * cpx * radius + oz,
-          0,
-          1,
-          0,
-          hex,
-        ),
-      );
-    }
-    return ids;
-  };
-
-  const emitFace = (out: number, sign: number) => {
-    const ox = nx * out;
-    const oz = nz * out;
-    const c = ctx.pushVertex(px + ox, py, pz + oz, 0, 1, 0, POULTRY_CLOCK);
-    const inner = ringAt(out, faceR, POULTRY_CLOCK);
-    const outer = ringAt(out, faceR + rimW, POULTRY_CLOCK_RIM);
-    for (let s = 0; s < segs; s++) {
-      const a = inner[s]!;
-      const b = inner[(s + 1) % segs]!;
-      if (sign > 0) ctx.pushTri(c, a, b);
-      else ctx.pushTri(c, b, a);
-      const o0 = outer[s]!;
-      const o1 = outer[(s + 1) % segs]!;
-      if (sign > 0) {
-        ctx.pushTri(a, o0, o1);
-        ctx.pushTri(a, o1, b);
-      } else {
-        ctx.pushTri(a, o1, o0);
-        ctx.pushTri(a, b, o1);
-      }
-    }
-    const handOut = out + m(0.14) * sign;
-    const hox = nx * handOut;
-    const hoz = nz * handOut;
-    const hand = (len: number, ang: number, halfW: number) => {
-      const tipT = Math.sin(ang) * len;
-      const tipY = Math.cos(ang) * len;
-      const baseT = Math.cos(ang) * halfW;
-      const baseY = -Math.sin(ang) * halfW;
-      const i0 = ctx.pushVertex(
-        px + tx * -baseT + hox,
-        py + -baseY,
-        pz + tz * -baseT + hoz,
-        0,
-        1,
-        0,
-        POULTRY_CLOCK_RIM,
-      );
-      const i1 = ctx.pushVertex(
-        px + tx * baseT + hox,
-        py + baseY,
-        pz + tz * baseT + hoz,
-        0,
-        1,
-        0,
-        POULTRY_CLOCK_RIM,
-      );
-      const i2 = ctx.pushVertex(
-        px + tx * tipT + hox,
-        py + tipY,
-        pz + tz * tipT + hoz,
-        0,
-        1,
-        0,
-        POULTRY_CLOCK_RIM,
-      );
-      if (sign > 0) ctx.pushTri(i0, i1, i2);
-      else ctx.pushTri(i0, i2, i1);
-    };
-    hand(faceR * 0.52, Math.PI * 0.33, m(0.28));
-    hand(faceR * 0.8, -Math.PI * 0.18, m(0.16));
-    for (let h = 0; h < 12; h++) {
-      const ang = (h / 12) * Math.PI * 2;
-      const cpx = Math.cos(ang);
-      const spy = Math.sin(ang);
-      const pxT = -spy;
-      const pyT = cpx;
-      const halfW = h % 3 === 0 ? m(0.22) : m(0.1);
-      const r0 = faceR * 0.78;
-      const r1 = faceR * 0.96;
-      const tick = (r: number, side: number) =>
-        ctx.pushVertex(
-          px + tx * (cpx * r + pxT * side) + hox,
-          py + spy * r + pyT * side,
-          pz + tz * (cpx * r + pxT * side) + hoz,
-          0,
-          1,
-          0,
-          POULTRY_CLOCK_RIM,
-        );
-      const t0 = tick(r0, -halfW);
-      const t1 = tick(r0, halfW);
-      const t2 = tick(r1, halfW);
-      const t3 = tick(r1, -halfW);
-      if (sign > 0) {
-        ctx.pushTri(t0, t1, t2);
-        ctx.pushTri(t0, t2, t3);
-      } else {
-        ctx.pushTri(t0, t2, t1);
-        ctx.pushTri(t0, t3, t2);
-      }
-    }
-  };
-
-  emitFace(faceOut, 1);
-  emitFace(-faceOut, -1);
-  const frontOuter = ringAt(faceOut, faceR + rimW, POULTRY_CLOCK_RIM);
-  const backOuter = ringAt(-faceOut, faceR + rimW, POULTRY_CLOCK_RIM);
+  const out = m(0.2);
+  const ox = nx * out;
+  const oz = nz * out;
+  const c = ctx.pushVertex(px + ox, py, pz + oz, nx, 0, nz, POULTRY_CLOCK);
+  const inner: number[] = [];
+  const outer: number[] = [];
+  const rim = faceR + m(0.18);
   for (let s = 0; s < segs; s++) {
-    const a = frontOuter[s]!;
-    const b = frontOuter[(s + 1) % segs]!;
-    const c = backOuter[(s + 1) % segs]!;
-    const d = backOuter[s]!;
-    ctx.pushTri(a, b, c);
-    ctx.pushTri(a, c, d);
+    const t = (s / segs) * Math.PI * 2;
+    const cp = Math.cos(t);
+    const sp = Math.sin(t);
+    inner.push(
+      ctx.pushVertex(
+        px + tx * cp * faceR + ox,
+        py + sp * faceR,
+        pz + tz * cp * faceR + oz,
+        nx,
+        0,
+        nz,
+        POULTRY_CLOCK,
+      ),
+    );
+    outer.push(
+      ctx.pushVertex(
+        px + tx * cp * rim + ox,
+        py + sp * rim,
+        pz + tz * cp * rim + oz,
+        nx,
+        0,
+        nz,
+        POULTRY_CLOCK_RIM,
+      ),
+    );
   }
+  for (let s = 0; s < segs; s++) {
+    const a = inner[s]!;
+    const b = inner[(s + 1) % segs]!;
+    ctx.pushTri(c, a, b);
+    const o0 = outer[s]!;
+    const o1 = outer[(s + 1) % segs]!;
+    ctx.pushTri(a, o0, o1);
+    ctx.pushTri(a, o1, b);
+  }
+  const handOut = out + m(0.12);
+  const hox = nx * handOut;
+  const hoz = nz * handOut;
+  const hand = (len: number, ang: number, halfW: number) => {
+    const tipT = Math.sin(ang) * len;
+    const tipY = Math.cos(ang) * len;
+    const baseT = Math.cos(ang) * halfW;
+    const baseY = -Math.sin(ang) * halfW;
+    const i0 = ctx.pushVertex(
+      px + tx * -baseT + hox,
+      py + -baseY,
+      pz + tz * -baseT + hoz,
+      nx,
+      0,
+      nz,
+      POULTRY_CLOCK_HAND,
+    );
+    const i1 = ctx.pushVertex(
+      px + tx * baseT + hox,
+      py + baseY,
+      pz + tz * baseT + hoz,
+      nx,
+      0,
+      nz,
+      POULTRY_CLOCK_HAND,
+    );
+    const i2 = ctx.pushVertex(
+      px + tx * tipT + hox,
+      py + tipY,
+      pz + tz * tipT + hoz,
+      nx,
+      0,
+      nz,
+      POULTRY_CLOCK_HAND,
+    );
+    ctx.pushTri(i0, i1, i2);
+  };
+  hand(faceR * 0.5, Math.PI * 0.28, m(0.22));
+  hand(faceR * 0.78, -Math.PI * 0.12, m(0.12));
+}
+
+function emitTurretBalcony(
+  ctx: StreetEmit,
+  cx: number,
+  cz: number,
+  y: number,
+  ang: number,
+  radius: number,
+): void {
+  const nx = Math.cos(ang);
+  const nz = Math.sin(ang);
+  const tx = -nz;
+  const tz = nx;
+  const px = cx + nx * (radius + m(1.05));
+  const pz = cz + nz * (radius + m(1.05));
+  ctx.pushOrientedBox(px, y, pz, m(1.4), m(0.32), m(2.1), tx, tz, nx, nz, POULTRY_METAL);
+  ctx.pushOrientedBox(
+    px + nx * m(0.15),
+    y + m(0.32),
+    pz + nz * m(0.15),
+    m(1.25),
+    m(0.85),
+    m(0.12),
+    tx,
+    tz,
+    nx,
+    nz,
+    POULTRY_GLASS,
+  );
+}
+
+function emitStirlingTurret(
+  ctx: StreetEmit,
+  cx: number,
+  cz: number,
+  y0: number,
+  y1: number,
+  faceX: number,
+  faceZ: number,
+): void {
+  const R = m(3.45);
+  const segs = 18;
+  const course = m(0.82);
+  let y = y0;
+  let i = 0;
+  while (y + m(0.05) < y1) {
+    const yb = Math.min(y + course, y1);
+    const buff = i % 2 === 1;
+    const hex = buff ? POULTRY_BUFF : POULTRY_PINK;
+    const r = R + (buff ? m(0.1) : 0);
+    for (let s = 0; s < segs; s++) {
+      const a0 = (s / segs) * Math.PI * 2;
+      const a1 = ((s + 1) / segs) * Math.PI * 2;
+      const x0 = cx + Math.cos(a0) * r;
+      const z0 = cz + Math.sin(a0) * r;
+      const x1 = cx + Math.cos(a1) * r;
+      const z1 = cz + Math.sin(a1) * r;
+      const nx = Math.cos((a0 + a1) / 2);
+      const nz = Math.sin((a0 + a1) / 2);
+      emitWallQuad(ctx, x0, z0, x1, z1, y, yb, nx, nz, hex);
+    }
+    y = yb;
+    i += 1;
+  }
+  pushDisk(ctx, cx, y1, cz, R + m(0.12), POULTRY_PINK, segs);
+  const ang = Math.atan2(faceZ, faceX);
+  const clockY = y0 + (y1 - y0) * 0.4;
+  const clockR = m(1.85);
+  emitDarkClock(
+    ctx,
+    cx + Math.cos(ang) * (R + m(0.12)),
+    clockY,
+    cz + Math.sin(ang) * (R + m(0.12)),
+    Math.cos(ang),
+    Math.sin(ang),
+    clockR,
+  );
+  const by = y1 - m(1.85);
+  emitTurretBalcony(ctx, cx, cz, by, ang + Math.PI * 0.25, R);
+  emitTurretBalcony(ctx, cx, cz, by, ang - Math.PI * 0.25, R);
+}
+
+function emitProwArch(
+  ctx: StreetEmit,
+  tip: StreetPt,
+  hx: number,
+  hz: number,
+  y0: number,
+  radius: number,
+): void {
+  const tx = -hz;
+  const tz = hx;
+  const cx = tip.x - hx * m(1.2);
+  const cz = tip.z - hz * m(1.2);
+  const segs = 12;
+  const depth = m(2.6);
+  const outer = radius + m(1.15);
+  const backC = ctx.pushVertex(cx - hx * depth, y0, cz - hz * depth, hx, 0, hz, POULTRY_GLASS);
+  for (let s = 0; s < segs; s++) {
+    const t0 = (s / segs) * Math.PI;
+    const t1 = ((s + 1) / segs) * Math.PI;
+    const ring = (
+      rad: number,
+      theta: number,
+      inset: number,
+    ): { x: number; y: number; z: number } => ({
+      x: cx + tx * Math.cos(theta) * rad - hx * inset,
+      y: y0 + Math.sin(theta) * rad,
+      z: cz + tz * Math.cos(theta) * rad - hz * inset,
+    });
+    const a = ring(radius, t0, depth);
+    const b = ring(radius, t1, depth);
+    const c = ring(radius, t1, m(0.15));
+    const d = ring(radius, t0, m(0.15));
+    const ia = ctx.pushVertex(a.x, a.y, a.z, hx, 0, hz, POULTRY_SHOP);
+    const ib = ctx.pushVertex(b.x, b.y, b.z, hx, 0, hz, POULTRY_SHOP);
+    ctx.pushTri(backC, ia, ib);
+    const ic = ctx.pushVertex(c.x, c.y, c.z, hx, 0, hz, POULTRY_GLASS);
+    const id = ctx.pushVertex(d.x, d.y, d.z, hx, 0, hz, POULTRY_GLASS);
+    ctx.pushTri(ia, ib, ic);
+    ctx.pushTri(ia, ic, id);
+    const oa = ring(outer, t0, m(0.05));
+    const ob = ring(outer, t1, m(0.05));
+    const oc = ring(radius, t1, m(0.05));
+    const od = ring(radius, t0, m(0.05));
+    const hex = s % 2 === 0 ? POULTRY_PINK : POULTRY_BUFF;
+    const j0 = ctx.pushVertex(oa.x, oa.y, oa.z, hx, 0, hz, hex);
+    const j1 = ctx.pushVertex(ob.x, ob.y, ob.z, hx, 0, hz, hex);
+    const j2 = ctx.pushVertex(oc.x, oc.y, oc.z, hx, 0, hz, hex);
+    const j3 = ctx.pushVertex(od.x, od.y, od.z, hx, 0, hz, hex);
+    ctx.pushTri(j0, j1, j2);
+    ctx.pushTri(j0, j2, j3);
+  }
+}
+
+function emitFoldedCheek(
+  ctx: StreetEmit,
+  foot: StreetPt,
+  tip: StreetPt,
+  y0: number,
+  y1: number,
+  cx: number,
+  cz: number,
+  openings: boolean,
+): void {
+  const mid = lerpPt(foot, tip, 0.48);
+  const vx = cx - mid.x;
+  const vz = cz - mid.z;
+  const vl = Math.hypot(vx, vz) || 1;
+  const fold: StreetPt = {
+    x: mid.x + (vx / vl) * m(4.4),
+    z: mid.z + (vz / vl) * m(4.4),
+  };
+  const [n0x, n0z] = outwardOf(foot, fold, cx, cz);
+  const [n1x, n1z] = outwardOf(fold, tip, cx, cz);
+  emitStripedWall(ctx, foot, fold, y0, y1, n0x, n0z, openings);
+  emitStripedWall(ctx, fold, tip, y0, y1, n1x, n1z, openings);
+}
+
+function nearApexStub(e: Edge, apex: StreetPt): boolean {
+  const lenM = e.len / METERS_TO_WORLD;
+  const aM = Math.hypot(e.a.x - apex.x, e.a.z - apex.z) / METERS_TO_WORLD;
+  const bM = Math.hypot(e.b.x - apex.x, e.b.z - apex.z) / METERS_TO_WORLD;
+  return lenM < 8 && aM < 10 && bM < 10;
+}
+
+function hairReturn(e: Edge): boolean {
+  const lenM = e.len / METERS_TO_WORLD;
+  return lenM < 8 && Math.abs(e.nx) > 0.82;
 }
 
 function emitPoultryWalls(ctx: StreetEmit): void {
@@ -1309,29 +1384,56 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   const eFlank =
     edges.find((e) => e.i !== ePrev.i && e.nz > 0.4 && e.len / METERS_TO_WORLD > 20) ??
     edges[(apexI + 2) % n]!;
-  const arcadeH = H * 0.15;
-  const stub = (e: Edge) => nearApexStub(e, apex);
-
-  emitArcade(ctx, ctx.ring, 0, arcadeH, POULTRY_GRANITE, null, stub);
-  const shop = insetRingTowardCentroid(ctx.ring, cx, cz, m(1.6));
-  emitWallBand(ctx, shop, 0, arcadeH * 0.82, POULTRY_SHOP, 0);
+  const maxR = plateMaxR(ctx.ring, cx, cz) + m(6.2);
+  const clamp = (p: StreetPt) => clampToPlate(p, cx, cz, maxR);
 
   let bx = ePrev.nx + eFlank.nx;
   let bz = ePrev.nz + eFlank.nz;
   const bl = Math.hypot(bx, bz) || 1;
   bx /= bl;
   bz /= bl;
-  const fold = emitProwFold(ctx, ePrev, eFlank, apex, bx, bz, 0, H + m(6));
+
+  const arcadeH = m(5.6);
+  const tip = clamp({ x: apex.x + bx * m(2.8), z: apex.z + bz * m(2.8) });
+  const curveFar = eFlank.b;
+  const curveNear = clamp(edgeOut(eFlank, 0.2, m(0.15)));
+  const glassFar = ePrev.a;
+  const glassNear = clamp(edgeOut(ePrev, 0.8, m(0.15)));
+
+  const curve = bulgePoly(curveFar, curveNear, eFlank.nx, eFlank.nz, m(4.0), 7, cx, cz, maxR);
+  for (let i = 0; i < curve.length - 1; i++) {
+    const a = curve[i]!;
+    const b = curve[i + 1]!;
+    const [nx, nz] = outwardOf(a, b, cx, cz);
+    emitStripedWall(ctx, a, b, 0, arcadeH, nx, nz, false);
+    emitStripedWall(ctx, a, b, arcadeH, H, nx, nz, true);
+    const span = Math.hypot(b.x - a.x, b.z - a.z);
+    if (span > m(5.5)) {
+      const mid = lerpPt(a, b, 0.5);
+      const tx = (b.x - a.x) / span;
+      const tz = (b.z - a.z) / span;
+      const half = m(0.85);
+      emitStripedPier(ctx, mid.x + nx * half, mid.z + nz * half, 0, arcadeH, half, tx, tz, nx, nz);
+    }
+  }
+
+  emitGlassCurtain(ctx, glassFar, glassNear, m(0.4), H, ePrev.nx, ePrev.nz);
+
+  emitFoldedCheek(ctx, curveNear, tip, 0, H, cx, cz, false);
+  emitFoldedCheek(ctx, glassNear, tip, 0, H, cx, cz, false);
+  emitProwArch(ctx, tip, bx, bz, 0, m(4.4));
+
+  const tur = clamp({
+    x: apex.x + (cx - apex.x) * 0.08,
+    z: apex.z + (cz - apex.z) * 0.08,
+  });
+  emitStirlingTurret(ctx, tur.x, tur.z, H - m(1.6), H + m(10.5), bx, bz);
 
   for (const e of edges) {
-    if (stub(e)) continue;
-    if (e.i === ePrev.i) {
-      emitPoultryWing(ctx, e, 0, fold.tPrev, arcadeH, H);
-    } else if (e.i === eFlank.i) {
-      emitPoultryWing(ctx, e, fold.tFlank, 1, arcadeH, H);
-    } else {
-      emitPoultryWing(ctx, e, 0, 1, arcadeH, H);
-    }
+    if (nearApexStub(e, apex) || hairReturn(e)) continue;
+    if (e.i === ePrev.i || e.i === eFlank.i) continue;
+    if (e.len / METERS_TO_WORLD < 5) continue;
+    emitStripedWall(ctx, e.a, e.b, 0, H, e.nx, e.nz, false);
   }
 
   const wellR = poultryWellR(ctx.plan);
@@ -1798,16 +1900,7 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
   };
   if (kind === 'no-1-poultry') {
     const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-    emitAnnularRoofRadial(
-      ctx,
-      ctx.ring,
-      poultryWellR(ctx.plan),
-      H,
-      POULTRY_ROOF,
-      [],
-      apex,
-      m(8),
-    );
+    emitAnnularRoofRadial(ctx, ctx.ring, poultryWellR(ctx.plan), H, POULTRY_ROOF, [], apex, m(10));
     return;
   }
   if (kind === 'the-ned') {

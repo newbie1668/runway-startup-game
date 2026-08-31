@@ -36,6 +36,7 @@ import {
   NED_GLASS,
   POULTRY_BUFF,
   POULTRY_CLOCK,
+  POULTRY_CLOCK_HAND,
   POULTRY_GLASS,
   POULTRY_MORTAR,
   POULTRY_PINK,
@@ -1020,6 +1021,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const jewryHigh = new THREE.Color(JEWRY_HIGH);
   const poultryGlass = new THREE.Color(POULTRY_GLASS);
   const poultryClock = new THREE.Color(POULTRY_CLOCK);
+  const poultryHand = new THREE.Color(POULTRY_CLOCK_HAND);
   const poultryMortar = new THREE.Color(POULTRY_MORTAR);
   const jewryGlass = new THREE.Color(JEWRY_GLASS);
   const nedGlass = new THREE.Color(NED_GLASS);
@@ -1036,6 +1038,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let poultryGlassN = 0;
   let poultryClockN = 0;
   let poultryClockProwN = 0;
+  let poultryHandN = 0;
   let poultryMortarN = 0;
   let jewryGlassN = 0;
   let nedGlassN = 0;
@@ -1066,9 +1069,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         (Math.abs(r - pink.r) < 0.04 &&
           Math.abs(g - pink.g) < 0.04 &&
           Math.abs(b - pink.b) < 0.04) ||
-        (Math.abs(r - buff.r) < 0.04 &&
-          Math.abs(g - buff.g) < 0.04 &&
-          Math.abs(b - buff.b) < 0.04);
+        (Math.abs(r - buff.r) < 0.04 && Math.abs(g - buff.g) < 0.04 && Math.abs(b - buff.b) < 0.04);
       const poultryTint =
         wingTint ||
         (Math.abs(r - wellCol.r) < 0.05 &&
@@ -1124,11 +1125,7 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
           if (dApex < 10 && yM > 6 && yM < 48) {
             apexPinkN += 1;
-            if (
-              nrm &&
-              Math.abs(nrm.getX(i)) > 0.85 &&
-              Math.abs(nrm.getY(i)) < 0.25
-            ) {
+            if (nrm && Math.abs(nrm.getX(i)) > 0.85 && Math.abs(nrm.getY(i)) < 0.25) {
               apexEastPinkN += 1;
             }
           }
@@ -1155,6 +1152,13 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           poultryClockN += 1;
           const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
           if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
+        }
+        if (
+          Math.abs(r - poultryHand.r) < 0.05 &&
+          Math.abs(g - poultryHand.g) < 0.05 &&
+          Math.abs(b - poultryHand.b) < 0.05
+        ) {
+          poultryHandN += 1;
         }
         if (
           Math.abs(r - poultryMortar.r) < 0.05 &&
@@ -1227,19 +1231,20 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     }
   }
   assert.ok(near > 200, `No 1 Poultry mesh missing (${near} verts)`);
-  assert.ok(pinkN > 40 && buffN > 40, `Stirling pink limestone / yellow clock hoods missing pink=${pinkN} buff=${buffN}`);
+  assert.ok(
+    pinkN > 80 && buffN > 80,
+    `Stirling pink / yellow limestone courses missing pink=${pinkN} buff=${buffN}`,
+  );
   assert.ok(
     poultryGlassN > 80,
     `Stirling glazing missing (glass=${poultryGlassN}) — blank walls are a fail`,
   );
-  assert.ok(
-    poultryClockN > 40,
-    `Poultry clock faces missing (clock=${poultryClockN})`,
-  );
+  assert.ok(poultryClockN > 40, `Poultry dark clock faces missing (clock=${poultryClockN})`);
   assert.ok(
     poultryClockProwN > 24,
-    `Stirling clocks missing from the prow (prowClock=${poultryClockProwN})`,
+    `Stirling clocks missing from the prow turret (prowClock=${poultryClockProwN})`,
   );
+  assert.ok(poultryHandN > 8, `Stirling clock red hands missing (hands=${poultryHandN})`);
   assert.ok(
     poultryMortarN > 30,
     `Poultry limestone is a band shader, not modelled courses (mortar=${poultryMortarN})`,
