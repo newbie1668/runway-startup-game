@@ -103,10 +103,14 @@ export function meshBudget(): MeshBudget {
  * and Aw Snap the first view=mid. Do not skip keep-disk stock. Do not
  * park-carpet.
  *
- * view=mid uses an 8.5 wu frustum on the same 1600 m disk. Six chunk
- * uploads plus that draw Aw Snapped (sky, then error 9). Citystreet
- * stays at six — it is street-scale and HOLD. No 1 Poultry is outside
- * this disk; do not clip keep-disk stock to "fix" a Cheapside unique.
+ * view=mid uses an 8.5 wu frustum on the same 1600 m disk. Job count
+ * only delays when that disk fills: 6→3 still Aw Snapped once chunks
+ * were in (sky, then error 9). Each (chunk, major) mesh spanned
+ * kilometres, so frustumCulled could not skip the ~3/4 of verts that
+ * sit off the mid frame. Split keep-disk stock into DRAW_CELL_M cells
+ * and cull those at render(). Do not shrink the keep-disk. Citystreet
+ * stays at six jobs — it is street-scale and HOLD. No 1 Poultry is
+ * outside this disk; do not paint it while freeze is broken.
  */
 export type BuildJobKind = 'hero' | 'chunk' | 'cover' | 'rest';
 
@@ -115,6 +119,12 @@ export const BUILD_JOBS_WHILE_LOADING = 16;
 export const BUILD_JOBS_WHILE_LOADING_KEEP = 6;
 /** view=mid / view=default while the keep-disk is still streaming. */
 export const BUILD_JOBS_WHILE_LOADING_WIDE = 3;
+/**
+ * Ground-plane cell for keep-disk building meshes. 8×6 city chunks are
+ * ~2.8 km × 1.4 km; their bounding spheres all hit the 8.5 wu mid
+ * frustum. 400 m cells can miss it. Visible streets stay extruded.
+ */
+export const DRAW_CELL_M = 400;
 
 export function buildJobsThisFrame(args: {
   ready: boolean;

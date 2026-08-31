@@ -79,6 +79,7 @@ import {
   CHUNK_COLS,
   CHUNK_COUNT,
   CHUNK_ROWS,
+  chunkTierMeshes,
   PARK_Y,
   ROAD_Y,
   createScratch,
@@ -94,6 +95,8 @@ import {
   drainBuildJobKinds,
   BUILD_JOBS_WHILE_LOADING_KEEP,
   BUILD_JOBS_WHILE_LOADING_WIDE,
+  DRAW_CELL_M,
+  aabbHitsKeep,
   type KeepDisk,
 } from '../lib/game/render3d/lookClip';
 
@@ -652,33 +655,36 @@ check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   let verts = 0;
   let sloped = 0;
   for (const major of [true, false]) {
-    const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
-    if (!mesh) continue;
-    assert.equal(mesh.frustumCulled, false, 'chunk frustum cull empties close zoom');
-    const colors = mesh.geometry.getAttribute('color');
-    const normals = mesh.geometry.getAttribute('normal');
-    assert.ok(colors, `chunk ${chunkId} major=${major} needs vertex colours`);
-    for (let i = 0; i < colors.count; i++) {
-      verts += 1;
-      const r = colors.getX(i);
-      const g = colors.getY(i);
-      const b = colors.getZ(i);
-      const ny = normals?.getY(i) ?? 0;
-      if (ny > 0.18 && ny < 0.92) sloped += 1;
-      if (ny < 0.85) continue;
-      if (
-        Math.abs(r - red.r) < 0.012 &&
-        Math.abs(g - red.g) < 0.012 &&
-        Math.abs(b - red.b) < 0.012
-      ) {
-        confetti += 1;
-      }
-      if (
-        Math.abs(r - blue.r) < 0.012 &&
-        Math.abs(g - blue.g) < 0.012 &&
-        Math.abs(b - blue.b) < 0.012
-      ) {
-        confetti += 1;
+    const built = buildChunkTier(city, chunkId, major, [], createScratch());
+    if (!built) continue;
+    assert.equal(built.frustumCulled, false, 'culling the whole chunk group empties close zoom');
+    for (const mesh of chunkTierMeshes(built)) {
+      assert.equal(mesh.frustumCulled, true, 'keep-disk cells must cull off the mid frustum');
+      const colors = mesh.geometry.getAttribute('color');
+      const normals = mesh.geometry.getAttribute('normal');
+      assert.ok(colors, `chunk ${chunkId} major=${major} needs vertex colours`);
+      for (let i = 0; i < colors.count; i++) {
+        verts += 1;
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        const ny = normals?.getY(i) ?? 0;
+        if (ny > 0.18 && ny < 0.92) sloped += 1;
+        if (ny < 0.85) continue;
+        if (
+          Math.abs(r - red.r) < 0.012 &&
+          Math.abs(g - red.g) < 0.012 &&
+          Math.abs(b - red.b) < 0.012
+        ) {
+          confetti += 1;
+        }
+        if (
+          Math.abs(r - blue.r) < 0.012 &&
+          Math.abs(g - blue.g) < 0.012 &&
+          Math.abs(b - blue.b) < 0.012
+        ) {
+          confetti += 1;
+        }
       }
     }
   }
@@ -709,9 +715,11 @@ check('City skyline punch leaves neighbouring streets', () => {
   });
   let verts = 0;
   for (const major of [true, false]) {
-    const mesh = buildChunkTier(city, chunkId, major, anchors, createScratch());
-    if (!mesh) continue;
-    verts += mesh.geometry.getAttribute('position')?.count ?? 0;
+    const built = buildChunkTier(city, chunkId, major, anchors, createScratch());
+    if (!built) continue;
+    for (const mesh of chunkTierMeshes(built)) {
+      verts += mesh.geometry.getAttribute('position')?.count ?? 0;
+    }
   }
   assert.ok(verts > 2000, `Gherkin neighbourhood emptied by punch (${verts} verts)`);
 });
@@ -819,16 +827,19 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
   let verts = 0;
   let tallNear = 0;
   for (const major of [true, false]) {
-    const mesh = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
-    if (!mesh) continue;
-    assert.equal(mesh.frustumCulled, false, 'chunk frustum cull empties close zoom');
-    const pos = mesh.geometry.getAttribute('position');
-    verts += pos?.count ?? 0;
-    if (pos) {
-      for (let i = 0; i < pos.count; i++) {
-        const d = Math.hypot(pos.getX(i) - at.x, pos.getZ(i) - at.y) / METERS_TO_WORLD;
-        if (d > 200) continue;
-        if (pos.getY(i) > 8 * METERS_TO_WORLD) tallNear += 1;
+    const built = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
+    if (!built) continue;
+    assert.equal(built.frustumCulled, false, 'culling the whole chunk group empties close zoom');
+    for (const mesh of chunkTierMeshes(built)) {
+      assert.equal(mesh.frustumCulled, true, 'keep-disk cells must cull off the mid frustum');
+      const pos = mesh.geometry.getAttribute('position');
+      verts += pos?.count ?? 0;
+      if (pos) {
+        for (let i = 0; i < pos.count; i++) {
+          const d = Math.hypot(pos.getX(i) - at.x, pos.getZ(i) - at.y) / METERS_TO_WORLD;
+          if (d > 200) continue;
+          if (pos.getY(i) > 8 * METERS_TO_WORLD) tallNear += 1;
+        }
       }
     }
   }
@@ -1066,212 +1077,220 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   const midR: number[] = [];
   const stickPad = 8 * METERS_TO_WORLD;
   for (const major of [true, false]) {
-    const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
-    if (!mesh) continue;
-    const pos = mesh.geometry.getAttribute('position');
-    const colors = mesh.geometry.getAttribute('color');
-    const nrm = mesh.geometry.getAttribute('normal');
-    if (!pos || !colors) continue;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const y = pos.getY(i);
-      const z = pos.getZ(i);
-      const d = Math.hypot(x - poultryAt.x, z - poultryAt.y) / METERS_TO_WORLD;
-      const yM = y / METERS_TO_WORLD;
-      const dC = Math.hypot(x - poultryCx, z - poultryCz);
-      const r = colors.getX(i);
-      const g = colors.getY(i);
-      const b = colors.getZ(i);
-      const wingTint =
-        (Math.abs(r - pink.r) < 0.04 &&
-          Math.abs(g - pink.g) < 0.04 &&
-          Math.abs(b - pink.b) < 0.04) ||
-        (Math.abs(r - buff.r) < 0.04 && Math.abs(g - buff.g) < 0.04 && Math.abs(b - buff.b) < 0.04);
-      const poultryTint =
-        wingTint ||
-        (Math.abs(r - wellCol.r) < 0.05 &&
+    const built = buildChunkTier(city, chunkId, major, [], createScratch());
+    if (!built) continue;
+    for (const mesh of chunkTierMeshes(built)) {
+      const pos = mesh.geometry.getAttribute('position');
+      const colors = mesh.geometry.getAttribute('color');
+      const nrm = mesh.geometry.getAttribute('normal');
+      if (!pos || !colors) continue;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const d = Math.hypot(x - poultryAt.x, z - poultryAt.y) / METERS_TO_WORLD;
+        const yM = y / METERS_TO_WORLD;
+        const dC = Math.hypot(x - poultryCx, z - poultryCz);
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        const wingTint =
+          (Math.abs(r - pink.r) < 0.04 &&
+            Math.abs(g - pink.g) < 0.04 &&
+            Math.abs(b - pink.b) < 0.04) ||
+          (Math.abs(r - buff.r) < 0.04 &&
+            Math.abs(g - buff.g) < 0.04 &&
+            Math.abs(b - buff.b) < 0.04);
+        const poultryTint =
+          wingTint ||
+          (Math.abs(r - wellCol.r) < 0.05 &&
+            Math.abs(g - wellCol.g) < 0.05 &&
+            Math.abs(b - wellCol.b) < 0.05) ||
+          (Math.abs(r - roofCol.r) < 0.05 &&
+            Math.abs(g - roofCol.g) < 0.05 &&
+            Math.abs(b - roofCol.b) < 0.05);
+        if (d <= 40 && yM > 32 && poultryTint) {
+          highR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
+        }
+        if (d <= 40 && yM > 30 && poultryTint) {
+          turretR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
+        }
+        if (d <= 40 && yM > 10 && yM < 26 && wingTint) {
+          midR.push(Math.hypot(x - poultryCx, z - poultryCz) / METERS_TO_WORLD);
+        }
+        if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
+        if (
+          dC < wellR * 1.08 &&
+          Math.abs(r - wellCol.r) < 0.05 &&
           Math.abs(g - wellCol.g) < 0.05 &&
-          Math.abs(b - wellCol.b) < 0.05) ||
-        (Math.abs(r - roofCol.r) < 0.05 &&
-          Math.abs(g - roofCol.g) < 0.05 &&
-          Math.abs(b - roofCol.b) < 0.05);
-      if (d <= 40 && yM > 32 && poultryTint) {
-        highR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
-      }
-      if (d <= 40 && yM > 30 && poultryTint) {
-        turretR.push(Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD);
-      }
-      if (d <= 40 && yM > 10 && yM < 26 && wingTint) {
-        midR.push(Math.hypot(x - poultryCx, z - poultryCz) / METERS_TO_WORLD);
-      }
-      if (d <= 55 && poultryTint && dC > poultryMaxR + stickPad) stickN += 1;
-      if (
-        dC < wellR * 1.08 &&
-        Math.abs(r - wellCol.r) < 0.05 &&
-        Math.abs(g - wellCol.g) < 0.05 &&
-        Math.abs(b - wellCol.b) < 0.05
-      ) {
-        wellN += 1;
-      }
-      if (dC < wellR * 0.55 && yM > 8) {
-        const r = colors.getX(i);
-        const g = colors.getY(i);
-        const b = colors.getZ(i);
-        if (
-          Math.abs(r - roofCol.r) < 0.05 &&
-          Math.abs(g - roofCol.g) < 0.05 &&
-          Math.abs(b - roofCol.b) < 0.05
+          Math.abs(b - wellCol.b) < 0.05
         ) {
-          holeRoof += 1;
+          wellN += 1;
         }
-        if (Math.abs(r - 0.831) < 0.05 && Math.abs(g - 0.761) < 0.05 && Math.abs(b - 0.29) < 0.08) {
-          holeRoof += 1;
+        if (dC < wellR * 0.55 && yM > 8) {
+          const r = colors.getX(i);
+          const g = colors.getY(i);
+          const b = colors.getZ(i);
+          if (
+            Math.abs(r - roofCol.r) < 0.05 &&
+            Math.abs(g - roofCol.g) < 0.05 &&
+            Math.abs(b - roofCol.b) < 0.05
+          ) {
+            holeRoof += 1;
+          }
+          if (
+            Math.abs(r - 0.831) < 0.05 &&
+            Math.abs(g - 0.761) < 0.05 &&
+            Math.abs(b - 0.29) < 0.08
+          ) {
+            holeRoof += 1;
+          }
         }
-      }
-      if (d <= 45) {
-        near += 1;
-        const r = colors.getX(i);
-        const g = colors.getY(i);
-        const b = colors.getZ(i);
-        if (wingTint && z >= poultrySouthZ) {
-          poultrySouthZ = z;
-          poultrySouthX = x;
-        }
-        if (
-          Math.abs(r - pink.r) < 0.04 &&
-          Math.abs(g - pink.g) < 0.04 &&
-          Math.abs(b - pink.b) < 0.04
-        ) {
-          pinkN += 1;
-          const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
-          if (dApex < 10 && yM > 6 && yM < 48) {
-            apexPinkN += 1;
-            if (nrm && Math.abs(nrm.getX(i)) > 0.85 && Math.abs(nrm.getY(i)) < 0.25) {
-              apexEastPinkN += 1;
+        if (d <= 45) {
+          near += 1;
+          const r = colors.getX(i);
+          const g = colors.getY(i);
+          const b = colors.getZ(i);
+          if (wingTint && z >= poultrySouthZ) {
+            poultrySouthZ = z;
+            poultrySouthX = x;
+          }
+          if (
+            Math.abs(r - pink.r) < 0.04 &&
+            Math.abs(g - pink.g) < 0.04 &&
+            Math.abs(b - pink.b) < 0.04
+          ) {
+            pinkN += 1;
+            const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
+            if (dApex < 10 && yM > 6 && yM < 48) {
+              apexPinkN += 1;
+              if (nrm && Math.abs(nrm.getX(i)) > 0.85 && Math.abs(nrm.getY(i)) < 0.25) {
+                apexEastPinkN += 1;
+              }
+            }
+            if (
+              nrm &&
+              yM > 6 &&
+              yM < 36 &&
+              (z - poultryCz) / METERS_TO_WORLD > 14 &&
+              nrm.getZ(i) > 0.15
+            ) {
+              if (nrm.getX(i) < -0.32) prowWestPink += 1;
+              if (nrm.getX(i) > 0.32) prowEastPink += 1;
+              if (nrm.getZ(i) > 0.85 && Math.abs(nrm.getX(i)) < 0.2) dueSouthPink += 1;
             }
           }
           if (
-            nrm &&
-            yM > 6 &&
-            yM < 36 &&
-            (z - poultryCz) / METERS_TO_WORLD > 14 &&
-            nrm.getZ(i) > 0.15
+            Math.abs(r - buff.r) < 0.04 &&
+            Math.abs(g - buff.g) < 0.04 &&
+            Math.abs(b - buff.b) < 0.04
           ) {
-            if (nrm.getX(i) < -0.32) prowWestPink += 1;
-            if (nrm.getX(i) > 0.32) prowEastPink += 1;
-            if (nrm.getZ(i) > 0.85 && Math.abs(nrm.getX(i)) < 0.2) dueSouthPink += 1;
+            buffN += 1;
           }
-        }
-        if (
-          Math.abs(r - buff.r) < 0.04 &&
-          Math.abs(g - buff.g) < 0.04 &&
-          Math.abs(b - buff.b) < 0.04
-        ) {
-          buffN += 1;
-        }
-        if (
-          Math.abs(r - poultryGlass.r) < 0.04 &&
-          Math.abs(g - poultryGlass.g) < 0.04 &&
-          Math.abs(b - poultryGlass.b) < 0.04
-        ) {
-          poultryGlassN += 1;
           if (
-            nrm &&
-            yM > 8 &&
-            yM < 32 &&
-            nrm.getZ(i) > 0.85 &&
-            Math.abs(nrm.getX(i)) < 0.25 &&
-            dC < 32 * METERS_TO_WORLD
+            Math.abs(r - poultryGlass.r) < 0.04 &&
+            Math.abs(g - poultryGlass.g) < 0.04 &&
+            Math.abs(b - poultryGlass.b) < 0.04
           ) {
-            southGlassN += 1;
+            poultryGlassN += 1;
+            if (
+              nrm &&
+              yM > 8 &&
+              yM < 32 &&
+              nrm.getZ(i) > 0.85 &&
+              Math.abs(nrm.getX(i)) < 0.25 &&
+              dC < 32 * METERS_TO_WORLD
+            ) {
+              southGlassN += 1;
+            }
+          }
+          if (
+            Math.abs(r - poultryClock.r) < 0.04 &&
+            Math.abs(g - poultryClock.g) < 0.04 &&
+            Math.abs(b - poultryClock.b) < 0.04
+          ) {
+            poultryClockN += 1;
+            if (yM > 16 && yM < 90 && z >= clockSouthZ) {
+              clockSouthZ = z;
+              clockSouthX = x;
+            }
+            const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
+            if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
+          }
+          if (
+            Math.abs(r - poultryHand.r) < 0.05 &&
+            Math.abs(g - poultryHand.g) < 0.05 &&
+            Math.abs(b - poultryHand.b) < 0.05
+          ) {
+            poultryHandN += 1;
+          }
+          if (
+            Math.abs(r - poultryMortar.r) < 0.05 &&
+            Math.abs(g - poultryMortar.g) < 0.05 &&
+            Math.abs(b - poultryMortar.b) < 0.05
+          ) {
+            poultryMortarN += 1;
           }
         }
-        if (
-          Math.abs(r - poultryClock.r) < 0.04 &&
-          Math.abs(g - poultryClock.g) < 0.04 &&
-          Math.abs(b - poultryClock.b) < 0.04
-        ) {
-          poultryClockN += 1;
-          if (yM > 16 && yM < 90 && z >= clockSouthZ) {
-            clockSouthZ = z;
-            clockSouthX = x;
+        const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
+        if (dj <= 35) {
+          const r = colors.getX(i);
+          const g = colors.getY(i);
+          const b = colors.getZ(i);
+          if (
+            Math.abs(r - bronze.r) < 0.05 &&
+            Math.abs(g - bronze.g) < 0.05 &&
+            Math.abs(b - bronze.b) < 0.05
+          ) {
+            bronzeN += 1;
           }
-          const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
-          if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
+          if (
+            Math.abs(r - jewryMid.r) < 0.05 &&
+            Math.abs(g - jewryMid.g) < 0.05 &&
+            Math.abs(b - jewryMid.b) < 0.05
+          ) {
+            jewryMidN += 1;
+          }
+          if (
+            Math.abs(r - jewryHigh.r) < 0.05 &&
+            Math.abs(g - jewryHigh.g) < 0.05 &&
+            Math.abs(b - jewryHigh.b) < 0.05
+          ) {
+            jewryHighN += 1;
+          }
+          if (
+            Math.abs(r - jewryGlass.r) < 0.05 &&
+            Math.abs(g - jewryGlass.g) < 0.05 &&
+            Math.abs(b - jewryGlass.b) < 0.05
+          ) {
+            jewryGlassN += 1;
+          }
         }
-        if (
-          Math.abs(r - poultryHand.r) < 0.05 &&
-          Math.abs(g - poultryHand.g) < 0.05 &&
-          Math.abs(b - poultryHand.b) < 0.05
-        ) {
-          poultryHandN += 1;
+        const dn = Math.hypot(x - nedAt.x, z - nedAt.y) / METERS_TO_WORLD;
+        if (dn <= 40) {
+          const r = colors.getX(i);
+          const g = colors.getY(i);
+          const b = colors.getZ(i);
+          if (
+            Math.abs(r - nedGlass.r) < 0.05 &&
+            Math.abs(g - nedGlass.g) < 0.05 &&
+            Math.abs(b - nedGlass.b) < 0.05
+          ) {
+            nedGlassN += 1;
+          }
         }
-        if (
-          Math.abs(r - poultryMortar.r) < 0.05 &&
-          Math.abs(g - poultryMortar.g) < 0.05 &&
-          Math.abs(b - poultryMortar.b) < 0.05
-        ) {
-          poultryMortarN += 1;
-        }
-      }
-      const dj = Math.hypot(x - jewryAt.x, z - jewryAt.y) / METERS_TO_WORLD;
-      if (dj <= 35) {
-        const r = colors.getX(i);
-        const g = colors.getY(i);
-        const b = colors.getZ(i);
-        if (
-          Math.abs(r - bronze.r) < 0.05 &&
-          Math.abs(g - bronze.g) < 0.05 &&
-          Math.abs(b - bronze.b) < 0.05
-        ) {
-          bronzeN += 1;
-        }
-        if (
-          Math.abs(r - jewryMid.r) < 0.05 &&
-          Math.abs(g - jewryMid.g) < 0.05 &&
-          Math.abs(b - jewryMid.b) < 0.05
-        ) {
-          jewryMidN += 1;
-        }
-        if (
-          Math.abs(r - jewryHigh.r) < 0.05 &&
-          Math.abs(g - jewryHigh.g) < 0.05 &&
-          Math.abs(b - jewryHigh.b) < 0.05
-        ) {
-          jewryHighN += 1;
-        }
-        if (
-          Math.abs(r - jewryGlass.r) < 0.05 &&
-          Math.abs(g - jewryGlass.g) < 0.05 &&
-          Math.abs(b - jewryGlass.b) < 0.05
-        ) {
-          jewryGlassN += 1;
-        }
-      }
-      const dn = Math.hypot(x - nedAt.x, z - nedAt.y) / METERS_TO_WORLD;
-      if (dn <= 40) {
-        const r = colors.getX(i);
-        const g = colors.getY(i);
-        const b = colors.getZ(i);
-        if (
-          Math.abs(r - nedGlass.r) < 0.05 &&
-          Math.abs(g - nedGlass.g) < 0.05 &&
-          Math.abs(b - nedGlass.b) < 0.05
-        ) {
-          nedGlassN += 1;
-        }
-      }
-      const dm = Math.hypot(x - mansionAt.x, z - mansionAt.y) / METERS_TO_WORLD;
-      if (dm <= 40) {
-        const r = colors.getX(i);
-        const g = colors.getY(i);
-        const b = colors.getZ(i);
-        if (
-          Math.abs(r - column.r) < 0.05 &&
-          Math.abs(g - column.g) < 0.05 &&
-          Math.abs(b - column.b) < 0.05
-        ) {
-          columnN += 1;
+        const dm = Math.hypot(x - mansionAt.x, z - mansionAt.y) / METERS_TO_WORLD;
+        if (dm <= 40) {
+          const r = colors.getX(i);
+          const g = colors.getY(i);
+          const b = colors.getZ(i);
+          if (
+            Math.abs(r - column.r) < 0.05 &&
+            Math.abs(g - column.g) < 0.05 &&
+            Math.abs(b - column.b) < 0.05
+          ) {
+            columnN += 1;
+          }
         }
       }
     }
@@ -1387,32 +1406,34 @@ check('Cheapside unnamed stock has in-plane window glass, not blank walls', () =
   let near = 0;
   let glassN = 0;
   for (const major of [true, false]) {
-    const mesh = buildChunkTier(city, chunkId, major, [], createScratch());
-    if (!mesh) continue;
-    const pos = mesh.geometry.getAttribute('position');
-    const colors = mesh.geometry.getAttribute('color');
-    if (!pos || !colors) continue;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      const d = Math.hypot(x - at.x, z - at.y) / METERS_TO_WORLD;
-      if (d > 90) continue;
-      near += 1;
-      let pinned = false;
-      for (const pin of pins) {
-        if (Math.hypot(x - pin.x, z - pin.y) / METERS_TO_WORLD <= 42) {
-          pinned = true;
-          break;
+    const built = buildChunkTier(city, chunkId, major, [], createScratch());
+    if (!built) continue;
+    for (const mesh of chunkTierMeshes(built)) {
+      const pos = mesh.geometry.getAttribute('position');
+      const colors = mesh.geometry.getAttribute('color');
+      if (!pos || !colors) continue;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const d = Math.hypot(x - at.x, z - at.y) / METERS_TO_WORLD;
+        if (d > 90) continue;
+        near += 1;
+        let pinned = false;
+        for (const pin of pins) {
+          if (Math.hypot(x - pin.x, z - pin.y) / METERS_TO_WORLD <= 42) {
+            pinned = true;
+            break;
+          }
         }
-      }
-      if (pinned) continue;
-      const r = colors.getX(i);
-      const g = colors.getY(i);
-      const b = colors.getZ(i);
-      for (const c of glassCols) {
-        if (Math.abs(r - c.r) < 0.04 && Math.abs(g - c.g) < 0.04 && Math.abs(b - c.b) < 0.04) {
-          glassN += 1;
-          break;
+        if (pinned) continue;
+        const r = colors.getX(i);
+        const g = colors.getY(i);
+        const b = colors.getZ(i);
+        for (const c of glassCols) {
+          if (Math.abs(r - c.r) < 0.04 && Math.abs(g - c.g) < 0.04 && Math.abs(b - c.b) < 0.04) {
+            glassN += 1;
+            break;
+          }
         }
       }
     }
@@ -1500,6 +1521,83 @@ check('No 1 Poultry is outside the view=mid keep-disk', () => {
   assert.equal(inKeepDisk(poultry.x, poultry.y, keep, 120 * METERS_TO_WORLD), false);
 });
 
+check('view=mid culls keep-disk cells; stock inside the disk stays', () => {
+  assert.equal(DRAW_CELL_M, 400);
+  assert.equal(meshBudgetFromSearch(new URLSearchParams('view=mid')).chunkKeepM, 1600);
+  const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
+  const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const look = project([-0.1358, 51.5196]);
+  const keep: KeepDisk = { x: look.x, z: look.y, r: 1600 * METERS_TO_WORLD };
+  const anchors = LANDMARKS.map((l) => {
+    const p = project(l.at);
+    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
+  });
+  const cssW = 1400;
+  const cssH = 900;
+  const viewH = 8.5;
+  const rig = new CameraRig();
+  rig.setViewport(cssW, cssH);
+  rig.update({ x: look.x, y: look.y, zoom: cssH / viewH }, 0);
+  rig.camera.updateMatrixWorld(true);
+  const frustum = new THREE.Frustum();
+  frustum.setFromProjectionMatrix(
+    new THREE.Matrix4().multiplyMatrices(
+      rig.camera.projectionMatrix,
+      rig.camera.matrixWorldInverse,
+    ),
+  );
+  const sphere = new THREE.Sphere();
+  const cellRMax = 800 * METERS_TO_WORLD;
+  let cells = 0;
+  let cellsIn = 0;
+  let cellsOut = 0;
+  let nearTall = 0;
+  let farStock = 0;
+  for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
+    const col = chunkId % CHUNK_COLS;
+    const row = Math.floor(chunkId / CHUNK_COLS);
+    const x0 = (col / CHUNK_COLS) * WORLD.width;
+    const x1 = ((col + 1) / CHUNK_COLS) * WORLD.width;
+    const z0 = (row / CHUNK_ROWS) * WORLD.height;
+    const z1 = ((row + 1) / CHUNK_ROWS) * WORLD.height;
+    if (!aabbHitsKeep(x0, z0, x1, z1, keep)) continue;
+    for (const major of [true, false]) {
+      const built = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
+      if (!built) continue;
+      assert.equal(built.frustumCulled, false);
+      for (const mesh of chunkTierMeshes(built)) {
+        assert.equal(mesh.frustumCulled, true);
+        mesh.geometry.computeBoundingSphere();
+        const bs = mesh.geometry.boundingSphere;
+        assert.ok(bs, 'cell mesh needs a bounding sphere');
+        assert.ok(
+          bs.radius < cellRMax,
+          `cell sphere still spans a city chunk (${(bs.radius / METERS_TO_WORLD).toFixed(0)} m)`,
+        );
+        cells += 1;
+        sphere.copy(bs);
+        if (frustum.intersectsSphere(sphere)) cellsIn += 1;
+        else cellsOut += 1;
+        const pos = mesh.geometry.getAttribute('position');
+        if (!pos) continue;
+        for (let i = 0; i < pos.count; i++) {
+          const d = Math.hypot(pos.getX(i) - look.x, pos.getZ(i) - look.y) / METERS_TO_WORLD;
+          if (d < 200 && pos.getY(i) > 8 * METERS_TO_WORLD) nearTall += 1;
+          if (d > 1200 && d < 1600) farStock += 1;
+        }
+      }
+    }
+  }
+  assert.ok(cells > 8, `mid keep-disk did not split into cells (${cells})`);
+  assert.ok(
+    cellsOut > 0,
+    `every keep-disk cell still hits the 8.5 wu frustum (${cellsIn}/${cells})`,
+  );
+  assert.ok(cellsIn > 0, 'mid frustum culled the visible street');
+  assert.ok(nearTall > 400, `visible Fitzrovia stock missing (${nearTall} tall verts)`);
+  assert.ok(farStock > 100, `keep-disk stock was clipped (${farStock} verts at 1200–1600 m)`);
+});
+
 check('view=mid keep-disk does not tessellate the whole 23 km map', () => {
   const buf = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
@@ -1571,12 +1669,14 @@ check('LCY spit is not OSM boxes or park mounds on the peninsula', () => {
   let boxes = 0;
   for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
     for (const major of [true, false]) {
-      const mesh = buildChunkTier(city, chunkId, major, anchors, scratch);
-      if (!mesh) continue;
-      const pos = mesh.geometry.getAttribute('position');
-      if (!pos) continue;
-      for (let i = 0; i < pos.count; i++) {
-        if (onLondonCityAirportSpit(pos.getX(i), pos.getZ(i))) boxes += 1;
+      const built = buildChunkTier(city, chunkId, major, anchors, scratch);
+      if (!built) continue;
+      for (const mesh of chunkTierMeshes(built)) {
+        const pos = mesh.geometry.getAttribute('position');
+        if (!pos) continue;
+        for (let i = 0; i < pos.count; i++) {
+          if (onLondonCityAirportSpit(pos.getX(i), pos.getZ(i))) boxes += 1;
+        }
       }
     }
   }

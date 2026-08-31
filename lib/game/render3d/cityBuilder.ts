@@ -67,6 +67,7 @@ import {
   aabbHitsKeep,
   CITYSTREET_AT,
   clipPolylineToKeep,
+  DRAW_CELL_M,
   inKeepDisk,
   ptsHitKeep,
   type KeepDisk,
@@ -409,7 +410,34 @@ function principalAxis(
   return { ax, az, px, pz, maxPerp };
 }
 
-/** One merged, flat-shaded, indexed geometry for every building in (chunkId, major). */
+type ChunkCellBuf = {
+  positions: number[];
+  normals: number[];
+  colors: number[];
+  indices: number[];
+};
+
+function drawCellKey(x: number, z: number): string {
+  const s = DRAW_CELL_M * METERS_TO_WORLD;
+  return `${Math.floor(x / s)},${Math.floor(z / s)}`;
+}
+
+/** Cell meshes under a chunk group. The group itself is not culled. */
+export function chunkTierMeshes(root: THREE.Object3D | null): THREE.Mesh[] {
+  if (!root) return [];
+  const out: THREE.Mesh[] = [];
+  root.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) out.push(obj);
+  });
+  return out;
+}
+
+/**
+ * Keep-disk stock for (chunkId, major), split into DRAW_CELL_M cells.
+ * One kilometre-scale mesh cannot frustum-cull; the 8.5 wu mid camera
+ * then vertex-shades the whole disk and Aw Snaps. Cells stay in the
+ * scene (stock is not clipped). Off-screen cells skip render().
+ */
 export function buildChunkTier(
   cityData: CityData,
   chunkId: number,
@@ -417,11 +445,25 @@ export function buildChunkTier(
   landmarkAnchors: readonly { x: number; y: number; r: number }[] = [],
   scratch?: CityScratch,
   keep: KeepDisk | null = null,
-): THREE.Mesh | null {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
+): THREE.Group | null {
+  const cells = new Map<string, ChunkCellBuf>();
+  let positions: number[] = [];
+  let normals: number[] = [];
+  let colors: number[] = [];
+  let indices: number[] = [];
+
+  const useCell = (x: number, z: number): void => {
+    const key = drawCellKey(x, z);
+    let buf = cells.get(key);
+    if (!buf) {
+      buf = { positions: [], normals: [], colors: [], indices: [] };
+      cells.set(key, buf);
+    }
+    positions = buf.positions;
+    normals = buf.normals;
+    colors = buf.colors;
+    indices = buf.indices;
+  };
 
   const pushVertex = (
     x: number,
@@ -637,6 +679,7 @@ export function buildChunkTier(
     if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
     if (nearLondonCityAirport(cx, cz, 10) || ring.some((p) => nearLondonCityAirport(p.x, p.z, 10)))
       continue;
+    useCell(cx, cz);
 
     const areaM2 = footprintAreaM2(ring);
     const [lng, lat] = unproject(cx, cz);
@@ -1481,22 +1524,29 @@ export function buildChunkTier(
     }
   }
 
-  if (positions.length === 0) return null;
+  if (cells.size === 0) return null;
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices);
-  geometry.computeBoundingSphere();
-
-  const mesh = new THREE.Mesh(geometry);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.frustumCulled = false;
-  mesh.userData.chunkId = chunkId;
-  mesh.userData.major = major;
-  return mesh;
+  const group = new THREE.Group();
+  group.frustumCulled = false;
+  group.userData.chunkId = chunkId;
+  group.userData.major = major;
+  for (const buf of cells.values()) {
+    if (buf.positions.length === 0) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(buf.positions, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(buf.normals, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(buf.colors, 3));
+    geometry.setIndex(buf.indices);
+    geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = true;
+    mesh.userData.chunkId = chunkId;
+    mesh.userData.major = major;
+    group.add(mesh);
+  }
+  return group.children.length > 0 ? group : null;
 }
 
 export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | null {

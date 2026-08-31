@@ -43,6 +43,7 @@ import {
   CHUNK_COLS,
   CHUNK_COUNT,
   CHUNK_ROWS,
+  chunkTierMeshes,
   createBuildingMaterial,
   createScratch,
   crossingYawAt,
@@ -534,7 +535,7 @@ export class CityRenderer3D implements IMapRenderer {
     chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
     for (const job of chunkWork) {
       enqueue(chunkJobs, 'chunk', () => {
-        const mesh = buildChunkTier(
+        const built = buildChunkTier(
           data,
           job.chunkId,
           job.major,
@@ -542,11 +543,13 @@ export class CityRenderer3D implements IMapRenderer {
           this.scratch,
           keep,
         );
-        if (mesh) {
-          mesh.material = this.buildingMaterial;
-          this.cityGroup.add(mesh);
-          this.buildingMeshes.push(mesh);
-          if (!job.major) this.minorMeshes.push(mesh);
+        if (built) {
+          for (const mesh of chunkTierMeshes(built)) {
+            mesh.material = this.buildingMaterial;
+            this.buildingMeshes.push(mesh);
+            if (!job.major) this.minorMeshes.push(mesh);
+          }
+          this.cityGroup.add(built);
         }
       });
     }
