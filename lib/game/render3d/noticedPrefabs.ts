@@ -89,8 +89,13 @@ export async function loadNoticedPrefabs(): Promise<{
           return;
         }
         const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
-        makeMatteLambert(gltf.scene, { keepMaps: true });
-        prefabs.set(file.id, gltf.scene);
+        let prefab: THREE.Object3D = gltf.scene;
+        if (isStreetNoticedId(file.id)) {
+          prefab = adoptStreetNoticed(gltf.scene);
+        } else {
+          makeMatteLambert(gltf.scene, { keepMaps: true });
+        }
+        prefabs.set(file.id, prefab);
         entries.push({
           id: file.id,
           name: file.name,
@@ -105,6 +110,37 @@ export async function loadNoticedPrefabs(): Promise<{
     }),
   );
   return { entries, prefabs };
+}
+
+function isDrawMesh(obj: THREE.Object3D): obj is THREE.Mesh {
+  return (obj as THREE.Mesh).isMesh === true;
+}
+
+/**
+ * GLTFLoader meshes can come from a second `three` copy in the bundle.
+ * Re-wrap so the city renderer will actually draw them, unlit, with the
+ * still's vertex colours.
+ */
+function adoptStreetNoticed(src: THREE.Object3D): THREE.Group {
+  const root = new THREE.Group();
+  root.name = STREET_NOTICED_ID;
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    fog: true,
+    side: THREE.DoubleSide,
+  });
+  src.updateWorldMatrix(true, true);
+  src.traverse((obj) => {
+    if (!isDrawMesh(obj)) return;
+    const next = new THREE.Mesh(obj.geometry, mat);
+    next.name = obj.name;
+    next.matrix.copy(obj.matrixWorld);
+    next.matrixAutoUpdate = false;
+    next.frustumCulled = false;
+    root.add(next);
+  });
+  return root;
 }
 
 export function instantiateNoticed(
