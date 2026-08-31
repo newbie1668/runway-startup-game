@@ -12,13 +12,13 @@ import sys
 from PIL import Image
 
 
-def is_sky(r: int, g: int, b: int) -> bool:
+def is_sky(r: int, g: int, b: int, y: int, h: int) -> bool:
+    # Glass bays in the still are grey-green; only drop overcast sky
+    # above the building or the silhouette turns into vertical fins.
+    if y > h * 0.26:
+        return False
     mx, mn = max(r, g, b), min(r, g, b)
-    if mn > 148 and mx - mn < 22:
-        return True
-    if mn > 210:
-        return True
-    return False
+    return mn > 168 and mx - mn < 18
 
 
 def median_rgb(samples: list[tuple[int, int, int]]) -> tuple[int, int, int]:
@@ -41,12 +41,11 @@ def main() -> None:
     h = max(8, round(h0 * w / w0))
     im = im.resize((w, h), Image.Resampling.BOX)
     x_cut = int(w * 0.58)
+    y0 = int(h * 0.16)
     pixels: list[list[int]] = []
-    for y in range(h):
+    for y in range(y0, h):
         for x in range(x_cut):
             r, g, b = im.getpixel((x, y))
-            if is_sky(r, g, b):
-                continue
             pixels.append([x, y, r, g, b])
     if not pixels:
         raise SystemExit("no building pixels")
