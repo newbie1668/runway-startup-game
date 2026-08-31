@@ -1055,6 +1055,11 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
   let southGlassN = 0;
   let poultrySouthZ = -Infinity;
   let clockSouthZ = -Infinity;
+  let poultrySouthX = 0;
+  let clockSouthX = 0;
+  let prowWestPink = 0;
+  let prowEastPink = 0;
+  let dueSouthPink = 0;
   const highR: number[] = [];
   const turretR: number[] = [];
   const midR: number[] = [];
@@ -1127,7 +1132,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
         const r = colors.getX(i);
         const g = colors.getY(i);
         const b = colors.getZ(i);
-        if (wingTint) poultrySouthZ = Math.max(poultrySouthZ, z);
+        if (wingTint && z >= poultrySouthZ) {
+          poultrySouthZ = z;
+          poultrySouthX = x;
+        }
         if (
           Math.abs(r - pink.r) < 0.04 &&
           Math.abs(g - pink.g) < 0.04 &&
@@ -1140,6 +1148,17 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
             if (nrm && Math.abs(nrm.getX(i)) > 0.85 && Math.abs(nrm.getY(i)) < 0.25) {
               apexEastPinkN += 1;
             }
+          }
+          if (
+            nrm &&
+            yM > 6 &&
+            yM < 36 &&
+            (z - poultryCz) / METERS_TO_WORLD > 14 &&
+            nrm.getZ(i) > 0.15
+          ) {
+            if (nrm.getX(i) < -0.32) prowWestPink += 1;
+            if (nrm.getX(i) > 0.32) prowEastPink += 1;
+            if (nrm.getZ(i) > 0.85 && Math.abs(nrm.getX(i)) < 0.2) dueSouthPink += 1;
           }
         }
         if (
@@ -1165,7 +1184,10 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
           Math.abs(b - poultryClock.b) < 0.04
         ) {
           poultryClockN += 1;
-          if (yM > 16 && yM < 90) clockSouthZ = Math.max(clockSouthZ, z);
+          if (yM > 16 && yM < 90 && z >= clockSouthZ) {
+            clockSouthZ = z;
+            clockSouthX = x;
+          }
           const dApex = Math.hypot(x - apexX, z - apexZ) / METERS_TO_WORLD;
           if (dApex < 30 && yM > 16 && yM < 90) poultryClockProwN += 1;
         }
@@ -1303,8 +1325,20 @@ check('No 1 Poultry matches the Stirling pin, not a fake Lombard costume', () =>
     );
   }
   assert.ok(
+    prowWestPink > 12 && prowEastPink > 12,
+    `Poultry prow does not face citystreet (westCheek=${prowWestPink} eastCheek=${prowEastPink})`,
+  );
+  assert.ok(
+    dueSouthPink < prowWestPink + prowEastPink,
+    `Poultry south silhouette is a facing crescent, not a prow V (dueSouth=${dueSouthPink} cheeks=${prowWestPink + prowEastPink})`,
+  );
+  assert.ok(
+    Math.abs(poultrySouthX - clockSouthX) / METERS_TO_WORLD < 10,
+    `Poultry tip and clock turret are split in plan (dx=${((poultrySouthX - clockSouthX) / METERS_TO_WORLD).toFixed(1)} m)`,
+  );
+  assert.ok(
     southGlassN < 40,
-    `Poultry still has a south black-wedge glass wall (southGlass=${southGlassN})`,
+    `east glass must sit on the receding cheek, not as a south-facing curtain (got ${southGlassN})`,
   );
   assert.ok(bronzeN > 20, `1 Old Jewry bronze portal missing (${bronzeN} verts)`);
   assert.ok(
