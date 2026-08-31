@@ -387,9 +387,21 @@ check('Poultry is a committed photo GLB on the noticed tray, not a uniqueNoticed
   const json = buf
     .subarray(20, 20 + jsonLen)
     .toString('utf8')
-    .replace(/\0+$/, '');
-  const doc = JSON.parse(json) as { images?: unknown[] };
-  assert.ok(Array.isArray(doc.images) && doc.images.length > 0, 'Poultry GLB has no albedo image');
+    .replace(/\0+$/, '')
+    .trim();
+  const doc = JSON.parse(json) as {
+    asset?: { generator?: string };
+    meshes?: Array<{ primitives?: Array<{ attributes?: Record<string, number> }> }>;
+  };
+  assert.match(
+    doc.asset?.generator ?? '',
+    /GLTFExporter/,
+    'Poultry GLB must use the tray exporter',
+  );
+  const hasColor = (doc.meshes ?? []).some((mesh) =>
+    (mesh.primitives ?? []).some((p) => p.attributes?.COLOR_0 != null),
+  );
+  assert.equal(hasColor, true, 'Poultry GLB has no still vertex colours');
   const dummy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
   dummy.name = 'no-1-poultry-south';
   const prefab = new THREE.Group();
@@ -409,4 +421,25 @@ check('Poultry is a committed photo GLB on the noticed tray, not a uniqueNoticed
   assert.ok(group.getObjectByName('no-1-poultry-south'));
 });
 
-console.log(`\nAll ${passed} noticed-factory checks passed.`);
+async function checkPoultryGlbParses(): Promise<void> {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const glbPath = join(process.cwd(), 'public/map/noticed/no-1-poultry.glb');
+  const buf = readFileSync(glbPath);
+  const loader = new GLTFLoader();
+  const gltf = await loader.parseAsync(
+    buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+    '',
+  );
+  assert.ok(gltf.scene.getObjectByName('no-1-poultry-south'), 'loaded GLB missing south mesh');
+  passed += 1;
+  console.log('  ✓ Poultry GLB parses in GLTFLoader');
+}
+
+checkPoultryGlbParses()
+  .then(() => {
+    console.log(`\nAll ${passed} noticed-factory checks passed.`);
+  })
+  .catch((err) => {
+    console.error(err instanceof Error ? (err.stack ?? err.message) : err);
+    process.exit(1);
+  });

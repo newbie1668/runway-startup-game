@@ -1,12 +1,12 @@
 /**
  * Bake No. 1 Poultry onto the noticed tray from a committed still.
  *
- * OSM stock stays the extruded footprint. This writes one photo-mapped GLB
- * under public/map/noticed/; playtime only instantiates it.
- * Does not run Overpass. Does not rebuild Canary towers.
+ * OSM stock stays the extruded footprint. This writes one still-sampled GLB
+ * under public/map/noticed/ via the same THREE.GLTFExporter path as the rest
+ * of the tray. Playtime only instantiates it.
  *
  * The still is the Bank-junction prow (striped limestone, clock turret).
- * Packed as JPEG-in-GLB so Node does not need a canvas exporter.
+ * Geometry is local to the OSM centroid; vertex colours come from the still.
  *
  * Run: `pnpm bake:poultry`
  */
@@ -15,9 +15,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import earcut from 'earcut';
+import * as THREE from 'three';
 import { METERS_TO_WORLD, project, unproject } from '../lib/game/geo';
 import { decodeCity, dequantizeX, dequantizeY } from '../lib/game/render3d/format';
 import { streetUniqueAt } from '../lib/game/render3d/uniqueStreet';
+import { exportNoticedGlb } from './noticedMesh';
 
 const ROOT = process.cwd();
 const STILL = path.join(ROOT, 'scripts/stills/no-1-poultry.jpg');
@@ -27,13 +29,20 @@ const MANIFEST = path.join(OUT_DIR, 'manifest.json');
 const ID = 'no-1-poultry';
 /** Stirling body + clock turret. Playtime does not apply tower Y-scale. */
 const HEIGHT_M = 42;
+const BODY_M = 28;
 const EXCLUSION_M = 24;
 /** citystreet azimuth — camera sits south-southeast, looking north. */
 const VIEW_AZ = 0.22;
 
-interface StillSample {
-  wall: [number, number, number];
-  roof: [number, number, number];
+interface StillPixels {
+  w: number;
+  h: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  pixels: Array<[number, number, number, number, number]>;
+  stripes: Array<[number, number, number]>;
 }
 
 interface ManifestFile {
@@ -56,30 +65,15 @@ interface Manifest {
   files: ManifestFile[];
 }
 
-interface Prim {
-  pos: number[];
-  nrm: number[];
-  uv: number[] | null;
-  idx: number[];
-  color: [number, number, number];
-  textured: boolean;
-  name: string;
-}
-
-function sampleStill(): StillSample {
-  const py = spawnSync('python3', [path.join(ROOT, 'scripts/still_rgba.py'), STILL], {
+function loadStill(): StillPixels {
+  const py = spawnSync('python3', [path.join(ROOT, 'scripts/still_pixels.py'), STILL, '96'], {
     encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
   });
   if (py.status !== 0) {
-    throw new Error(`still sample failed: ${py.stderr}`);
+    throw new Error(`still pixels failed: ${py.stderr || py.stdout}`);
   }
-  const m = py.stdout.trim().match(/^(\d+),(\d+),(\d+)\s+(\d+),(\d+),(\d+)$/);
-  if (!m) throw new Error(`still sample parse failed: ${py.stdout}`);
-  const n = m.slice(1).map((s) => Number(s) / 255);
-  return {
-    wall: [n[0]!, n[1]!, n[2]!],
-    roof: [n[3]!, n[4]!, n[5]!],
-  };
+  return JSON.parse(py.stdout) as StillPixels;
 }
 
 function poultryRing(): { ring: Array<[number, number]>; cx: number; cz: number } {
@@ -142,41 +136,167 @@ function toCcw(ring: Array<[number, number]>): Array<[number, number]> {
   return signedArea(open) < 0 ? open.slice().reverse() : open;
 }
 
-function buildPrims(ring: Array<[number, number]>, still: StillSample): Prim[] {
+function rgb01(r: number, g: number, b: number): [number, number, number] {
+  return [r / 255, g / 255, b / 255];
+}
+
+/** Overcast still is dull; lift stone so the bands read at street zoom. */
+function liftStone(r: number, g: number, b: number): [number, number, number] {
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  const sat = mx - mn;
+  if (sat < 8) return rgb01(r, g, b);
+  const warm = r - b;
+  let nr = r;
+  let ng = g;
+  let nb = b;
+  if (warm > 6 && r > 70) {
+    nr = Math.min(255, Math.round(r + 36));
+    ng = Math.min(255, Math.round(g + 8));
+    nb = Math.max(0, Math.round(b - 10));
+  } else if (r > 120 && g > 110 && sat > 12) {
+    nr = Math.min(255, Math.round(r + 18));
+    ng = Math.min(255, Math.round(g + 16));
+  }
+  return rgb01(nr, ng, nb);
+}
+
+function stripeAt(stripes: Array<[number, number, number]>, t: number): [number, number, number] {
+  if (stripes.length === 0) return [0.88, 0.56, 0.58];
+  const i = Math.min(stripes.length - 1, Math.max(0, Math.floor(t * stripes.length)));
+  const s = stripes[i]!;
+  return liftStone(s[0], s[1], s[2]);
+}
+
+function matte(vertexColors: boolean, color = 0xffffff): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0,
+    roughness: 0.68,
+    vertexColors,
+    side: THREE.DoubleSide,
+  });
+}
+
+function geoFrom(pos: number[], nrm: number[], col: number[], idx: number[]): THREE.BufferGeometry {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  return geo;
+}
+
+function pushBox(
+  pos: number[],
+  nrm: number[],
+  col: number[],
+  idx: number[],
+  cx: number,
+  cy: number,
+  cz: number,
+  hx: number,
+  hy: number,
+  hz: number,
+  rgb: [number, number, number],
+  yaw: number,
+): void {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  const corners: Array<[number, number, number]> = [
+    [-hx, -hy, -hz],
+    [hx, -hy, -hz],
+    [hx, hy, -hz],
+    [-hx, hy, -hz],
+    [-hx, -hy, hz],
+    [hx, -hy, hz],
+    [hx, hy, hz],
+    [-hx, hy, hz],
+  ];
+  const world = corners.map(([x, y, z]) => {
+    const rx = x * c + z * s;
+    const rz = -x * s + z * c;
+    return [cx + rx, cy + y, cz + rz] as [number, number, number];
+  });
+  const faces: Array<{ a: number; b: number; c: number; d: number; n: [number, number, number] }> =
+    [
+      { a: 0, b: 1, c: 2, d: 3, n: [s, 0, c] },
+      { a: 5, b: 4, c: 7, d: 6, n: [-s, 0, -c] },
+      { a: 4, b: 0, c: 3, d: 7, n: [-c, 0, s] },
+      { a: 1, b: 5, c: 6, d: 2, n: [c, 0, -s] },
+      { a: 3, b: 2, c: 6, d: 7, n: [0, 1, 0] },
+      { a: 4, b: 5, c: 1, d: 0, n: [0, -1, 0] },
+    ];
+  for (const f of faces) {
+    const base = pos.length / 3;
+    const pts = [world[f.a]!, world[f.b]!, world[f.c]!, world[f.d]!];
+    for (const p of pts) {
+      pos.push(p[0], p[1], p[2]);
+      nrm.push(f.n[0], f.n[1], f.n[2]);
+      col.push(rgb[0], rgb[1], rgb[2]);
+    }
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+}
+
+function buildPhotoMesh(
+  still: StillPixels,
+  viewX: number,
+  viewZ: number,
+  rightX: number,
+  rightZ: number,
+  south: number,
+): THREE.Mesh {
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const bw = still.maxX - still.minX + 1;
+  const bh = still.maxY - still.minY + 1;
+  const worldH = HEIGHT_M * METERS_TO_WORLD;
+  const pix = worldH / bh;
+  const hx = pix * 0.52;
+  const hy = pix * 0.52;
+  const pad = 0.55 * METERS_TO_WORLD;
+  for (const [x, y, r, g, b] of still.pixels) {
+    const lx = (x - still.minX + 0.5 - bw / 2) * pix;
+    const ly = (bh - (y - still.minY + 0.5)) * pix;
+    const lz = south + pad;
+    const cx = lx * rightX + lz * viewX;
+    const cz = lx * rightZ + lz * viewZ;
+    const rgb = liftStone(r, g, b);
+    const base = pos.length / 3;
+    const corners: Array<[number, number, number]> = [
+      [cx - rightX * hx, ly - hy, cz - rightZ * hx],
+      [cx + rightX * hx, ly - hy, cz + rightZ * hx],
+      [cx + rightX * hx, ly + hy, cz + rightZ * hx],
+      [cx - rightX * hx, ly + hy, cz - rightZ * hx],
+    ];
+    for (const p of corners) {
+      pos.push(p[0], p[1], p[2]);
+      nrm.push(viewX, 0, viewZ);
+      col.push(rgb[0], rgb[1], rgb[2]);
+    }
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const mesh = new THREE.Mesh(geoFrom(pos, nrm, col, idx), matte(true));
+  mesh.name = 'no-1-poultry-south';
+  return mesh;
+}
+
+function buildVolume(
+  ring: Array<[number, number]>,
+  still: StillPixels,
+  viewX: number,
+  viewZ: number,
+): { body: THREE.Mesh; roof: THREE.Mesh } {
   const r = toCcw(ring);
-  const H = HEIGHT_M * METERS_TO_WORLD;
-  const viewX = Math.sin(VIEW_AZ);
-  const viewZ = Math.cos(VIEW_AZ);
-  const rightX = Math.cos(VIEW_AZ);
-  const rightZ = -Math.sin(VIEW_AZ);
-  const photo: Prim = {
-    pos: [],
-    nrm: [],
-    uv: [],
-    idx: [],
-    color: [1, 1, 1],
-    textured: true,
-    name: 'no-1-poultry-south',
-  };
-  const lime: Prim = {
-    pos: [],
-    nrm: [],
-    uv: null,
-    idx: [],
-    color: still.wall,
-    textured: false,
-    name: 'no-1-poultry-stone',
-  };
-  const faceU: number[] = [];
-  const faces: Array<{
-    a: [number, number];
-    b: [number, number];
-    nx: number;
-    nz: number;
-    photo: boolean;
-    u0: number;
-    u1: number;
-  }> = [];
+  const H = BODY_M * METERS_TO_WORLD;
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const bands = 24;
   for (let i = 0; i < r.length; i++) {
     const a = r[i]!;
     const b = r[(i + 1) % r.length]!;
@@ -185,195 +305,170 @@ function buildPrims(ring: Array<[number, number]>, still: StillSample): Prim[] {
     const len = Math.hypot(dx, dz) || 1e-6;
     const nx = dz / len;
     const nz = -dx / len;
-    const midZ = (a[1] + b[1]) / 2;
     const facing = nx * viewX + nz * viewZ;
-    const usePhoto = facing > 0.18 && midZ > -8 * METERS_TO_WORLD;
-    const u0 = a[0] * rightX + a[1] * rightZ;
-    const u1 = b[0] * rightX + b[1] * rightZ;
-    faces.push({ a, b, nx, nz, photo: usePhoto, u0, u1 });
-    if (usePhoto) faceU.push(u0, u1);
-  }
-  const uMin = faceU.length ? Math.min(...faceU) : 0;
-  const uMax = faceU.length ? Math.max(...faceU) : 1;
-  const uSpan = Math.max(1e-6, uMax - uMin);
-  const pushQuad = (prim: Prim, f: (typeof faces)[number], ua?: number, ub?: number) => {
-    const base = prim.pos.length / 3;
-    prim.pos.push(f.a[0], 0, f.a[1], f.b[0], 0, f.b[1], f.b[0], H, f.b[1], f.a[0], H, f.a[1]);
-    for (let k = 0; k < 4; k++) prim.nrm.push(f.nx, 0, f.nz);
-    prim.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    if (prim.uv && ua != null && ub != null) prim.uv.push(ua, 0, ub, 0, ub, 1, ua, 1);
-  };
-  for (const f of faces) {
-    if (f.photo) {
-      pushQuad(photo, f, (f.u0 - uMin) / uSpan, (f.u1 - uMin) / uSpan);
-    } else {
-      pushQuad(lime, f);
+    if (facing > 0.35) continue;
+    for (let k = 0; k < bands; k++) {
+      const t0 = k / bands;
+      const t1 = (k + 1) / bands;
+      const y0 = t0 * H;
+      const y1 = t1 * H;
+      const rgb = stripeAt(still.stripes, 1 - (t0 + t1) / 2);
+      const base = pos.length / 3;
+      pos.push(a[0], y0, a[1], b[0], y0, b[1], b[0], y1, b[1], a[0], y1, a[1]);
+      for (let v = 0; v < 4; v++) nrm.push(nx, 0, nz);
+      for (let v = 0; v < 4; v++) col.push(rgb[0], rgb[1], rgb[2]);
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }
-  const roof: Prim = {
-    pos: [],
-    nrm: [],
-    uv: null,
-    idx: [],
-    color: still.roof,
-    textured: false,
-    name: 'no-1-poultry-roof',
-  };
+  const body = new THREE.Mesh(geoFrom(pos, nrm, col, idx), matte(true));
+  body.name = 'no-1-poultry-stone';
+
+  const roofPos: number[] = [];
+  const roofNrm: number[] = [];
+  const roofCol: number[] = [];
+  const roofIdx: number[] = [];
   const flat: number[] = [];
+  const roofRgb = stripeAt(still.stripes, 0.12);
+  const dark: [number, number, number] = [roofRgb[0] * 0.42, roofRgb[1] * 0.42, roofRgb[2] * 0.4];
   for (const p of r) {
-    roof.pos.push(p[0], H, p[1]);
-    roof.nrm.push(0, 1, 0);
+    roofPos.push(p[0], H, p[1]);
+    roofNrm.push(0, 1, 0);
+    roofCol.push(dark[0], dark[1], dark[2]);
     flat.push(p[0], p[1]);
   }
   const tris = earcut(flat, undefined, 2);
   for (let i = 0; i < tris.length; i += 3) {
-    roof.idx.push(tris[i]!, tris[i + 1]!, tris[i + 2]!);
+    roofIdx.push(tris[i]!, tris[i + 1]!, tris[i + 2]!);
   }
-  return [photo, lime, roof].filter((p) => p.idx.length > 0);
+  const roof = new THREE.Mesh(geoFrom(roofPos, roofNrm, roofCol, roofIdx), matte(true));
+  roof.name = 'no-1-poultry-roof';
+  return { body, roof };
 }
 
-function pad4(buf: Buffer): Buffer {
-  const n = (4 - (buf.byteLength % 4)) % 4;
-  return n === 0 ? buf : Buffer.concat([buf, Buffer.alloc(n, 0x20)]);
-}
-
-function padBin(buf: Buffer): Buffer {
-  const n = (4 - (buf.byteLength % 4)) % 4;
-  return n === 0 ? buf : Buffer.concat([buf, Buffer.alloc(n, 0)]);
-}
-
-function minMax3(pos: number[]): { min: [number, number, number]; max: [number, number, number] } {
-  const min: [number, number, number] = [Infinity, Infinity, Infinity];
-  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < pos.length; i += 3) {
-    for (let k = 0; k < 3; k++) {
-      const v = pos[i + k]!;
-      min[k] = Math.min(min[k]!, v);
-      max[k] = Math.max(max[k]!, v);
+function buildTurret(
+  ring: Array<[number, number]>,
+  still: StillPixels,
+  viewX: number,
+  viewZ: number,
+  rightX: number,
+  rightZ: number,
+): THREE.Mesh {
+  let prow: [number, number] = ring[0]!;
+  let best = -Infinity;
+  for (const p of ring) {
+    const east = p[0];
+    const south = p[0] * viewX + p[1] * viewZ;
+    const score = east * 1.4 + south;
+    if (score > best) {
+      best = score;
+      prow = p;
     }
   }
-  return { min, max };
-}
-
-function packGlb(prims: Prim[], jpeg: Buffer): Buffer {
-  const binParts: Buffer[] = [];
-  const views: Array<{
-    buffer: number;
-    byteOffset: number;
-    byteLength: number;
-    target?: number;
-  }> = [];
-  const accessors: object[] = [];
-  const materials: object[] = [];
-  const primitives: object[] = [];
-  let offset = 0;
-  const pushBuf = (buf: Buffer, target?: number): number => {
-    const padded = padBin(buf);
-    const viewIndex = views.length;
-    views.push({ buffer: 0, byteOffset: offset, byteLength: buf.byteLength, target });
-    binParts.push(padded);
-    offset += padded.byteLength;
-    return viewIndex;
-  };
-  const jpegView = pushBuf(jpeg);
-  for (const prim of prims) {
-    const pos = Buffer.from(new Float32Array(prim.pos).buffer);
-    const nrm = Buffer.from(new Float32Array(prim.nrm).buffer);
-    const idx = Buffer.from(new Uint32Array(prim.idx).buffer);
-    const posView = pushBuf(pos, 34962);
-    const nrmView = pushBuf(nrm, 34962);
-    const idxView = pushBuf(idx, 34963);
-    const posMm = minMax3(prim.pos);
-    const posAcc = accessors.length;
-    accessors.push({
-      bufferView: posView,
-      componentType: 5126,
-      count: prim.pos.length / 3,
-      type: 'VEC3',
-      min: posMm.min,
-      max: posMm.max,
-    });
-    const nrmAcc = accessors.length;
-    accessors.push({
-      bufferView: nrmView,
-      componentType: 5126,
-      count: prim.nrm.length / 3,
-      type: 'VEC3',
-    });
-    const idxAcc = accessors.length;
-    accessors.push({
-      bufferView: idxView,
-      componentType: 5125,
-      count: prim.idx.length,
-      type: 'SCALAR',
-    });
-    const attributes: Record<string, number> = { POSITION: posAcc, NORMAL: nrmAcc };
-    if (prim.uv) {
-      const uv = Buffer.from(new Float32Array(prim.uv).buffer);
-      const uvView = pushBuf(uv, 34962);
-      const uvAcc = accessors.length;
-      accessors.push({
-        bufferView: uvView,
-        componentType: 5126,
-        count: prim.uv.length / 2,
-        type: 'VEC2',
-      });
-      attributes.TEXCOORD_0 = uvAcc;
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const r = 4.2 * METERS_TO_WORLD;
+  const y0 = 16 * METERS_TO_WORLD;
+  const y1 = HEIGHT_M * METERS_TO_WORLD;
+  const tx = prow[0] - viewX * 1.2 * METERS_TO_WORLD;
+  const tz = prow[1] - viewZ * 1.2 * METERS_TO_WORLD;
+  const segs = 16;
+  const stacks = 20;
+  for (let i = 0; i < segs; i++) {
+    const a0 = (i / segs) * Math.PI * 2;
+    const a1 = ((i + 1) / segs) * Math.PI * 2;
+    const x0 = Math.cos(a0);
+    const z0 = Math.sin(a0);
+    const x1 = Math.cos(a1);
+    const z1 = Math.sin(a1);
+    const wx0 = tx + x0 * r;
+    const wz0 = tz + z0 * r;
+    const wx1 = tx + x1 * r;
+    const wz1 = tz + z1 * r;
+    const nx = (x0 + x1) * 0.5;
+    const nz = (z0 + z1) * 0.5;
+    const nl = Math.hypot(nx, nz) || 1;
+    for (let k = 0; k < stacks; k++) {
+      const t0 = k / stacks;
+      const t1 = (k + 1) / stacks;
+      const yy0 = y0 + t0 * (y1 - y0);
+      const yy1 = y0 + t1 * (y1 - y0);
+      const rgb = stripeAt(still.stripes, 1 - (t0 + t1) / 2);
+      const base = pos.length / 3;
+      pos.push(wx0, yy0, wz0, wx1, yy0, wz1, wx1, yy1, wz1, wx0, yy1, wz0);
+      for (let v = 0; v < 4; v++) nrm.push(nx / nl, 0, nz / nl);
+      for (let v = 0; v < 4; v++) col.push(rgb[0], rgb[1], rgb[2]);
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
-    const matIndex = materials.length;
-    if (prim.textured) {
-      materials.push({
-        name: prim.name,
-        pbrMetallicRoughness: {
-          baseColorTexture: { index: 0 },
-          metallicFactor: 0,
-          roughnessFactor: 0.62,
-        },
-      });
-    } else {
-      materials.push({
-        name: prim.name,
-        pbrMetallicRoughness: {
-          baseColorFactor: [...prim.color, 1],
-          metallicFactor: 0,
-          roughnessFactor: 0.74,
-        },
-      });
-    }
-    primitives.push({
-      attributes,
-      indices: idxAcc,
-      material: matIndex,
-    });
   }
-  const json = {
-    asset: { version: '2.0', generator: 'bake-poultry-noticed' },
-    scene: 0,
-    scenes: [{ nodes: [0] }],
-    nodes: [{ mesh: 0, name: ID }],
-    meshes: [{ name: ID, primitives }],
-    materials,
-    textures: [{ sampler: 0, source: 0 }],
-    images: [{ mimeType: 'image/jpeg', bufferView: jpegView }],
-    samplers: [{ magFilter: 9729, minFilter: 9729, wrapS: 33071, wrapT: 33071 }],
-    accessors,
-    bufferViews: views,
-    buffers: [{ byteLength: offset }],
-  };
-  const jsonBuf = pad4(Buffer.from(JSON.stringify(json)));
-  const binBuf = Buffer.concat(binParts);
-  const total = 12 + 8 + jsonBuf.byteLength + 8 + binBuf.byteLength;
-  const header = Buffer.alloc(12);
-  header.writeUInt32LE(0x46546c67, 0);
-  header.writeUInt32LE(2, 4);
-  header.writeUInt32LE(total, 8);
-  const jsonHead = Buffer.alloc(8);
-  jsonHead.writeUInt32LE(jsonBuf.byteLength, 0);
-  jsonHead.writeUInt32LE(0x4e4f534a, 4);
-  const binHead = Buffer.alloc(8);
-  binHead.writeUInt32LE(binBuf.byteLength, 0);
-  binHead.writeUInt32LE(0x004e4942, 4);
-  return Buffer.concat([header, jsonHead, jsonBuf, binHead, binBuf]);
+  const clockY = y0 + (y1 - y0) * 0.42;
+  const clockRgb: [number, number, number] = [0.07, 0.08, 0.1];
+  const handRgb: [number, number, number] = [0.78, 0.16, 0.14];
+  const yaw = Math.atan2(viewX, viewZ);
+  pushBox(
+    pos,
+    nrm,
+    col,
+    idx,
+    tx + viewX * (r + 0.35 * METERS_TO_WORLD),
+    clockY,
+    tz + viewZ * (r + 0.35 * METERS_TO_WORLD),
+    3.1 * METERS_TO_WORLD,
+    3.1 * METERS_TO_WORLD,
+    0.28 * METERS_TO_WORLD,
+    clockRgb,
+    yaw,
+  );
+  pushBox(
+    pos,
+    nrm,
+    col,
+    idx,
+    tx + viewX * (r + 0.55 * METERS_TO_WORLD),
+    clockY + 0.7 * METERS_TO_WORLD,
+    tz + viewZ * (r + 0.55 * METERS_TO_WORLD),
+    0.18 * METERS_TO_WORLD,
+    1.7 * METERS_TO_WORLD,
+    0.12 * METERS_TO_WORLD,
+    handRgb,
+    yaw,
+  );
+  pushBox(
+    pos,
+    nrm,
+    col,
+    idx,
+    tx + viewX * (r + 0.55 * METERS_TO_WORLD) + rightX * 0.7 * METERS_TO_WORLD,
+    clockY,
+    tz + viewZ * (r + 0.55 * METERS_TO_WORLD) + rightZ * 0.7 * METERS_TO_WORLD,
+    1.15 * METERS_TO_WORLD,
+    0.18 * METERS_TO_WORLD,
+    0.12 * METERS_TO_WORLD,
+    handRgb,
+    yaw,
+  );
+  const rail: [number, number, number] = [0.16, 0.16, 0.18];
+  const balY = y0 + (y1 - y0) * 0.78;
+  for (const side of [-1, 1]) {
+    pushBox(
+      pos,
+      nrm,
+      col,
+      idx,
+      tx + viewX * (r + 1.6 * METERS_TO_WORLD) + rightX * side * 1.8 * METERS_TO_WORLD,
+      balY,
+      tz + viewZ * (r + 1.6 * METERS_TO_WORLD) + rightZ * side * 1.8 * METERS_TO_WORLD,
+      1.7 * METERS_TO_WORLD,
+      0.55 * METERS_TO_WORLD,
+      1.4 * METERS_TO_WORLD,
+      rail,
+      yaw,
+    );
+  }
+  const mesh = new THREE.Mesh(geoFrom(pos, nrm, col, idx), matte(true));
+  mesh.name = 'no-1-poultry-turret';
+  return mesh;
 }
 
 async function patchManifest(entry: ManifestFile): Promise<void> {
@@ -397,18 +492,30 @@ async function patchManifest(entry: ManifestFile): Promise<void> {
 
 async function main(): Promise<void> {
   if (!existsSync(STILL)) throw new Error(`missing still ${STILL}`);
-  const still = sampleStill();
+  const still = loadStill();
   const { ring, cx, cz } = poultryRing();
-  const prims = buildPrims(ring, still);
-  const jpeg = readFileSync(STILL);
-  const glb = packGlb(prims, jpeg);
+  const viewX = Math.sin(VIEW_AZ);
+  const viewZ = Math.cos(VIEW_AZ);
+  const rightX = Math.cos(VIEW_AZ);
+  const rightZ = -Math.sin(VIEW_AZ);
+  let south = -Infinity;
+  for (const p of ring) {
+    south = Math.max(south, p[0] * viewX + p[1] * viewZ);
+  }
+  const group = new THREE.Group();
+  group.name = ID;
+  const photo = buildPhotoMesh(still, viewX, viewZ, rightX, rightZ, south);
+  const { body, roof } = buildVolume(ring, still, viewX, viewZ);
+  const turret = buildTurret(ring, still, viewX, viewZ, rightX, rightZ);
+  group.add(photo, body, roof, turret);
+  const buf = await exportNoticedGlb(group);
   const file = `${ID}.glb`;
-  await writeFile(path.join(OUT_DIR, file), glb);
+  await writeFile(path.join(OUT_DIR, file), Buffer.from(buf));
   await patchManifest({
     id: ID,
     name: 'No 1 Poultry',
     file,
-    bytes: glb.byteLength,
+    bytes: buf.byteLength,
     x: cx,
     z: cz,
     exclusionM: EXCLUSION_M,
@@ -417,7 +524,7 @@ async function main(): Promise<void> {
     shape: 'photo',
   });
   console.log(
-    `  ${file}  ${(glb.byteLength / 1024).toFixed(1)} KB  prims=${prims.length}  at ${cx.toFixed(3)},${cz.toFixed(3)}`,
+    `  ${file}  ${(buf.byteLength / 1024).toFixed(1)} KB  pixels=${still.pixels.length}  at ${cx.toFixed(3)},${cz.toFixed(3)}`,
   );
 }
 

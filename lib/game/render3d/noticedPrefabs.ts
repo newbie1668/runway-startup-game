@@ -26,7 +26,11 @@ export function isStreetNoticedId(id: string): boolean {
 
 export function shouldLoadNoticedGlb(id: string, skipGlb: boolean): boolean {
   if (isUniqueNoticedId(id)) return false;
-  if (isStreetNoticedId(id)) return true;
+  if (isStreetNoticedId(id)) {
+    if (typeof window === 'undefined') return true;
+    if (!skipGlb) return true;
+    return new URLSearchParams(window.location.search).get('look') === 'citystreet';
+  }
   return !skipGlb;
 }
 
@@ -72,6 +76,7 @@ export async function loadNoticedPrefabs(): Promise<{
     (manifest.files ?? []).map(async (file) => {
       try {
         if (!shouldLoadNoticedGlb(file.id, skipGlb)) {
+          if (isStreetNoticedId(file.id)) return;
           prefabs.set(file.id, new THREE.Group());
           entries.push({
             id: file.id,
