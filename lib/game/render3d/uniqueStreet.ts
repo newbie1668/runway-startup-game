@@ -1242,7 +1242,7 @@ function emitTurretBalcony(
 }
 
 function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number, y1: number): void {
-  const R = m(5.2);
+  const R = m(6.4);
   const segs = 20;
   const course = m(1.9);
   let y = y0;
@@ -1250,7 +1250,7 @@ function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number,
   while (y + m(0.05) < y1) {
     const yb = Math.min(y + course, y1);
     const buff = i % 2 === 1;
-    const r = R + (buff ? m(0.12) : 0);
+    const r = R + (buff ? m(0.14) : 0);
     for (let s = 0; s < segs; s++) {
       const a0 = (s / segs) * Math.PI * 2;
       const a1 = ((s + 1) / segs) * Math.PI * 2;
@@ -1260,28 +1260,27 @@ function emitStirlingTurret(ctx: StreetEmit, cx: number, cz: number, y0: number,
       const z1 = cz + Math.sin(a1) * r;
       const nx = Math.cos((a0 + a1) / 2);
       const nz = Math.sin((a0 + a1) / 2);
-      // East-west slices of a cylinder read as N-S poles from citystreet. Buff is not the pole tint.
       const hex = Math.abs(nx) > 0.82 ? POULTRY_BUFF : buff ? POULTRY_BUFF : POULTRY_PINK;
       emitWallQuad(ctx, x0, z0, x1, z1, y, yb, nx, nz, hex);
     }
     y = yb;
     i += 1;
   }
-  pushDisk(ctx, cx, y1, cz, R + m(0.18), POULTRY_BUFF, segs);
-  pushDisk(ctx, cx, y1 + m(0.08), cz, R * 0.62, POULTRY_PINK, segs);
+  pushDisk(ctx, cx, y1, cz, R + m(0.2), POULTRY_BUFF, segs);
+  pushDisk(ctx, cx, y1 + m(0.1), cz, R * 0.55, POULTRY_PINK, segs);
   const south = Math.PI / 2;
-  const clockY = y0 + (y1 - y0) * 0.42;
-  emitDarkClock(ctx, cx, clockY, cz + R + m(0.22), 0, 1, m(3.2));
+  const clockY = y0 + (y1 - y0) * 0.38;
+  emitDarkClock(ctx, cx, clockY, cz + R + m(0.25), 0, 1, m(3.6));
   emitDarkClock(
     ctx,
-    cx + Math.cos(south - 0.7) * (R + m(0.16)),
+    cx + Math.cos(south - 0.7) * (R + m(0.18)),
     clockY,
-    cz + Math.sin(south - 0.7) * (R + m(0.16)),
+    cz + Math.sin(south - 0.7) * (R + m(0.18)),
     Math.cos(south - 0.7),
     Math.sin(south - 0.7),
-    m(2.6),
+    m(2.8),
   );
-  const by = y1 - m(2.2);
+  const by = y1 - m(2.4);
   emitTurretBalcony(ctx, cx, cz, by, south + Math.PI * 0.25, R);
   emitTurretBalcony(ctx, cx, cz, by, south - Math.PI * 0.25, R);
 }
@@ -1396,7 +1395,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
 
   const g0 = lerpPt(ePrev.a, ePrev.b, 0.02);
   const g1 = lerpPt(ePrev.a, ePrev.b, 0.52);
-  const gin = m(5.6);
+  const gin = m(8.2);
   emitGlassCurtain(
     ctx,
     { x: g0.x - ePrev.nx * gin, z: g0.z - ePrev.nz * gin },
@@ -1408,7 +1407,7 @@ function emitPoultryWalls(ctx: StreetEmit): void {
   );
 
   const tur = clamp({ x: apex.x + m(0.4), z: apex.z + m(3.2) });
-  emitStirlingTurret(ctx, tur.x, tur.z, H - m(1.2), H + m(16));
+  emitStirlingTurret(ctx, tur.x, tur.z, H - m(0.4), H + m(18));
 
   for (const e of edges) {
     if (nearApexStub(e, apex) || hairReturn(e)) continue;
@@ -1880,9 +1879,8 @@ export function emitStreetUniqueRoofs(kind: StreetUniqueId, ctx: StreetRoofEmit)
     outwardNormal: ctx.outwardNormal,
   };
   if (kind === 'no-1-poultry') {
-    const apex = ctx.ring[ctx.plan.apexIndex] ?? { x: cx, z: cz };
-    const tur = { x: apex.x + m(0.4), z: apex.z + m(3.2) };
-    emitAnnularRoofRadial(ctx, ctx.ring, poultryWellR(ctx.plan), H, POULTRY_ROOF, [], tur, m(6.4));
+    const well = insetRingTowardCentroid(ctx.ring, cx, cz, poultryWellR(ctx.plan));
+    emitAnnularRoof(ctx, ctx.ring, well, H, POULTRY_ROOF);
     return;
   }
   if (kind === 'the-ned') {
