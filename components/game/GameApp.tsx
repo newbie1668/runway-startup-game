@@ -28,7 +28,6 @@ import {
   newGame,
   performAction,
 } from '@/lib/game/engine';
-import { fmtMoney } from '@/lib/game/format';
 import { Dice } from '@/lib/game/rng';
 import { sfx } from '@/lib/game/audio';
 import type { IMapRenderer, Scene } from '@/lib/game/scene';
@@ -41,6 +40,7 @@ import type {
   SectorId,
 } from '@/lib/game/types';
 import { MapCanvas } from './MapCanvas';
+import { CityHud } from './CityHud';
 import { SetupOverlay, type SetupStep } from './SetupOverlay';
 import { Sidebar } from './Sidebar';
 import { DilemmaModal, EndOverlay, MoveModal } from './Modals';
@@ -88,6 +88,10 @@ function getHideChrome() {
   return new URLSearchParams(window.location.search).get('chrome') === '0';
 }
 
+function getForce2d() {
+  return new URLSearchParams(window.location.search).get('map') === '2d';
+}
+
 function parseSave(raw: string | null): GameState | null {
   if (!raw) return null;
   try {
@@ -125,6 +129,7 @@ export function GameApp() {
   const [mapReady, setMapReady] = useState(false);
   const onMapReady = useCallback(() => setMapReady(true), []);
   const hideChrome = useSyncExternalStore(subscribeChrome, getHideChrome, () => false);
+  const force2d = useSyncExternalStore(subscribeChrome, getForce2d, () => false);
 
   // Latest game for stable handlers (updated post-commit; handlers only fire
   // on user interaction, long after the effect has run).
@@ -380,19 +385,27 @@ export function GameApp() {
 
   return (
     <div
-      className={`flex h-dvh w-full flex-col overflow-hidden md:flex-row ${
-        screen === 'play' ? 'bg-[#070c1a] text-slate-200' : 'bg-[#c5d4e4] text-slate-800'
+      className={`relative flex h-dvh w-full flex-col overflow-hidden bg-[#c5d4e4] text-slate-800 ${
+        screen === 'play' ? 'md:block' : ''
       }`}
     >
       {/* Map side */}
       <div
         className={`relative ${
           screen === 'play'
-            ? 'h-[44dvh] min-h-64 flex-none md:h-full md:flex-1'
+            ? 'h-[44dvh] min-h-64 flex-none md:absolute md:inset-0 md:h-full'
             : 'min-h-0 flex-1 md:h-full'
         }`}
+        data-map-ready={mapReady ? '1' : '0'}
       >
         <MapCanvas scene={scene} rendererRef={rendererRef} onHit={onHit} onReady={onMapReady} />
+
+        <CityHud
+          hide={hideChrome || force2d}
+          screen={screen}
+          game={game}
+          onFlyTo={(x, y, viewH) => rendererRef.current?.lookAt(x, y, viewH)}
+        />
 
         {!mapReady && !hideChrome && (
           <div
@@ -409,37 +422,23 @@ export function GameApp() {
           </div>
         )}
 
-        {/* Map chrome */}
-        {screen === 'play' && game && (
-          <div className="pointer-events-none absolute top-3 left-3 rounded-xl border border-white/10 bg-[#0b1226]/85 px-3.5 py-2 backdrop-blur">
-            <p className="text-[10px] font-black tracking-[0.3em] text-amber-300">RUNWAY</p>
-            <p className="text-sm font-black text-white">
-              Week {game.week}
-              <span className="mx-1.5 text-slate-600">·</span>
-              {STAGES[game.stageIndex].name}
-              {game.valuation > 0 && (
-                <>
-                  <span className="mx-1.5 text-slate-600">·</span>
-                  <span className="text-amber-200">{fmtMoney(game.valuation)}</span>
-                </>
-              )}
-            </p>
-          </div>
-        )}
+        {/* Map chrome is the glass HUD; mute stays a glass pill so it doesn't cover search. */}
 
         {!hideChrome && (
           <button
             onClick={toggleMute}
             title="Toggle sound (M)"
             aria-label={muted ? 'Turn sound on' : 'Mute sound'}
-            className="absolute top-3 right-3 z-30 rounded-full border border-white/15 bg-[#0b1226]/85 px-3 py-2 text-base backdrop-blur transition hover:bg-white/10"
+            className={`absolute top-3 z-30 rounded-full border border-white/55 bg-white/45 px-3 py-2 text-base text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur-xl transition hover:bg-white/60 ${
+              screen === 'play' ? 'right-3 md:right-[min(26.4rem,calc(38vw+1.35rem))]' : 'right-3'
+            }`}
           >
             {muted ? '🔇' : '🔊'}
           </button>
         )}
 
         {screen === 'play' && (
-          <div className="pointer-events-none absolute bottom-2 left-3 hidden rounded-lg bg-[#0b1226]/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 md:block">
+          <div className="pointer-events-none absolute bottom-2 left-1/2 hidden -translate-x-1/2 rounded-lg border border-white/55 bg-white/45 px-2.5 py-1 text-[10.5px] font-semibold text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-xl md:left-[calc((100%-min(24.8rem,38vw))/2)] md:block">
             🟡 your HQ · shields: rivals · ★ events (click to attend) · drag to pan, scroll to zoom
           </div>
         )}
@@ -533,9 +532,13 @@ export function GameApp() {
         )}
       </div>
 
-      {/* Control panel */}
-      {screen === 'play' && game && (
-        <aside className="min-h-0 flex-1 overflow-y-auto border-t border-white/10 bg-[#0a0f22] md:h-full md:w-[398px] md:flex-none md:border-t-0 md:border-l">
+      {/* Control panel — glass overlay on desktop so the map stays full-bleed. */}
+      {screen === 'play' && game && !hideChrome && (
+        <aside
+          data-game-hud="panel"
+          aria-label="Game controls"
+          className="min-h-0 flex-1 overflow-y-auto border-t border-white/55 bg-white/45 text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur-xl md:absolute md:top-3 md:right-3 md:bottom-3 md:z-20 md:w-[min(24.8rem,38vw)] md:flex-none md:rounded-2xl md:border md:border-white/55"
+        >
           <Sidebar
             game={game}
             onAction={act}

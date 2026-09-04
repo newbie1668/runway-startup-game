@@ -9,10 +9,11 @@
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:game": "tsx scripts/test-game.ts && tsx scripts/test-osm-colour.ts && tsx scripts/test-noticed.ts && tsx scripts/test-landmarks.ts",
+    "test:game": "tsx scripts/test-game.ts && tsx scripts/test-osm-colour.ts && tsx scripts/test-noticed.ts && tsx scripts/test-landmarks.ts && tsx scripts/test-city-read.ts",
     "test:ui": "tsx scripts/test-ui.tsx",
     "bake:landmarks": "tsx scripts/bake-landmarks.ts",
-    "bake:noticed": "tsx scripts/bake-noticed.ts"
+    "bake:noticed": "tsx scripts/bake-noticed.ts",
+    "bake:poultry": "tsx scripts/bake-poultry-noticed.ts"
   },
   "dependencies": {
     "next": "16.2.6",

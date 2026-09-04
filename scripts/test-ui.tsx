@@ -12,6 +12,7 @@ import { metadata as gameMetadata } from '../app/game/page';
 import { GameApp } from '../components/game/GameApp';
 import { DilemmaModal, EndOverlay, MoveModal } from '../components/game/Modals';
 import { SetupOverlay } from '../components/game/SetupOverlay';
+import { Sidebar } from '../components/game/Sidebar';
 import { DILEMMAS, HUBS } from '../lib/game/content';
 import { newGame } from '../lib/game/engine';
 
@@ -66,6 +67,7 @@ check('title and setup use the full mobile viewport when no sidebar exists', () 
     'map shell should render exactly two stacked canvases',
   );
   assert.match(html, /Laying out London/);
+  assert.match(html, /data-map-ready="0"/);
   assert.match(html, /aria-busy="true"/);
   assert.match(
     html,
@@ -145,6 +147,35 @@ check('the mobile hero keeps its copy readable and sound control named', () => {
   assert.match(html, /bg-white\/90/);
   assert.match(html, /backdrop-blur-md/);
   assert.match(html, /aria-label="Mute sound"/);
+});
+
+check('the 3D map carries an SFSIM glass HUD with offline place search', () => {
+  const html = renderToStaticMarkup(<GameApp />);
+  assert.match(html, /id="city-search"/);
+  assert.match(html, /Search buildings, streets, parks, neighbourhoods/);
+  assert.match(html, /data-city-hud="pane"/);
+  const searchAt = html.indexOf('data-city-hud="search"');
+  assert.ok(searchAt > 0, 'search HUD should render');
+  const searchTag = html.slice(html.lastIndexOf('<div', searchAt), html.indexOf('>', searchAt) + 1);
+  assert.match(searchTag, /pointer-events-none/, 'search wrapper must not swallow map pan/zoom');
+});
+
+check('the play sidebar is a glass panel with label/value rows', () => {
+  const game = newGame({
+    companyName: 'GlassCo',
+    sectorId: 'ai',
+    hubId: 'shoreditch',
+    seed: 7,
+  });
+  const html = renderToStaticMarkup(
+    <Sidebar game={game} onAction={noop} onAdvance={noop} onOpenMove={noop} />,
+  );
+  assert.match(html, /bg-white\/35/);
+  assert.match(html, />Cash</);
+  assert.match(html, />Runway</);
+  assert.match(html, />Valuation</);
+  assert.match(html, /Advance week/);
+  assert.doesNotMatch(html, /bg-\[#0a0f22\]/);
 });
 
 console.log(`\nAll ${passed} UI checks passed.`);

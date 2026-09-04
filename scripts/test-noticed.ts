@@ -2,18 +2,33 @@
  * Noticed-tower factory helpers — offline, no DOM.
  */
 import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import * as THREE from 'three';
-import { makeMatteLambert } from '../lib/game/render3d/matteGltf';
+import { makeMatteLambert, makeUnlitBasic } from '../lib/game/render3d/matteGltf';
 import {
   bandsForShape,
+  civicKindFromTags,
   featuresFromText,
   isCircularShape,
+  isCivicShape,
   liftRgb,
   resolveShape,
   roofFromWall,
   tintForShape,
 } from './noticedFeatures';
 import { buildNoticedGroup } from './noticedMesh';
+import {
+  instantiateNoticed,
+  isStreetNoticedId,
+  shouldLoadNoticedGlb,
+} from '../lib/game/render3d/noticedPrefabs';
+import {
+  ellipseRing,
+  isUniqueNoticedId,
+  metersToWorld,
+  UNIQUE_NOTICED_IDS,
+} from '../lib/game/render3d/uniqueNoticed';
 import {
   isUsefulName,
   slugify,
@@ -71,6 +86,18 @@ check('wiki intro text can fill in unknown towers', () => {
   assert.equal(featuresFromText('a twisted residential tower on the quay'), 'twist');
   assert.equal(featuresFromText('brutalist concrete Barbican slab'), 'brutalist');
   assert.equal(featuresFromText('a cylindrical glass residential tower'), 'cylinder');
+  assert.equal(featuresFromText('the parish church with a tall spire'), 'church');
+  assert.equal(featuresFromText('the railway station terminus'), 'station');
+});
+
+check('OSM civic tags pick church/station/theatre/civic, not navy glass', () => {
+  assert.equal(civicKindFromTags({ building: 'church', name: "St Mary's" }), 'church');
+  assert.equal(civicKindFromTags({ railway: 'station', name: 'Goodge Street' }), 'station');
+  assert.equal(civicKindFromTags({ amenity: 'theatre', name: 'National Theatre' }), 'theatre');
+  assert.equal(civicKindFromTags({ tourism: 'museum', name: 'British Museum' }), 'civic');
+  assert.equal(civicKindFromTags({ building: 'office', name: 'HSBC UK' }), null);
+  assert.equal(isCivicShape('church'), true);
+  assert.equal(isCivicShape('taper'), false);
 });
 
 check('named silhouettes win over a misleading extract', () => {
@@ -132,6 +159,67 @@ check('makeMatteLambert still drops maps on landmarks', () => {
   assert.equal(mat.color.getHex(), 0x7a92a4);
 });
 
+check('unique-tower unlit pass keeps pale stone as MeshBasicMaterial', () => {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0xe8e2d6 }),
+  );
+  const root = new THREE.Group();
+  root.add(mesh);
+  makeMatteLambert(root, { keepMaps: true });
+  makeUnlitBasic(root);
+  const mat = mesh.material as THREE.MeshBasicMaterial;
+  assert.equal(mat.type, 'MeshBasicMaterial');
+  assert.equal(mat.color.getHex(), 0xe8e2d6);
+});
+
+check('church baker adds a tower and spire, not another glass taper', () => {
+  const ring: Array<[number, number]> = [
+    [-0.15, -0.25],
+    [0.15, -0.25],
+    [0.15, 0.25],
+    [-0.15, 0.25],
+  ];
+  const group = buildNoticedGroup({
+    id: 'church-test',
+    ring,
+    heightWorld: 1.2,
+    wall: [0.7, 0.5, 0.42],
+    roof: [0.35, 0.32, 0.3],
+    glass: false,
+    seed: 4,
+    shape: 'church',
+  });
+  assert.ok(group.getObjectByName('church-test-tower'), 'nave needs a tower');
+  assert.ok(group.getObjectByName('church-test-spire'), 'tower needs a spire');
+  let cones = 0;
+  group.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry.type === 'ConeGeometry') cones += 1;
+  });
+  assert.ok(cones >= 1, `expected a spire cone, got ${cones}`);
+});
+
+check('station baker adds a clock drum instead of navy glass bands only', () => {
+  const ring: Array<[number, number]> = [
+    [-0.2, -0.12],
+    [0.2, -0.12],
+    [0.2, 0.12],
+    [-0.2, 0.12],
+  ];
+  const group = buildNoticedGroup({
+    id: 'station-test',
+    ring,
+    heightWorld: 0.9,
+    wall: [0.45, 0.2, 0.18],
+    roof: [0.25, 0.24, 0.22],
+    glass: false,
+    seed: 8,
+    shape: 'station',
+  });
+  assert.ok(group.getObjectByName('station-test-clock'));
+  assert.ok(group.getObjectByName('station-test-clockface'));
+});
+
 check('taper baker shrinks the crown relative to the podium', () => {
   const ring: Array<[number, number]> = [
     [-0.2, -0.2],
@@ -159,4 +247,208 @@ check('taper baker shrinks the crown relative to the podium', () => {
   assert.ok(topW < podW * 0.55, `crown ${topW} should be narrower than podium ${podW}`);
 });
 
-console.log(`\nAll ${passed} noticed-factory checks passed.`);
+check('named Canary towers get photo-true unique meshes, not baker costumes', () => {
+  const charrington = buildNoticedGroup({
+    id: 'charrington-tower',
+    ring: ellipseRing(metersToWorld(16), metersToWorld(12)),
+    heightWorld: 2.1,
+    wall: [0.5, 0.5, 0.52],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 1,
+    shape: 'stepped',
+  });
+  assert.ok(charrington.getObjectByName('charrington-tower-peel'), 'peeled balcony stack');
+  assert.ok(charrington.getObjectByName('charrington-tower-shell'), 'C-shell, not a closed tube');
+  assert.equal(
+    charrington.getObjectByName('charrington-tower-0'),
+    undefined,
+    'not a stepped extrusion',
+  );
+  const peel = charrington.getObjectByName('charrington-tower-peel') as THREE.Mesh;
+  assert.ok(peel.position.z > 0, 'balconies face +Z (Thames / south)');
+  const shell = charrington.getObjectByName('charrington-tower-shell') as THREE.Mesh;
+  const cyl = shell.geometry as THREE.CylinderGeometry;
+  assert.equal(cyl.parameters.openEnded, true);
+  assert.ok(
+    cyl.parameters.thetaLength < Math.PI * 2 - 1,
+    `south peel must be a real bite, thetaLength=${cyl.parameters.thetaLength}`,
+  );
+  assert.ok(cyl.parameters.thetaStart < 1.2, 'opening is centered on +Z, not +X');
+  const peelMat = Array.isArray(peel.material) ? peel.material[0] : peel.material;
+  assert.equal(
+    peelMat?.type,
+    'MeshBasicMaterial',
+    'peeled stone must stay unlit white, not navy Lambert',
+  );
+
+  const park = buildNoticedGroup({
+    id: 'one-park-drive',
+    ring: ellipseRing(metersToWorld(15), metersToWorld(15)),
+    heightWorld: 2.4,
+    wall: [0.6, 0.62, 0.64],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 2,
+    shape: 'cylinder',
+  });
+  assert.ok(park.getObjectByName('one-park-drive-disc-0'));
+  assert.ok(park.getObjectByName('one-park-drive-disc-6'), 'stacked discs, not one tapering tube');
+
+  const nf = buildNoticedGroup({
+    id: 'newfoundland-quay',
+    ring: ellipseRing(metersToWorld(14), metersToWorld(12)),
+    heightWorld: 2.2,
+    wall: [0.4, 0.5, 0.55],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 3,
+    shape: 'twist',
+  });
+  assert.ok(nf.getObjectByName('newfoundland-quay-helix'));
+
+  const hsbc = buildNoticedGroup({
+    id: 'hsbc-uk',
+    ring: [
+      [-0.2, -0.2],
+      [0.2, -0.2],
+      [0.2, 0.2],
+      [-0.2, 0.2],
+    ],
+    heightWorld: 2.3,
+    wall: [0.5, 0.55, 0.58],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 4,
+    shape: 'slab',
+  });
+  assert.ok(hsbc.getObjectByName('hsbc-uk-hat'), 'Foster plant-room hat');
+
+  const citi = buildNoticedGroup({
+    id: 'citi',
+    ring: [
+      [-0.22, -0.2],
+      [0.22, -0.2],
+      [0.22, 0.2],
+      [-0.22, 0.2],
+    ],
+    heightWorld: 2.3,
+    wall: [0.45, 0.5, 0.55],
+    roof: [0.2, 0.2, 0.22],
+    glass: true,
+    seed: 5,
+    shape: 'slab',
+  });
+  assert.ok(citi.getObjectByName('citi-notch'), 'notched crown');
+  assert.equal(UNIQUE_NOTICED_IDS.length, 5);
+});
+
+check('runtime instantiate uses the unique mesh, not the stepped GLB costume', () => {
+  const dummy = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshLambertMaterial({ color: 0x445566 }),
+  );
+  dummy.name = 'charrington-tower-0';
+  const prefab = new THREE.Group();
+  prefab.add(dummy);
+  const group = instantiateNoticed(
+    {
+      id: 'charrington-tower',
+      name: 'Charrington Tower',
+      x: 0,
+      z: 0,
+      exclusionM: 40,
+      heightM: 144,
+    },
+    prefab,
+  );
+  assert.ok(group.getObjectByName('charrington-tower-peel'));
+  assert.equal(group.getObjectByName('charrington-tower-0'), undefined);
+});
+
+check('Poultry is a committed photo GLB on the noticed tray, not a uniqueNoticed hull', () => {
+  assert.equal(isUniqueNoticedId('no-1-poultry'), false);
+  assert.equal(isStreetNoticedId('no-1-poultry'), true);
+  assert.equal(
+    shouldLoadNoticedGlb('no-1-poultry', true),
+    false,
+    'parked uniqueness does not load Poultry under skipGlb',
+  );
+  assert.equal(
+    shouldLoadNoticedGlb('no-1-poultry', false),
+    false,
+    'parked uniqueness does not load Poultry when skipGlb is off',
+  );
+  assert.equal(shouldLoadNoticedGlb('hampton-tower', true), false);
+  assert.equal(shouldLoadNoticedGlb('charrington-tower', false), false);
+  const glbPath = join(process.cwd(), 'public/map/noticed/no-1-poultry.glb');
+  const manifestPath = join(process.cwd(), 'public/map/noticed/manifest.json');
+  assert.equal(existsSync(glbPath), true, 'no-1-poultry.glb missing');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    files?: Array<{ id: string; file: string; photo?: boolean }>;
+  };
+  const entry = manifest.files?.find((f) => f.id === 'no-1-poultry');
+  assert.ok(entry, 'no-1-poultry missing from noticed manifest');
+  assert.equal(entry?.photo, true);
+  const buf = readFileSync(glbPath);
+  assert.ok(buf.byteLength > 40_000, `Poultry GLB too small (${buf.byteLength} bytes)`);
+  const jsonLen = buf.readUInt32LE(12);
+  const json = buf
+    .subarray(20, 20 + jsonLen)
+    .toString('utf8')
+    .replace(/\0+$/, '')
+    .trim();
+  const doc = JSON.parse(json) as {
+    asset?: { generator?: string };
+    meshes?: Array<{ primitives?: Array<{ attributes?: Record<string, number> }> }>;
+  };
+  assert.match(
+    doc.asset?.generator ?? '',
+    /GLTFExporter/,
+    'Poultry GLB must use the tray exporter',
+  );
+  const hasColor = (doc.meshes ?? []).some((mesh) =>
+    (mesh.primitives ?? []).some((p) => p.attributes?.COLOR_0 != null),
+  );
+  assert.equal(hasColor, true, 'Poultry GLB has no still vertex colours');
+  const dummy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+  dummy.name = 'no-1-poultry-south';
+  const prefab = new THREE.Group();
+  prefab.add(dummy);
+  const group = instantiateNoticed(
+    {
+      id: 'no-1-poultry',
+      name: 'No 1 Poultry',
+      x: 0,
+      z: 0,
+      exclusionM: 24,
+      heightM: 42,
+    },
+    prefab,
+  );
+  assert.equal(group.scale.y, 1, 'Poultry must not take tower Y-scale');
+  assert.ok(group.getObjectByName('no-1-poultry-south'));
+});
+
+async function checkPoultryGlbParses(): Promise<void> {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const glbPath = join(process.cwd(), 'public/map/noticed/no-1-poultry.glb');
+  const buf = readFileSync(glbPath);
+  const loader = new GLTFLoader();
+  const gltf = await loader.parseAsync(
+    buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+    '',
+  );
+  assert.ok(gltf.scene.getObjectByName('no-1-poultry-south'), 'loaded GLB missing south mesh');
+  passed += 1;
+  console.log('  ✓ Poultry GLB parses in GLTFLoader');
+}
+
+checkPoultryGlbParses()
+  .then(() => {
+    console.log(`\nAll ${passed} noticed-factory checks passed.`);
+  })
+  .catch((err) => {
+    console.error(err instanceof Error ? (err.stack ?? err.message) : err);
+    process.exit(1);
+  });

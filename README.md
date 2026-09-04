@@ -45,6 +45,13 @@ Debug query params on `/game`:
 - `?map=3d` — force the 3D map, overriding a prior fallback for this session.
 - `?map=debug` — 3D map, plus exposes `window.__runwayForceContextLoss()` in
   devtools to exercise the 3D → 2D fallback path on demand.
+- `?chrome=0` — hide the title card, loading overlay, and glass HUD.
+- `?look=shard|gherkin|stpauls|towerbridge|eye|…` — frame a named landmark.
+- `?view=wide|mid` — city overview or neighbourhood zoom.
+
+The 3D map draws an SFSIM-style glass HUD (London clock, baked climate, place
+search). Search only looks at committed landmarks, parks, neighbourhoods, and
+hubs — no live APIs.
 
 ## Repo Boundary
 
