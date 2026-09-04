@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { LANDMARKS, type LandmarkKind } from '../geo';
 import { build as buildLandmark } from './landmarks';
+import { makeMatteLambert } from './matteGltf';
 
 export const LANDMARK_GLB_DIR = '/map/landmarks';
 
@@ -22,6 +23,7 @@ export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Obj
     kinds.map(async (kind) => {
       try {
         const gltf = await loader.loadAsync(`${LANDMARK_GLB_DIR}/${kind}.glb`);
+        makeMatteLambert(gltf.scene);
         prefabs.set(kind, gltf.scene);
       } catch {
         // Procedural builder is the fallback at instantiate time.

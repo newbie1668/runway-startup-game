@@ -1,0 +1,73 @@
+/**
+ * Landmark prefab + deck-height checks — offline, no DOM.
+ */
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { isDeckLandmark } from '../lib/game/geo';
+import { ROAD_Y } from '../lib/game/render3d/cityBuilder';
+import { EYE_WHEEL_NAME, LANDMARK_DECK_Y, build } from '../lib/game/render3d/landmarks';
+
+let passed = 0;
+function check(label: string, fn: () => void): void {
+  fn();
+  passed += 1;
+  console.log(`  ✓ ${label}`);
+}
+
+console.log('Landmark geometry');
+
+check('Thames crossings are deck landmarks; the Eye is not', () => {
+  assert.equal(isDeckLandmark('towerbridge'), true);
+  assert.equal(isDeckLandmark('hungerford'), true);
+  assert.equal(isDeckLandmark('westminsterbr'), true);
+  assert.equal(isDeckLandmark('eye'), false);
+  assert.equal(isDeckLandmark('gherkin'), false);
+});
+
+check('bridge decks sit above OSM carriageways', () => {
+  assert.ok(LANDMARK_DECK_Y > ROAD_Y, `${LANDMARK_DECK_Y} vs ${ROAD_Y}`);
+});
+
+check('London Eye A-frame meets the hub', () => {
+  const eye = build('eye');
+  const wheel = eye.getObjectByName(EYE_WHEEL_NAME);
+  assert.ok(wheel, 'missing eyeWheel group');
+  const hub = new THREE.Vector3(0, wheel.position.y, 0);
+  let hits = 0;
+  for (const child of eye.children) {
+    if (child === wheel) continue;
+    child.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const box = new THREE.Box3().setFromObject(obj);
+      if (box.distanceToPoint(hub) < 0.08) hits += 1;
+    });
+  }
+  assert.ok(hits >= 2, `expected axle/legs at the hub, got ${hits}`);
+});
+
+check('Tower Bridge has a deck at LANDMARK_DECK_Y', () => {
+  const bridge = build('towerbridge');
+  let found = false;
+  bridge.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    if (Math.abs(obj.position.y - LANDMARK_DECK_Y) > 0.03) return;
+    const size = new THREE.Vector3();
+    obj.geometry.computeBoundingBox();
+    obj.geometry.boundingBox?.getSize(size);
+    if (size.z > size.x) found = true;
+  });
+  assert.ok(found, 'no along-Z deck slab at deck height');
+});
+
+check('Hungerford deck matches LANDMARK_DECK_Y', () => {
+  const br = build('hungerford');
+  let found = false;
+  br.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && Math.abs(obj.position.y - LANDMARK_DECK_Y) < 0.03) {
+      found = true;
+    }
+  });
+  assert.ok(found);
+});
+
+console.log(`\nAll ${passed} landmark geometry checks passed.`);

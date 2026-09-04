@@ -4,11 +4,13 @@
  * Loads committed glTF from /map/noticed/ (written by `pnpm bake:noticed`).
  * Missing manifest or files are skipped — the OSM extrusion stays. Only
  * imported from CityRenderer3D, behind the factory's dynamic import.
+ * Albedo maps stay — these are the Kansas unique-mesh layer, not OSM paint.
  */
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { NOTICED_BAKE_HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
+import { makeMatteLambert } from './matteGltf';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -51,6 +53,7 @@ export async function loadNoticedPrefabs(): Promise<{
     (manifest.files ?? []).map(async (file) => {
       try {
         const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
+        makeMatteLambert(gltf.scene, { keepMaps: true });
         prefabs.set(file.id, gltf.scene);
         entries.push({
           id: file.id,

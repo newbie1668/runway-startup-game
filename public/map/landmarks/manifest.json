@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-08-27T23:11:36.882Z",
+  "generatedAt": "2026-08-28T13:23:50.510Z",
   "files": [
     {
       "kind": "eye",
       "file": "eye.glb",
-      "bytes": 244260
+      "bytes": 285528
     },
     {
       "kind": "shard",
       "file": "shard.glb",
-      "bytes": 171412
+      "bytes": 171408
     },
     {
       "kind": "bigben",
@@ -24,7 +24,7 @@
     {
       "kind": "stpauls",
       "file": "stpauls.glb",
-      "bytes": 87588
+      "bytes": 87584
     },
     {
       "kind": "o2",
@@ -34,12 +34,12 @@
     {
       "kind": "gherkin",
       "file": "gherkin.glb",
-      "bytes": 627760
+      "bytes": 247472
     },
     {
       "kind": "towerbridge",
       "file": "towerbridge.glb",
-      "bytes": 794360
+      "bytes": 946548
     },
     {
       "kind": "walkie",
@@ -49,7 +49,7 @@
     {
       "kind": "grater",
       "file": "grater.glb",
-      "bytes": 56152
+      "bytes": 56148
     },
     {
       "kind": "canadasq",
@@ -89,42 +89,42 @@
     {
       "kind": "westminsterbr",
       "file": "westminsterbr.glb",
-      "bytes": 1650296
+      "bytes": 1650188
     },
     {
       "kind": "lambethbr",
       "file": "lambethbr.glb",
-      "bytes": 480516
+      "bytes": 480428
     },
     {
       "kind": "waterloobr",
       "file": "waterloobr.glb",
-      "bytes": 769144
+      "bytes": 769012
     },
     {
       "kind": "blackfriarsbr",
       "file": "blackfriarsbr.glb",
-      "bytes": 580560
+      "bytes": 580456
     },
     {
       "kind": "londonbr",
       "file": "londonbr.glb",
-      "bytes": 553168
+      "bytes": 553064
     },
     {
       "kind": "millennium",
       "file": "millennium.glb",
-      "bytes": 58372
+      "bytes": 58332
     },
     {
       "kind": "albertbr",
       "file": "albertbr.glb",
-      "bytes": 755720
+      "bytes": 755504
     },
     {
       "kind": "hungerford",
       "file": "hungerford.glb",
-      "bytes": 535248
+      "bytes": 747192
     },
     {
       "kind": "towerlondon",

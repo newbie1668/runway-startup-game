@@ -39,7 +39,9 @@ export async function createMapRenderer(
   if (!probe.getContext('webgl2')) return make2d(overlayCanvas);
 
   const nav = navigator as Navigator & { deviceMemory?: number };
-  if (typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 2) return make2d(overlayCanvas);
+  if (mapParam !== '3d' && typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 2) {
+    return make2d(overlayCanvas);
+  }
 
   try {
     const { CityRenderer3D } = await import('./CityRenderer3D');

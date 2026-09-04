@@ -19,7 +19,7 @@ import { createMapRenderer } from '@/lib/game/render3d/factory';
 // Matches render.ts's 2D sky gradient exactly. The 2D canvas paints over this
 // every frame; the 3D canvas is alpha-transparent, so this shows through as
 // the sky behind the WebGL city (blended into the horizon by THREE.Fog).
-const SKY_BACKGROUND = 'linear-gradient(180deg, #7eb8ea 0%, #8ec5f0 48%, #c5ddf4 100%)';
+const SKY_BACKGROUND = 'linear-gradient(180deg, #b7c9dc 0%, #c5d4e4 48%, #d5e0ec 100%)';
 
 interface Props {
   scene: Scene;
@@ -164,6 +164,7 @@ export function MapCanvas({ scene, rendererRef, onHit, onReady, className }: Pro
         if (moved < 6) {
           const hit = rendererRef.current?.hitTest(p.x, p.y);
           if (hit) onHitRef.current?.(hit);
+          else rendererRef.current?.notifyPointer?.(p.x, p.y, 'click');
         }
       }
     };

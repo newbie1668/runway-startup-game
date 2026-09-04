@@ -13,7 +13,7 @@ export const FOV_DEG = 45;
 /** Near plane in world units (~111 m each). Must stay well below street-level camera distance. */
 const NEAR = 0.02;
 const FAR = 4000;
-const PITCH_FAR_DEG = 64; // top-down-ish, used when fully zoomed out
+const PITCH_FAR_DEG = 50; // city-scale isometric; roofs + façades both read
 const PITCH_MID_DEG = 42; // cinematic, reached around zoom 18
 const PITCH_CLOSE_DEG = 32; // isometric neighbourhood with a strip of sky
 const PITCH_STREET_DEG = 22; // street corner; top of the 45° FOV hits the horizon
@@ -60,7 +60,11 @@ export class CameraRig {
   static pitchDeg(zoom: number, minZoom: number): number {
     const midSpan = Math.max(1e-6, PITCH_MID_ZOOM - minZoom);
     const mid = lerp(PITCH_FAR_DEG, PITCH_MID_DEG, clamp01((zoom - minZoom) / midSpan));
-    const close = lerp(mid, PITCH_CLOSE_DEG, clamp01((zoom - PITCH_MID_ZOOM) / (PITCH_CLOSE_ZOOM - PITCH_MID_ZOOM)));
+    const close = lerp(
+      mid,
+      PITCH_CLOSE_DEG,
+      clamp01((zoom - PITCH_MID_ZOOM) / (PITCH_CLOSE_ZOOM - PITCH_MID_ZOOM)),
+    );
     return lerp(
       close,
       PITCH_STREET_DEG,

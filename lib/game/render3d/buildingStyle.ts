@@ -69,7 +69,8 @@ const DISTRICT_BOXES: ReadonlyArray<{
 
 export function districtAt(lng: number, lat: number): DistrictId {
   for (const box of DISTRICT_BOXES) {
-    if (lng >= box.minLng && lng < box.maxLng && lat >= box.minLat && lat < box.maxLat) return box.id;
+    if (lng >= box.minLng && lng < box.maxLng && lat >= box.minLat && lat < box.maxLat)
+      return box.id;
   }
   return 'inner';
 }
@@ -161,6 +162,18 @@ export function inferRoof(style: number): number {
   return ROOF_FLAT;
 }
 
+/**
+ * Street-front window grids. Skip tiny edges and the long party walls of
+ * terraces (those are the *longest* sides — putting windows there hid every
+ * sash from the street).
+ */
+export function wantFacadeWindows(edgeM: number, heightM: number, style: number): boolean {
+  if (style === STYLE_TOWER) return false;
+  if (heightM < 5.2 || edgeM < 3.5) return false;
+  if ((style === STYLE_HOUSE || style === STYLE_TERRACE) && edgeM > 15.5) return false;
+  return true;
+}
+
 function roofFromTag(shape: string | undefined): number | null {
   if (!shape) return null;
   const s = shape.toLowerCase();
@@ -182,9 +195,15 @@ export function classifyBuilding(
   else if (/^(apartments|residential|dormitory|maisonette)$/.test(t)) {
     if (heightM >= 48) style = STYLE_TOWER;
     else style = heightM <= 12 && areaM2 <= 280 ? STYLE_TERRACE : STYLE_APARTMENTS;
-  } else if (/^(office|commercial|hotel|civic|public|government|university|school|hospital|college)$/.test(t)) {
+  } else if (
+    /^(office|commercial|hotel|civic|public|government|university|school|hospital|college)$/.test(t)
+  ) {
     style = heightM >= 40 ? STYLE_TOWER : STYLE_OFFICE;
-  } else if (/^(industrial|warehouse|factory|manufacture|shed|garage|garages|hangar|service|train_station)$/.test(t)) {
+  } else if (
+    /^(industrial|warehouse|factory|manufacture|shed|garage|garages|hangar|service|train_station)$/.test(
+      t,
+    )
+  ) {
     style = STYLE_INDUSTRIAL;
   } else if (/^(retail|supermarket|kiosk|mall|shop)$/.test(t)) style = STYLE_RETAIL;
   else if (/^(church|cathedral|chapel|mosque|synagogue|temple)$/.test(t)) style = STYLE_OFFICE;
@@ -220,7 +239,10 @@ export function restyleForDistrict(
       return style;
     case 'city':
       if (heightM >= 40) return STYLE_TOWER;
-      if (heightM >= 16 && (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_APARTMENTS)) {
+      if (
+        heightM >= 16 &&
+        (style === STYLE_HOUSE || style === STYLE_TERRACE || style === STYLE_APARTMENTS)
+      ) {
         return STYLE_OFFICE;
       }
       return style;
@@ -228,7 +250,11 @@ export function restyleForDistrict(
     case 'westend':
       if (heightM >= 48) return STYLE_TOWER;
       if (heightM >= 14 && style === STYLE_HOUSE) return STYLE_TERRACE;
-      if (heightM >= 18 && heightM < 48 && (style === STYLE_APARTMENTS || style === STYLE_TERRACE)) {
+      if (
+        heightM >= 18 &&
+        heightM < 48 &&
+        (style === STYLE_APARTMENTS || style === STYLE_TERRACE)
+      ) {
         return STYLE_OFFICE;
       }
       return style;
@@ -239,13 +265,18 @@ export function restyleForDistrict(
     case 'shoreditch':
     case 'eastend':
       if (heightM >= 48) return STYLE_TOWER;
-      if (heightM <= 22 && areaM2 >= 220 && (style === STYLE_APARTMENTS || style === STYLE_TERRACE)) {
+      if (
+        heightM <= 22 &&
+        areaM2 >= 220 &&
+        (style === STYLE_APARTMENTS || style === STYLE_TERRACE)
+      ) {
         return STYLE_INDUSTRIAL;
       }
       return style;
     case 'southbank':
     case 'stratford':
-      if (heightM >= 32 && (style === STYLE_APARTMENTS || style === STYLE_OFFICE)) return STYLE_TOWER;
+      if (heightM >= 32 && (style === STYLE_APARTMENTS || style === STYLE_OFFICE))
+        return STYLE_TOWER;
       return style;
     case 'battersea':
       if (heightM >= 40) return STYLE_TOWER;
@@ -265,7 +296,11 @@ export function restyleForDistrict(
   }
 }
 
-export function extrusionScale(style: number, heightM: number, district: DistrictId = 'inner'): number {
+export function extrusionScale(
+  style: number,
+  heightM: number,
+  district: DistrictId = 'inner',
+): number {
   if (district === 'canary' && heightM >= 40) return TOWER_HEIGHT_SCALE;
   if (heightM >= 80 || style === STYLE_TOWER) return TOWER_HEIGHT_SCALE;
   if (style === STYLE_OFFICE || heightM >= 28) return 1.85;
