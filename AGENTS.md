@@ -2,6 +2,18 @@
 
 This is a standalone experimental repo for the RUNWAY startup game.
 
+## Current recovery plan
+
+For the owner-confirmed daytime SFSIM map recovery, start at
+[`docs/runway-recovery/README.md`](docs/runway-recovery/README.md). It links
+the product contract, source audit, architecture, task plan, verification
+gates and agent handoff. Preserve the existing game. Workers execute only
+their assigned task on an exact accepted commit; the tech lead owns scope
+and integration. The planning PR does not certify the map as complete.
+
+Earlier plans under `docs/plans/` are historical context where they conflict
+with the current recovery product contract. Keep the constraints below.
+
 Keep it separate from the main London Startup Map repo and domain for now:
 
 - Main product URL: `https://londonstartupmap.com/`

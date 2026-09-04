@@ -1,5 +1,9 @@
 # London building factory (SFSIM-style, bake-time)
 
+> Historical factory plan. Use [the recovery entry point](../runway-recovery/README.md)
+> for current scope, task ownership and gates. Do not start more unique-building
+> work before the renderer and representative-street gates pass.
+
 **Goal:** Neighbourhoods that read cream / brick / terracotta / glass from real data, plus unique low-poly meshes for the skyline the camera actually looks at — all committed, no runtime APIs.
 
 ## What [the X post](https://x.com/davidfromkansas/status/2090527551961940028) did

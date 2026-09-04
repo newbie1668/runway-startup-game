@@ -1,0 +1,7 @@
+{
+  "baseline": "4f76b634c2ae1201d939fa3ccff12f4724624b94",
+  "note": "Error messages collected across the audit browser session, not a per-navigation error count.",
+  "messages": [
+    "Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+  ]
+}
