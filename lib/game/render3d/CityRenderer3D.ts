@@ -64,12 +64,7 @@ import {
   type BuildJobKind,
   type KeepDisk,
 } from './lookClip';
-import {
-  instantiateNoticed,
-  isStreetNoticedId,
-  loadNoticedPrefabs,
-  type NoticedEntry,
-} from './noticedPrefabs';
+import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
@@ -517,11 +512,6 @@ export class CityRenderer3D implements IMapRenderer {
       for (const entry of this.noticedEntries) {
         if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
         if (!inKeep(entry.x, entry.z)) continue;
-        pushNoticed(entry, restJobs, 'rest');
-      }
-    } else {
-      for (const entry of this.noticedEntries) {
-        if (!isStreetNoticedId(entry.id) || !inKeep(entry.x, entry.z)) continue;
         pushNoticed(entry, restJobs, 'rest');
       }
     }

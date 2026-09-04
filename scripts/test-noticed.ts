@@ -369,7 +369,16 @@ check('runtime instantiate uses the unique mesh, not the stepped GLB costume', (
 check('Poultry is a committed photo GLB on the noticed tray, not a uniqueNoticed hull', () => {
   assert.equal(isUniqueNoticedId('no-1-poultry'), false);
   assert.equal(isStreetNoticedId('no-1-poultry'), true);
-  assert.equal(shouldLoadNoticedGlb('no-1-poultry', true), true);
+  assert.equal(
+    shouldLoadNoticedGlb('no-1-poultry', true),
+    false,
+    'parked uniqueness does not load Poultry under skipGlb',
+  );
+  assert.equal(
+    shouldLoadNoticedGlb('no-1-poultry', false),
+    false,
+    'parked uniqueness does not load Poultry when skipGlb is off',
+  );
   assert.equal(shouldLoadNoticedGlb('hampton-tower', true), false);
   assert.equal(shouldLoadNoticedGlb('charrington-tower', false), false);
   const glbPath = join(process.cwd(), 'public/map/noticed/no-1-poultry.glb');

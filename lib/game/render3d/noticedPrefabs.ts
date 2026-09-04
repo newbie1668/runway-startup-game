@@ -17,7 +17,7 @@ import { meshBudget } from './lookClip';
 
 export const NOTICED_DIR = '/map/noticed';
 
-/** Street stills on the noticed tray. Loaded even when the wide budget skips GLBs. */
+/** Street still on the noticed tray. Playtime does not instantiate it. */
 export const STREET_NOTICED_ID = 'no-1-poultry';
 
 export function isStreetNoticedId(id: string): boolean {
@@ -26,11 +26,9 @@ export function isStreetNoticedId(id: string): boolean {
 
 export function shouldLoadNoticedGlb(id: string, skipGlb: boolean): boolean {
   if (isUniqueNoticedId(id)) return false;
-  if (isStreetNoticedId(id)) {
-    if (typeof window === 'undefined') return true;
-    if (!skipGlb) return true;
-    return new URLSearchParams(window.location.search).get('look') === 'citystreet';
-  }
+  // Uniqueness is parked. The 0873e8a still (~1.2MB, DoubleSide, unculled)
+  // Aw Snapped citystreet and poisoned view=mid. Do not fetch it.
+  if (isStreetNoticedId(id)) return false;
   return !skipGlb;
 }
 
@@ -89,13 +87,8 @@ export async function loadNoticedPrefabs(): Promise<{
           return;
         }
         const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
-        let prefab: THREE.Object3D = gltf.scene;
-        if (isStreetNoticedId(file.id)) {
-          prefab = adoptStreetNoticed(gltf.scene);
-        } else {
-          makeMatteLambert(gltf.scene, { keepMaps: true });
-        }
-        prefabs.set(file.id, prefab);
+        makeMatteLambert(gltf.scene, { keepMaps: true });
+        prefabs.set(file.id, gltf.scene);
         entries.push({
           id: file.id,
           name: file.name,
@@ -110,37 +103,6 @@ export async function loadNoticedPrefabs(): Promise<{
     }),
   );
   return { entries, prefabs };
-}
-
-function isDrawMesh(obj: THREE.Object3D): obj is THREE.Mesh {
-  return (obj as THREE.Mesh).isMesh === true;
-}
-
-/**
- * GLTFLoader meshes can come from a second `three` copy in the bundle.
- * Re-wrap so the city renderer will actually draw them, unlit, with the
- * still's vertex colours.
- */
-function adoptStreetNoticed(src: THREE.Object3D): THREE.Group {
-  const root = new THREE.Group();
-  root.name = STREET_NOTICED_ID;
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    vertexColors: true,
-    fog: true,
-    side: THREE.DoubleSide,
-  });
-  src.updateWorldMatrix(true, true);
-  src.traverse((obj) => {
-    if (!isDrawMesh(obj)) return;
-    const next = new THREE.Mesh(obj.geometry, mat);
-    next.name = obj.name;
-    next.matrix.copy(obj.matrixWorld);
-    next.matrixAutoUpdate = false;
-    next.frustumCulled = false;
-    root.add(next);
-  });
-  return root;
 }
 
 export function instantiateNoticed(
