@@ -114,11 +114,11 @@ async function openDesktop(browser) {
 
 async function runHubTour(browser) {
   const entry = { id: 'B6-search-tour', actions: [], events: [] };
-  let context;
+  let context; let page;
   try {
     const opened = await openDesktop(browser);
     context = opened.context;
-    const { page, events } = opened;
+    page = opened.page; const events = opened.events;
     entry.events = events;
     await page.goto(`${baseUrl}/game`, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
     await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: timeoutMs });
@@ -139,22 +139,23 @@ async function runHubTour(browser) {
     entry.failed = events.length > 0 || entry.actions.some(action => !action.clicked || action.screenshotError);
   } catch (error) {
     context ??= error.context;
+    page ??= error.page;
     entry.events = entry.events.length ? entry.events : [...(error.events ?? [])];
     entry.failed = true; entry.error = error.message;
-    if (error.page) entry.screenshotError = await capture(error.page, 'B6-search-tour-failure');
+    entry.screenshotError = page ? await capture(page, 'B6-search-tour-failure') : 'screenshot unavailable: page creation failed';
   }
-  finally { if (context) await context.close().catch(error => entry.closeError = error.message); }
+  finally { if (context) await context.close().catch(error => { entry.closeError = error.message; entry.failed = true; }); }
   await saveLog('B6-search-tour', entry);
   return entry;
 }
 
 async function runDragTrace(browser) {
   const entry = { id: 'B6-drag-trace', events: [], trace: [] };
-  let context;
+  let context; let page;
   try {
     const opened = await openDesktop(browser);
     context = opened.context;
-    const { page, events } = opened;
+    page = opened.page; const events = opened.events;
     entry.events = events;
     await page.goto(`${baseUrl}/game?map=3d&view=mid&chrome=0`, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
     await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: timeoutMs });
@@ -185,11 +186,12 @@ async function runDragTrace(browser) {
     entry.failed = events.length > 0 || Boolean(screenshotError);
   } catch (error) {
     context ??= error.context;
+    page ??= error.page;
     entry.events = entry.events.length ? entry.events : [...(error.events ?? [])];
     entry.failed = true; entry.error = error.message;
-    if (error.page) entry.screenshotError = await capture(error.page, 'B6-drag-trace-failure');
+    entry.screenshotError = page ? await capture(page, 'B6-drag-trace-failure') : 'screenshot unavailable: page creation failed';
   }
-  finally { if (context) await context.close().catch(error => entry.closeError = error.message); }
+  finally { if (context) await context.close().catch(error => { entry.closeError = error.message; entry.failed = true; }); }
   await saveLog('B6-drag-trace', entry);
   return entry;
 }
