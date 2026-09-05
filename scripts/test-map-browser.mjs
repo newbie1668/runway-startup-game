@@ -204,8 +204,10 @@ try {
     try { result.cases.push(...await runCase(browser, testCase, device)); }
     catch (error) { result.cases.push({ id: testCase.id, viewport: device.id, phase: 'context', ready: false, failed: true, error: error.message, events: [] }); }
   }
-  result.observations.push(await runHubTour(browser));
-  result.observations.push(await runDragTrace(browser));
+  if (!caseFilter.length) {
+    result.observations.push(await runHubTour(browser));
+    result.observations.push(await runDragTrace(browser));
+  }
 } catch (error) {
   result.failures.push({ type: 'browser-launch', message: error.message });
 } finally {
