@@ -42,6 +42,15 @@ function slug(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').re
 function now() { return performance.now(); }
 async function saveJson(path, value) { await writeFile(path, `${JSON.stringify(value, null, 2)}\n`); }
 async function saveLog(name, entry) { await saveJson(join(logsDir, `${name}.json`), entry); }
+async function evaluatePage(page, fn) {
+  let timer;
+  try {
+    return await Promise.race([
+      page.evaluate(fn),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Browser diagnostic evaluation timed out after 3000 ms')), 3_000); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
 
 function monitor(page) {
   const events = [];
@@ -68,8 +77,8 @@ async function runCase(browser, testCase, device) {
     try {
       if (phase === 'cold') await page.goto(entry.url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
       else {
-        entry.force2dBeforeReload = await page.evaluate(() => sessionStorage.getItem('runway-force-2d'));
-        if (testCase.path.includes('map=3d')) await page.evaluate(() => sessionStorage.removeItem('runway-force-2d'));
+        entry.force2dBeforeReload = await evaluatePage(page, () => sessionStorage.getItem('runway-force-2d'));
+        if (testCase.path.includes('map=3d')) await evaluatePage(page, () => sessionStorage.removeItem('runway-force-2d'));
         events.length = 0;
         await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
       }
@@ -81,8 +90,8 @@ async function runCase(browser, testCase, device) {
       await page.waitForTimeout(500);
     } catch (error) { entry.ready = false; entry.error = error.message; }
     entry.timing.totalMs = Math.round(now() - began);
-    entry.actual = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio, coarse: matchMedia('(pointer: coarse)').matches, maxTouchPoints: navigator.maxTouchPoints })).catch(() => null);
-    entry.force2dAfterLoad = await page.evaluate(() => sessionStorage.getItem('runway-force-2d')).catch(() => 'unavailable');
+    entry.actual = await evaluatePage(page, () => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio, coarse: matchMedia('(pointer: coarse)').matches, maxTouchPoints: navigator.maxTouchPoints })).catch(() => null);
+    entry.force2dAfterLoad = await evaluatePage(page, () => sessionStorage.getItem('runway-force-2d')).catch(() => 'unavailable');
     const screenshotError = await capture(page, `${testCase.id}-${device.id}-${phase}`);
     if (screenshotError) events.push({ type: 'runner', message: screenshotError });
     entry.events = [...events];
@@ -159,7 +168,7 @@ async function runDragTrace(browser) {
     entry.events = events;
     await page.goto(`${baseUrl}/game?map=3d&view=mid&chrome=0`, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
     await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: timeoutMs });
-    await page.evaluate(() => {
+    await evaluatePage(page, () => {
       const samples = []; let last = performance.now(); const started = last;
       const tick = timestamp => { samples.push(Math.round((timestamp - last) * 100) / 100); last = timestamp; if (timestamp - started < 30_000) requestAnimationFrame(tick); else window.__runwayR0Trace = samples; };
       requestAnimationFrame(tick);
@@ -179,7 +188,7 @@ async function runDragTrace(browser) {
       await page.waitForTimeout(850);
     }
     await page.waitForFunction(() => Array.isArray(window.__runwayR0Trace), undefined, { timeout: 35_000 });
-    entry.trace = await page.evaluate(() => window.__runwayR0Trace);
+    entry.trace = await evaluatePage(page, () => window.__runwayR0Trace);
     await page.waitForTimeout(500);
     const screenshotError = await capture(page, 'B6-desktop-drag-endpoint');
     entry.screenshotError = screenshotError;
