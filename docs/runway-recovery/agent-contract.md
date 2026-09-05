@@ -12,6 +12,14 @@ The historical PR #27 body forbids a second agent and freezes assets while inves
 
 ## Small-model task packet
 
+### Model and token discipline
+
+Foo requested cheaper execution models on 5 September 2026 after worker usage limits interrupted the first wave. Default to **GPT-5.6-Luna** for fully specified small tasks: Low for mechanical commands or exact edits, Medium for bounded implementation. The lead supplies the decision, concrete steps and file ownership. Use Terra only when a task still requires material judgment that cannot reasonably be removed from the packet; record that reason. Architecture and final acceptance remain with the lead.
+
+Use fresh task-only context instead of forking the conversation. Reuse a worker for a narrow correction or command run when that avoids rereading the project. Start at most two execution workers together, with disjoint files. Do not spend a capable model's context on repeated status polling or routine command execution.
+
+Save complete test logs and real exit codes. A tool returning partial output is not completion, and a quiet CPU-busy geometry test is not a hang. Poll its existing session; never launch a duplicate. Run the relevant checks once on integration and repeat only those affected by a new change or unresolved failure. Reviewers independently check the specific contract and failure cases rather than rerunning the same expensive suite.
+
 Before dispatch, the orchestrator fills these fields with actual values and sends only the relevant task card plus required source excerpts. This template is not a ready-to-run assignment until its SHA and file ownership are resolved.
 
 ```text

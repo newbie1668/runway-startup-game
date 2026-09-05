@@ -1,0 +1,6 @@
+
+> runway-startup-game@0.1.0 test:map:browser /Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration
+> node scripts/test-map-browser.mjs
+
+{"cases":24,"failedCases":24,"observations":2,"failedObservations":2,"failed":26}
+ ELIFECYCLE  Command failed with exit code 1.

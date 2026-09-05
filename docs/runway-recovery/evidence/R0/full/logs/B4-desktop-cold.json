@@ -1,0 +1,30 @@
+{
+  "id": "B4",
+  "path": "/game?map=3d&view=wide&chrome=0",
+  "url": "http://127.0.0.1:4318/game?map=3d&view=wide&chrome=0",
+  "viewport": "desktop",
+  "requested": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1,
+    "isMobile": false,
+    "hasTouch": false,
+    "input": "fine pointer"
+  },
+  "phase": "cold",
+  "timing": {
+    "navigationMs": 74,
+    "totalMs": 30079
+  },
+  "ready": false,
+  "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+  "actual": null,
+  "force2dAfterLoad": "unavailable",
+  "events": [
+    {
+      "type": "pageerror",
+      "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+    }
+  ],
+  "failed": true
+}

@@ -1,0 +1,66 @@
+{
+  "testedHead": "31b1d992b4dce272e6a1f2596dc9992e5c316d98",
+  "results": [
+    {
+      "command": "pnpm test:game",
+      "start": "2026-09-05T17:44:23.885Z",
+      "end": "2026-09-05T17:47:32.401Z",
+      "elapsedMs": 188508,
+      "exitCode": 0,
+      "log": "test-game.log"
+    },
+    {
+      "command": "pnpm test:ui",
+      "start": "2026-09-05T17:47:41.625Z",
+      "end": "2026-09-05T17:47:42.457Z",
+      "elapsedMs": 830,
+      "exitCode": 0,
+      "log": "test-ui.log"
+    },
+    {
+      "command": "pnpm lint",
+      "start": "2026-09-05T17:47:48.367Z",
+      "end": "2026-09-05T17:47:53.236Z",
+      "elapsedMs": 4869,
+      "exitCode": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": "pnpm build",
+      "start": "2026-09-05T17:47:59.069Z",
+      "end": "2026-09-05T17:48:13.897Z",
+      "elapsedMs": 14828,
+      "exitCode": 0,
+      "log": "build.log"
+    },
+    {
+      "command": "pnpm tsx scripts/fetch-geodata.ts --verify",
+      "start": "2026-09-05T17:48:19.132Z",
+      "end": "2026-09-05T17:48:19.717Z",
+      "elapsedMs": 585,
+      "exitCode": 0,
+      "log": "fetch-geodata-verify.log"
+    }
+  ],
+  "subsequentRunnerOnlyChange": {
+    "head": "53769297fc024a1364e034d8b91b62511747e414",
+    "file": "scripts/test-map-browser.mjs",
+    "checks": [
+      {
+        "command": "pnpm lint",
+        "exitCode": 0,
+        "log": "lint-after-timeout.log"
+      },
+      {
+        "command": "independent in-memory diagnostic helper checks",
+        "exitCode": 0,
+        "cases": [
+          "success",
+          "original rejection",
+          "never-resolving evaluation timeout"
+        ]
+      }
+    ],
+    "appAndDependencyTreesChanged": false
+  }
+}

@@ -1,0 +1,9 @@
+Verifying /Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/public/map/london-city.bin (decode only, no network) ...
+  buildings: 113569 (18406 major, 95163 minor)
+  styles: 1:26490 2:41409 3:32517 4:7859 5:2950 6:1917 7:427
+  osm-painted façades: 9119
+  roads: 56793 (tier0 14917, tier1 6992, tier2 34884)
+  parks: 769
+  water: 62
+  size: 6.39 MB
+OK.
