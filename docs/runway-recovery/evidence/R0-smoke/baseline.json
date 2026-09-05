@@ -1,0 +1,211 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-05T12:45:07.047Z",
+  "baseUrl": "http://127.0.0.1:4317",
+  "provenance": {
+    "gitSha": "dcef98d32215b3be8fe51d8fec78872817a8fb5c",
+    "dirty": false
+  },
+  "environment": {
+    "node": "v26.5.0",
+    "pnpm": "10.33.0",
+    "playwright": "1.63.0",
+    "hardware": {
+      "platform": "darwin",
+      "osVersion": "26.6.2",
+      "arch": "arm64",
+      "cpu": "Apple M1",
+      "memoryGiB": 8
+    },
+    "headless": true,
+    "browser": "153.0.8010.12"
+  },
+  "limitations": [
+    "data-map-ready is legacy completion only; it does not prove requested 3D, useful frame, draw calls, geometry bytes, or geographic coverage.",
+    "The drag trace measures browser requestAnimationFrame intervals, not Three.js render time.",
+    "This Chromium run is reproducible browser evidence; it is not representative iPhone Safari performance evidence."
+  ],
+  "scope": {
+    "caseFilter": [
+      "B8"
+    ],
+    "selectedCaseIds": [
+      "B8"
+    ]
+  },
+  "cases": [
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4317/game?map=2d",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 82,
+        "readyAfterNavigationMs": 161,
+        "totalMs": 747
+      },
+      "ready": true,
+      "actual": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "coarse": false,
+        "maxTouchPoints": 0
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4317/game?map=2d",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 21,
+        "readyAfterNavigationMs": 46,
+        "totalMs": 570
+      },
+      "force2dBeforeReload": null,
+      "ready": true,
+      "actual": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "coarse": false,
+        "maxTouchPoints": 0
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4317/game?map=2d",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 17,
+        "readyAfterNavigationMs": 69,
+        "totalMs": 588
+      },
+      "ready": true,
+      "actual": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "coarse": true,
+        "maxTouchPoints": 1
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4317/game?map=2d",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 21,
+        "readyAfterNavigationMs": 45,
+        "totalMs": 569
+      },
+      "force2dBeforeReload": null,
+      "ready": true,
+      "actual": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "coarse": true,
+        "maxTouchPoints": 1
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    }
+  ],
+  "observations": [],
+  "failures": [
+    {
+      "type": "case",
+      "id": "B8-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B8-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B8-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B8-mobile-reload"
+    }
+  ],
+  "finishedAt": "2026-09-05T12:45:11.002Z",
+  "summary": {
+    "cases": 4,
+    "failedCases": 4,
+    "observations": 0,
+    "failedObservations": 0,
+    "failed": 4
+  }
+}
