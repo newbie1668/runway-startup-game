@@ -10,6 +10,8 @@ const screenshotsDir = join(evidenceDir, 'screenshots');
 const logsDir = join(evidenceDir, 'logs');
 const startedAt = new Date().toISOString();
 const timeoutMs = 30_000;
+const caseFilter = process.env.RUNWAY_CASES?.split(',').map(value => value.trim()).filter(Boolean) ?? [];
+const selectedCases = caseFilter.length ? cases.filter(testCase => caseFilter.includes(testCase.id)) : cases;
 const result = {
   schema: 1,
   startedAt,
@@ -19,7 +21,7 @@ const result = {
     node: process.version,
     pnpm: shell('pnpm', ['--version']),
     playwright: '1.63.0',
-    hardware: process.env.RUNWAY_HARDWARE ?? { platform: platform(), arch: arch(), cpu: cpus()[0]?.model ?? 'unknown', memoryGiB: Math.round(totalmem() / 2 ** 30) },
+    hardware: process.env.RUNWAY_HARDWARE ?? { platform: platform(), osVersion: shell('sw_vers', ['-productVersion']), arch: arch(), cpu: cpus()[0]?.model ?? 'unknown', memoryGiB: Math.round(totalmem() / 2 ** 30) },
     headless: process.env.RUNWAY_HEADLESS !== '0',
   },
   limitations: [
@@ -27,6 +29,7 @@ const result = {
     'The drag trace measures browser requestAnimationFrame intervals, not Three.js render time.',
     'This Chromium run is reproducible browser evidence; it is not representative iPhone Safari performance evidence.',
   ],
+  scope: { caseFilter: caseFilter.length ? caseFilter : null, selectedCaseIds: selectedCases.map(testCase => testCase.id) },
   cases: [],
   observations: [],
   failures: [],
@@ -56,10 +59,8 @@ async function capture(page, name) {
 }
 
 async function runCase(browser, testCase, device) {
-  const context = await browser.newContext({ ...device, locale: 'en-GB', colorScheme: 'light' });
-  const page = await context.newPage();
-  const events = monitor(page);
   const common = { id: testCase.id, path: testCase.path, url: `${baseUrl}${testCase.path}`, viewport: device.id, requested: { width: device.viewport.width, height: device.viewport.height, dpr: device.deviceScaleFactor, isMobile: device.isMobile, hasTouch: device.hasTouch, input: device.id === 'mobile' ? 'touch/coarse' : 'fine pointer' } };
+  let context; let page; let events = [];
   const runPhase = async phase => {
     events.length = 0;
     const entry = { ...common, phase, timing: {} };
@@ -89,42 +90,59 @@ async function runCase(browser, testCase, device) {
     await saveLog(`${testCase.id}-${device.id}-${phase}`, entry);
     return entry;
   };
-  try { return [await runPhase('cold'), await runPhase('reload')]; }
-  finally { await context.close().catch(error => result.failures.push({ type: 'context-close', id: `${testCase.id}-${device.id}`, message: error.message })); }
+  try {
+    context = await browser.newContext({ ...device, locale: 'en-GB', colorScheme: 'light' });
+    page = await context.newPage(); events = monitor(page);
+    return [await runPhase('cold'), await runPhase('reload')];
+  } catch (error) {
+    const entry = { ...common, phase: 'context', ready: false, failed: true, error: error.message, events: [...events] };
+    const screenshotError = page ? await capture(page, `${testCase.id}-${device.id}-context-failure`) : 'screenshot unavailable: page creation failed';
+    if (screenshotError) entry.events.push({ type: 'runner', message: screenshotError });
+    await saveLog(`${testCase.id}-${device.id}-context`, entry); return [entry];
+  } finally { if (context) await context.close().catch(error => result.failures.push({ type: 'context-close', id: `${testCase.id}-${device.id}`, message: error.message })); }
 }
 
-async function openDesktop(browser, path) {
+async function openDesktop(browser) {
   const device = viewports[0];
-  const context = await browser.newContext({ ...device, locale: 'en-GB', colorScheme: 'light' });
-  const page = await context.newPage();
-  const events = monitor(page);
-  await page.goto(`${baseUrl}${path}`, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-  await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: timeoutMs });
-  await page.waitForTimeout(500);
-  return { context, page, events };
+  let context; let page; let events = [];
+  try {
+    context = await browser.newContext({ ...device, locale: 'en-GB', colorScheme: 'light' });
+    page = await context.newPage(); events = monitor(page);
+    return { context, page, events };
+  } catch (error) { error.context = context; error.page = page; error.events = events; throw error; }
 }
 
 async function runHubTour(browser) {
   const entry = { id: 'B6-search-tour', actions: [], events: [] };
   let context;
   try {
-    const opened = await openDesktop(browser, '/game');
+    const opened = await openDesktop(browser);
     context = opened.context;
     const { page, events } = opened;
     entry.events = events;
+    await page.goto(`${baseUrl}/game`, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: timeoutMs });
     for (const hub of hubTour) {
       const input = page.locator('#city-search');
       await input.fill(hub);
-      const matches = page.locator('[role="listbox"] button').filter({ hasText: hub });
-      const count = await matches.count();
-      if (count !== 1) throw new Error(`search result ambiguity for ${hub}: ${count} matching buttons`);
-      await matches.first().click({ timeout: 5_000 });
-      await page.waitForTimeout(500);
+      const matches = page.locator('[role="listbox"] button');
+      const indexes = await matches.evaluateAll((buttons, expected) => buttons.flatMap((button, index) => {
+        const spans = [...button.querySelectorAll('span')].map(span => span.textContent?.trim());
+        return spans[0] === expected && spans.includes('Neighbourhood') ? [index] : [];
+      }), hub);
+      const action = { hub, matchCount: indexes.length, clicked: false };
+      if (indexes.length === 1) { await matches.nth(indexes[0]).click({ timeout: 5_000 }); action.clicked = true; await page.waitForTimeout(500); }
+      else action.outcome = indexes.length ? 'ambiguous-exact-hub-result' : 'missing-exact-hub-result';
       const screenshotError = await capture(page, `B6-desktop-${slug(hub)}`);
-      entry.actions.push({ hub, clicked: true, screenshotError });
+      entry.actions.push({ ...action, screenshotError });
     }
-    entry.failed = events.length > 0 || entry.actions.some(action => action.screenshotError);
-  } catch (error) { entry.failed = true; entry.error = error.message; }
+    entry.failed = events.length > 0 || entry.actions.some(action => !action.clicked || action.screenshotError);
+  } catch (error) {
+    context ??= error.context;
+    entry.events = entry.events.length ? entry.events : [...(error.events ?? [])];
+    entry.failed = true; entry.error = error.message;
+    if (error.page) entry.screenshotError = await capture(error.page, 'B6-search-tour-failure');
+  }
   finally { if (context) await context.close().catch(error => entry.closeError = error.message); }
   await saveLog('B6-search-tour', entry);
   return entry;
@@ -134,10 +152,12 @@ async function runDragTrace(browser) {
   const entry = { id: 'B6-drag-trace', events: [], trace: [] };
   let context;
   try {
-    const opened = await openDesktop(browser, '/game?map=3d&view=mid&chrome=0');
+    const opened = await openDesktop(browser);
     context = opened.context;
     const { page, events } = opened;
     entry.events = events;
+    await page.goto(`${baseUrl}/game?map=3d&view=mid&chrome=0`, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: timeoutMs });
     await page.evaluate(() => {
       const samples = []; let last = performance.now(); const started = last;
       const tick = timestamp => { samples.push(Math.round((timestamp - last) * 100) / 100); last = timestamp; if (timestamp - started < 30_000) requestAnimationFrame(tick); else window.__runwayR0Trace = samples; };
@@ -163,7 +183,12 @@ async function runDragTrace(browser) {
     const screenshotError = await capture(page, 'B6-desktop-drag-endpoint');
     entry.screenshotError = screenshotError;
     entry.failed = events.length > 0 || Boolean(screenshotError);
-  } catch (error) { entry.failed = true; entry.error = error.message; }
+  } catch (error) {
+    context ??= error.context;
+    entry.events = entry.events.length ? entry.events : [...(error.events ?? [])];
+    entry.failed = true; entry.error = error.message;
+    if (error.page) entry.screenshotError = await capture(error.page, 'B6-drag-trace-failure');
+  }
   finally { if (context) await context.close().catch(error => entry.closeError = error.message); }
   await saveLog('B6-drag-trace', entry);
   return entry;
@@ -175,7 +200,7 @@ let browser;
 try {
   browser = await chromium.launch({ headless: process.env.RUNWAY_HEADLESS !== '0' });
   result.environment.browser = await browser.version();
-  for (const testCase of cases) for (const device of viewports) {
+  for (const testCase of selectedCases) for (const device of viewports) {
     try { result.cases.push(...await runCase(browser, testCase, device)); }
     catch (error) { result.cases.push({ id: testCase.id, viewport: device.id, phase: 'context', ready: false, failed: true, error: error.message, events: [] }); }
   }
