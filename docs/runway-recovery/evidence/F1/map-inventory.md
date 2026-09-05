@@ -16,12 +16,26 @@ links, complete tags and resolved geometry.
 For reproducibility, each point was measured to every route segment in WGS84
 using a local equirectangular projection (longitude scale 111,320 m times the
 local mean-latitude cosine; latitude scale 110,540 m). Building ways enter when
-at least one resolved vertex is within 35 m; tagged candidate nodes and ways
+at least one resolved vertex has a distance rounded to 0.1 m within 35 m;
+tagged candidate nodes and ways
 (address/POI, tree, crossing, lamp, bench, sign/signal, barrier/man-made or
-other mapped furniture) enter at 25 m. The inventory records nearest route
-distance and chainage. This is a deliberately inclusive boundary buffer:
-corner and side-street candidates are retained, but it does not say they face
-Charlotte Street. Untagged geometry is excluded.
+other mapped furniture) enter when the same rounded distance is within 25 m.
+The inventory records nearest route
+distance and chainage, calculated at the nearest projected point as accumulated
+projected segment length plus that point's segment fraction. This is a
+deliberately inclusive **vertex-based** candidate rule, not a
+geometry-intersection survey: corner and side-street candidates are retained,
+it can miss a way whose segment is close while all its vertices are outside,
+and it does not say which facade faces Charlotte Street. Untagged geometry is
+excluded.
+
+The cached source bbox is west -0.140, south 51.518, east -0.134, north
+51.5215. At the southern endpoint, its south edge is 3.3 m away and east edge
+20.7 m away. The 35 m building buffer is therefore unobservable for about
+31.7 m southward and 14.3 m eastward; the 25 m object buffer is unobservable
+for about 21.7 m southward and 4.3 m eastward. The inventory cannot claim
+whole-buffer coverage at that endpoint. This source-window limitation is in
+addition to the map/observation and frontage limitations below.
 
 ## Results
 
@@ -69,17 +83,18 @@ No network request is needed. First confirm the pinned raw source, then check
 the inventory's provider identity and three required candidates:
 
 ```sh
-shasum -a 256 /tmp/runway-reference-20260905/charlotte-osm.xml
 node - <<'NODE'
-const fs = require('node:fs');
-const raw = fs.readFileSync('/tmp/runway-reference-20260905/charlotte-osm.xml', 'utf8');
+const fs = require('node:fs'), crypto = require('node:crypto');
+const raw = fs.readFileSync('/tmp/runway-reference-20260905/charlotte-osm.xml');
 const data = JSON.parse(fs.readFileSync('docs/runway-recovery/evidence/F1/map-inventory.json', 'utf8'));
-if (!raw.includes('<osm') || data.mapSource.rawSha256 !== '17e8d0ca27890f094414bf7d780d4508d5468089b8ee78f862af2feb6faf9972') throw Error('source mismatch');
+const expected = '17e8d0ca27890f094414bf7d780d4508d5468089b8ee78f862af2feb6faf9972';
+const actual = crypto.createHash('sha256').update(raw).digest('hex');
+if (actual !== expected || data.mapSource.rawSha256 !== expected) throw Error(`source mismatch: ${actual}`);
 for (const id of ['138339533', '138339551', '138339531']) if (!data.entities.some(e => e.sourceId === `osm:way:${id}`)) throw Error(`missing ${id}`);
-console.log(data.providerParse.selectedEntities, data.providerParse.countsByCategory);
+console.log(actual, data.providerParse.selectedEntities, data.providerParse.countsByCategory);
 NODE
 ```
 
 Expected hash is the value above and expected entity total is 245. The command
-validates cache identity, JSON parseability and required IDs; the recorded
+calculates and validates cache identity, JSON parseability and required IDs; the recorded
 selection recipe makes a local parser implementation independently repeatable.
