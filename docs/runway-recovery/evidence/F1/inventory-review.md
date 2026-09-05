@@ -13,4 +13,6 @@ Correction `f8e16aa7449f7726842cba420891438c8d852e0c` passed independent re-revi
 
 Data-review verdict: **PASS for F1a**. The lead integrated the two exact submitted commits. Repository integration checks are tracked in [status](../../status.md); this data review does not replace those checks.
 
+For portable handoff, the lead subsequently committed the original XML as `map-source.osm.xml.gz` and updated the reproduction command to decompress it. Decompression was checked byte-for-byte against the original and against the recorded SHA-256. No selected entity, source attribute or measurement changed.
+
 **F1 GO remains pending.** These are 245 provider records, including 119 building ways and 49 Charlotte-addressed building candidates, not 245 confirmed real buildings. The extract cannot establish complete route coverage. The next packet must fill the source-boundary gap, join both frontages to dated reference views, and resolve metric and distinctive-object evidence before modelling can start.

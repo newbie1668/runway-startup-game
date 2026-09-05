@@ -79,13 +79,18 @@ A map timestamp is an edit timestamp; it is not a physical observation date.
 
 ## Reproduce and validate
 
+The original raw extract is committed as [map-source.osm.xml.gz](map-source.osm.xml.gz),
+so another worker does not depend on the original temporary cache or a changed live API.
+Decompression reproduces the pinned XML bytes, including source attribution metadata.
+This is source evidence in `docs/`, not a runtime asset.
+
 No network request is needed. First confirm the pinned raw source, then check
 the inventory's provider identity and three required candidates:
 
 ```sh
 node - <<'NODE'
-const fs = require('node:fs'), crypto = require('node:crypto');
-const raw = fs.readFileSync('/tmp/runway-reference-20260905/charlotte-osm.xml');
+const fs = require('node:fs'), crypto = require('node:crypto'), zlib = require('node:zlib');
+const raw = zlib.gunzipSync(fs.readFileSync('docs/runway-recovery/evidence/F1/map-source.osm.xml.gz'));
 const data = JSON.parse(fs.readFileSync('docs/runway-recovery/evidence/F1/map-inventory.json', 'utf8'));
 const expected = '17e8d0ca27890f094414bf7d780d4508d5468089b8ee78f862af2feb6faf9972';
 const actual = crypto.createHash('sha256').update(raw).digest('hex');
