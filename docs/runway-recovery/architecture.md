@@ -1,6 +1,6 @@
 # Architecture and implementation contracts
 
-These are **proposed recovery contracts**, not APIs that already exist. R1–R6 introduce them in order. Read the current source first; preserve the public game/renderer surface. If profiling invalidates a choice, the tech lead records a replacement decision before assigning code.
+These are **proposed runtime recovery contracts**, not APIs that already exist. They are complemented by [C6–C7 for faithful city reconstruction](fidelity.md); repairing this renderer does not itself satisfy the real-street recognition bar. R1–R6 introduce them in order. Read the current source first; preserve the public game/renderer surface. If profiling invalidates a choice, the tech lead records a replacement decision before assigning code.
 
 ## Preserve the useful boundaries
 
@@ -170,4 +170,4 @@ Queue priority: essential visible stock/cover, visible landmarks, prefetch stock
 - Camera-driven detail is more involved than a fixed disk, but supports the already-exposed pan/search/overview behavior. Artificially restricting exploration would be a product change, not a bug fix.
 - Keep existing baked/procedural heroes at G1. Choose one authoritative source per asset when its G3 card is reviewed; avoid maintaining an active code builder and contradictory baked mesh.
 - Use lightweight browser automation as a development dependency for regression QA. Exact tooling/version is chosen in R0 using the existing environment; it has no production-bundle dependency.
-- Source photos are references for unique silhouettes. Do not solve a 3D shape objection with a single photo pasted on a box and count the screenshot as a multi-angle model.
+- Source photos and geospatial observations also inform ordinary-building facades and distinctive street objects through F0–F6. Runtime tasks do not choose or add that pipeline independently. Source photos are references for individual real forms. Do not solve a 3D shape objection with a single photo pasted on a box and count the screenshot as a multi-angle model.

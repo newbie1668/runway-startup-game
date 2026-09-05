@@ -3,7 +3,8 @@
 RUNWAY is a standalone preview app for the London startup strategy game.
 
 The current [London map recovery plan](docs/runway-recovery/README.md)
-contains the agreed product direction, stack audit, bounded agent tasks,
+targets a faithful, explorable Three.js London with recognizable real streets,
+buildings and distinctive trees/signs. It contains the product contract, stack audit, bounded agent tasks,
 and browser/visual acceptance gates. It is a planning handoff, not a claim
 that the map implementation is finished.
 

@@ -73,23 +73,22 @@ For reloads, clear the test session's fallback flag when checking 3D support; se
 
 These are engineering proposals, not measurements from this audit and not Foo's negotiated device SLOs. G0 records feasible limits and the reference device before R5 tuning. A worker cannot widen them after a failure; the tech lead must show the tradeoff and get reviewer agreement. A lower detail tier must retain street massing and gameplay readability.
 
-## Visual gate G2
+## Visual gate G2 — real-place recognition
 
-The tech lead prepares reference and app captures in one comparison with camera/viewport metadata. Foo reviews the concrete result against these checks:
+Apply [fidelity contract C7](fidelity.md). The selected SFSIM media defines the visual benchmark; geolocated London imagery and observations establish factual resemblance. Both are necessary. A nice stylized street or skyline does not meet the clarified requirement.
 
-- Ordinary building massing is continuous; landmarks do not replace their surrounding neighbourhood.
-- Scale and height feel coherent; a terrace is distinguishable from an office or tower without labels.
-- Cream/stone/brick/glass read under the chosen light; no unexplained black silhouettes or grey-brown wash.
-- Facade detail reads at play scale without roof spikes, ribbons, needle geometry, z-fighting or excessive visual noise.
-- Roads meet, park edges are plausible, and the map stays readable with player/rival/event overlays on.
-- Mid and mobile views retain the same composition quality; no special close camera conceals a wider failure.
-- Performance and navigation stay within G1 limits.
+- Preselect a continuous 200–300 m route, both frontages and a junction. Record movement in both directions at a close exploration scale plus wider context.
+- Compare ten preselected ordinary buildings (or all if fewer) against their real references: actual footprint/order, heights/roofs, materials, openings and distinguishing facade features. Required salient features must match.
+- Compare at least five observed tree/street-object instances where present plus the salient signs/crossings, checking real position, street side, heading and recognizable form. Inventory all if fewer; no invented filler to satisfy a count.
+- A familiar-area reviewer identifies the street and sampled buildings without in-game labels, then checks the source imagery. Record errors and unknowns explicitly. A tree generated from spacing is never evidence of that particular tree.
+- Evaluate a close street-facing camera and a pedestrian-eye variant; 48-degree orthographic pitch is not a product constraint. Preserve the existing game view and marker behavior.
+- Keep G1 stability/performance and mobile checks; budgets include texture costs as well as geometry. Reassess budgets transparently if enriched assets require it, never silently lower fidelity.
 
-All items must be accepted, or a bounded defect list is issued. A visual reviewer cannot accept their own implementation. Record Foo's decision and accepted image hashes in `evidence/G2/result.md`; hashes identify the approved files, not the approval itself.
+Foo approves the concrete pilot against the chosen reference after its media is accessible. Record sources, camera route, accepted images/hashes and the decision in `evidence/G2/result.md`. Reference access failure blocks exact equivalence approval, not the independent source or runtime audits.
 
-## Eight-hub acceptance at G3
+## G3 — repeatability, coverage and game regression
 
-Visit and capture Shoreditch, King's Cross, Soho, Farringdon, Canary Wharf, London Bridge, Camden and Battersea. Reuse real hub coordinates from `content.ts`/`overlay.ts`. Do not copy the older compressed-diorama coordinates.
+First require F6 to reproduce the quality in a second ordinary area and prepare an explicit coverage/cost rollout. The eight hubs remain a gameplay regression sample, not proof of city-wide reconstruction. Visit and capture Shoreditch, King's Cross, Soho, Farringdon, Canary Wharf, London Bridge, Camden and Battersea. Reuse real hub coordinates from `content.ts`/`overlay.ts`. Do not copy the older compressed-diorama coordinates.
 
 Expected character: brick/industrial Shoreditch, granary/mixed King's Cross, dense low-rise Soho, warehouse/office Farringdon, tower/dock Canary, riverside/market London Bridge, low-rise/canal Camden, and Power Station/riverside Battersea. These are interpretation guides for the existing geography, not authority to invent OSM data. Assess the existing eight hubs; City/Westminster provide landmark context but are not new playable HQs.
 
@@ -99,4 +98,4 @@ Named landmarks get individual acceptance cards: real anchor, at least three dis
 
 “Offline at play time” here means no third-party runtime services: with the local/hosted app and its same-origin assets reachable, play works while outside network calls are blocked. There is no service-worker guarantee of a first-ever load with the entire network disabled. A downloadable/PWA offline product is separate scope.
 
-G4 requires all repository commands, B1–B13, the eight-hub tour, reference-device performance, approved G2 visual evidence, protected-file/save checks, and an independent result on the exact candidate SHA. Record Git push, PR state, preview availability, browser verification, merge and deployment separately. Vercel green is a build/deploy signal, not browser QA. Do not deploy to `londonstartupmap.com` without explicit product approval.
+G4 requires all repository commands, B1–B13 plus the F5 close street tour, the eight-hub game tour, reference-device performance, approved G2 recognition evidence, F6 repeatability/coverage reporting, P1–P12 traceability, protected-file/save checks, and an independent result on the exact candidate SHA. A limited-area release is named as such; it does not complete the London-wide ambition. Record Git push, PR state, preview availability, browser verification, merge and deployment separately. Vercel green is a build/deploy signal, not browser QA. Do not deploy to `londonstartupmap.com` without explicit product approval.

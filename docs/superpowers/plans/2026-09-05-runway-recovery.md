@@ -2,24 +2,24 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. If these skills are unavailable to an external worker, the orchestrator supplies the equivalent bounded worker/reviewer workflow from the agent contract. This plan does not require every worker to be an orchestrator.
 
-**Goal:** Deliver a stable, navigable, visually convincing daytime SFSIM-style London map inside the existing RUNWAY game.
+**Goal:** Supply the reliable runtime and integration gates for a faithful, explorable London reconstruction at the owner-selected SFSIM benchmark, preserving the RUNWAY game.
 
-**Architecture:** Preserve the game, shared overlay, renderer interface and committed OSM assets. Make loading/failures observable, bound geometry generation and residency around the camera, then approve a representative street before extending visual work.
+**Architecture:** Preserve the game, shared overlay and renderer interface while recovering runtime reliability. The parallel [fidelity plan](2026-09-05-london-fidelity.md) supplies real building/facade/object evidence and enriched assets; both tracks must pass before street-recognition approval and area rollout.
 
 **Tech Stack:** Next.js 16.2.6, React 19.2.4, TypeScript, Three.js 0.185.1 from the current lockfile, Tailwind 4, pnpm; a development-only browser test runner added by R0.
 
-**Spec:** [Product contract](../../runway-recovery/product.md), [architecture contracts C1–C5](../../runway-recovery/architecture.md), [verification](../../runway-recovery/verification.md), [worker/reviewer contract](../../runway-recovery/agent-contract.md).
+**Spec:** [Product contract](../../runway-recovery/product.md), [architecture contracts C1–C5](../../runway-recovery/architecture.md), [verification](../../runway-recovery/verification.md), [worker/reviewer contract](../../runway-recovery/agent-contract.md), [fidelity C6–C7](../../runway-recovery/fidelity.md) and [reconstruction tasks F0–F6](2026-09-05-london-fidelity.md).
 
 ## Global constraints
 
 - Map/rendering recovery only; no engine, balance, content, RNG, audio rules, save-schema or modal-action changes.
 - Preserve `Scene`, `HitTarget`, the shared overlay and `IMapRenderer` behavior. Additive diagnostic types are allowed when explicitly assigned.
 - Three.js must remain behind the existing dynamic factory boundary. Keep SSR free of browser/WebGL side effects.
-- Keep the current bbox and committed binary during recovery. No broader OSM ingest or invented missing neighbourhoods.
+- Freeze the current bbox/binary during R0–R6. F2 may add versioned pilot detail assets and separately assigned preprocessing changes; spatial expansion follows repeatable quality evidence. Never invent missing neighbourhoods.
 - Keep automatic 2D fallback. Earlier specs asking to delete it are superseded for this effort.
 - Keep `londonstartupmap.com` separate. Product approval is required before attaching or deploying this app there.
 - Each acceptance gate runs `pnpm test:game`, `pnpm test:ui`, `pnpm lint`, `pnpm build`, plus the focused tests/browser views in its card. Workers do not self-approve.
-- No build execution has started in this planning PR. R0 is the first task. Earlier passing command results are evidence to use, not permission to skip a fresh execution baseline.
+- No build execution has started in this planning PR. R0 is the first runtime task; the independent F1 source audit can also start. F0 reference inspection waits for accessible media. Earlier passing command results are evidence to use, not permission to skip a fresh execution baseline.
 
 ## Dependency and ownership map
 
@@ -36,9 +36,15 @@ flowchart LR
   R5b --> R6
   R2 --> G1[G1 Reliability review]
   R6 --> G1
-  G1 --> R7[R7 Representative street / G2]
+  F0[F0 Selected reference media] --> R7
+  F1[F1 Pilot source feasibility] --> F2[F2 Detail data]
+  F2 --> F34[F3 Buildings / F4 Street objects]
+  F34 --> F5[F5 Close street integration]
+  G1 --> F5
+  F5 --> R7[R7 Faithful street / G2]
   R7 --> R8[R8 Named asset cards]
-  R7 --> R9[R9 Eight-hub coverage]
+  R7 --> F6[F6 Repeatability / area rollout]
+  F6 --> R9[R9 Area and game regression]
   R8 --> R10[R10 Independent release / G4]
   R9 --> R10
 ```
@@ -210,19 +216,19 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 - [ ] Add B6's real search/pan tour, all-hub focus, wide-to-street zoom, mobile resize and repeated-tour resource assertions. Inject failures mid-navigation.
 - [ ] Run full G1 verification on default `/game` as well as debug views. Tech lead and independent reviewer compare performance to the G0 limits and confirm no art/hero drift.
 
-**Acceptance:** G1 meets P4–P9 and all reliability/performance criteria. No street/landmark expansion until this gate passes.
+**Acceptance:** G1 meets the city-navigation portion of P4, game/fallback requirements P5–P9 and the reliability/performance criteria. Close street exploration and real-place fidelity remain for F2–F5/G2. Offline source/asset preparation may proceed in parallel; no enriched runtime integration until this gate passes.
 
-## R7 — Approve a representative ordinary street (G2)
+## R7 — Review faithful street reconstruction (G2)
 
-**Owner:** street worker; tech lead acts as art editor; Foo approves. **Depends:** G1 and an accessible reference/approved comparison. **Allowed files:** first packet uses `lib/game/render3d/palette.ts` and `lib/game/render3d/buildingStyle.ts`; further facade changes require a separate packet naming `lib/game/render3d/footprint.ts`, `lib/game/render3d/uniqueStock.ts` or one bounded `lib/game/render3d/cityBuilder.ts` helper. No named-hero changes.
+**Owner:** tech lead, independent familiar-area reviewer, Foo. **Depends:** G1, F0 media inspection and F2–F5 reconstruction/integration. **Allowed files:** `docs/runway-recovery/evidence/G2/` and task/status records. Implementation fixes go back to the assigned F or R owner.
 
-- [ ] Prepare fixed Fitzrovia, Cheapside, mid and mobile captures with chrome on/off. Put the recovered external reference next to them or have Foo choose the concrete target from the prepared comparison.
-- [ ] Record at most three visible defects with image coordinates/features, expected appearance and relevant code. Assign one defect per worker pass: for example material readability, terrace height rhythm, or facade detail scale.
-- [ ] Change the smallest rule producing the defect. Preserve actual footprint placement and G1 coverage. A material/camera restyle cannot hide a missing-building bug.
-- [ ] For each pass run required gates, same-camera screenshots and performance checks. Reviewer rejects new holes, spikes, washed-out colours, excessive repetition or target-device slowdown.
-- [ ] Obtain Foo's G2 decision on the whole street plus wider context; commit accepted images, hashes, parameters and the rule list as `evidence/G2/result.md`.
+- [ ] Review the actual continuous pilot route against C7: building identity/order, shape/roof/facade features, observed tree/sign placement, close exploration and wider context. Use the selected SFSIM media for visual treatment and real London imagery for factual resemblance.
+- [ ] Judge preselected ordinary buildings and street features before viewing convenient landmark crops. The familiar-area reviewer identifies the street/buildings without game labels and records specific mismatches against sources.
+- [ ] Reject inferred/random filler presented as observed detail. Runtime-ready or a generally attractive street does not meet this gate. Record the sources, dates, object IDs, camera route and relevant uncertainty.
+- [ ] Issue at most three concrete defects per pass to the owning worker. A palette-only patch cannot replace missing roof/facade/placement evidence. Preserve the two-attempt escalation rule.
+- [ ] Verify required code/browser/performance gates on the integrated SHA, then obtain Foo's acceptance against the actual selected reference. Commit accepted images/hashes and the decision.
 
-**Acceptance:** P1–P3 at representative scale, every visual checklist item and G1 regressions pass. Without an accessible visual target, this task is waiting on art input; other safe QA work can continue.
+**Acceptance:** P1–P3 and P10–P11 hold for the entire pilot's salient observed features, close exploration works, and G1 has no regression. This certifies the named pilot only; F6 tests repeatability before London-wide rollout.
 
 ## R8 — Repair named assets through individual cards
 
@@ -236,16 +242,16 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 **Acceptance:** each approved asset is recognizable, budgeted and stable in context. Expanding the number of unique buildings is optional after current visible failures are closed.
 
-## R9 — Complete the eight-hub map and interaction pass (G3)
+## R9 — Verify accepted areas and eight-hub gameplay (G3)
 
-**Owner:** QA worker plus bounded street/runtime fixes. **Depends:** G2; may identify R8 priorities. **Allowed files:** browser fixtures and `evidence/R9/` for the audit; fixes require separate packets naming the exact source.
+**Owner:** QA worker plus bounded street/runtime fixes. **Depends:** G2 and F6 repeatability; may identify R8 priorities. **Allowed files:** browser fixtures and `evidence/R9/` for the audit; fixes require separate packets naming the exact source.
 
 - [ ] Tour all eight actual game hubs in one session on desktop and mobile. Capture city context, hub view and active game markers; record missing stock, rivers/roads/parks, material and control defects separately.
 - [ ] Verify setup selection, move-office, focus, rival/event hit targets, weekly actions and continue-from-save. A QA worker may not alter engine assertions or content to pass.
 - [ ] Dispatch discrete defects back to the owning lane, then recheck affected hubs and the G2 reference street. No new rendering architecture or asset programme begins here.
-- [ ] Close G3 when all P1–P9 coverage rows have evidence and R8's required asset cards pass. Keep optional cosmetic backlog separate from blockers.
+- [ ] Close G3 when P1–P12 have evidence for the named delivered areas, F6 has a measured rollout plan, and required R8 asset cards pass. Publish a coverage map; the eight hubs alone cannot certify city-wide fidelity.
 
-**Acceptance:** eight distinct, usable neighbourhoods in one stable navigable London map, with consistent approved street rules.
+**Acceptance:** the named areas meet faithful-street requirements and all eight game hubs remain usable. Coverage and remaining London expansion are explicit; a limited-area candidate is not completion of the full virtual-city goal.
 
 ## R10 — Independently verify and prepare the release PR (G4)
 
@@ -253,7 +259,7 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 - [ ] Create a clean checkout of the exact candidate SHA, install the lockfile and run required commands plus B1–B13 and all eight hubs. Verify the actual 3D/fallback modes and real reference devices.
 - [ ] Compare protected game files and save schema to `main`; explain every allowed renderer/UI change. Inspect both 3D and automatic fallback with real gameplay.
-- [ ] Produce a requirement-to-evidence table P1–P9, accepted image hashes, performance results and any explicit remaining limitation. Unperformed checks remain unverified.
+- [ ] Produce a requirement-to-evidence table P1–P12, accepted image hashes, performance results and any explicit remaining limitation. Unperformed checks remain unverified.
 - [ ] Consolidate a single implementation PR against `main` from the accepted integration branch with explicit ancestry #24/#26/#27; do not merge older alternative experiments. Revalidate after any rebase/conflict resolution.
 - [ ] Report source push, checks, browser QA, product visual approval and release status separately. Ask for a release decision only when the concrete candidate is ready. No attach/deploy to `londonstartupmap.com` without explicit approval.
 
@@ -261,16 +267,19 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 ## Requirement coverage and stop rules
 
-| Requirement               | Tasks                                     |
-| ------------------------- | ----------------------------------------- |
-| P1 London city            | R4–R9                                     |
-| P2 ordinary streets       | R3b, R5b, R7, R9                          |
-| P3 landmarks              | R7, R8                                    |
-| P4 navigation             | R4–R6, R9                                 |
-| P5 game interaction       | R0, R6, R9, R10                           |
-| P6 fallback/failures      | R1, R3a/b, R6, R10                        |
-| P7 mobile                 | R0, R5b–R7, R9, R10                       |
-| P8 no third-party runtime | R0, R3, R8, R10                           |
-| P9 game/save integrity    | Every task's protected scope; R0, R9, R10 |
+| Requirement                | Tasks                                     |
+| -------------------------- | ----------------------------------------- |
+| P1 London city             | R4–R9 plus F1–F6                          |
+| P2 ordinary streets        | F1–F3, F5, R3b, R5b, R7, R9               |
+| P3 landmarks               | F1–F3, R7, R8                             |
+| P4 navigation              | R4–R6, F5, R9                             |
+| P5 game interaction        | R0, R6, R9, R10                           |
+| P6 fallback/failures       | R1, R3a/b, R6, R10                        |
+| P7 mobile                  | R0, R5b–R7, R9, R10                       |
+| P8 no third-party runtime  | R0, R3, R8, R10                           |
+| P9 game/save integrity     | Every task's protected scope; R0, R9, R10 |
+| P10 actual street objects  | F1, F2, F4, F5, R7                        |
+| P11 provenance/recognition | F0–F5, R7                                 |
+| P12 repeatability          | F6, R9                                    |
 
-Two unsuccessful passes on the same symptom return to the tech lead with evidence. Missing visual input waits at G2; missing exact source commit waits before branch creation. Green source tests never substitute for browser/visual approval. The [status ledger](../../runway-recovery/status.md) is the restart point for every future session.
+Two unsuccessful passes on the same symptom return to the tech lead with evidence. The selected reference is settled; missing media access waits at F0/G2; missing exact source commit waits before branch creation. Green source tests never substitute for browser/visual approval. The [status ledger](../../runway-recovery/status.md) is the restart point for every future session.

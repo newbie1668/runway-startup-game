@@ -71,3 +71,11 @@ The PR body records an earlier freeze failure at `0873e8a073600ab78858420dcd23ed
 5. No repository-visible accepted reference, task-owner ledger or independently reproduced gate kept the work converging.
 
 The recovery response is one product contract, one accepted integration commit at a time, observable browser gates, isolated ownership, and a whole-street approval before wider asset work. A crash's exact CPU/GPU cause still requires profiling; code inspection alone cannot distinguish heap pressure, upload pressure, draw cost, driver failure or other causes.
+
+## Owner clarification after the initial planning handoff
+
+Foo specified the workflow post `2090527551961940028` and detail post `2090527554310635552` as the target: a faithful virtual London where ordinary streets/buildings and distinctive trees/signs are recognizable. This strengthens the first draft's stylized-street criterion. The [current product contract](product.md) and [fidelity track](../superpowers/plans/2026-09-05-london-fidelity.md) govern subsequent execution.
+
+Further code inspection found that the binary omits source feature identity/building parts and the renderer procedurally places trees/lamps; the [fidelity audit](fidelity.md) records these gaps. Runtime G1 and the existing eight-hub tour cannot establish the new place-recognition goal on their own. The original baseline screenshots/check results above remain historical measurements, not fidelity evidence.
+
+Direct web/browser access to the X reference returned errors, including HTTP 403. Neither clip has been visually inspected in this session. The reference is selected, but exact media comparison is still pending accessible content.

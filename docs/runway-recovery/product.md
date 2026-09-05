@@ -2,53 +2,65 @@
 
 ## Current decision and outcome
 
-On 5 September 2026, Foo confirmed the recommended scope: **daytime SFSIM street/isometric London, with the existing RUNWAY game preserved**. This resolves the night/day and map/game-redesign questions. This contract governs this recovery effort; conflicting historical specs are evidence of earlier directions, not simultaneous requirements.
+Foo's clarification on 5 September 2026 sets the target: **a faithful, explorable Three.js representation of London at the visual standard of the two supplied SFSIM posts**. Someone familiar with an ordinary street should recognize its buildings and distinctive trees, signs and other street features. The existing RUNWAY game remains intact.
 
-RUNWAY already lets a player found a London startup, choose one of eight HQ neighbourhoods and six sectors, spend weekly focus, hire/build/sell/network/fundraise, attend events, encounter rivals and dilemmas, and race toward a £1 billion valuation while managing runway. Preserve those rules, save compatibility, and action semantics. The map should make that game feel located in London and remain useful during play.
+The first draft's “plausible stylized streets plus recognizable landmarks” was an insufficient interpretation. The target is real-place resemblance throughout delivered areas. Simplified meshes and reusable construction techniques are acceptable when they preserve the actual place's appearance. Randomly varied facades and evenly spaced generic trees do not establish that resemblance.
+
+The two authoritative references are:
+
+- **Workflow reference:** https://x.com/davidfromkansas/status/2090527551961940028
+- **Visual/detail benchmark:** https://x.com/davidfromkansas/status/2090527554310635552
+
+Foo has selected these references; no further style-choice question is pending. Automated web and browser access returned errors, including HTTP 403, so their exact text/media have not yet been independently inspected. The written owner requirement is authoritative now. Exact frame extraction and a claim of matching the clip remain pending accessible media.
+
+RUNWAY's startup creation, HQ/sector choice, weekly actions, rivals, events, dilemmas, funding, £1 billion goal and save behavior remain protected. “We don't need details on what each building is” removes an encyclopedic description/occupant-information requirement; it does not lower the requirement that the building looks like its real counterpart.
 
 ## Player-facing acceptance criteria
 
-| ID  | Required outcome                                                                                                                                                    | Evidence                                                                         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| P1  | A recognizable, bright, stylized London city at `/game`, with real OSM street and building placement.                                                               | Unlabelled overview and street captures; eight-hub tour.                         |
-| P2  | Ordinary streets have continuous blocks, plausible height variation, readable cream/brick/stone/glass facades, pavement and roads; landmarks sit within a city.     | Fixed Fitzrovia and Cheapside captures, including a wider contextual frame.      |
-| P3  | Landmarks read through silhouette, proportions and placement at normal play scale.                                                                                  | Named feature cards with same-camera before/after and context views.             |
-| P4  | Fixed isometric pitch; responsive pan, wheel/pinch zoom, hub focus, search, and overview. Moving anywhere in the supported bbox brings the relevant city into view. | Cold-load and continuous navigation tests, not separate reload-only screenshots. |
-| P5  | HQ selection, player/rival/event markers, tooltips, focus actions and gameplay controls work in 3D and in fallback.                                                 | Desktop and mobile gameplay flow; SSR tests plus browser checks.                 |
-| P6  | A failed optional asset leaves a sensible building; essential 3D failure gives working 2D. Loading cannot silently claim success with an empty city.                | Failure-injection tests and screenshots of the result.                           |
-| P7  | Responsive mobile layout, reachable controls and touch targets, no horizontal page overflow. Low-capability devices retain playable 2D.                             | 390×844 touch checks, real mobile check before G4.                               |
-| P8  | Play needs no third-party geodata, image, map or AI requests. Assets are served by this app.                                                                        | Production network log with third-party network blocked.                         |
-| P9  | The existing game stays deterministic and save-compatible.                                                                                                          | Protected-file comparison, engine suite and resume/action browser checks.        |
+| ID  | Required outcome                                                                                                                                                               | Evidence                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| P1  | A geographically coherent London city in Three.js, recognizable through actual street layout and built form.                                                                   | Overview plus continuous tours; area coverage map.                                                   |
+| P2  | Ordinary buildings resemble their real counterparts: footprint, height/proportion, roof profile, facade material/colour, window/door rhythm and distinctive frontage features. | Geolocated real-image comparisons on a preselected ordinary-building sample, not only landmarks.     |
+| P3  | Distinctive buildings and landmarks retain their individual silhouette, proportions and position.                                                                              | Source-backed feature cards; multiple in-game viewpoints.                                            |
+| P4  | Responsive city overview, pan/zoom, search and close street exploration. Fixed 48-degree pitch is a legacy implementation choice, not the final product constraint.            | Continuous street tour; camera comparison and supported-device checks.                               |
+| P5  | Existing HQ selection, player/rival/event markers, controls and game actions work in 3D and fallback.                                                                          | Desktop/mobile gameplay and SSR/browser regression checks.                                           |
+| P6  | Missing optional detail has a usable fallback; essential rendering failure gives playable 2D.                                                                                  | Failure injection and truthful loading state. A fallback is not an accepted faithful reconstruction. |
+| P7  | Responsive mobile layout and usable controls; weak devices retain playable 2D.                                                                                                 | Named reference devices, touch checks and performance record.                                        |
+| P8  | Shipped play uses committed same-origin assets without third-party geodata, imagery or AI requests.                                                                            | Production network test; bake/runtime separation.                                                    |
+| P9  | Existing game remains deterministic and save-compatible.                                                                                                                       | Protected-file comparison, engine tests and resume/actions.                                          |
+| P10 | Distinctive trees, signs, lamps and other visible street features occupy their observed positions and resemble the referenced features.                                        | A surveyed feature inventory with source, date, placement and in-game comparisons.                   |
+| P11 | Visual accuracy is supported by per-object source evidence and explicit unknowns. Generated guesses never count as verified real detail.                                       | Provenance records and independent place-recognition review.                                         |
+| P12 | The reconstruction process can reproduce this quality in another ordinary area before city-wide rollout.                                                                       | A second area built from the same pipeline, with costs/coverage recorded.                            |
 
-## Art direction for the first slice
+## Quality and scope
 
-Use PR #26/#27's daytime SFSIM direction as the starting point: matte low-poly geometry, clear material colours, fixed elevated orthographic/isometric camera, legible roads, structured facade detail, and restrained glass HUD. Current pitch is 48 degrees; preserve it through G1. Do not introduce bloom, photoreal surfaces, cinematic blur or additional UI treatments during reliability work.
+Daytime SFSIM remains the visual reference. Do not lock all future work to PR #27's current palette, generated facade grammar, height exaggeration or orthographic camera. Fidelity to real London and the selected visual benchmark controls those choices. The exact camera style will be extracted from accessible reference media and demonstrated in a close street exploration prototype. A literal pedestrian-eye mode must be evaluated; full walking-game mechanics are not implied.
 
-The quality target is the **street scene as a whole**. Start with Fitzrovia (`/game?map=3d&chrome=0`) and Cheapside (`look=citystreet`) at 1440×900 and 390×844. Include the mid view to reveal missing stock or coverage tricks. Gates judge continuous streets, proportion, material contrast, navigability and performance as well as named buildings.
+The destination is London as a recognizable virtual city. The current central-London bbox and eight game hubs are an initial engineering area, not proof that the whole city is represented. Progress by approved spatial areas; report exactly which streets meet the quality bar and which remain baseline geometry. Final geographic extent must be explicit before estimating city-wide delivery.
 
-The original external references were [David's SFSIM post](https://x.com/davidfromkansas/status/2090527548157669715) and [his building-pipeline breakdown](https://x.com/davidfromkansas/status/2090527551961940028). Their media could not be independently recovered during this audit. The older [yU+co Silicon Valley sequence](https://www.yuco.com/works/silicon-valley) explains the earlier miniature-city inspiration, but its fixed postcard geography, pre-rendered presentation and logo/gag density are **not** requirements of this recovery.
+**First proof:** a continuous 200–300 m ordinary street segment, covering both sides, a junction and distinctive street furniture/vegetation. Charlotte Street in Fitzrovia is the working candidate because it is inside the existing area; source coverage must be verified before committing to it. Foo may nominate a familiar public street instead. The pilot is a feasibility and quality gate, not a reduction of the London-wide ambition.
 
-**One remaining art input:** an accessible SFSIM reference frame or a concrete scene Foo approves at G2. Until then, workers may fix correctness and reliability; the tech lead must not claim visual equivalence. The tech lead prepares the reference comparison for Foo instead of asking Foo to invent technical instructions.
+Detailed shape, facade and streetscape evidence requires an additional [reconstruction pipeline](fidelity.md) and [execution track](../superpowers/plans/2026-09-05-london-fidelity.md). Runtime reliability is necessary but cannot alone meet this product contract.
 
 ## Scope boundaries
 
-- Map/rendering recovery only; no engine, balance, content, RNG, audio rules, save-schema or modal-action changes.
-- Preserve `Scene`, `HitTarget`, the shared overlay and `IMapRenderer` behavior. Additive diagnostic types are allowed when explicitly assigned.
-- Three.js must remain behind the existing dynamic factory boundary. Keep SSR free of browser/WebGL side effects.
-- Keep the current bbox and committed binary during recovery. No broader OSM ingest or invented missing neighbourhoods.
-- Keep automatic 2D fallback. Earlier specs asking to delete it are superseded for this effort.
-- Bake-time photo reference and code-generated GLBs are allowed under the current asset workflow. No paid tooling or new outside services is assumed.
-- No live weather, traffic, citizens, transit animation, generative asset calls, day/night switch, logo/gag programme, or broader game redesign.
-- Keep `londonstartupmap.com` separate. Product approval is required before attaching or deploying this app there.
+- Map/rendering and offline city reconstruction only; preserve game rules, balance, content, RNG, audio rules, save schema and action semantics.
+- Preserve existing `Scene`, `HitTarget`, overlay and game-facing `IMapRenderer` behavior. Camera exploration extensions need an additive visual interface and regression checks.
+- Three.js stays behind the dynamic factory boundary; no browser/WebGL side effects in SSR.
+- Freeze the current bbox/binary during reliability tasks R0–R6. The fidelity track may add versioned pilot detail assets and change preprocessing in separately assigned, verified tasks. Expansion follows repeatable quality evidence.
+- Keep automatic 2D fallback. Reduced detail may preserve usability but cannot be certified as street-faithful merely because it runs.
+- Offline reference gathering, optional model-assisted feature extraction and generated/baked geometry are within the proposed workflow. No paid provider purchase or credential setup is assumed. Record source-use rights, costs and human/agent effort before scaling.
+- No runtime AI generation, live weather/traffic/citizens, day/night switch, interiors, resident information, encyclopedic building descriptions, startup-logo gag programme or broader game redesign.
+- Keep `londonstartupmap.com` separate; attaching/deploying there requires explicit product approval.
 
-## Open decisions, with safe defaults
+## Remaining inputs and uncertainty
 
-| Decision                             | Current default                                                                                                               | When required                                                                          |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Exact visual reference               | Daytime SFSIM direction; reference media not yet available.                                                                   | Before G2 visual approval. Does not block G0/G1.                                       |
-| Minimum real phone/browser           | Maintain 2D fallback and responsive 390×844; use current Chrome desktop and Safari on a representative iPhone for release QA. | Tech lead records named hardware/browser at G0 and obtains a real mobile result at G4. |
-| Landmark fidelity                    | Recognizable silhouettes and placement at play scale; expand detail only after the representative street passes.              | Per-feature card at G3. No blanket photoreal or every-building-unique target.          |
-| Delivery date / agent spending limit | Sequential critical path, compact models for bounded tasks, no paid service setup.                                            | Before scheduling a paid autonomous run; no calendar promise in this plan.             |
-| Game's pre-extraction vision         | Recovered from repository gameplay and later specs, not an original pre-repo conversation.                                    | Only needed if wider product goals change.                                             |
+| Item                                                          | State                                                                | Next step                                                                                                               |
+| ------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Visual ambition and reference                                 | Confirmed by Foo; both post URLs recorded.                           | Do not ask Foo to choose the style again.                                                                               |
+| Exact reference pixels/workflow text                          | Access blocked here; not inspected.                                  | Obtain the attached clip/screenshots or another accessible copy of the same media; F0 records what is actually visible. |
+| Pilot street                                                  | Charlotte Street working candidate; familiar public street optional. | F1 checks source sufficiency and fixes geographic bounds.                                                               |
+| Accuracy data for facades and small objects                   | Not yet established for the pilot.                                   | F1 inventories available evidence, gaps and practical collection/enrichment cost.                                       |
+| Target devices, total geographic extent and spending envelope | Not yet fixed for city-wide delivery.                                | Tech lead prepares evidence-backed choices after the pilot; no unsupported cost or completion-date promise.             |
 
-Performance limits in the verification document are proposed engineering budgets. G0 calibrates them once against named hardware; any change needs a recorded tradeoff and reviewer agreement, never an automatic threshold increase to pass a test.
+The project is active at planning stage. Missing clip access does not block source auditing or runtime diagnosis, but exact visual-equivalence approval must wait until that media can be inspected.

@@ -1,17 +1,17 @@
 # RUNWAY recovery: start here
 
-Status: **planning handoff; implementation has not started**. Product direction confirmed by Foo on 5 September 2026: recover the **daytime SFSIM-style London map inside the existing game**, preserving game mechanics.
+Status: **planning handoff; implementation has not started**. Product direction confirmed by Foo on 5 September 2026: build a **faithful, explorable Three.js London at the selected SFSIM benchmark**, preserving game mechanics. Ordinary buildings and distinctive trees/signs must resemble their real counterparts.
 
-The destination is a London startup game with a city worth exploring: recognizable neighbourhoods, readable ordinary streets and landmarks, reliable navigation, and a playable map on desktop and mobile. Passing a build or producing one flattering landmark screenshot is insufficient.
+The destination is a virtual London where people can recognize their actual streets and buildings during close exploration. The two owner-selected posts are fixed references. Runtime repair alone is insufficient; the [fidelity contract](fidelity.md) and [reconstruction track](../superpowers/plans/2026-09-05-london-fidelity.md) add source-backed shapes, facades and street objects. Passing a build or producing one flattering landmark screenshot is insufficient.
 
 ## Read only what your role needs
 
-| Role                     | Required reading                                                                                    | Responsibility                                                                         |
-| ------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Foo / product owner      | This page, [product contract](product.md), gate evidence                                            | Confirm the visual reference and approve the representative scene and release.         |
-| Orchestrator / tech lead | All documents here and the [execution plan](../superpowers/plans/2026-09-05-runway-recovery.md)     | Own architecture, task selection, branches, integration, evidence, and escalation.     |
-| Implementation worker    | Root `AGENTS.md`, product contract, assigned task card, relevant architecture contract              | Deliver one bounded change and its evidence. Never choose the next milestone.          |
-| Independent reviewer     | Task acceptance criteria, diff, [verification protocol](verification.md), relevant reference images | Reproduce checks on the submitted commit; return PASS, FAIL, or BLOCKED with evidence. |
+| Role                     | Required reading                                                                                    | Responsibility                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Foo / product owner      | This page, [product contract](product.md), gate evidence                                            | Approve faithful place reconstruction and the eventual release; the reference is already selected. |
+| Orchestrator / tech lead | All documents here and the [execution plan](../superpowers/plans/2026-09-05-runway-recovery.md)     | Own architecture, task selection, branches, integration, evidence, and escalation.                 |
+| Implementation worker    | Root `AGENTS.md`, product contract, assigned task card, relevant architecture contract              | Deliver one bounded change and its evidence. Never choose the next milestone.                      |
+| Independent reviewer     | Task acceptance criteria, diff, [verification protocol](verification.md), relevant reference images | Reproduce checks on the submitted commit; return PASS, FAIL, or BLOCKED with evidence.             |
 
 A compact model is suitable for a well-specified fixture, documentation change, pure helper, or isolated asset recipe. Profiling, lifecycle/concurrency design, cross-module changes, and ambiguous visual judgment stay with the tech lead or a capable reviewer. No model tier is assumed to be an art director.
 
@@ -35,10 +35,10 @@ For execution, the tech lead creates `build/runway-recovery` from this plan's re
 
 ## Milestones
 
-1. **G0 — evidence:** reproduce the pinned build, record the actual renderer, failure modes, costs, and reference views.
+1. **G0 — runtime evidence:** reproduce the runtime baseline (R0) before reliability changes. In parallel, F1 establishes pilot source coverage and F0 inspects accessible reference media; missing media does not block the runtime track.
 2. **G1 — reliable map:** default `/game`, overview, search and pan work with bounded resources; fallback remains playable.
-3. **G2 — approved street:** Foo approves one ordinary street and its surrounding skyline using fixed captures at desktop and mobile sizes.
-4. **G3 — London coverage:** extend the approved rules to all eight hubs and repair named landmarks one at a time.
+3. **G2 — faithful street:** F2–F5 deliver one continuous real street with recognizable ordinary buildings, trees/signs and close exploration, reviewed against imagery and the SFSIM benchmark.
+4. **G3 — repeatable coverage:** F6 proves a second ordinary area and a costed area-by-area London rollout; the eight hubs remain game-regression anchors.
 5. **G4 — release candidate:** independent browser/gameplay/offline QA and all repository checks pass on the exact candidate commit.
 
 Each gate requires a review record. `tests passed`, `Vercel Ready`, `mesh exists`, and an image hash are different forms of evidence; none alone means the map looks right and works.
@@ -51,12 +51,14 @@ Give the orchestrator this prompt:
 Act as RUNWAY tech lead. Read AGENTS.md, docs/runway-recovery/README.md,
 docs/runway-recovery/product.md, docs/runway-recovery/audit.md,
 docs/runway-recovery/architecture.md, docs/runway-recovery/verification.md,
-and docs/superpowers/plans/2026-09-05-runway-recovery.md.
+docs/runway-recovery/fidelity.md, docs/superpowers/plans/2026-09-05-runway-recovery.md,
+and docs/superpowers/plans/2026-09-05-london-fidelity.md.
 Create an isolated integration branch from the recorded planning commit.
-Start task R0 only. Preserve the game and protected branches. Record a
-baseline and issue the next bounded packet after reviewing the evidence.
+Start R0 and the independent F1 source audit in bounded packets. F0 needs
+access to the selected post media before claiming an exact match. Preserve
+the game and protected branches; dispatch implementation only after review.
 Do not send agents an open-ended request to make London look like SFSIM.
 Do not merge or deploy. Report the active task and whether Foo's input is needed.
 ```
 
-Use the [worker and reviewer templates](agent-contract.md) for subsequent dispatches. The task ledger starts with **R0 ready; every implementation task waiting on its stated dependencies**.
+Use the [worker and reviewer templates](agent-contract.md) for subsequent dispatches. The task ledger starts with **R0 and F1 ready; F0 awaits media access; all other tasks wait on their stated dependencies**.
