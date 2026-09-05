@@ -84,7 +84,7 @@ Apply [fidelity contract C7](fidelity.md). The selected SFSIM media defines the 
 - Evaluate a close street-facing camera and a pedestrian-eye variant; 48-degree orthographic pitch is not a product constraint. Preserve the existing game view and marker behavior.
 - Keep G1 stability/performance and mobile checks; budgets include texture costs as well as geometry. Reassess budgets transparently if enriched assets require it, never silently lower fidelity.
 
-Foo approves the concrete pilot against the chosen reference after its media is accessible. Record sources, camera route, accepted images/hashes and the decision in `evidence/G2/result.md`. Reference access failure blocks exact equivalence approval, not the independent source or runtime audits.
+Foo approves the concrete pilot against the [supplied static reference](evidence/F0/reference.md), real London observations and the explicit close-exploration requirement. Record sources, camera route, accepted images/hashes and the decision in `evidence/G2/result.md`. The screenshot supplies the building-detail benchmark; it does not prove SF camera motion or continuous street fidelity. Those unseen behaviors cannot be claimed as independently compared.
 
 ## G3 — repeatability, coverage and game regression
 

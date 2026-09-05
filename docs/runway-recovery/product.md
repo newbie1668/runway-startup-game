@@ -11,7 +11,7 @@ The two authoritative references are:
 - **Workflow reference:** https://x.com/davidfromkansas/status/2090527551961940028
 - **Visual/detail benchmark:** https://x.com/davidfromkansas/status/2090527554310635552
 
-Foo has selected these references; no further style-choice question is pending. Automated web and browser access returned errors, including HTTP 403, so their exact text/media have not yet been independently inspected. The written owner requirement is authoritative now. Exact frame extraction and a claim of matching the clip remain pending accessible media.
+Foo has selected these references; no further style-choice question is pending. Direct X access returned HTTP 403, but Foo subsequently supplied [the workflow and model-comparison screenshot](evidence/F0/reference.md), which has now been inspected and preserved. It shows an address → reference photos → physical-feature description → Blender model workflow and four real-photo/model pairs. This establishes the static building-detail reference. No motion footage or complete SF implementation has been inspected; do not infer exact camera behavior or city-wide accuracy from the collage.
 
 RUNWAY's startup creation, HQ/sector choice, weekly actions, rivals, events, dilemmas, funding, £1 billion goal and save behavior remain protected. “We don't need details on what each building is” removes an encyclopedic description/occupant-information requirement; it does not lower the requirement that the building looks like its real counterpart.
 
@@ -34,7 +34,7 @@ RUNWAY's startup creation, HQ/sector choice, weekly actions, rivals, events, dil
 
 ## Quality and scope
 
-Daytime SFSIM remains the visual reference. Do not lock all future work to PR #27's current palette, generated facade grammar, height exaggeration or orthographic camera. Fidelity to real London and the selected visual benchmark controls those choices. The exact camera style will be extracted from accessible reference media and demonstrated in a close street exploration prototype. A literal pedestrian-eye mode must be evaluated; full walking-game mechanics are not implied.
+Use the supplied photo/model pairs as the building-detail reference: simplified geometry preserving actual silhouette, proportions, roofs, facade rhythm and standout physical features. Daytime remains RUNWAY's initial delivery scope; the collage includes one night model and does not imply a day/night feature. Do not lock future work to PR #27's palette, generated facade grammar, height exaggeration or orthographic camera. F5 demonstrates close street exploration and evaluates a literal pedestrian-eye mode against Foo's requirement. Exact SF camera behavior is unverified from this still image; full walking-game mechanics are not implied.
 
 The destination is London as a recognizable virtual city. The current central-London bbox and eight game hubs are an initial engineering area, not proof that the whole city is represented. Progress by approved spatial areas; report exactly which streets meet the quality bar and which remain baseline geometry. Final geographic extent must be explicit before estimating city-wide delivery.
 
@@ -58,9 +58,10 @@ Detailed shape, facade and streetscape evidence requires an additional [reconstr
 | Item                                                          | State                                                                | Next step                                                                                                               |
 | ------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Visual ambition and reference                                 | Confirmed by Foo; both post URLs recorded.                           | Do not ask Foo to choose the style again.                                                                               |
-| Exact reference pixels/workflow text                          | Access blocked here; not inspected.                                  | Obtain the attached clip/screenshots or another accessible copy of the same media; F0 records what is actually visible. |
+| Workflow text and building-detail reference                   | Owner screenshot inspected and saved in F0.                          | Use its four photograph/model pairs and recorded workflow in worker briefs. No further reference input needed to start. |
+| Camera motion and complete SF scene                           | Not shown in the supplied screenshot.                                | Implement and review London's F5 close exploration; append motion observations if footage becomes available.            |
 | Pilot street                                                  | Charlotte Street working candidate; familiar public street optional. | F1 checks source sufficiency and fixes geographic bounds.                                                               |
 | Accuracy data for facades and small objects                   | Not yet established for the pilot.                                   | F1 inventories available evidence, gaps and practical collection/enrichment cost.                                       |
 | Target devices, total geographic extent and spending envelope | Not yet fixed for city-wide delivery.                                | Tech lead prepares evidence-backed choices after the pilot; no unsupported cost or completion-date promise.             |
 
-The project is active at planning stage. Missing clip access does not block source auditing or runtime diagnosis, but exact visual-equivalence approval must wait until that media can be inspected.
+The project is active at planning stage. No owner input is pending for the workflow/building-detail benchmark or the R0/F1 start. G2 approves the actual London pilot against the supplied static reference and real-place evidence; claims about unseen SF motion remain unverified.

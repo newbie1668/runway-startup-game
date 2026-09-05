@@ -19,7 +19,7 @@
 - Keep automatic 2D fallback. Earlier specs asking to delete it are superseded for this effort.
 - Keep `londonstartupmap.com` separate. Product approval is required before attaching or deploying this app there.
 - Each acceptance gate runs `pnpm test:game`, `pnpm test:ui`, `pnpm lint`, `pnpm build`, plus the focused tests/browser views in its card. Workers do not self-approve.
-- No build execution has started in this planning PR. R0 is the first runtime task; the independent F1 source audit can also start. F0 reference inspection waits for accessible media. Earlier passing command results are evidence to use, not permission to skip a fresh execution baseline.
+- No build execution has started in this planning PR. R0 is the first runtime task; the independent F1 source audit can also start. F0's workflow/static-model brief is recorded from the owner screenshot. Earlier passing command results are evidence to use, not permission to skip a fresh execution baseline.
 
 ## Dependency and ownership map
 
@@ -36,7 +36,7 @@ flowchart LR
   R5b --> R6
   R2 --> G1[G1 Reliability review]
   R6 --> G1
-  F0[F0 Selected reference media] --> R7
+  F0[F0 Recorded workflow and model reference] --> R7
   F1[F1 Pilot source feasibility] --> F2[F2 Detail data]
   F2 --> F34[F3 Buildings / F4 Street objects]
   F34 --> F5[F5 Close street integration]
@@ -220,7 +220,7 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 ## R7 — Review faithful street reconstruction (G2)
 
-**Owner:** tech lead, independent familiar-area reviewer, Foo. **Depends:** G1, F0 media inspection and F2–F5 reconstruction/integration. **Allowed files:** `docs/runway-recovery/evidence/G2/` and task/status records. Implementation fixes go back to the assigned F or R owner.
+**Owner:** tech lead, independent familiar-area reviewer, Foo. **Depends:** G1, the recorded F0 workflow/static reference and F2–F5 reconstruction/integration. **Allowed files:** `docs/runway-recovery/evidence/G2/` and task/status records. Implementation fixes go back to the assigned F or R owner.
 
 - [ ] Review the actual continuous pilot route against C7: building identity/order, shape/roof/facade features, observed tree/sign placement, close exploration and wider context. Use the selected SFSIM media for visual treatment and real London imagery for factual resemblance.
 - [ ] Judge preselected ordinary buildings and street features before viewing convenient landmark crops. The familiar-area reviewer identifies the street/buildings without game labels and records specific mismatches against sources.
@@ -282,4 +282,4 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 | P11 provenance/recognition | F0–F5, R7                                 |
 | P12 repeatability          | F6, R9                                    |
 
-Two unsuccessful passes on the same symptom return to the tech lead with evidence. The selected reference is settled; missing media access waits at F0/G2; missing exact source commit waits before branch creation. Green source tests never substitute for browser/visual approval. The [status ledger](../../runway-recovery/status.md) is the restart point for every future session.
+Two unsuccessful passes on the same symptom return to the tech lead with evidence. The selected reference and F0 workflow/static model brief are recorded; unseen SF motion remains unverified and does not block using the supplied benchmark. A missing exact source commit waits before branch creation. Green source tests never substitute for browser/visual approval. The [status ledger](../../runway-recovery/status.md) is the restart point for every future session.

@@ -4,7 +4,7 @@
 
 **Goal:** Reproduce actual London streets and buildings at the owner's selected SFSIM visual standard, with recognizable individual trees, signs and street features.
 
-**Architecture:** Enrich real geospatial objects with dated visual observations, generate reviewed instance-specific geometry using reusable kits, bake versioned cell assets and load them through the reliable Three.js renderer. Prove a complete ordinary street and a second contrasting area before expanding coverage.
+**Architecture:** Follow the supplied address → reference photos → physical-feature description → model workflow. Match each building to real geography, review its instance brief, generate/bake geometry with Blender and reusable kits, then load accepted cell assets through the reliable Three.js renderer. Prove a complete ordinary street and a second contrasting area before expanding coverage.
 
 **Tech Stack:** Existing Next.js/React/TypeScript/Three.js app and pnpm; offline OSM/reference processing; current bake tooling, with any additional data/imagery/model service chosen only after an evidence/cost review.
 
@@ -24,7 +24,7 @@
 
 ```mermaid
 flowchart LR
-  F0[F0 Inspect supplied reference media] --> G2[G2 Real street approval]
+  F0[F0 Recorded workflow and model reference] --> G2[G2 Real street approval]
   F1[F1 Pilot data and source feasibility] --> F2[F2 Identity and detail schema]
   F2 --> F3[F3 Building reconstruction]
   F2 --> F4[F4 Trees and street features]
@@ -37,27 +37,32 @@ flowchart LR
   R9 --> R10[R10 Candidate release]
 ```
 
-R0 and F1 can start independently. F0 is an access-dependent reference-inspection task: it cannot claim success until the exact media is viewed. F3 and F4 can run in parallel only with disjoint asset recipes and one manifest integrator. Each F3/F4 worker gets one specific building or object family and a filled source/feature brief; never an open request to recreate an entire borough.
+R0 and F1 can start independently. F0's workflow and static model-detail brief is now recorded from the owner-supplied screenshot; unseen SF camera motion is explicitly unverified. F3 and F4 can run in parallel only with disjoint asset recipes and one manifest integrator. Each F3/F4 worker gets one specific building or object family and a filled source/feature brief; never an open request to recreate an entire borough.
 
 ## F0 — Record the exact SFSIM reference
 
-**Owner:** tech lead / visual reviewer. **Input:** owner's two post URLs. **Allowed files:** new `docs/runway-recovery/evidence/F0/reference.md` and referenced media permitted for review. No code or speculative tool setup.
+**Owner:** tech lead / visual reviewer. **Input:** owner's two post URLs and supplied screenshot. **Allowed files:** `docs/runway-recovery/evidence/F0/reference.md` and the unchanged reference image. No code or speculative tool setup.
 
-- [ ] Access the workflow post `2090527551961940028` and visual/detail post `2090527554310635552`, or the same media provided by Foo. Keep blocked access explicit; do not treat a guessed summary as a viewed clip.
-- [ ] Record visible workflow steps and separate creator claims from observed behavior. Map each step to a proposed London equivalent; an Exa/Devin/Blender claim requires actual source text, not the old PR's paraphrase alone.
-- [ ] Extract a small reference set with timestamps: ordinary block, distinctive building, street object and camera movement where visible. Record camera scale, lighting, material treatment and geometry detail from those frames.
-- [ ] Distinguish what the clip demonstrates from the owner's stronger city-wide recognition ambition. A detailed selection of SF buildings does not by itself demonstrate accurate coverage of every SF tree/sign.
-- [ ] Commit the visual brief and accessible reference links/artifact hashes. No need to ask Foo to choose another style; these are the selected references.
+**Recorded evidence:** [F0 reference brief and artifact](../../runway-recovery/evidence/F0/reference.md). This is reference capture, not acceptance of any London implementation.
 
-**Acceptance:** another reviewer can inspect the same media and reproduce the visual/workflow description. Access failure keeps F0 pending while F1/R0 proceed.
+- [x] Inspect Foo's supplied screenshot after direct post access failed. Preserve the unchanged image and its hash; record that the crop does not contain a status URL.
+- [x] Record the creator's stated address/photo/physical-feature/Blender workflow and separate these statements from independently verified pipeline behavior. Exa and Devin are visible in the supplied text.
+- [x] Describe the four photograph/model pairs, their distinguishing geometry/material features and the London worker implications. Timestamps are not applicable to this still image.
+- [x] Record that selected detailed buildings and creator-reported scene counts do not establish every-building/tree/sign accuracy. Exact SF projection, controls, movement and performance are not visible.
+- [x] Preserve the source and a reproducible brief; map the workflow to bounded London worker stages. No new style decision or additional owner input is needed for this reference-capture scope.
+
+**Acceptance:** another reviewer can inspect the saved screenshot and reproduce the workflow/static-detail description. Motion footage, if later supplied, adds evidence rather than blocking the use of this owner-selected static benchmark. G2 still judges the actual continuous London pilot against the owner's full requirement.
 
 ## F1 — Prove pilot source coverage before building assets
 
 **Owner:** geodata/reference worker, reviewed by tech lead. **Input:** public street nominated by Foo, otherwise Charlotte Street in Fitzrovia as a candidate. **Allowed files:** `docs/runway-recovery/evidence/F1/`, new `scripts/audit-street-sources.ts`, local source caches outside shipped assets. No whole-city refetch or renderer changes.
 
+**Resume point:** [initial F1 checkpoint](../../runway-recovery/evidence/F1/feasibility.md). The map route, two contrasting frontage candidates and a rejected image match are recorded. Full inventory/coverage, metric control points and the GO decision remain pending; do not treat this checkpoint as a completed source package.
+
 - [ ] Fix a 200–300 m continuous segment only after mapping actual junctions and reference availability. Record its exact bbox/endpoints and a walking-direction route; include both street sides and a junction. Do not use guessed house-level coordinates.
 - [ ] Inventory every street-facing building and salient tree/sign/lamp/crossing along the route. Record source IDs, geometry, date, evidence links, rights/use basis, observed fields, inferred fields and missing fields. The inventory is complete even when information is missing.
 - [ ] Query the bounded source area: OSM footprints/parts/paths/trees, candidate GLA tree records and height/surface evidence. Recover stable source feature IDs. Evaluate geolocated facade imagery with concrete sample coverage; do not assume Wikipedia covers ordinary frontages.
+- [ ] Exercise the demonstrated address-to-reference step on two contrasting ordinary buildings. Match each address/ID to the correct footprint and photographs, then produce a physical-feature brief with source views for silhouette, storeys, roof, facade rhythm, material and standout details. A search result or nearest photo alone is not a verified building match.
 - [ ] Produce a coverage table: footprint/height/roof/facade/tree/sign evidence per entity. Record source CRS and transforms to the game's world coordinates. Inspect age and alignment against at least three distinct control points.
 - [ ] Prepare two feasible acquisition/enrichment options if the imagery gap remains, with specific samples, use constraints, human/agent effort and monetary costs. Do all read-only/free feasibility work before asking for any paid setup.
 - [ ] Commit a GO/NO-GO report and exact source package. GO requires credible evidence for the full pilot route and its salient features. Missing evidence cannot be replaced with randomized detail; propose a better-covered pilot or a bounded collection task.
@@ -91,10 +96,12 @@ const point = {
 
 ## F3 — Reconstruct ordinary buildings from instance evidence
 
-**Owner:** one asset worker per bounded building/recipe packet; capable reviewer handles ambiguous geometry. **Depends:** F2; F0 needed before final appearance approval. **Allowed files:** new `scripts/city-detail/buildings/pilot-frontage.ts`, new `scripts/bake-city-detail.ts`, one pilot entity/asset entry, generated `public/map/detail/pilot/` assets, new `scripts/test-detail-buildings.ts`. The first worker owns this one recipe; later building batches receive their own exact paths and entity IDs.
+**Owner:** one asset worker per bounded building/recipe packet; capable reviewer handles ambiguous geometry. **Depends:** F2 and the recorded F0 brief. **Allowed files:** new `scripts/city-detail/buildings/pilot-frontage.ts`, new `scripts/bake-city-detail.ts`, new `scripts/blender_city_detail.py`, one pilot entity/asset entry, generated `public/map/detail/pilot/` assets, new `scripts/test-detail-buildings.ts`. The first worker owns the shared bake entry points; later batches receive their own exact recipe paths and entity IDs and must not edit those shared files concurrently.
 
 - [ ] Start with two contrasting ordinary buildings from the preselected inventory. Each packet contains actual footprint/height/roof observations, facade orientation, storeys/bays/openings, materials, entrance/storefront and distinct shape features, with source IDs and unknowns.
-- [ ] Implement reusable geometry operations for walls, openings, bays and roofs using measured instance parameters. A model may extract candidate features from imagery, but the reviewer verifies them before marking observed. Reuse the existing code/Three.js baker first; use Blender only when the specific form benefits from it.
+- [ ] Inspect the job/export conventions in `scripts/bake-noticed.ts` and `scripts/blender_noticed.py`. For the first distinctive building, implement a deterministic Blender recipe in the new pilot files using the approved feature brief. Preserve actual silhouette, roof, voids, facade rhythm and standout geometry demonstrated by F0. Reuse suitable primitives/export helpers without rebaking existing heroes or rewriting the runtime.
+- [ ] Implement reusable operations for walls, openings, bays and roofs using the reviewed instance parameters. A model may propose features from imagery; the reviewer verifies them before marking observed. The existing Three.js baker may supply already-verified shared primitives, with the same per-building visual acceptance.
+- [ ] Persist the approved brief, recipe version, input hashes, Blender version and regeneration command. The proposed offline call is `blender --background --python scripts/blender_city_detail.py -- <assigned-job.json>`; the tech lead supplies the actual job path in each packet. A clean rerun must reproduce geometry/metrics; GLB container-byte differences, if any, must be explained rather than mistaken for shape drift.
 - [ ] Bake a bounded GLB plus C6 metrics/hash. Validate that footprint bounds, height, front orientation and observed opening counts match the source record. Check a second viewpoint so a photo pasted on a box cannot substitute for 3D shape.
 - [ ] A generic kit is acceptable only when that instance matches its actual reference. Features the kit cannot represent require a bounded recipe extension, not a generic approximation marked complete.
 - [ ] Repeat in small batches covering every pilot frontage. Record manual corrections and cost per accepted building; a new worker must be able to use the recipe with another entity record.
@@ -133,7 +140,7 @@ export interface StreetViewPose {
 
 - [ ] Record a continuous 200–300 m traversal in both directions in `/game`, plus ten building and observed-object comparisons from C7. Do not substitute an isolated mesh viewer or montage. Test pan/look/search/return-to-game and touch controls.
 - [ ] Profile geometry and texture memory, asset transport, frame time and repeat-tour cleanup. Pilot detail may change asset budgets only after a recorded engineering review, never by hiding unknown coverage or lowering the visual bar.
-- [ ] Apply the C7 recognition checklist with a reviewer familiar with the public area and Foo's reference comparison. F0's exact media must be accessible before claiming the clip's visual standard is met.
+- [ ] Apply the C7 recognition checklist with a reviewer familiar with the public area and Foo's comparison against the saved F0 model pairs. Prove close exploration in the actual London route. Do not claim to match unseen SF camera behavior or to have verified its complete street scene.
 
 **Acceptance:** G2 requires both faithful place representation and stable runtime. A recognizable skyline, a generic attractive street, or screenshots from just one angle are insufficient.
 

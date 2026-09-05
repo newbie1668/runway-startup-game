@@ -10,7 +10,35 @@ The current implementation captures useful geography but discards or invents inf
 - Much facade material, window rhythm, massing and signage is selected from typology or a hash. This can make neighbouring buildings varied without making them accurate. Generated address text is also not a reliable address record.
 - Named towers receive special treatment; most ordinary buildings do not have image-backed instance parameters. That allocation misses the owner's street-recognition test.
 
-Three.js can display detailed real-place assets; renderer choice does not supply the missing observations. The new work therefore has two tracks: R0–R6 runtime reliability and F0–F6 evidence-backed reconstruction. No claim that the creator used a particular model/tool or achieved every-object fidelity is made without inspecting the supplied posts.
+Three.js can display detailed real-place assets; renderer choice does not supply the missing observations. The new work therefore has two tracks: R0–R6 runtime reliability and F0–F6 evidence-backed reconstruction. The [owner-supplied screenshot](evidence/F0/reference.md) now confirms what the creator says about the address/photo/feature-description/Blender pipeline; its execution and full-city accuracy have not been independently verified.
+
+## Address-to-asset workflow
+
+Implement the sequence described in the supplied post. Codex owns task selection, evidence review and integration; smaller agents execute the stages with explicit inputs and outputs.
+
+```mermaid
+flowchart LR
+  A[Address or mapped building ID] --> B[Match real footprint and location]
+  B --> C[Find reference photographs]
+  C --> D[Describe standout physical features]
+  D --> E[Review evidence and modelling recipe]
+  E --> F[Generate model and bake GLB]
+  F --> G[Compare model with real references]
+  G --> H[Load accepted cell asset in Three.js]
+```
+
+| Stage / owner                         | Required input → reviewable output                                                                                                                                                         | Reject / escalate when                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 identity and photo research worker | Exact London address or source building ID → matched footprint/parts, geolocated reference views, source dates/links and explicit gaps.                                                    | An address spans several structures, photos depict a neighbour, or roof/back/side coverage is missing for a required feature.                |
+| F1/F2 feature-description worker      | Matched photos and geometry → structured brief: overall plan, height/storeys, roof, bays/windows/doors, materials, entrances and distinguishing features, with source IDs and uncertainty. | Generated prose invents hidden geometry or treats guesses as observations. Each required feature must be visible/measured or marked unknown. |
+| Tech lead / reviewer                  | Evidence brief → approved entity packet with must-match features, modelling coordinates, dimensions, exact files and reference views.                                                      | The packet still asks the worker to choose art direction or resolve uncertain source identity.                                               |
+| F3 model worker                       | Approved packet → deterministic Blender script/parameters, GLB, recipe/input hashes, dimensions and mesh/texture metrics.                                                                  | Shape is approximated by a generic box, repeated kit features disagree with the source, or the model fails from another viewpoint.           |
+| Independent asset reviewer            | Reference photos plus same-angle renders and additional viewpoints → PASS or a short feature-specific defect list.                                                                         | A pleasing isolated render lacks the actual building's identity, or the recipe cannot be reproduced.                                         |
+| F5 integrator                         | Accepted model/manifest → exact-location cell asset, correct base replacement, LOD and continuous in-game comparison.                                                                      | Geometry overlaps stock, floats, breaks gameplay, exceeds budgets or only looks correct in the isolated asset viewer.                        |
+
+Use Blender for the first distinctive pilot reconstruction so the demonstrated workflow is exercised. Reusable, already-verified primitives may use the existing Three.js baker where they meet the same appearance contract. The local repository already has a Blender subprocess path in `scripts/bake-noticed.ts` and a Python recipe in `scripts/blender_noticed.py`; the new pilot pipeline must first inspect and reuse suitable export/job conventions in its own bounded files. Existing hero assets are not automatically rebaked.
+
+Devin is the creator's stated development agent; Codex and the worker/reviewer contract fill that role here. Exa is the creator's stated photo search tool; F1 should compare available search against it only if access is available and justified. Search results still need address/feature matching. No new paid account or agent framework is a prerequisite for starting the source audit. This replicates the observed workflow without assuming that selecting a vendor guarantees accurate geometry.
 
 ## Proposed layers
 

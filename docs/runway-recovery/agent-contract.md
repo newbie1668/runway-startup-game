@@ -34,7 +34,7 @@ Return: what changed and why, commit(s), checks, remaining failures,
         exact next decision needed. Do not self-certify the gate.
 ```
 
-The tech lead must provide a concrete source-backed entity/area brief and the selected SFSIM reference frames for visual work. Use the fidelity plan for actual facade/tree/sign reconstruction; ordinary-building identity cannot be replaced by generic styling. “Make this more like SFSIM” is not a valid worker packet. If a task still needs architectural invention, assign it to the tech lead for decomposition first.
+The tech lead must provide a concrete source-backed entity/area brief and the [recorded SFSIM model comparisons](evidence/F0/reference.md) for visual work. Use the [address-to-asset stages](fidelity.md#address-to-asset-workflow) for research, feature description, Blender modelling and independent review. Each model packet lists the matched building ID, must-match physical features, source views, metric recipe parameters, output paths and budget. Ordinary-building identity cannot be replaced by generic styling. “Make this more like SFSIM” is not a valid worker packet. If a task still needs architectural invention, assign it to the tech lead for decomposition first.
 
 ## Reviewer packet and acceptance
 
