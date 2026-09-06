@@ -73,6 +73,7 @@ import {
   ptsHitKeep,
   type KeepDisk,
 } from './lookClip';
+import { pointInRing, pointOverWater, waterRings, type WaterRing } from './waterQuery';
 
 export { chunkTierMeshes } from './chunkCells';
 
@@ -2432,55 +2433,6 @@ function addCrosswalk(
   }
 }
 
-function pointInRing(x: number, z: number, ring: { x: number; z: number }[]): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i]!.x;
-    const zi = ring[i]!.z;
-    const xj = ring[j]!.x;
-    const zj = ring[j]!.z;
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-type WaterRing = {
-  points: { x: number; z: number }[];
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-};
-
-function waterRings(cityData: CityData): WaterRing[] {
-  return cityData.water.map((poly) => {
-    const n = poly.verts.length / 2;
-    const points = new Array<{ x: number; z: number }>(n);
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
-    for (let i = 0; i < n; i++) {
-      const x = dequantizeX(poly.verts[i * 2]!);
-      const z = dequantizeY(poly.verts[i * 2 + 1]!);
-      points[i] = { x, z };
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minZ = Math.min(minZ, z);
-      maxZ = Math.max(maxZ, z);
-    }
-    return { points, minX, maxX, minZ, maxZ };
-  });
-}
-
-function pointOverWater(x: number, z: number, rings: WaterRing[]): boolean {
-  for (const ring of rings) {
-    if (x < ring.minX || x > ring.maxX || z < ring.minZ || z > ring.maxZ) continue;
-    if (pointInRing(x, z, ring.points)) return true;
-  }
-  return false;
-}
-
 function pointOnPrefabDeck(x: number, z: number): boolean {
   if (inTowerBridgeCorridor(x, z) || nearTowerBridgePrefab(x, z)) return true;
   if (onLcyRunway(x, z)) return true;
@@ -2742,11 +2694,11 @@ const riverCrossingCache = new WeakMap<CityData, CrossingSpan[]>();
 
 function copyCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
   return spans.map((span) => ({
-    tier: span.tier,
     pts: [
       { x: span.pts[0].x, z: span.pts[0].z },
       { x: span.pts[1].x, z: span.pts[1].z },
     ],
+    tier: span.tier,
   }));
 }
 
