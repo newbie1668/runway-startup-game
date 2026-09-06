@@ -4,7 +4,10 @@
  */
 
 export const MIN_NOTICED_HEIGHT_M = 100;
-export const MAX_NOTICED = 32;
+export const MIN_CIVIC_HEIGHT_M = 10;
+export const MAX_NOTICED = 56;
+export const MAX_NOTICED_TOWERS = 24;
+export const MAX_NOTICED_CIVIC = 32;
 
 export function slugify(name: string): string {
   const slug = name

@@ -28,7 +28,8 @@ after changing `lib/game/render3d/landmarks.ts`. Noticed-tower GLBs in
 thumbnails + feature silhouettes + Blender or the three.js baker — bake time
 only, never at play time). Debug
 params on `/game`: `?map=2d`, `?map=3d`, `?map=debug` (exposes
-`window.__runwayForceContextLoss()`). three.js is only ever reached via a
+`window.__runwayForceContextLoss()`), `?chrome=0`, `?look=<landmark>`,
+`?view=wide|mid`. The 3D map’s glass HUD searches committed place names only. three.js is only ever reached via a
 dynamic `import()` inside `lib/game/render3d/factory.ts` — never add a
 static import of `three` or anything under `render3d/` outside that
 boundary, or it will leak into the SSR path that `pnpm test:ui` exercises.

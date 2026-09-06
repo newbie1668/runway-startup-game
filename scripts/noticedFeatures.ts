@@ -11,7 +11,11 @@ export type NoticedShape =
   | 'cylinder'
   | 'twist'
   | 'stepped'
-  | 'brutalist';
+  | 'brutalist'
+  | 'church'
+  | 'station'
+  | 'theatre'
+  | 'civic';
 
 export interface NoticedBand {
   t0: number;
@@ -56,8 +60,70 @@ export const SHAPE_FROM_ID: Readonly<Record<string, NoticedShape>> = {
   'gladwin-tower': 'slab',
 };
 
+export function civicKindFromTags(tags: Record<string, string>): NoticedShape | null {
+  const blob = [
+    tags.building,
+    tags.amenity,
+    tags.tourism,
+    tags.railway,
+    tags.public_transport,
+    tags.historic,
+    tags.name,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (
+    /church|cathedral|chapel|mosque|synagogue|abbey|place_of_worship|minster/.test(blob)
+  ) {
+    return 'church';
+  }
+  if (
+    /train_station|railway.station|bus_station|railway=station|public_transport=station/.test(
+      blob,
+    ) ||
+    tags.building === 'train_station' ||
+    tags.railway === 'station'
+  ) {
+    return 'station';
+  }
+  if (/theatre|theater|opera|cinema|concert_hall/.test(blob)) return 'theatre';
+  if (
+    /museum|townhall|town_hall|civic|gallery|library|university|palace|memorial/.test(blob) ||
+    tags.tourism === 'museum' ||
+    tags.amenity === 'library' ||
+    tags.amenity === 'townhall'
+  ) {
+    return 'civic';
+  }
+  return null;
+}
+
+export function isCivicShape(shape: NoticedShape): boolean {
+  return shape === 'church' || shape === 'station' || shape === 'theatre' || shape === 'civic';
+}
+
+export function civicFallbackHeightM(shape: NoticedShape): number {
+  switch (shape) {
+    case 'church':
+      return 32;
+    case 'station':
+      return 22;
+    case 'theatre':
+      return 28;
+    case 'civic':
+      return 26;
+    default:
+      return 24;
+  }
+}
+
 export function featuresFromText(text: string): NoticedShape | null {
   const t = text.toLowerCase();
+  if (/church|cathedral|chapel|spire|steeple|abbey|place of worship/.test(t)) return 'church';
+  if (/railway station|train station|terminus|bus station/.test(t)) return 'station';
+  if (/theatre|theater|opera house|fly tower|concert hall/.test(t)) return 'theatre';
+  if (/museum|town hall|civic pile|art gallery|\blibrary\b|rotunda/.test(t)) return 'civic';
   if (/twist|twisted|helical|spiral/.test(t)) return 'twist';
   if (/brutalist|barbican/.test(t)) return 'brutalist';
   if (
@@ -119,6 +185,31 @@ export function bandsForShape(shape: NoticedShape): NoticedBand[] {
         { t0: 0.12, t1: 0.9, scale: 1, yawDeg: 0 },
         { t0: 0.9, t1: 1, scale: 0.62, yawDeg: 0 },
       ];
+    case 'church':
+      return [
+        { t0: 0, t1: 0.18, scale: 1.04, yawDeg: 0 },
+        { t0: 0.18, t1: 0.62, scale: 0.92, yawDeg: 0 },
+        { t0: 0.62, t1: 0.88, scale: 0.7, yawDeg: 0 },
+        { t0: 0.88, t1: 1, scale: 0.42, yawDeg: 0 },
+      ];
+    case 'station':
+      return [
+        { t0: 0, t1: 0.22, scale: 1.12, yawDeg: 0 },
+        { t0: 0.22, t1: 0.72, scale: 1, yawDeg: 0 },
+        { t0: 0.72, t1: 1, scale: 0.78, yawDeg: 0 },
+      ];
+    case 'theatre':
+      return [
+        { t0: 0, t1: 0.28, scale: 1.08, yawDeg: 0 },
+        { t0: 0.28, t1: 0.58, scale: 0.94, yawDeg: 0 },
+        { t0: 0.58, t1: 1, scale: 0.55, yawDeg: 0 },
+      ];
+    case 'civic':
+      return [
+        { t0: 0, t1: 0.16, scale: 1.12, yawDeg: 0 },
+        { t0: 0.16, t1: 0.72, scale: 1, yawDeg: 0 },
+        { t0: 0.72, t1: 1, scale: 0.68, yawDeg: 0 },
+      ];
     default:
       return [
         { t0: 0, t1: 0.12, scale: 1.04, yawDeg: 0 },
@@ -173,6 +264,14 @@ export function tintForShape(
       return mix(wall, [0.82, 0.86, 0.9], 0.45);
     case 'stepped':
       return mix(wall, [0.52, 0.68, 0.78], 0.35);
+    case 'church':
+      return mix(wall, [0.72, 0.48, 0.4], 0.55);
+    case 'station':
+      return mix(wall, [0.55, 0.22, 0.2], 0.5);
+    case 'theatre':
+      return mix(wall, [0.62, 0.6, 0.54], 0.5);
+    case 'civic':
+      return mix(wall, [0.82, 0.78, 0.68], 0.48);
     default:
       return wall;
   }

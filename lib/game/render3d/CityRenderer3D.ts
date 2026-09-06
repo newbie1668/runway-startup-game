@@ -7,12 +7,22 @@
  * camera-agnostic MapOverlay onto the 2D overlay canvas via `rig.worldToScreen`.
  * Streams the city in over multiple frames once london-city.bin has decoded.
  *
- * Look: daytime SFSIM — matte Lambert, one warm sun with a camera-following
- * shadow frustum, solid-colour façades, geometric window insets.
+ * Look: daytime SFSIM — matte Lambert, one warm sun, no projected
+ * shadows, solid-colour façades, locked isometric orthographic camera.
  */
 
 import * as THREE from 'three';
-import { LANDMARKS, METERS_TO_WORLD, WORLD, project, type LandmarkKind } from '../geo';
+import {
+  LANDMARKS,
+  METERS_TO_WORLD,
+  PARKS,
+  THAMES_CROSSINGS,
+  WORLD,
+  isDeckLandmark,
+  project,
+  thamesCrossingLookKey,
+  type LandmarkKind,
+} from '../geo';
 import { HUB_POS, MapOverlay } from '../overlay';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
@@ -25,85 +35,132 @@ import {
   buildParks,
   buildRoads,
   buildRooftopMesh,
+  buildFacadeSigns,
   buildStreetLamps,
   buildTubeLines,
   buildWater,
   buildWindowMesh,
+  CHUNK_COLS,
   CHUNK_COUNT,
+  CHUNK_ROWS,
+  chunkTierMeshes,
   createBuildingMaterial,
   createScratch,
+  crossingYawAt,
   HUB_GLOW_PLAYER_COLOR,
   nearestPick,
+  riverCrossingSpans,
   type BuildingPick,
   type CityScratch,
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
+import {
+  aabbHitsKeep,
+  buildJobsThisFrame,
+  CITYSTREET_AT,
+  inKeepDisk,
+  meshBudget,
+  type BuildJobKind,
+  type KeepDisk,
+} from './lookClip';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
-import { DISTRICT_LABEL, SKY, STYLE_LABEL } from './palette';
+import { isUniqueNoticedId } from './uniqueNoticed';
+import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
 
 const CITY_BIN_URL = '/map/london-city.bin';
-const BUILD_JOBS_PER_FRAME = 2;
-/** Drain faster while the loading overlay is up — the player isn't watching a half-built city. */
-const BUILD_JOBS_WHILE_LOADING = 10;
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
 
-/** Fitzrovia / Charlotte St — cream and brick terraces. */
+/** Fitzrovia / Charlotte St — cream and brick terraces, toy isometric height. */
 const HERO_AT = [-0.1358, 51.5196] as const;
-const HERO_VIEW_HEIGHT = 0.95;
+const HERO_VIEW_HEIGHT = 1.92;
 
 /** Close cameras on bake-time noticed towers (lng/lat from OSM rings). */
-const NOTICED_LOOK: Record<string, { at: readonly [number, number]; viewH: number; azimuth: number }> =
-  {
-    parkdrive: { at: [-0.0151, 51.5023], viewH: 2.55, azimuth: 0.95 },
-    newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
-    wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
-  };
+const NOTICED_LOOK: Record<
+  string,
+  { at: readonly [number, number]; viewH: number; azimuth: number }
+> = {
+  parkdrive: { at: [-0.01503, 51.50227], viewH: 2.55, azimuth: 0.95 },
+  newfoundland: { at: [-0.0251, 51.5043], viewH: 2.35, azimuth: 1.15 },
+  wardian: { at: [-0.0224, 51.5017], viewH: 2.45, azimuth: 0.85 },
+  charrington: { at: [-0.00546, 51.50692], viewH: 1.85, azimuth: 0.18 },
+  hsbc: { at: [-0.01744, 51.50543], viewH: 2.35, azimuth: 0.55 },
+  canadastreet: { at: [-0.0184, 51.50495], viewH: 4.25, azimuth: 0.62 },
+  citystreet: { at: CITYSTREET_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0.22 },
+};
 
-/** Warm afternoon sun from the south-west, ~30° elevation — long façade shadows. */
+/** Warm afternoon sun from the south-west. Lights faces, does not cast a shadow map. */
 const SUN_DIR = new THREE.Vector3(-0.84, 0.5, 0.78).normalize();
 
 function heroLook(): { at: readonly [number, number]; viewH: number; azimuth: number } {
   const look = new URLSearchParams(window.location.search).get('look');
   if (look && NOTICED_LOOK[look]) return NOTICED_LOOK[look]!;
+  const crossing = THAMES_CROSSINGS.find((c) => thamesCrossingLookKey(c.name) === look);
+  if (crossing) return { at: crossing.at, viewH: 1.35, azimuth: 0 };
   const hit = LANDMARKS.find((l) => l.kind === look);
-  if (!hit) return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
-  if (hit.kind === 'towerbridge') {
-    return { at: hit.at, viewH: 2.45, azimuth: Math.PI / 2 - 0.32 };
+  if (!hit) {
+    const park = PARKS.find((p) => {
+      const key = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      return look !== null && (key === look || key.startsWith(look));
+    });
+    if (park) {
+      const at = park.label ?? park.points[0]!;
+      return { at, viewH: 6.5, azimuth: 0 };
+    }
+    return { at: HERO_AT, viewH: HERO_VIEW_HEIGHT, azimuth: 0 };
+  }
+  if (isDeckLandmark(hit.kind) && hit.kind !== 'oldstreet') {
+    if (hit.kind === 'towerbridge') {
+      return { at: hit.at, viewH: 2.05, azimuth: Math.PI / 4 };
+    }
+    const azimuth = hit.kind === 'hungerford' ? -Math.PI / 2 : 0;
+    return { at: hit.at, viewH: 1.35, azimuth };
   }
   if (hit.kind === 'eye') {
-    return { at: hit.at, viewH: 2.4, azimuth: -Math.PI / 2 };
+    return { at: hit.at, viewH: 2.55, azimuth: -Math.PI / 2 };
   }
   if (hit.kind === 'buckingham') {
-    return { at: hit.at, viewH: 2.4, azimuth: Math.PI / 2 };
+    // From the Mall: Victoria Memorial in front of the 21-bay east front.
+    // Slightly north of due east keeps Green Park in frame.
+    return { at: hit.at, viewH: 3.55, azimuth: Math.PI / 2 + 0.22 };
   }
-  if (hit.kind === 'hungerford') {
-    return { at: hit.at, viewH: 2.6, azimuth: -Math.PI / 2 };
+  if (hit.kind === 'stpauls' || hit.kind === 'britishmuseum') {
+    return { at: hit.at, viewH: 2.35, azimuth: 0.72 };
+  }
+  if (hit.kind === 'tatemodern' || hit.kind === 'nationaltheatre' || hit.kind === 'stpancras') {
+    return { at: hit.at, viewH: 2.6, azimuth: 0.35 };
+  }
+  if (hit.kind === 'alberthall' || hit.kind === 'allsouls') {
+    return { at: hit.at, viewH: 2.4, azimuth: 0.2 };
+  }
+  if (hit.kind === 'towerlondon') {
+    return { at: hit.at, viewH: 1.4, azimuth: 0.48 };
+  }
+  if (hit.kind === 'lcy') {
+    return { at: hit.at, viewH: 10.2, azimuth: 0.18 };
   }
   if (hit.kind === 'canadasq') {
     return { at: hit.at, viewH: 4.4, azimuth: Math.PI / 2 - 0.35 };
   }
   if (
     hit.kind === 'gherkin' ||
-    hit.kind === 'shard' ||
     hit.kind === 'walkie' ||
     hit.kind === 'grater' ||
     hit.kind === 'bishop' ||
     hit.kind === 'heron' ||
     hit.kind === 'tower42'
   ) {
-    return { at: hit.at, viewH: 4.4, azimuth: 0.42 };
+    return { at: hit.at, viewH: 3.35, azimuth: 0.55 };
   }
-  if (hit.kind === 'westminsterbr' || hit.kind === 'lambethbr' || hit.kind === 'albertbr') {
-    return { at: hit.at, viewH: 1.35, azimuth: 0 };
+  if (hit.kind === 'shard') {
+    return { at: hit.at, viewH: 2.65, azimuth: 0.42 };
   }
   const wide =
     hit.kind.endsWith('br') ||
     hit.kind === 'millennium' ||
     hit.kind === 'bigben' ||
     hit.kind === 'abbey' ||
-    hit.kind === 'towerlondon' ||
     hit.kind === 'battersea' ||
     hit.kind === 'o2';
   return { at: hit.at, viewH: wide ? 2.8 : 1.55, azimuth: 0 };
@@ -113,7 +170,7 @@ function viewParam(): string | null {
   return new URLSearchParams(window.location.search).get('view');
 }
 
-type BuildJob = () => void;
+type BuildJob = { kind: BuildJobKind; run: () => void };
 
 export class CityRenderer3D implements IMapRenderer {
   private readonly cityCanvas: HTMLCanvasElement;
@@ -124,7 +181,6 @@ export class CityRenderer3D implements IMapRenderer {
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene3d = new THREE.Scene();
-  private readonly fog: THREE.Fog;
   private readonly rig = new CameraRig();
   private readonly overlay: MapOverlay;
   private readonly isCoarsePointer: boolean;
@@ -134,12 +190,15 @@ export class CityRenderer3D implements IMapRenderer {
     return { x: p.x, y: p.y, zoom: 80 };
   })();
   private minZoom = 2;
-  private maxZoom = 880;
+  private maxZoom = 2200;
   private cssW = 0;
   private cssH = 0;
-  private readonly heroAzimuth = heroLook().azimuth;
+  private heroAzimuth = heroLook().azimuth;
+  private lastSearch = typeof window === 'undefined' ? '' : window.location.search;
+  private laidOut = false;
 
   private readonly cityGroup = new THREE.Group();
+  private groundMesh: THREE.Mesh;
   private readonly buildingMaterial: THREE.MeshLambertMaterial;
   private readonly glowTexture: THREE.Texture;
   private readonly hemi: THREE.HemisphereLight;
@@ -156,8 +215,6 @@ export class CityRenderer3D implements IMapRenderer {
   private lastTier2Visible: boolean | null = null;
   private lastMarksVisible: boolean | null = null;
   private lastLampsVisible: boolean | null = null;
-  private treeGroup: THREE.Object3D | null = null;
-  private lastGrovesVisible: boolean | null = null;
   private windowMesh: THREE.InstancedMesh | null = null;
   private lastWindowsVisible: boolean | null = null;
   private landmarkPrefabs = new Map<LandmarkKind, THREE.Object3D>();
@@ -171,7 +228,6 @@ export class CityRenderer3D implements IMapRenderer {
   private selected: BuildingPick | null = null;
   private readonly beamGroup = new THREE.Group();
   private readonly buildingMeshes: THREE.Object3D[] = [];
-  private readonly cardPos = new THREE.Vector3();
 
   private disposed = false;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
@@ -194,43 +250,43 @@ export class CityRenderer3D implements IMapRenderer {
       () => ({ w: this.cssW, h: this.cssH }),
     );
 
+    const budget = meshBudget();
     this.renderer = new THREE.WebGLRenderer({
       canvas: cityCanvas,
       alpha: false,
-      antialias: !this.isCoarsePointer,
+      antialias: !this.isCoarsePointer && !budget.skipAntialias,
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(
-      Math.min(window.devicePixelRatio || 1, this.isCoarsePointer ? 1.5 : 2),
+      Math.min(
+        window.devicePixelRatio || 1,
+        budget.pixelRatioCap,
+        this.isCoarsePointer ? Math.min(1.5, budget.pixelRatioCap) : budget.pixelRatioCap,
+      ),
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.16;
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(SKY, 1);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.enabled = false;
 
-    this.fog = new THREE.Fog(SKY, 22, 110);
-    this.scene3d.fog = this.fog;
+    this.scene3d.fog = null;
     this.scene3d.background = new THREE.Color(SKY);
 
-    this.hemi = new THREE.HemisphereLight(0xdce8f2, 0xd0c4b0, 0.86);
-    const amb = new THREE.AmbientLight(0xf4efe6, 0.4);
-    this.sun = new THREE.DirectionalLight(0xfff1d4, 1.38);
-    this.sun.castShadow = true;
-    const mapSize = this.isCoarsePointer ? 1024 : 2048;
-    this.sun.shadow.mapSize.set(mapSize, mapSize);
-    this.sun.shadow.bias = -0.00028;
-    this.sun.shadow.normalBias = 0.04;
-    this.sun.shadow.camera.near = 2;
-    this.sun.shadow.camera.far = 140;
-    this.sunTarget.position.set(WORLD.width / 2, 0, WORLD.height / 2);
+    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.55);
+    const amb = new THREE.AmbientLight(0xe8e0d4, 0.18);
+    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.35);
+    this.sun.castShadow = false;
+    const originX = WORLD.width / 2;
+    const originZ = WORLD.height / 2;
+    this.sunTarget.position.set(originX, 0, originZ);
+    this.sun.position.set(originX + SUN_DIR.x * 120, SUN_DIR.y * 120, originZ + SUN_DIR.z * 120);
     this.sun.target = this.sunTarget;
     this.scene3d.add(this.hemi, amb, this.sun, this.sunTarget);
     this.overlay.atmosphere = 'day';
 
-    const ground = buildGround();
-    this.scene3d.add(ground);
+    this.groundMesh = buildGround();
+    this.scene3d.add(this.groundMesh);
     this.scene3d.add(buildTubeLines());
 
     this.glowTexture = createGlowSpriteTexture();
@@ -243,26 +299,26 @@ export class CityRenderer3D implements IMapRenderer {
 
     this.beamGroup.visible = false;
     const beamMat = new THREE.MeshBasicMaterial({
-      color: 0x7ec8ff,
+      color: 0xffe566,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.42,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.15, 1, 18, 1, true), beamMat);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.12, 1, 20, 1, true), beamMat);
     beam.position.y = 0.5;
     beam.name = 'shaft';
     beam.renderOrder = 12;
     const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xe8f6ff,
+      color: 0xfff6b0,
       transparent: true,
       opacity: 0.55,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.28, 1, 10, 1, true), coreMat);
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 1, 12, 1, true), coreMat);
     core.position.y = 0.5;
     core.name = 'core';
     core.renderOrder = 13;
@@ -310,15 +366,6 @@ export class CityRenderer3D implements IMapRenderer {
     }, 2000);
   };
 
-  private enableShadows(root: THREE.Object3D, cast: boolean, receive: boolean): void {
-    root.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.castShadow = cast;
-        obj.receiveShadow = receive;
-      }
-    });
-  }
-
   private onCityData(data: CityData): void {
     if (this.disposed) return;
     this.scratch = createScratch();
@@ -333,32 +380,117 @@ export class CityRenderer3D implements IMapRenderer {
         r: e.exclusionM * METERS_TO_WORLD,
       })),
     ];
-    const jobs: BuildJob[] = [];
-    for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
-      for (const major of [true, false]) {
-        jobs.push(() => {
-          const mesh = buildChunkTier(data, chunkId, major, landmarkAnchors, this.scratch);
-          if (mesh) {
-            mesh.material = this.buildingMaterial;
-            this.cityGroup.add(mesh);
-            this.buildingMeshes.push(mesh);
-            if (!major) this.minorMeshes.push(mesh);
+    const look = new URLSearchParams(window.location.search).get('look');
+    const lookNoticedId =
+      look === 'charrington'
+        ? 'charrington-tower'
+        : look === 'parkdrive'
+          ? 'one-park-drive'
+          : look === 'newfoundland'
+            ? 'newfoundland-quay'
+            : look === 'hsbc' || look === 'canadastreet'
+              ? 'hsbc-uk'
+              : undefined;
+    const lookLandmarkKinds = new Set<string>(
+      look === 'citystreet'
+        ? ['gherkin', 'grater', 'walkie', 'tower42']
+        : look === 'canadastreet'
+          ? ['canadasq']
+          : look === 'eye'
+            ? ['eye', 'hungerford', 'westminsterbr', 'nationaltheatre', 'bigben']
+            : look
+              ? [look]
+              : [],
+    );
+    const budget = meshBudget();
+    const lookAt = heroLook();
+    const lookPt = project(lookAt.at);
+    const view = viewParam();
+    const keep: KeepDisk | null =
+      budget.chunkKeepM != null
+        ? {
+            x: view === 'wide' ? WORLD.width / 2 : lookPt.x,
+            z: view === 'wide' ? WORLD.height / 2 : lookPt.y,
+            r: budget.chunkKeepM * METERS_TO_WORLD,
           }
-        });
-      }
+        : null;
+    if (keep) {
+      this.scene3d.remove(this.groundMesh);
+      this.groundMesh.geometry.dispose();
+      const oldMat = this.groundMesh.material;
+      if (Array.isArray(oldMat)) oldMat.forEach((m) => m.dispose());
+      else oldMat.dispose();
+      this.groundMesh = buildGround(keep);
+      this.scene3d.add(this.groundMesh);
     }
-    jobs.push(() => {
-      const windows = buildWindowMesh(this.scratch);
-      if (windows) {
-        windows.visible = false;
-        this.windowMesh = windows;
-        this.cityGroup.add(windows);
-      }
-      const roofs = buildRooftopMesh(this.scratch);
-      if (roofs) this.cityGroup.add(roofs);
+    const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
+    const heroJobs: BuildJob[] = [];
+    const coverJobs: BuildJob[] = [];
+    const chunkJobs: BuildJob[] = [];
+    const restJobs: BuildJob[] = [];
+    const crossings = riverCrossingSpans(data);
+    const enqueue = (into: BuildJob[], kind: BuildJobKind, run: () => void): void => {
+      into.push({ kind, run });
+    };
+    const pushNoticed = (entry: NoticedEntry, into: BuildJob[], kind: BuildJobKind): void => {
+      enqueue(into, kind, () => {
+        const prefab = this.noticedPrefabs.get(entry.id) ?? null;
+        if (!prefab && !isUniqueNoticedId(entry.id)) return;
+        const group = instantiateNoticed(entry, prefab);
+        group.position.set(entry.x, 0, entry.z);
+        this.cityGroup.add(group);
+      });
+    };
+    const pushLandmark = (
+      landmark: (typeof LANDMARKS)[number],
+      into: BuildJob[],
+      kind: BuildJobKind,
+    ): void => {
+      enqueue(into, kind, () => {
+        const p = project(landmark.at);
+        const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
+        group.position.set(p.x, 0, p.y);
+        const riverDeck = isDeckLandmark(landmark.kind) && landmark.kind !== 'oldstreet';
+        if (riverDeck && landmark.kind !== 'towerbridge') {
+          const yaw = crossingYawAt(p.x, p.y, crossings) ?? landmark.yaw ?? 0;
+          group.rotation.y += yaw;
+        } else if (landmark.yaw) {
+          group.rotation.y += landmark.yaw;
+        }
+        this.cityGroup.add(group);
+      });
+    };
+    const allowLandmark = (landmark: (typeof LANDMARKS)[number]): boolean => {
+      if (lookLandmarkKinds.has(landmark.kind)) return true;
+      if (look === 'eye') return false;
+      const p = project(landmark.at);
+      return inKeep(p.x, p.y);
+    };
+    for (const entry of this.noticedEntries) {
+      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs, 'hero');
+    }
+    for (const landmark of LANDMARKS) {
+      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs, 'hero');
+    }
+    enqueue(coverJobs, 'cover', () => {
+      const mesh = buildWater(data, keep);
+      if (mesh) this.cityGroup.add(mesh);
     });
-    jobs.push(() => {
-      const roadGroup = buildRoads(data);
+    enqueue(coverJobs, 'cover', () => {
+      const mesh = buildParks(data, keep);
+      if (mesh) this.cityGroup.add(mesh);
+    });
+    if (!budget.skipTrees) {
+      enqueue(coverJobs, 'cover', () => {
+        const trees = buildParkTrees(data, keep);
+        if (trees) {
+          trees.visible = true;
+          this.cityGroup.add(trees);
+        }
+      });
+    }
+    enqueue(coverJobs, 'cover', () => {
+      const roadGroup = buildRoads(data, keep, !budget.skipRoadMarks);
       if (roadGroup) {
         this.cityGroup.add(roadGroup);
         for (const child of roadGroup.children) {
@@ -367,59 +499,114 @@ export class CityRenderer3D implements IMapRenderer {
         }
       }
     });
-    jobs.push(() => {
-      const lamps = buildStreetLamps(data);
-      if (lamps) {
-        lamps.visible = false;
-        this.lampGroup = lamps;
-        this.cityGroup.add(lamps);
+    for (const landmark of LANDMARKS) {
+      if (lookLandmarkKinds.has(landmark.kind)) continue;
+      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs, 'rest');
+    }
+    if (!budget.skipNoticedStock) {
+      for (const entry of this.noticedEntries) {
+        if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
+          pushNoticed(entry, restJobs, 'rest');
+        }
       }
-    });
-    jobs.push(() => {
-      const mesh = buildParks(data);
-      if (mesh) this.cityGroup.add(mesh);
-    });
-    jobs.push(() => {
-      const trees = buildParkTrees(data);
-      if (trees) {
-        trees.visible = true;
-        this.treeGroup = trees;
-        this.cityGroup.add(trees);
+      for (const entry of this.noticedEntries) {
+        if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
+        if (!inKeep(entry.x, entry.z)) continue;
+        pushNoticed(entry, restJobs, 'rest');
       }
-    });
-    jobs.push(() => {
-      const mesh = buildWater(data);
-      if (mesh) this.cityGroup.add(mesh);
-    });
-    for (let i = 0; i < LANDMARKS.length; i++) {
-      jobs.push(() => {
-        const landmark = LANDMARKS[i];
-        const p = project(landmark.at);
-        const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
-        group.position.set(p.x, 0, p.y);
-        if (landmark.yaw) group.rotation.y += landmark.yaw;
-        this.enableShadows(group, true, true);
-        this.cityGroup.add(group);
+    }
+    const chunkWork: { chunkId: number; major: boolean; dist: number }[] = [];
+    for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
+      const col = chunkId % CHUNK_COLS;
+      const row = Math.floor(chunkId / CHUNK_COLS);
+      const x0 = (col / CHUNK_COLS) * WORLD.width;
+      const x1 = ((col + 1) / CHUNK_COLS) * WORLD.width;
+      const z0 = (row / CHUNK_ROWS) * WORLD.height;
+      const z1 = ((row + 1) / CHUNK_ROWS) * WORLD.height;
+      if (!aabbHitsKeep(x0, z0, x1, z1, keep)) continue;
+      const dx = (x0 + x1) / 2 - lookPt.x;
+      const dz = (z0 + z1) / 2 - lookPt.y;
+      const dist = dx * dx + dz * dz;
+      for (const major of [true, false]) {
+        if (budget.skipMinorChunks && !major) continue;
+        chunkWork.push({ chunkId, major, dist });
+      }
+    }
+    chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
+    for (const job of chunkWork) {
+      enqueue(chunkJobs, 'chunk', () => {
+        const built = buildChunkTier(
+          data,
+          job.chunkId,
+          job.major,
+          landmarkAnchors,
+          this.scratch,
+          keep,
+        );
+        if (built) {
+          for (const mesh of chunkTierMeshes(built)) {
+            mesh.material = this.buildingMaterial;
+            this.buildingMeshes.push(mesh);
+            if (!job.major) this.minorMeshes.push(mesh);
+          }
+          this.cityGroup.add(built);
+        }
       });
     }
-    for (const entry of this.noticedEntries) {
-      jobs.push(() => {
-        const prefab = this.noticedPrefabs.get(entry.id);
-        if (!prefab) return;
-        const group = instantiateNoticed(prefab);
-        group.position.set(entry.x, 0, entry.z);
-        this.enableShadows(group, true, true);
-        this.cityGroup.add(group);
+    if (!budget.skipWindows) {
+      enqueue(restJobs, 'rest', () => {
+        const windows = buildWindowMesh(this.scratch);
+        if (windows) {
+          windows.visible = false;
+          this.windowMesh = windows;
+          this.cityGroup.add(windows);
+        }
+        const roofs = buildRooftopMesh(this.scratch);
+        if (roofs) this.cityGroup.add(roofs);
+        const signs = buildFacadeSigns(this.scratch);
+        if (signs) this.cityGroup.add(signs);
       });
     }
-    this.buildQueue = jobs;
+    if (!budget.skipLamps) {
+      enqueue(restJobs, 'rest', () => {
+        const lamps = buildStreetLamps(data);
+        if (lamps) {
+          lamps.visible = false;
+          this.lampGroup = lamps;
+          this.cityGroup.add(lamps);
+        }
+      });
+    }
+    // Wide cameras must paint nearby chunks before the cover jobs, or chrome=0
+    // sits on brown ground until water/parks/roads finish (and used to OOM first).
+    this.buildQueue = keep
+      ? [...heroJobs, ...chunkJobs, ...coverJobs, ...restJobs]
+      : [...heroJobs, ...coverJobs, ...restJobs, ...chunkJobs];
     this.cityStreamed = true;
   }
 
   private drainBuildQueue(): void {
-    const budget = this.readyNotified ? BUILD_JOBS_PER_FRAME : BUILD_JOBS_WHILE_LOADING;
-    for (let i = 0; i < budget && this.buildQueue.length > 0; i++) {
-      this.buildQueue.shift()!();
+    const keepLoad = meshBudget().chunkKeepM != null;
+    const head = this.buildQueue[0];
+    if (!head) {
+      if (this.cityStreamed) this.markReady();
+      return;
+    }
+    const view = viewParam();
+    const n = buildJobsThisFrame({
+      ready: this.readyNotified,
+      keepDisk: keepLoad,
+      kind: head.kind,
+      wideFrust: view === 'mid' || view === 'default',
+    });
+    let i = 0;
+    while (i < n && this.buildQueue.length > 0 && this.buildQueue[0]!.kind === head.kind) {
+      try {
+        this.buildQueue.shift()!.run();
+      } catch {
+        // One mesh job must not stall the rest of London.
+      }
+      i += 1;
     }
     if (this.cityStreamed && this.buildQueue.length === 0) this.markReady();
   }
@@ -430,32 +617,15 @@ export class CityRenderer3D implements IMapRenderer {
     this.onReady();
   }
 
-  private updateSunShadow(): void {
-    const dist = this.rig.getDistance();
-    const extent = Math.max(10, Math.min(130, dist * 1.7));
-    this.sunTarget.position.set(this.cam.x, 0, this.cam.y);
-    this.sun.position.set(this.cam.x + SUN_DIR.x * 90, SUN_DIR.y * 90, this.cam.y + SUN_DIR.z * 90);
-    const cam = this.sun.shadow.camera;
-    cam.left = -extent;
-    cam.right = extent;
-    cam.top = extent;
-    cam.bottom = -extent;
-    cam.near = 2;
-    cam.far = 200;
-    cam.updateProjectionMatrix();
-    this.sunTarget.updateMatrixWorld();
-    this.sun.updateMatrixWorld();
-  }
-
   private placeBeam(pick: BuildingPick | null): void {
     this.selected = pick;
     if (!pick) {
       this.beamGroup.visible = false;
       return;
     }
-    const r = 0.028;
-    const h = Math.max(4.2, pick.heightWorld * 8 + 3.4);
-    this.beamGroup.position.set(pick.x, pick.heightWorld, pick.z);
+    const r = Math.max(0.045, Math.sqrt(pick.areaM2) * METERS_TO_WORLD * 0.38);
+    const h = Math.max(pick.heightWorld * 1.45 + 1.8, 3.6);
+    this.beamGroup.position.set(pick.x, 0, pick.z);
     const shaft = this.beamGroup.getObjectByName('shaft') as THREE.Mesh | undefined;
     const core = this.beamGroup.getObjectByName('core') as THREE.Mesh | undefined;
     if (shaft) {
@@ -479,43 +649,76 @@ export class CityRenderer3D implements IMapRenderer {
     return nearestPick(this.scratch.picks, pt.x, pt.z, 0.85);
   }
 
+  private nearbyLabels(pick: BuildingPick): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const p of this.scratch.picks) {
+      if (p === pick) continue;
+      const d = Math.hypot(p.x - pick.x, p.z - pick.z);
+      if (d > 0.48 || d < 0.015) continue;
+      const label = USE_LABEL[p.style] ?? 'Building';
+      if (seen.has(label)) continue;
+      seen.add(label);
+      out.push(label);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
   private drawBuildingCard(ctx: CanvasRenderingContext2D, pick: BuildingPick): void {
-    this.cardPos.set(pick.x, pick.heightWorld + 0.12, pick.z).project(this.rig.camera);
-    if (this.cardPos.z > 1) return;
-    const screenX = ((this.cardPos.x + 1) / 2) * this.cssW;
-    const screenY = ((1 - this.cardPos.y) / 2) * this.cssH;
-    const name = STYLE_LABEL[pick.style] ?? 'Building';
+    const name = pick.label || USE_LABEL[pick.style] || STYLE_LABEL[pick.style] || 'Building';
+    const area = `${Math.round(pick.areaM2).toLocaleString('en-GB')} m²`;
+    const nearby = this.nearbyLabels(pick);
     const lines = [
       name,
-      `${Math.round(pick.heightM)} m · ${DISTRICT_LABEL[pick.district]}`,
+      pick.address,
+      `${Math.round(pick.heightM)} m · ${area} · ${DISTRICT_LABEL[pick.district]}`,
       'OpenStreetMap',
     ];
     ctx.save();
-    ctx.font = '700 12px ui-sans-serif, system-ui';
+    ctx.font = '700 13px ui-sans-serif, system-ui';
     const w0 = Math.max(
       ctx.measureText(lines[0]!).width,
       ctx.measureText(lines[1]!).width,
       ctx.measureText(lines[2]!).width,
+      ctx.measureText(lines[3]!).width,
     );
-    const bw = w0 + 20;
-    const bh = 58;
-    const bx = Math.min(Math.max(screenX - bw / 2, 8), this.cssW - bw - 8);
-    const by = Math.min(Math.max(screenY - bh - 14, 8), this.cssH - bh - 8);
-    ctx.fillStyle = 'rgba(18, 24, 36, 0.9)';
-    ctx.strokeStyle = 'rgba(126, 200, 255, 0.55)';
-    ctx.lineWidth = 1.2;
+    const pillW = nearby.reduce((w, s) => w + ctx.measureText(s).width + 18, 0);
+    const bw = Math.max(w0, pillW) + 24;
+    const bh = 88 + (nearby.length ? 22 : 0);
+    const bx = 14;
+    const by = this.cssH - bh - 48;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 8);
+    ctx.roundRect(bx, by, bw, bh, 14);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = '#e8eef6';
+    ctx.fillStyle = '#1e293b';
     ctx.textAlign = 'left';
-    ctx.fillText(lines[0]!, bx + 10, by + 18);
+    ctx.fillText(lines[0]!, bx + 12, by + 18);
     ctx.font = '500 11px ui-sans-serif, system-ui';
-    ctx.fillStyle = '#c5d0dc';
-    ctx.fillText(lines[1]!, bx + 10, by + 36);
-    ctx.fillStyle = '#8aa0b4';
-    ctx.fillText(lines[2]!, bx + 10, by + 50);
+    ctx.fillStyle = '#334155';
+    ctx.fillText(lines[1]!, bx + 12, by + 36);
+    ctx.fillText(lines[2]!, bx + 12, by + 52);
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(lines[3]!, bx + 12, by + 68);
+    if (nearby.length) {
+      let px = bx + 12;
+      const py = by + 78;
+      ctx.font = '600 10px ui-sans-serif, system-ui';
+      for (const pill of nearby) {
+        const pw = ctx.measureText(pill).width + 14;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.12)';
+        ctx.beginPath();
+        ctx.roundRect(px, py, pw, 16, 8);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillText(pill, px + 7, py + 12);
+        px += pw + 6;
+      }
+    }
     ctx.restore();
   }
 
@@ -553,7 +756,7 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   private syncRig(): void {
-    this.rig.update(this.cam, this.minZoom, this.heroAzimuth);
+    this.rig.update(this.cam, this.heroAzimuth);
   }
 
   private clampCamera(): void {
@@ -576,17 +779,23 @@ export class CityRenderer3D implements IMapRenderer {
     this.rig.setViewport(this.cssW, this.cssH);
     const fit = this.computeFit();
     this.minZoom = fit * 0.85;
+    if (!this.laidOut) {
+      this.laidOut = true;
+      this.fitAll();
+      return;
+    }
     if (this.cam.zoom < this.minZoom) this.cam.zoom = fit * 1.02;
     this.syncRig();
   }
 
   fitAll(): void {
+    const look = heroLook();
+    this.heroAzimuth = look.azimuth;
     const view = viewParam();
     if (view === 'wide') {
       this.fitOverview();
       return;
     }
-    const look = heroLook();
     const hero = project(look.at);
     let viewH = look.viewH;
     if (view === 'mid' || view === 'default') viewH = 8.5;
@@ -626,6 +835,7 @@ export class CityRenderer3D implements IMapRenderer {
     this.syncRig();
   }
 
+  /** Scale the orthographic frustum around the cursor. Pitch stays locked. */
   zoomAt(sx: number, sy: number, factor: number): void {
     this.syncRig();
     const before = this.rig.groundUnproject(sx, sy);
@@ -644,6 +854,16 @@ export class CityRenderer3D implements IMapRenderer {
 
   setCamera(c: CameraState): void {
     this.cam = { ...c };
+    this.clampCamera();
+    this.syncRig();
+  }
+
+  lookAt(x: number, y: number, viewH?: number): void {
+    this.cam.x = x;
+    this.cam.y = y;
+    if (viewH && viewH > 0 && this.cssH > 0) {
+      this.cam.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.cssH / viewH));
+    }
     this.clampCamera();
     this.syncRig();
   }
@@ -668,15 +888,13 @@ export class CityRenderer3D implements IMapRenderer {
     if (this.disposed) return;
     this.drainBuildQueue();
     if (this.cssW === 0 || this.cssH === 0) return;
+    if (window.location.search !== this.lastSearch) {
+      this.lastSearch = window.location.search;
+      this.fitAll();
+    }
     this.syncRig();
-    this.updateSunShadow();
 
-    const dist = this.rig.getDistance();
-    this.fog.near = dist * 7;
-    this.fog.far = dist * 24;
-
-    const minorThreshold = this.isCoarsePointer ? 5.5 : 4.8;
-    const minorVisible = this.cam.zoom >= minorThreshold;
+    const minorVisible = true;
     if (minorVisible !== this.lastMinorVisible) {
       for (let i = 0; i < this.minorMeshes.length; i++) this.minorMeshes[i]!.visible = minorVisible;
       this.lastMinorVisible = minorVisible;
@@ -696,16 +914,7 @@ export class CityRenderer3D implements IMapRenderer {
       if (this.lampGroup) this.lampGroup.visible = lampsVisible;
       this.lastLampsVisible = lampsVisible;
     }
-    const grovesVisible = this.cam.zoom < 18;
-    if (grovesVisible !== this.lastGrovesVisible) {
-      if (this.treeGroup) {
-        this.treeGroup.traverse((obj) => {
-          if (obj.userData.grove) obj.visible = grovesVisible;
-        });
-      }
-      this.lastGrovesVisible = grovesVisible;
-    }
-    const windowsVisible = this.cam.zoom >= 7;
+    const windowsVisible = true;
     if (windowsVisible !== this.lastWindowsVisible) {
       if (this.windowMesh) this.windowMesh.visible = windowsVisible;
       this.lastWindowsVisible = windowsVisible;

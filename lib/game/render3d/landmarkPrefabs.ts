@@ -9,15 +9,39 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { LANDMARKS, type LandmarkKind } from '../geo';
+import { LANDMARKS, isDeckLandmark, type LandmarkKind } from '../geo';
 import { build as buildLandmark } from './landmarks';
 import { makeMatteLambert } from './matteGltf';
+import { meshBudget } from './lookClip';
 
 export const LANDMARK_GLB_DIR = '/map/landmarks';
 
+/** Unique silhouettes stay procedural so pale steel / stone survive playtime. */
+const PLAYTIME_PROCEDURAL: ReadonlySet<LandmarkKind> = new Set([
+  'towerlondon',
+  'canadasq',
+  'gherkin',
+  'walkie',
+  'grater',
+  'shard',
+  'bishop',
+  'heron',
+  'tower42',
+  'eye',
+  'lcy',
+  'buckingham',
+]);
+
+export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
+  return PLAYTIME_PROCEDURAL.has(kind) || (isDeckLandmark(kind) && kind !== 'oldstreet');
+}
+
 export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Object3D>> {
+  if (typeof window !== 'undefined' && meshBudget().skipGlb) return new Map();
   const loader = new GLTFLoader();
-  const kinds = [...new Set(LANDMARKS.map((l) => l.kind))];
+  const kinds = [...new Set(LANDMARKS.map((l) => l.kind))].filter(
+    (kind) => !isPlaytimeProceduralKind(kind),
+  );
   const prefabs = new Map<LandmarkKind, THREE.Object3D>();
   await Promise.all(
     kinds.map(async (kind) => {
@@ -37,6 +61,11 @@ export function instantiateLandmark(
   kind: LandmarkKind,
   prefabs: Map<LandmarkKind, THREE.Object3D>,
 ): THREE.Group {
+  // River decks and unique skyline meshes stay procedural so asphalt / pale
+  // steel are not stuck in a stale GLB or crushed by makeMatteLambert.
+  if (isPlaytimeProceduralKind(kind)) {
+    return buildLandmark(kind);
+  }
   const prefab = prefabs.get(kind);
   if (!prefab) return buildLandmark(kind);
   const clone = prefab.clone(true);

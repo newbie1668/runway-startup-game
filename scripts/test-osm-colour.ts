@@ -14,8 +14,10 @@ import {
   districtAt,
   extrusionScale,
   facadeVForFloors,
+  facadeWindowRhythm,
   resolveStyle,
   restyleForDistrict,
+  stockMassing,
   wantFacadeWindows,
   TOWER_HEIGHT_SCALE,
   HEIGHT_SCALE,
@@ -30,6 +32,7 @@ import {
 } from '../lib/game/render3d/osmColour';
 import {
   clampWallColour,
+  facadeFamily,
   isConfettiHue,
   paletteFor,
   rgbToHsl,
@@ -131,7 +134,8 @@ check('Canary Wharf restyles mid-rises to glass, Shoreditch to warehouses', () =
   assert.equal(restyleForDistrict(STYLE_APARTMENTS, 40, 800, 'canary'), STYLE_TOWER);
   assert.equal(restyleForDistrict(STYLE_TERRACE, 16, 300, 'shoreditch'), STYLE_INDUSTRIAL);
   assert.equal(restyleForDistrict(STYLE_HOUSE, 12, 180, 'kensington'), STYLE_TERRACE);
-  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westminster'), STYLE_OFFICE);
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 20, 400, 'westminster'), STYLE_APARTMENTS);
+  assert.equal(restyleForDistrict(STYLE_APARTMENTS, 28, 400, 'westminster'), STYLE_OFFICE);
 });
 
 check('street-front windows skip terrace party walls and tiny edges', () => {
@@ -174,10 +178,83 @@ check('City towers use readable glass, not charcoal silhouettes', () => {
   }
 });
 
-check('West End terraces stay cream', () => {
-  const hex = wallHex(STYLE_TERRACE, 'westend', 0, 0, 1, null);
-  const { l } = rgbToHsl(hex);
-  assert.ok(l >= 0.5, `westend terrace l=${l}`);
+check('West End terrace street mixes cream, brick, and grey families', () => {
+  const families = new Set<string>();
+  const hexes = new Set<number>();
+  for (let i = 0; i < 16; i++) {
+    const cx = i * 0.12;
+    const seed = 1000 + i * 7919;
+    hexes.add(wallHex(STYLE_TERRACE, 'westend', cx, 10, seed, null));
+    families.add(facadeFamily(STYLE_TERRACE, 'westend', cx, 10, seed));
+  }
+  assert.ok(hexes.size >= 10, `expected many paints, got ${hexes.size}`);
+  assert.ok(families.size >= 3, `families ${[...families].join(',')}`);
+  assert.ok(families.has('brick'), 'street must include brick');
+  assert.ok(families.has('cream') || families.has('yellow'), 'street must include stucco/yellow');
+  assert.ok(families.has('grey') || families.has('portland'), 'street must include stone/grey');
+  const a = wallHex(STYLE_TERRACE, 'westend', 0, 0, 1, null);
+  const b = wallHex(STYLE_TERRACE, 'westend', 2.4, 1.1, 99_001, null);
+  assert.notEqual(a, b, 'adjacent hashes should pick different swatches');
+});
+
+check('street-scale offices mix stone and brick, not one grey plate', () => {
+  const families = new Set<string>();
+  for (let i = 0; i < 12; i++) {
+    families.add(facadeFamily(STYLE_OFFICE, 'westend', i * 0.2, 4, i * 3331 + 17));
+  }
+  assert.ok(families.size >= 3, `office families ${[...families].join(',')}`);
+  assert.ok(families.has('brick') || families.has('cream'), 'offices should not be all grey');
+});
+
+check('generic OSM brick is a family hint, not one cloned hex', () => {
+  const a = wallHex(STYLE_TERRACE, 'westend', 0, 0, 11, 0xb85c3a);
+  const b = wallHex(STYLE_TERRACE, 'westend', 1.1, 0.4, 44_001, 0xb85c3a);
+  assert.notEqual(a, b);
+  const plaster = wallHex(STYLE_TERRACE, 'westend', 0, 0, 11, 0xe8dcc8);
+  assert.notEqual(a, plaster, 'brick vs plaster hints must not share a paint');
+});
+
+check('neighbouring terraces keep different sash pitches', () => {
+  const a = facadeWindowRhythm(STYLE_TERRACE, false, 12);
+  const b = facadeWindowRhythm(STYLE_TERRACE, false, 99_001);
+  assert.notEqual(a.pitchU, b.pitchU);
+  assert.notEqual(`${a.colCap}x${a.rowCap}`, `${b.colCap}x${b.rowCap}`);
+});
+
+check('stock massing is a silhouette family, not a City slab costume', () => {
+  assert.notEqual(
+    stockMassing({
+      style: STYLE_OFFICE,
+      roof: 0,
+      heightM: 28,
+      areaM2: 500,
+      district: 'city',
+      seed: 1,
+    }),
+    'slab',
+  );
+  assert.equal(
+    stockMassing({
+      style: STYLE_TOWER,
+      roof: 0,
+      heightM: 80,
+      areaM2: 900,
+      district: 'canary',
+      seed: 3,
+    }),
+    'slab',
+  );
+  assert.equal(
+    stockMassing({
+      style: STYLE_TERRACE,
+      roof: 0,
+      heightM: 11,
+      areaM2: 140,
+      district: 'kensington',
+      seed: 4,
+    }),
+    'gable',
+  );
 });
 
 check('towers extrude taller than houses', () => {

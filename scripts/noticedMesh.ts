@@ -8,6 +8,7 @@ import earcut from 'earcut';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import type { NoticedBand, NoticedShape } from './noticedFeatures';
 import { bandsForShape, isCircularShape } from './noticedFeatures';
+import { buildUniqueNoticed } from '../lib/game/render3d/uniqueNoticed';
 
 export interface NoticedBakeBuilding {
   id: string;
@@ -177,6 +178,8 @@ function extrudeGeometry(
 }
 
 export function buildNoticedGroup(job: NoticedBakeBuilding): THREE.Group {
+  const unique = buildUniqueNoticed(job);
+  if (unique) return unique;
   const shape = job.shape;
   const bands = job.bands ?? bandsForShape(shape);
   const circular = job.circular ?? isCircularShape(shape);
@@ -201,7 +204,120 @@ export function buildNoticedGroup(job: NoticedBakeBuilding): THREE.Group {
     mesh.name = `${job.id}-${i}`;
     group.add(mesh);
   });
+  appendCivicSilhouette(group, job, wallMat, roofMat);
   return group;
+}
+
+function ringSize(ring: Array<[number, number]>): { cx: number; cz: number; w: number; d: number } {
+  const [cx, cz] = centroid(ring);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const [x, z] of ring) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minZ = Math.min(minZ, z);
+    maxZ = Math.max(maxZ, z);
+  }
+  return { cx, cz, w: Math.max(0.04, maxX - minX), d: Math.max(0.04, maxZ - minZ) };
+}
+
+function addBox(
+  group: THREE.Group,
+  w: number,
+  h: number,
+  d: number,
+  mat: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+  name: string,
+): void {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  mesh.position.set(x, y + h / 2, z);
+  mesh.name = name;
+  group.add(mesh);
+}
+
+/** Churches, stations, theatres, civic piles — extra massing, not another glass taper. */
+function appendCivicSilhouette(
+  group: THREE.Group,
+  job: NoticedBakeBuilding,
+  wallMat: THREE.Material,
+  roofMat: THREE.Material,
+): void {
+  const { cx, cz, w, d } = ringSize(job.ring);
+  const H = job.heightWorld;
+  const ridgeRgb: [number, number, number] = [
+    Math.min(1, job.wall[0] + 0.18),
+    Math.min(1, job.wall[1] + 0.18),
+    Math.min(1, job.wall[2] + 0.16),
+  ];
+  const ridge = new THREE.MeshBasicMaterial({ color: rgbHex(ridgeRgb) });
+  if (job.shape === 'church') {
+    const tw = Math.min(w, d) * 0.32;
+    const towerH = H * 1.35;
+    addBox(group, tw, towerH, tw, wallMat, cx, 0, cz - d * 0.38, `${job.id}-tower`);
+    const spireH = H * 0.55;
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(tw * 0.55, spireH, 4), roofMat);
+    spire.position.set(cx, towerH + spireH / 2, cz - d * 0.38);
+    spire.rotation.y = Math.PI / 4;
+    spire.name = `${job.id}-spire`;
+    group.add(spire);
+    addBox(
+      group,
+      tw * 0.18,
+      H * 0.22,
+      tw * 0.18,
+      ridge,
+      cx,
+      towerH * 0.55,
+      cz - d * 0.38,
+      `${job.id}-ridge`,
+    );
+  } else if (job.shape === 'station') {
+    const clockH = H * 1.15;
+    const tw = Math.min(w, d) * 0.28;
+    addBox(group, tw, clockH, tw, wallMat, cx + w * 0.32, 0, cz, `${job.id}-clock`);
+    const drum = new THREE.Mesh(
+      new THREE.CylinderGeometry(tw * 0.38, tw * 0.38, H * 0.18, 12),
+      ridge,
+    );
+    drum.position.set(cx + w * 0.32, clockH + H * 0.08, cz);
+    drum.name = `${job.id}-clockface`;
+    group.add(drum);
+    addBox(group, w * 0.9, H * 0.12, d * 0.18, roofMat, cx, H * 0.72, cz, `${job.id}-shed`);
+  } else if (job.shape === 'theatre') {
+    addBox(group, w * 0.42, H * 1.45, d * 0.38, wallMat, cx, 0, cz + d * 0.22, `${job.id}-fly`);
+    addBox(
+      group,
+      w * 0.7,
+      H * 0.16,
+      d * 0.12,
+      ridge,
+      cx,
+      H * 0.42,
+      cz - d * 0.48,
+      `${job.id}-marquee`,
+    );
+  } else if (job.shape === 'civic') {
+    const domeR = Math.min(w, d) * 0.28;
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(domeR, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+      wallMat,
+    );
+    dome.position.set(cx, H, cz);
+    dome.name = `${job.id}-dome`;
+    group.add(dome);
+    const lantern = new THREE.Mesh(
+      new THREE.CylinderGeometry(domeR * 0.18, domeR * 0.22, H * 0.22, 8),
+      ridge,
+    );
+    lantern.position.set(cx, H + domeR * 0.55, cz);
+    lantern.name = `${job.id}-lantern`;
+    group.add(lantern);
+  }
 }
 
 export async function exportNoticedGlb(root: THREE.Object3D): Promise<ArrayBuffer> {
