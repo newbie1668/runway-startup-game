@@ -1,0 +1,562 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-06T07:42:53.282Z",
+  "finishedAt": "2026-09-06T07:42:58.460Z",
+  "baseUrl": "http://127.0.0.1:4318",
+  "clientClockStart": "2030-01-31T23:59:00Z",
+  "limitation": "WebGL2 is deliberately stubbed to null. These cases prove hydration and deterministic 2D fallback only; they do not report actual 3D or performance behaviour.",
+  "provenance": {
+    "gitSha": "f75d35b98be8a315e6c69e44b0caf4f9b36b76b5",
+    "dirty": false
+  },
+  "environment": {
+    "node": "v26.5.0",
+    "playwright": "1.63.0",
+    "browser": "153.0.8010.12"
+  },
+  "source": {
+    "visible-3d": {
+      "route": "/game?map=3d",
+      "status": 200,
+      "hash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrFirstParagraph": "--:-- — · — —",
+      "htmlPath": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/source-visible-3d.html"
+    },
+    "hidden-3d": {
+      "route": "/game?map=3d&chrome=0",
+      "status": 200,
+      "hash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrFirstParagraph": "--:-- — · — —",
+      "htmlPath": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/source-hidden-3d.html"
+    },
+    "explicit-2d": {
+      "route": "/game?map=2d",
+      "status": 200,
+      "hash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrFirstParagraph": "--:-- — · — —",
+      "htmlPath": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/source-explicit-2d.html"
+    }
+  },
+  "phases": [
+    {
+      "phase": "cold",
+      "route": "/game?map=3d",
+      "routeId": "visible-3d",
+      "viewport": {
+        "id": "desktop1440",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": "23:59 THU · JAN 31",
+      "rolledClientClock": "00:00 FRI · FEB 1",
+      "events": [],
+      "assertions": [
+        {
+          "label": "SSR clock is neutral",
+          "pass": true
+        },
+        {
+          "label": "initial clock",
+          "pass": true,
+          "value": "23:59 THU · JAN 31"
+        },
+        {
+          "label": "typical climate label",
+          "pass": true
+        },
+        {
+          "label": "January sunset",
+          "pass": true
+        },
+        {
+          "label": "search visible",
+          "pass": true
+        },
+        {
+          "label": "Farringdon search selection",
+          "pass": true,
+          "value": {
+            "value": "Farringdon"
+          }
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": "00:00 FRI · FEB 1"
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/visible-3d-desktop1440-cold.png",
+      "failed": false
+    },
+    {
+      "phase": "reload",
+      "route": "/game?map=3d",
+      "routeId": "visible-3d",
+      "viewport": {
+        "id": "desktop1440",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": "23:59 THU · JAN 31",
+      "rolledClientClock": "00:00 FRI · FEB 1",
+      "events": [],
+      "assertions": [
+        {
+          "label": "SSR clock is neutral",
+          "pass": true
+        },
+        {
+          "label": "initial clock",
+          "pass": true,
+          "value": "23:59 THU · JAN 31"
+        },
+        {
+          "label": "typical climate label",
+          "pass": true
+        },
+        {
+          "label": "January sunset",
+          "pass": true
+        },
+        {
+          "label": "search visible",
+          "pass": true
+        },
+        {
+          "label": "Farringdon search selection",
+          "pass": true,
+          "value": {
+            "value": "Farringdon"
+          }
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": "00:00 FRI · FEB 1"
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/visible-3d-desktop1440-reload.png",
+      "failed": false
+    },
+    {
+      "phase": "cold",
+      "route": "/game?map=3d",
+      "routeId": "visible-3d",
+      "viewport": {
+        "id": "mobile390",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": "23:59 THU · JAN 31",
+      "rolledClientClock": "00:00 FRI · FEB 1",
+      "events": [],
+      "assertions": [
+        {
+          "label": "SSR clock is neutral",
+          "pass": true
+        },
+        {
+          "label": "initial clock",
+          "pass": true,
+          "value": "23:59 THU · JAN 31"
+        },
+        {
+          "label": "typical climate label",
+          "pass": true
+        },
+        {
+          "label": "January sunset",
+          "pass": true
+        },
+        {
+          "label": "search visible",
+          "pass": true
+        },
+        {
+          "label": "Farringdon search selection",
+          "pass": true,
+          "value": {
+            "value": "Farringdon"
+          }
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": "00:00 FRI · FEB 1"
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/visible-3d-mobile390-cold.png",
+      "failed": false
+    },
+    {
+      "phase": "reload",
+      "route": "/game?map=3d",
+      "routeId": "visible-3d",
+      "viewport": {
+        "id": "mobile390",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": "23:59 THU · JAN 31",
+      "rolledClientClock": "00:00 FRI · FEB 1",
+      "events": [],
+      "assertions": [
+        {
+          "label": "SSR clock is neutral",
+          "pass": true
+        },
+        {
+          "label": "initial clock",
+          "pass": true,
+          "value": "23:59 THU · JAN 31"
+        },
+        {
+          "label": "typical climate label",
+          "pass": true
+        },
+        {
+          "label": "January sunset",
+          "pass": true
+        },
+        {
+          "label": "search visible",
+          "pass": true
+        },
+        {
+          "label": "Farringdon search selection",
+          "pass": true,
+          "value": {
+            "value": "Farringdon"
+          }
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": "00:00 FRI · FEB 1"
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/visible-3d-mobile390-reload.png",
+      "failed": false
+    },
+    {
+      "phase": "cold",
+      "route": "/game?map=3d&chrome=0",
+      "routeId": "hidden-3d",
+      "viewport": {
+        "id": "desktop1440",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/hidden-3d-desktop1440-cold.png",
+      "failed": false
+    },
+    {
+      "phase": "reload",
+      "route": "/game?map=3d&chrome=0",
+      "routeId": "hidden-3d",
+      "viewport": {
+        "id": "desktop1440",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/hidden-3d-desktop1440-reload.png",
+      "failed": false
+    },
+    {
+      "phase": "cold",
+      "route": "/game?map=3d&chrome=0",
+      "routeId": "hidden-3d",
+      "viewport": {
+        "id": "mobile390",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/hidden-3d-mobile390-cold.png",
+      "failed": false
+    },
+    {
+      "phase": "reload",
+      "route": "/game?map=3d&chrome=0",
+      "routeId": "hidden-3d",
+      "viewport": {
+        "id": "mobile390",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/hidden-3d-mobile390-reload.png",
+      "failed": false
+    },
+    {
+      "phase": "cold",
+      "route": "/game?map=2d",
+      "routeId": "explicit-2d",
+      "viewport": {
+        "id": "desktop1440",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/explicit-2d-desktop1440-cold.png",
+      "failed": false
+    },
+    {
+      "phase": "reload",
+      "route": "/game?map=2d",
+      "routeId": "explicit-2d",
+      "viewport": {
+        "id": "desktop1440",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/explicit-2d-desktop1440-reload.png",
+      "failed": false
+    },
+    {
+      "phase": "cold",
+      "route": "/game?map=2d",
+      "routeId": "explicit-2d",
+      "viewport": {
+        "id": "mobile390",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/explicit-2d-mobile390-cold.png",
+      "failed": false
+    },
+    {
+      "phase": "reload",
+      "route": "/game?map=2d",
+      "routeId": "explicit-2d",
+      "viewport": {
+        "id": "mobile390",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "sourceHtmlHash": "054ae28ab33fb4e376648d61f4ed5c504cfc91265abc0be6f408c57666cca912",
+      "ssrClockText": "--:-- — · — —",
+      "clientClockStart": "2030-01-31T23:59:00Z",
+      "initialClientClock": null,
+      "rolledClientClock": null,
+      "events": [],
+      "assertions": [
+        {
+          "label": "hidden HUD pane",
+          "pass": true
+        },
+        {
+          "label": "hidden HUD search",
+          "pass": true
+        },
+        {
+          "label": "fast-forward clock rollover",
+          "pass": true,
+          "value": null
+        }
+      ],
+      "screenshot": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R2/browser/screenshots/explicit-2d-mobile390-reload.png",
+      "failed": false
+    }
+  ],
+  "failures": [],
+  "summary": {
+    "phases": 12,
+    "expectedPhases": 12,
+    "failedPhases": 0,
+    "capturedBrowserErrors": 0,
+    "failures": 0
+  }
+}

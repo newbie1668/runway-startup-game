@@ -111,11 +111,11 @@ if (errors.length) throw new Error(errors.join('\n'));
 
 **Owner:** compact UI worker. **Depends:** R0. **Allowed files:** `components/game/CityHud.tsx`, `scripts/test-ui.tsx`, browser runner/fixtures. **Interfaces:** preserve `CityHud` props, `londonClock(Date)`, `londonClimate(Date)` and search callbacks.
 
-- [ ] Reproduce React #418 with the production build, a fixed server render and a different client clock. Confirm the differing element before editing; `new Date()` in the HUD is a hypothesis with direct source evidence.
-- [ ] Make the server and initial client snapshot identical. The existing `useSyncExternalStore` pattern in `GameApp` is the model: subscribe to a 30-second clock update; use an initially empty/neutral server clock and render real time only after hydration. Keep hooks unconditional even when `hide` is true.
-- [ ] Keep the city search and game flow unchanged. If keeping the monthly climate display, label it as typical monthly conditions so it is not mistaken for live weather/AQI; no new data calls.
-- [ ] Add a real hydration regression to the browser runner (including `chrome=0`, visible chrome, a reload and a clock rollover). The existing SSR markup check alone cannot prove this fix.
-- [ ] Run focused and required checks; submit matching screenshots and empty hydration-error logs.
+- [x] Reproduce React #418 with the production build, a fixed server render and a different client clock. Confirm the differing element before editing; `new Date()` in the HUD is a hypothesis with direct source evidence.
+- [x] Make the server and initial client snapshot identical. The existing `useSyncExternalStore` pattern in `GameApp` is the model: subscribe to a 30-second clock update; use an initially empty/neutral server clock and render real time only after hydration. Keep hooks unconditional even when `hide` is true.
+- [x] Keep the city search and game flow unchanged. If keeping the monthly climate display, label it as typical monthly conditions so it is not mistaken for live weather/AQI; no new data calls.
+- [x] Add a real hydration regression to the browser runner (including `chrome=0`, visible chrome, a reload and a clock rollover). The existing SSR markup check alone cannot prove this fix.
+- [x] Run focused and required checks; submit matching screenshots and empty hydration-error logs.
 
 **Acceptance:** no #418 across the test cases; clock updates after mount; HUD search and server rendering work.
 

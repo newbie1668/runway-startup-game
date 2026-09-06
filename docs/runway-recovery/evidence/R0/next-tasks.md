@@ -1,5 +1,7 @@
 # Next execution packets
 
+Update 6 September 2026: R2 is [completed and verified](../R2/README.md). Do not redispatch it. R1 is next; read the [current preparation](../R1/preparation.md) before finalizing a worker packet. Original R2 assignment is retained below as history.
+
 These are the next two runtime assignments selected from the recorded baseline. The lead supplies a fresh isolated worktree and the exact current reviewed integration SHA at dispatch, as required by the agent contract. Do not use a moving branch name as a substitute or assume another worker's files are available on the task branch. No Foo input is required to start preparation.
 
 ## R2 — hydration error
