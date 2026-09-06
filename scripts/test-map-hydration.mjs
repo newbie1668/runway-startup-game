@@ -87,10 +87,17 @@ async function runPhase(browser, route, device, source, page, phase, clock) {
     await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout });
   } catch (error) { recordFailure(entry, 'navigation and 2D ready marker', error); }
 
-  if (route.visible) entry.initialClientClock = await page.locator('[data-city-hud="pane"] > p:first-child').textContent().catch(() => null);
   if (route.visible) {
     await assertion(entry, 'SSR clock is neutral', () => check(source.ssrFirstParagraph ?? '').toContain('--:--'));
-    await assertion(entry, 'initial clock', () => check(normalize(entry.initialClientClock ?? '')).toContain('23:59 THU · JAN 31'));
+    const clockLocator = page.locator('[data-city-hud="pane"] > p:first-child');
+    await assertion(entry, 'initial clock', async () => {
+      try {
+        await check(clockLocator).toContainText('23:59 THU · JAN 31');
+      } finally {
+        entry.initialClientClock = await clockLocator.textContent().catch(() => null);
+      }
+      return normalize(entry.initialClientClock ?? '');
+    });
     await assertion(entry, 'typical climate label', () => check(page.getByText('Typical monthly conditions')).toBeAttached());
     await assertion(entry, 'January sunset', () => check(page.locator('[data-city-hud="pane"]').getByText('16:18')).toBeAttached());
     await assertion(entry, 'search visible', () => check(page.locator('#city-search')).toBeVisible());
@@ -145,6 +152,8 @@ try {
     let context;
     try {
       context = await browser.newContext({ ...device, locale: 'en-GB', colorScheme: 'light' });
+      context.setDefaultTimeout(timeout);
+      context.setDefaultNavigationTimeout(timeout);
       const page = await context.newPage();
       await page.addInitScript(() => {
         const original = HTMLCanvasElement.prototype.getContext;
