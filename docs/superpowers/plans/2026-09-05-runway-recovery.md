@@ -88,7 +88,7 @@ if (errors.length) throw new Error(errors.join('\n'));
 
 ## R1 — Expose actual renderer state and costs
 
-**Owner:** runtime worker. **Depends:** R0. **Allowed files:** new `lib/game/mapDiagnostics.ts`, new `lib/game/render3d/diagnostics.ts`, `lib/game/render3d/CityRenderer3D.ts`, `components/game/MapCanvas.tsx`, new `scripts/test-map-diagnostics.ts`, browser runner. **Interfaces:** consume existing `IMapRenderer` and queue state; produce C1 `MapDiagnostics` and read-only `MapQaBridge`.
+**Owner:** runtime worker. **Depends:** R0. **Allowed files:** new `lib/game/mapDiagnostics.ts`, new `lib/game/render3d/diagnostics.ts`, `lib/game/render3d/CityRenderer3D.ts`, `components/game/MapCanvas.tsx`, new `scripts/test-map-diagnostics.ts`, focused geometry/host tests, `lib/game/render3d/factory.ts`, browser runner. **Interfaces:** consume existing `IMapRenderer` and queue state; produce C1 `MapDiagnostics` and read-only `MapQaBridge`.
 
 - [ ] Add C1's exact types. Implement the debug reporter and an optional callback from 3D/2D lifecycle to `MapCanvas`; do not expose Three.js objects through the bridge.
 - [ ] Count job completion/failure, active mode, geometry bytes, render counters and first useful frame. Bounded error history keeps the latest 20 errors plus a total count. Do not perform a scene traversal every frame.
