@@ -31,6 +31,9 @@ export function indexCity(data: CityData, cellSizeM: number): CityIndex {
     throw new RangeError('cellSizeM must be a finite positive number');
   }
   const cellWorld = cellSizeM * METERS_TO_WORLD;
+  if (!Number.isFinite(cellWorld) || cellWorld <= 0) {
+    throw new RangeError('cellSizeM is too small to produce a positive world cell size');
+  }
   const working = new Map<CellId, { bounds: BoundsXZ; indices: number[] }>();
 
   data.buildings.forEach((building, buildingIndex) => {

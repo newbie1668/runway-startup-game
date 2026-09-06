@@ -37,6 +37,7 @@ check('empty data produces an empty stable index', () => {
 check('rejects invalid cell sizes and malformed footprints', () => {
   assert.throws(() => indexCity(emptyData(), 0), RangeError);
   assert.throws(() => indexCity(emptyData(), Number.NaN), RangeError);
+  assert.throws(() => indexCity(emptyData(), Number.MIN_VALUE), RangeError);
   const malformed = emptyData();
   malformed.buildings.push({
     ...building([
@@ -121,6 +122,7 @@ check('every committed binary building has exactly one owner cell', () => {
   );
   const index = indexCity(data, 400);
   const owners = index.cells;
+  assert.equal(data.buildings.length, 113_569);
   const seen = new Set<number>();
   for (const cell of owners.values())
     for (const buildingIndex of cell.buildingIndices) {
