@@ -124,7 +124,7 @@ async function pollProduction(page, entry) {
     try { entry.snapshots.push({ atMs: Date.now() - started, ...(await snapshot(page)) }); }
     catch (error) { entry.errors.push({ stage: 'snapshot', message: error.message }); }
     const latest = entry.snapshots.at(-1);
-    if ((latest?.snapshot?.state === 'ready' || latest?.snapshot?.state === 'degraded') && Date.now() - started >= 5_000) return;
+    if ((latest?.snapshot?.state === 'ready' || latest?.snapshot?.state === 'degraded') && fiveSecondScreenshot) return;
     await sleep(Math.min(750, Math.max(0, 30_000 - (Date.now() - started))));
   }
   if (!fiveSecondScreenshot) entry.screenshots.push(await screenshot(page, `${slug(entry.id)}-5s`));
