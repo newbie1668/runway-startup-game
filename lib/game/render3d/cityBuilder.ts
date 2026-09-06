@@ -1905,7 +1905,7 @@ function fillParkGrid(
   colors: number[],
   indices: number[],
   ring: { x: number; z: number }[],
-  water: { x: number; z: number }[][],
+  water: WaterRing[],
   y: number,
   base: THREE.Color,
   dark: THREE.Color,
@@ -1980,7 +1980,7 @@ function emitOsmParkTris(
   indices: number[],
   ring: { x: number; z: number }[],
   park: CityPoly,
-  water: { x: number; z: number }[][],
+  water: WaterRing[],
   y: number,
   base: THREE.Color,
   dark: THREE.Color,
@@ -2444,20 +2444,39 @@ function pointInRing(x: number, z: number, ring: { x: number; z: number }[]): bo
   return inside;
 }
 
-function waterRings(cityData: CityData): { x: number; z: number }[][] {
+type WaterRing = {
+  points: { x: number; z: number }[];
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+function waterRings(cityData: CityData): WaterRing[] {
   return cityData.water.map((poly) => {
     const n = poly.verts.length / 2;
-    const ring = new Array<{ x: number; z: number }>(n);
+    const points = new Array<{ x: number; z: number }>(n);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
     for (let i = 0; i < n; i++) {
-      ring[i] = { x: dequantizeX(poly.verts[i * 2]!), z: dequantizeY(poly.verts[i * 2 + 1]!) };
+      const x = dequantizeX(poly.verts[i * 2]!);
+      const z = dequantizeY(poly.verts[i * 2 + 1]!);
+      points[i] = { x, z };
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
     }
-    return ring;
+    return { points, minX, maxX, minZ, maxZ };
   });
 }
 
-function pointOverWater(x: number, z: number, rings: { x: number; z: number }[][]): boolean {
+function pointOverWater(x: number, z: number, rings: WaterRing[]): boolean {
   for (const ring of rings) {
-    if (pointInRing(x, z, ring)) return true;
+    if (x < ring.minX || x > ring.maxX || z < ring.minZ || z > ring.maxZ) continue;
+    if (pointInRing(x, z, ring.points)) return true;
   }
   return false;
 }
@@ -2716,6 +2735,20 @@ export type CrossingSpan = {
   pts: [{ x: number; z: number }, { x: number; z: number }];
   tier: number;
 };
+
+// CityData is decoded once and consumed immutably by the renderer. Keep this
+// cache weak so a disposed city and its derived crossing geometry can collect.
+const riverCrossingCache = new WeakMap<CityData, CrossingSpan[]>();
+
+function copyCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
+  return spans.map((span) => ({
+    tier: span.tier,
+    pts: [
+      { x: span.pts[0].x, z: span.pts[0].z },
+      { x: span.pts[1].x, z: span.pts[1].z },
+    ],
+  }));
+}
 
 function overlapEndpoints(
   a: { x: number; z: number },
@@ -3053,6 +3086,8 @@ function collectRunEnds(
 }
 
 export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
+  const cached = riverCrossingCache.get(cityData);
+  if (cached) return copyCrossingSpans(cached);
   const rings = waterRings(cityData);
   const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
   const approaches = collectRoadApproaches(cityData, overWater);
@@ -3093,7 +3128,9 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
   }
   // Named seeds only. Unseeded OSM stitches were Rotherhithe / Blackwall
   // tunnels, rail decks, and dock leftovers — leftover slabs on the river.
-  return dedupeCrossingSpans(seeded);
+  const result = dedupeCrossingSpans(seeded);
+  riverCrossingCache.set(cityData, result);
+  return copyCrossingSpans(result);
 }
 
 /** Y rotation for a +X-modelled pier group so +X follows the nearest carriageway span. */
