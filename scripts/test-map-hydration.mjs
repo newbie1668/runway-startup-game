@@ -101,13 +101,13 @@ async function runPhase(browser, route, device, source, page, phase, clock) {
     await assertion(entry, 'typical climate label', () => check(page.getByText('Typical monthly conditions')).toBeAttached());
     await assertion(entry, 'January sunset', () => check(page.locator('[data-city-hud="pane"]').getByText('16:18')).toBeAttached());
     await assertion(entry, 'search visible', () => check(page.locator('#city-search')).toBeVisible());
-    await assertion(entry, 'Fitzrovia search selection', async () => {
+    await assertion(entry, 'Farringdon search selection', async () => {
       const input = page.locator('#city-search');
-      await input.fill('Fitzrovia');
-      const matches = page.locator('[role="listbox"] button').filter({ hasText: /^Fitzrovia\s+Neighbourhood$/ });
+      await input.fill('Farringdon');
+      const matches = page.getByRole('listbox').getByRole('button', { name: 'Farringdon Neighbourhood', exact: true });
       await check(matches).toHaveCount(1);
       await matches.click();
-      await check(input).toHaveValue('Fitzrovia');
+      await check(input).toHaveValue('Farringdon');
       await check(page.locator('[role="listbox"]')).toHaveCount(0);
       return { value: await input.inputValue() };
     });
