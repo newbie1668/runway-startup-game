@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { arch, cpus, platform, release } from 'node:os';
 import { chromium } from '@playwright/test';
+const require = createRequire(import.meta.url);
 
 const baseUrl = process.env.RUNWAY_BASE_URL ?? 'http://127.0.0.1:4318';
 const evidenceDir = resolve(process.env.RUNWAY_EVIDENCE_DIR ?? 'docs/runway-recovery/evidence/R1/browser');
@@ -21,6 +23,7 @@ const definitions = [
   { id: 'B2-3d-citystreet', path: '/game?map=3d&look=citystreet&chrome=0&qa=1', kind: 'production' },
   { id: 'B3-3d-mid', path: '/game?map=3d&view=mid&chrome=0&qa=1', kind: 'production' },
 ];
+const invalidSelections = selected?.filter((id) => !definitions.some((item) => item.id === id)) ?? [];
 const cases = selected?.length ? definitions.filter((item) => selected.includes(item.id)) : definitions;
 const result = {
   schema: 1,
@@ -30,7 +33,7 @@ const result = {
   viewport: { ...viewport, dpr: 1 },
   routes: cases.map(({ id, path }) => ({ id, path })),
   provenance: { gitSha: shell('git', ['rev-parse', 'HEAD']), dirty: shell('git', ['status', '--porcelain']) || false },
-  environment: { node: process.version, pnpm: shell('pnpm', ['--version']), os: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? 'unknown' }, browser: null },
+  environment: { node: process.version, pnpm: shell('pnpm', ['--version']), playwright: require('@playwright/test/package.json').version, os: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? 'unknown' }, browser: null },
   cases: [],
   failures: [],
 };
@@ -59,16 +62,20 @@ async function evaluate(page, fn, arg) {
 }
 function monitor(page) {
   const events = [];
-  page.on('console', (message) => { if (message.type() === 'error') events.push({ type: 'console.error', message: message.text() }); });
-  page.on('pageerror', (error) => events.push({ type: 'pageerror', message: error.message }));
-  page.on('crash', () => events.push({ type: 'crash', message: 'page crashed' }));
-  page.on('requestfailed', (request) => events.push({ type: 'requestfailed', url: request.url(), message: request.failure()?.errorText ?? 'unknown' }));
-  page.on('response', (response) => { if (response.status() >= 400) events.push({ type: 'http', url: response.url(), status: response.status() }); });
+  const phase = { cleanup: false };
+  const add = (event) => events.push({ ...event, stage: phase.cleanup ? 'cleanup' : 'runtime' });
+  page.on('console', (message) => { if (message.type() === 'error') add({ type: 'console.error', message: message.text(), location: message.location() }); });
+  page.on('pageerror', (error) => add({ type: 'pageerror', message: error.message }));
+  page.on('crash', () => add({ type: 'crash', message: 'page crashed' }));
+  page.on('requestfailed', (request) => add({ type: 'requestfailed', url: request.url(), message: request.failure()?.errorText ?? 'unknown' }));
+  page.on('response', (response) => { if (response.status() >= 400) add({ type: 'http', url: response.url(), status: response.status() }); });
+  events.phase = phase;
   return events;
 }
 async function screenshot(page, name) {
-  try { await page.screenshot({ path: join(screenshotsDir, `${name}.png`), timeout: 5_000, animations: 'disabled' }); return null; }
-  catch (error) { return error.message; }
+  const path = join(screenshotsDir, `${name}.png`);
+  try { await page.screenshot({ path, timeout: 5_000, animations: 'disabled' }); return { path, ok: true, capturedAt: new Date().toISOString() }; }
+  catch (error) { return { path, ok: false, error: error.message, capturedAt: new Date().toISOString() }; }
 }
 async function snapshot(page) {
   return evaluate(page, () => {
@@ -95,14 +102,15 @@ function expectedEvents(events, kind) {
   return events.filter((event) => {
     if (kind !== 'city-503') return false;
     if (event.type === 'http' && event.status === 503 && event.url.endsWith('/map/london-city.bin')) return true;
-    if (event.type === 'console.error' && /load:city|london-city\.bin|503/i.test(event.message)) return true;
+    if (event.type === 'console.error' && event.location?.url?.endsWith('/map/london-city.bin') && /503|failed|error/i.test(event.message)) return true;
     return false;
   });
 }
 function assessErrors(entry, events, kind) {
   const expected = expectedEvents(events, kind);
   entry.expectedFixtureEvents = expected;
-  entry.unexpectedEvents = events.filter((event) => !expected.includes(event));
+  entry.cleanupEvents = events.filter((event) => event.stage === 'cleanup');
+  entry.unexpectedEvents = events.filter((event) => event.stage !== 'cleanup' && !expected.includes(event));
   check(entry, 'no unexpected browser errors', entry.unexpectedEvents.length === 0, entry.unexpectedEvents);
 }
 async function pollProduction(page, entry) {
@@ -116,7 +124,7 @@ async function pollProduction(page, entry) {
     try { entry.snapshots.push({ atMs: Date.now() - started, ...(await snapshot(page)) }); }
     catch (error) { entry.errors.push({ stage: 'snapshot', message: error.message }); }
     const latest = entry.snapshots.at(-1);
-    if (latest?.snapshot?.state === 'ready' || latest?.snapshot?.state === 'degraded') return;
+    if ((latest?.snapshot?.state === 'ready' || latest?.snapshot?.state === 'degraded') && Date.now() - started >= 5_000) return;
     await sleep(Math.min(750, Math.max(0, 30_000 - (Date.now() - started))));
   }
   if (!fiveSecondScreenshot) entry.screenshots.push(await screenshot(page, `${slug(entry.id)}-5s`));
@@ -151,7 +159,7 @@ async function runCase(definition) {
       let state = await snapshot(page); check(entry, '2D ready marker', state.mapReady === '1', state); check(entry, 'QA bridge initially absent', !state.bridge, state);
       await evaluate(page, () => history.pushState({}, '', `${location.pathname}?map=2d&qa=1`));
       state = await waitForSnapshot(page, (value) => value.bridge); check(entry, 'QA bridge appears after pushState', state.bridge, state);
-      check(entry, '2D fallback mode', state.mapMode === '2d' && state.mapState === 'fallback', state); check(entry, '2D first useful frame', state.snapshot?.firstUsefulFrameMs >= 0, state.snapshot);
+      check(entry, '2D fallback mode', state.mapMode === '2d' && state.mapState === 'fallback', state); check(entry, '2D first useful frame', Number.isFinite(state.snapshot?.firstUsefulFrameMs) && state.snapshot.firstUsefulFrameMs >= 0, state.snapshot);
       check(entry, 'frozen QA bridge and snapshot', await evaluate(page, () => { const bridge = window.__runwayQA; const value = bridge?.snapshot?.(); return Boolean(bridge && Object.isFrozen(bridge) && value && Object.isFrozen(value) && Object.isFrozen(value.errors)); }), state);
       check(entry, 'camera is reported', Boolean(state.snapshot?.camera), state.snapshot); check(entry, 'bridge snapshot has no errors', state.snapshot?.errorCount === 0, state.snapshot);
       await evaluate(page, () => history.pushState({}, '', `${location.pathname}?map=2d`)); state = await waitForSnapshot(page, (value) => !value.bridge); check(entry, 'QA bridge disappears after toggle off', !state.bridge, state);
@@ -162,27 +170,30 @@ async function runCase(definition) {
     } else {
       await page.locator('[data-map-ready="1"]').waitFor({ state: 'attached', timeout: navigationTimeout }); const state = await snapshot(page); entry.screenshots.push(await screenshot(page, `${slug(definition.id)}-final`)); check(entry, 'fallback ready marker', state.mapReady === '1', state); check(entry, '2D fallback mode', state.mapMode === '2d' && state.mapState === 'fallback' && state.snapshot?.mode === '2d', state); check(entry, 'fallback reason', definition.kind === 'webgl2-unavailable' ? state.snapshot?.fallbackReason === 'WebGL2 unavailable' : state.snapshot?.fallbackReason?.length > 0, state.snapshot); check(entry, '2D first useful frame', Number.isFinite(state.snapshot?.firstUsefulFrameMs) && state.snapshot.firstUsefulFrameMs >= 0, state.snapshot); if (definition.kind === 'city-503') check(entry, 'essential city load error', state.snapshot?.errors?.some((error) => error.jobId === 'load:city' && error.essential && /HTTP 503|503/.test(error.message)), state.snapshot); entry.final = state;
     }
-    assessErrors(entry, events, definition.kind);
   } catch (error) { entry.failed = true; entry.errors.push({ stage: 'runner', message: error.message }); }
   finally {
-    clearTimeout(deadline); entry.finishedAt = new Date().toISOString(); entry.events = [...events];
+    if (events.phase) events.phase.cleanup = true;
     if (context) await withDeadline(context.close(), 3_000, 'context close timed out').catch((error) => entry.errors.push({ stage: 'cleanup', message: error.message }));
     if (browser) await withDeadline(browser.close(), 3_000, 'browser close timed out').catch((error) => entry.errors.push({ stage: 'cleanup', message: error.message }));
     if (server) {
       try { await withDeadline(server.close(), 3_000, 'server close timed out'); }
       catch (error) { entry.errors.push({ stage: 'cleanup', message: error.message }); try { await withDeadline(Promise.resolve(server.kill()), 3_000, 'server kill timed out'); } catch (killError) { entry.errors.push({ stage: 'cleanup-kill', message: killError.message }); } }
     }
+    clearTimeout(deadline); entry.finishedAt = new Date().toISOString(); entry.events = [...events]; assessErrors(entry, entry.events, definition.kind);
+    for (const capture of entry.screenshots) if (!capture?.ok) { check(entry, 'screenshot captured', false, capture); }
   }
   entry.failed ||= timedOut || entry.errors.some((error) => error.stage !== 'cleanup' && error.stage !== 'cleanup-kill') || entry.assertions.some((assertion) => !assertion.pass);
   return entry;
 }
 
 await mkdir(screenshotsDir, { recursive: true });
+if (invalidSelections.length) result.failures.push({ type: 'invalid-case-selection', ids: invalidSelections });
 try { for (const definition of cases) result.cases.push(await runCase(definition)); }
 catch (error) { result.failures.push({ type: 'runner', message: error.message }); }
 finally {
   result.finishedAt = new Date().toISOString();
   result.failures.push(...result.cases.filter((entry) => entry.failed).map((entry) => ({ type: 'case', id: entry.id })));
+  if (result.cases.length !== cases.length) result.failures.push({ type: 'incomplete-cases', expected: cases.length, actual: result.cases.length });
   result.summary = { cases: result.cases.length, expectedCases: cases.length, failed: result.failures.length, incomplete: result.cases.filter((entry) => !entry.finishedAt).length };
   result.exitStatus = result.failures.length ? 1 : 0;
   await saveJson(join(evidenceDir, 'map-diagnostics-browser.json'), result);
