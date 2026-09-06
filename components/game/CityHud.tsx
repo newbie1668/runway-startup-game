@@ -119,10 +119,10 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
             {clock === null ? '— · — —' : `${clock.weekday} · ${clock.month} ${clock.day}`}
           </span>
         </p>
-        <dl className="mt-2 space-y-0.5 text-[11px] text-slate-600">
-          <div className="mb-1 text-[9px] font-semibold tracking-wide text-slate-500">
+        <p className="mt-2 mb-1 text-[9px] font-semibold tracking-wide text-slate-500">
             Typical monthly conditions
-          </div>
+        </p>
+        <dl className="space-y-0.5 text-[11px] text-slate-600">
           <div className="flex justify-between gap-2">
             <dt>Sunset</dt>
             <dd className="font-medium text-slate-800">{climate?.sunset ?? '—'}</dd>
