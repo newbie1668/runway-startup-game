@@ -10,6 +10,7 @@ import React, { type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { metadata as gameMetadata } from '../app/game/page';
 import { GameApp } from '../components/game/GameApp';
+import { CityHud } from '../components/game/CityHud';
 import { DilemmaModal, EndOverlay, MoveModal } from '../components/game/Modals';
 import { SetupOverlay } from '../components/game/SetupOverlay';
 import { Sidebar } from '../components/game/Sidebar';
@@ -25,6 +26,27 @@ function check(label: string, fn: () => void): void {
 
 const noop = () => undefined;
 const SetupForTest = SetupOverlay as ComponentType<Record<string, unknown>>;
+
+function cityHudMarkupAt(date: string): string {
+  const nativeDate = globalThis.Date;
+  const fixedDate = new nativeDate(date);
+  globalThis.Date = new Proxy(nativeDate, {
+    apply(target, thisArg, args) {
+      return Reflect.apply(target, thisArg, args);
+    },
+    construct(target, args, newTarget) {
+      if (args.length === 0) return new nativeDate(fixedDate);
+      return Reflect.construct(target, args, newTarget);
+    },
+  }) as DateConstructor;
+  try {
+    return renderToStaticMarkup(
+      <CityHud hide={false} screen="title" game={null} onFlyTo={noop} />,
+    );
+  } finally {
+    globalThis.Date = nativeDate;
+  }
+}
 
 function setupMarkup(step: 'identity' | 'hq'): string {
   return renderToStaticMarkup(
@@ -158,6 +180,20 @@ check('the 3D map carries an SFSIM glass HUD with offline place search', () => {
   assert.ok(searchAt > 0, 'search HUD should render');
   const searchTag = html.slice(html.lastIndexOf('<div', searchAt), html.indexOf('>', searchAt) + 1);
   assert.match(searchTag, /pointer-events-none/, 'search wrapper must not swallow map pan/zoom');
+});
+
+check('the city HUD hydrates a neutral clock and keeps SSR date independent', () => {
+  const january = cityHudMarkupAt('2030-01-15T12:00:00Z');
+  const july = cityHudMarkupAt('2030-07-15T12:00:00Z');
+  assert.equal(january, july, 'SSR HUD markup must not depend on the server clock');
+  assert.match(january, /--:--/);
+  assert.match(january, /Typical monthly conditions/);
+  assert.match(january, />—</);
+  assert.equal(
+    renderToStaticMarkup(<CityHud hide game={null} screen="title" onFlyTo={noop} />),
+    '',
+    'hidden HUD should remain empty',
+  );
 });
 
 check('the play sidebar is a glass panel with label/value rows', () => {

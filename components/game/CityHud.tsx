@@ -6,7 +6,7 @@
  * Does not call weather APIs. Game picks and info cards stay on the overlay canvas.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { fmtMoney } from '@/lib/game/format';
 import { londonClimate, londonClock, searchPlaces, type PlaceHit } from '@/lib/game/mapSearch';
 import { STAGES } from '@/lib/game/content';
@@ -22,6 +22,38 @@ const KIND_LABEL: Record<PlaceHit['kind'], string> = {
   park: 'Park',
 };
 
+let cachedClockTimestamp: number | null = null;
+const clockListeners = new Set<() => void>();
+let clockInterval: number | undefined;
+
+function getClockSnapshot(): number | null {
+  return cachedClockTimestamp;
+}
+
+function getServerClockSnapshot(): null {
+  return null;
+}
+
+function updateClock(): void {
+  cachedClockTimestamp = Date.now();
+  for (const listener of clockListeners) listener();
+}
+
+function subscribeClock(listener: () => void): () => void {
+  clockListeners.add(listener);
+  updateClock();
+  if (clockInterval === undefined) clockInterval = window.setInterval(updateClock, 30_000);
+
+  return () => {
+    clockListeners.delete(listener);
+    if (clockListeners.size === 0 && clockInterval !== undefined) {
+      window.clearInterval(clockInterval);
+      clockInterval = undefined;
+      cachedClockTimestamp = null;
+    }
+  };
+}
+
 interface Props {
   hide: boolean;
   screen: 'title' | 'setup' | 'play';
@@ -30,15 +62,14 @@ interface Props {
 }
 
 export function CityHud({ hide, screen, game, onFlyTo }: Props) {
-  const [now, setNow] = useState(() => new Date());
+  const clockTimestamp = useSyncExternalStore(
+    subscribeClock,
+    getClockSnapshot,
+    getServerClockSnapshot,
+  );
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -48,8 +79,14 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  const clock = useMemo(() => londonClock(now), [now]);
-  const climate = useMemo(() => londonClimate(now), [now]);
+  const clock = useMemo(
+    () => (clockTimestamp === null ? null : londonClock(new Date(clockTimestamp))),
+    [clockTimestamp],
+  );
+  const climate = useMemo(
+    () => (clockTimestamp === null ? null : londonClimate(new Date(clockTimestamp))),
+    [clockTimestamp],
+  );
   const hits = useMemo(() => searchPlaces(query, 8), [query]);
 
   const fly = useCallback(
@@ -64,7 +101,11 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
   if (hide) return null;
 
   const aqiTone =
-    climate.aqi <= 50 ? 'bg-emerald-400/90 text-emerald-950' : 'bg-amber-300/90 text-amber-950';
+    climate === null
+      ? 'bg-slate-300/90 text-slate-700'
+      : climate.aqi <= 50
+        ? 'bg-emerald-400/90 text-emerald-950'
+        : 'bg-amber-300/90 text-amber-950';
 
   return (
     <>
@@ -73,31 +114,34 @@ export function CityHud({ hide, screen, game, onFlyTo }: Props) {
         data-city-hud="pane"
       >
         <p className="text-[13px] font-semibold tracking-wide text-slate-800">
-          {clock.time}{' '}
+          {clock?.time ?? '--:--'}{' '}
           <span className="font-medium text-slate-600">
-            {clock.weekday} · {clock.month} {clock.day}
+            {clock === null ? '— · — —' : `${clock.weekday} · ${clock.month} ${clock.day}`}
           </span>
         </p>
         <dl className="mt-2 space-y-0.5 text-[11px] text-slate-600">
+          <div className="mb-1 text-[9px] font-semibold tracking-wide text-slate-500">
+            Typical monthly conditions
+          </div>
           <div className="flex justify-between gap-2">
             <dt>Sunset</dt>
-            <dd className="font-medium text-slate-800">{climate.sunset}</dd>
+            <dd className="font-medium text-slate-800">{climate?.sunset ?? '—'}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt>Air</dt>
             <dd className="font-medium text-slate-800">
-              {climate.tempC}° {climate.cond}
+              {climate === null ? '—' : `${climate.tempC}° ${climate.cond}`}
             </dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt>Wind</dt>
-            <dd className="font-medium text-slate-800">{climate.wind}</dd>
+            <dd className="font-medium text-slate-800">{climate?.wind ?? '—'}</dd>
           </div>
           <div className="flex items-center justify-between gap-2">
             <dt>AQI</dt>
             <dd>
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${aqiTone}`}>
-                {climate.aqi}
+                {climate?.aqi ?? '—'}
               </span>
             </dd>
           </div>
