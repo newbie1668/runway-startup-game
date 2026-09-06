@@ -72,6 +72,45 @@ check('multistep and constant clock bounded', () => {
   assert.equal(stuck.drain(4, () => 0).pending, 1);
   assert.equal(calls, 1);
 });
+check('keeps an incomplete head ahead of later jobs across drains', () => {
+  const c = clock();
+  const log: string[] = [];
+  const s = createBuildScheduler();
+  s.enqueue(job('head', 1, 3, c, log));
+  s.enqueue(job('follower', 1, 1, c, log));
+  assert.deepEqual(s.drain(3, c.now).completed, []);
+  assert.deepEqual(log, ['head']);
+  assert.deepEqual(s.drain(3, c.now).completed, []);
+  assert.deepEqual(log, ['head', 'head']);
+  assert.deepEqual(s.drain(3, c.now).completed, ['head']);
+  assert.deepEqual(s.drain(3, c.now).completed, ['follower']);
+});
+check('constant clocks still drain multiple completed jobs', () => {
+  const s = createBuildScheduler();
+  const log: string[] = [];
+  s.enqueue({
+    id: 'first',
+    generation: 1,
+    essential: false,
+    step: () => {
+      log.push('first');
+      return true;
+    },
+    cancel() {},
+  });
+  s.enqueue({
+    id: 'second',
+    generation: 1,
+    essential: false,
+    step: () => {
+      log.push('second');
+      return true;
+    },
+    cancel() {},
+  });
+  assert.deepEqual(s.drain(4, () => 0).completed, ['first', 'second']);
+  assert.deepEqual(log, ['first', 'second']);
+});
 check('reports failures and cleanup errors while continuing', () => {
   const c = clock();
   const cleanups: string[] = [];

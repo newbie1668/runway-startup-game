@@ -105,10 +105,10 @@ export function createBuildScheduler(): BuildScheduler {
             if (isComplete) {
               pending.delete(job.id);
               completed.push(job.id);
-            } else queue.push(job);
+            } else queue.unshift(job);
           }
           const afterStep = now();
-          if (afterStep <= beforeStart) break;
+          if (!isComplete && pending.get(job.id) === job && afterStep <= beforeStart) break;
         }
         return { completed, failed, pending: pending.size };
       } finally {
