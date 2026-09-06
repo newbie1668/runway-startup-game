@@ -65,10 +65,13 @@ function addMaterialTextures(material: THREE.Material, resources: Set<Disposable
 function collectSceneResources(root: THREE.Object3D): Set<Disposable> {
   const resources = new Set<Disposable>();
   root.traverse((object) => {
-    if (object instanceof THREE.Mesh || (object as THREE.Object3D & { isMesh?: boolean }).isMesh === true) {
-      const mesh = object as THREE.Mesh;
-      resources.add(mesh.geometry);
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const renderable = object as THREE.Object3D & {
+      isMesh?: boolean; isLine?: boolean; isSprite?: boolean;
+      geometry?: Disposable; material?: THREE.Material | THREE.Material[];
+    };
+    if (object instanceof THREE.Mesh || renderable.isMesh === true || renderable.isLine === true || renderable.isSprite === true) {
+      if (renderable.geometry) resources.add(renderable.geometry);
+      const materials = Array.isArray(renderable.material) ? renderable.material : [renderable.material];
       for (const material of materials) if (material) {
         resources.add(material);
         addMaterialTextures(material, resources);
@@ -91,11 +94,13 @@ function releaseAll(releases: Array<() => void>): void {
 
 export function retainSceneResources(pool: ResourcePool, root: THREE.Object3D): () => void {
   const releases: Array<() => void> = [];
-  try {
-    for (const resource of collectSceneResources(root)) releases.push(pool.retain(resource));
-  } catch (error) {
-    try { releaseAll(releases); } catch (cleanup) { throw new AggregateError([error, cleanup], 'Scene resource retention failed'); }
-    throw error;
+  const errors: unknown[] = [];
+  for (const resource of collectSceneResources(root)) {
+    try { releases.push(pool.retain(resource)); } catch (error) { errors.push(error); }
+  }
+  if (errors.length) {
+    try { releaseAll(releases); } catch (cleanup) { errors.push(cleanup); }
+    throw new AggregateError(errors, 'Scene resource retention failed');
   }
   let released = false;
   return () => {

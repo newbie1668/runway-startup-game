@@ -46,6 +46,19 @@ const shaderRelease = retainSceneResources(shaderPool, shaderRoot);
 shaderRelease();
 shaderPool.dispose();
 
+const lineTexture = new THREE.Texture();
+const lineMaterial = new THREE.LineBasicMaterial();
+(lineMaterial as unknown as Record<string, unknown>).customTexture = lineTexture;
+const line = new THREE.LineSegments(new THREE.BufferGeometry(), lineMaterial);
+const spriteMaterial = new THREE.SpriteMaterial({ map: lineTexture });
+const sprite = new THREE.Sprite(spriteMaterial);
+const lineRoot = new THREE.Group();
+lineRoot.add(line, sprite);
+const linePool = createResourcePool();
+const lineRelease = retainSceneResources(linePool, lineRoot);
+lineRelease();
+linePool.dispose();
+
 const instance = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 2);
 let instanceDisposals = 0;
 instance.addEventListener('dispose', () => { instanceDisposals += 1; });
@@ -63,11 +76,40 @@ assert.equal((matteRoot.material as THREE.MeshLambertMaterial).map, matteMap);
 matteRelease();
 mattePool.dispose();
 
+const matteDropMap = new THREE.Texture();
+let matteDropMapDisposals = 0;
+const originalDropDispose = matteDropMap.dispose.bind(matteDropMap);
+matteDropMap.dispose = () => { matteDropMapDisposals += 1; originalDropDispose(); };
+const matteDropRoot = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: matteDropMap }));
+const matteDropPool = createResourcePool();
+const matteDropRelease = retainMatteScene(matteDropPool, matteDropRoot, { keepMaps: false });
+matteDropRelease();
+matteDropPool.dispose();
+assert.equal(matteDropMapDisposals, 1);
+
+const bitmapClass = class FakeImageBitmap { closes = 0; close(): void { this.closes += 1; } };
+Object.defineProperty(globalThis, 'ImageBitmap', { configurable: true, value: bitmapClass });
+const sharedBitmap = new bitmapClass();
+const bitmapTextureA = new THREE.Texture(sharedBitmap as unknown as ImageBitmap);
+const bitmapTextureB = new THREE.Texture(sharedBitmap as unknown as ImageBitmap);
+const bitmapRootA = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: bitmapTextureA }));
+const bitmapRootB = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: bitmapTextureB }));
+const bitmapPool = createResourcePool();
+const bitmapReleaseA = retainSceneResources(bitmapPool, bitmapRootA);
+const bitmapReleaseB = retainSceneResources(bitmapPool, bitmapRootB);
+bitmapReleaseA();
+assert.equal(sharedBitmap.closes, 0);
+bitmapReleaseB();
+assert.equal(sharedBitmap.closes, 1);
+delete (globalThis as { ImageBitmap?: unknown }).ImageBitmap;
+
 const closedPool = createResourcePool();
 closedPool.dispose();
-const late = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
-const lateRelease = retainSceneResources(closedPool, late);
-lateRelease();
+const lateGeometry = new THREE.BoxGeometry();
+const lateMaterial = new THREE.MeshBasicMaterial();
+lateGeometry.dispose = () => { throw new Error('first late disposer failed'); };
+const late = new THREE.Mesh(lateGeometry, lateMaterial);
+assert.throws(() => retainSceneResources(closedPool, late), AggregateError);
 
 console.log('scene resource tree checks passed');
 }
