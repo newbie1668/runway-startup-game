@@ -68,6 +68,8 @@ import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './not
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
+import { createGeometryTracker } from './diagnostics';
+import { createMapDiagnostics, type MapDiagnosticsReporter } from '../mapDiagnostics';
 
 const CITY_BIN_URL = '/map/london-city.bin';
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
@@ -170,16 +172,20 @@ function viewParam(): string | null {
   return new URLSearchParams(window.location.search).get('view');
 }
 
-type BuildJob = { kind: BuildJobKind; run: () => void };
+type BuildJob = { id: string; kind: BuildJobKind; essential: boolean; run: () => void };
 
 export class CityRenderer3D implements IMapRenderer {
   private readonly cityCanvas: HTMLCanvasElement;
   private readonly overlayCanvas: HTMLCanvasElement;
   private readonly overlayCtx: CanvasRenderingContext2D;
-  private readonly onFatal: () => void;
+  private readonly onFatal: (reason?: string) => void;
   private readonly onReady: () => void;
 
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly diagnostics: MapDiagnosticsReporter;
+  private readonly geometryTracker = createGeometryTracker();
+  private stockBuildings = 0;
+  private stockDrawnThisFrame = false;
   private readonly scene3d = new THREE.Scene();
   private readonly rig = new CameraRig();
   private readonly overlay: MapOverlay;
@@ -235,12 +241,13 @@ export class CityRenderer3D implements IMapRenderer {
   constructor(
     cityCanvas: HTMLCanvasElement,
     overlayCanvas: HTMLCanvasElement,
-    opts: { onFatal: () => void; onReady?: () => void },
+    opts: { onFatal: (reason?: string) => void; onReady?: () => void; diagnostics?: MapDiagnosticsReporter },
   ) {
     this.cityCanvas = cityCanvas;
     this.overlayCanvas = overlayCanvas;
     this.overlayCtx = overlayCanvas.getContext('2d')!;
     this.onFatal = opts.onFatal;
+    this.diagnostics = opts.diagnostics ?? createMapDiagnostics(0, () => performance.now());
     this.onReady = opts.onReady ?? (() => undefined);
     this.isCoarsePointer =
       typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -257,6 +264,7 @@ export class CityRenderer3D implements IMapRenderer {
       antialias: !this.isCoarsePointer && !budget.skipAntialias,
       powerPreference: 'high-performance',
     });
+    this.diagnostics.selectMode('3d');
     this.renderer.setPixelRatio(
       Math.min(
         window.devicePixelRatio || 1,
@@ -324,25 +332,46 @@ export class CityRenderer3D implements IMapRenderer {
     core.renderOrder = 13;
     this.beamGroup.add(beam, core);
     this.scene3d.add(this.beamGroup);
+    this.geometryTracker.trackTree(this.scene3d);
 
     this.cityCanvas.addEventListener('webglcontextlost', this.handleContextLost);
 
-    const cityPromise = fetch(CITY_BIN_URL)
+    const trackLoad = <T>(id: string, essential: boolean, load: () => Promise<T>): Promise<T> => {
+      this.diagnostics.registerJob(id, essential);
+      this.diagnostics.startJob(id);
+      return load().then(
+        (value) => { this.diagnostics.completeJob(id); return value; },
+        (error) => { this.diagnostics.failJob(id, error); throw error; },
+      );
+    };
+    const cityPromise = trackLoad('load:city', true, () => fetch(CITY_BIN_URL)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.arrayBuffer();
       })
-      .then((buf) => decodeCity(buf));
+      .then((buf) => decodeCity(buf)));
+    const landmarksPromise = trackLoad('load:landmarks', false, loadLandmarkPrefabs).catch(() => new Map<LandmarkKind, THREE.Object3D>());
+    const noticedPromise = trackLoad('load:noticed', false, loadNoticedPrefabs).catch(() => ({ entries: [], prefabs: new Map<string, THREE.Object3D>() }));
 
-    void Promise.all([cityPromise, loadLandmarkPrefabs(), loadNoticedPrefabs()])
+    void Promise.all([cityPromise, landmarksPromise, noticedPromise])
       .then(([data, prefabs, noticed]) => {
+        this.diagnostics.registerJob('plan:city', true);
+        this.diagnostics.startJob('plan:city');
         this.landmarkPrefabs = prefabs;
         this.noticedEntries = noticed.entries;
         this.noticedPrefabs = noticed.prefabs;
-        this.onCityData(data);
+        try {
+          for (const prefab of prefabs.values()) this.geometryTracker.trackTree(prefab);
+          for (const prefab of noticed.prefabs.values()) this.geometryTracker.trackTree(prefab);
+          this.onCityData(data);
+          this.diagnostics.completeJob('plan:city');
+        } catch (error) {
+          this.diagnostics.failJob('plan:city', error);
+          if (!this.disposed) this.onFatal('City layout failed');
+        }
       })
       .catch(() => {
-        if (!this.disposed) this.onFatal();
+        if (!this.disposed) this.onFatal('City data failed');
       });
 
     if (new URLSearchParams(window.location.search).get('map') === 'debug') {
@@ -355,6 +384,7 @@ export class CityRenderer3D implements IMapRenderer {
 
   private handleContextLost = (e: Event): void => {
     e.preventDefault();
+    this.diagnostics.recordError('contextlost', true, new Error('WebGL context lost'));
     this.contextLostTimer = setTimeout(() => {
       if (this.disposed) return;
       try {
@@ -362,7 +392,7 @@ export class CityRenderer3D implements IMapRenderer {
       } catch {
         // Storage unavailable (private mode etc.) — the in-memory fallback still fires.
       }
-      this.onFatal();
+      this.onFatal('WebGL context lost');
     }, 2000);
   };
 
@@ -422,6 +452,7 @@ export class CityRenderer3D implements IMapRenderer {
       else oldMat.dispose();
       this.groundMesh = buildGround(keep);
       this.scene3d.add(this.groundMesh);
+      this.geometryTracker.trackTree(this.groundMesh);
     }
     const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
     const heroJobs: BuildJob[] = [];
@@ -429,11 +460,12 @@ export class CityRenderer3D implements IMapRenderer {
     const chunkJobs: BuildJob[] = [];
     const restJobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
-    const enqueue = (into: BuildJob[], kind: BuildJobKind, run: () => void): void => {
-      into.push({ kind, run });
+    const enqueue = (into: BuildJob[], id: string, kind: BuildJobKind, essential: boolean, run: () => void): void => {
+      this.diagnostics.registerJob(id, essential);
+      into.push({ id, kind, essential, run });
     };
-    const pushNoticed = (entry: NoticedEntry, into: BuildJob[], kind: BuildJobKind): void => {
-      enqueue(into, kind, () => {
+    const pushNoticed = (entry: NoticedEntry, into: BuildJob[], kind: BuildJobKind, sourceIndex: number): void => {
+      enqueue(into, `noticed:${kind}:${entry.id}:${sourceIndex}`, kind, false, () => {
         const prefab = this.noticedPrefabs.get(entry.id) ?? null;
         if (!prefab && !isUniqueNoticedId(entry.id)) return;
         const group = instantiateNoticed(entry, prefab);
@@ -445,8 +477,9 @@ export class CityRenderer3D implements IMapRenderer {
       landmark: (typeof LANDMARKS)[number],
       into: BuildJob[],
       kind: BuildJobKind,
+      sourceIndex: number,
     ): void => {
-      enqueue(into, kind, () => {
+      enqueue(into, `landmark:${kind}:${landmark.kind}:${sourceIndex}`, kind, false, () => {
         const p = project(landmark.at);
         const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(p.x, 0, p.y);
@@ -466,22 +499,24 @@ export class CityRenderer3D implements IMapRenderer {
       const p = project(landmark.at);
       return inKeep(p.x, p.y);
     };
-    for (const entry of this.noticedEntries) {
-      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs, 'hero');
+    for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
+      const entry = this.noticedEntries[sourceIndex]!;
+      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs, 'hero', sourceIndex);
     }
-    for (const landmark of LANDMARKS) {
-      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs, 'hero');
+    for (let sourceIndex = 0; sourceIndex < LANDMARKS.length; sourceIndex++) {
+      const landmark = LANDMARKS[sourceIndex]!;
+      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs, 'hero', sourceIndex);
     }
-    enqueue(coverJobs, 'cover', () => {
+    enqueue(coverJobs, 'cover:water', 'cover', true, () => {
       const mesh = buildWater(data, keep);
       if (mesh) this.cityGroup.add(mesh);
     });
-    enqueue(coverJobs, 'cover', () => {
+    enqueue(coverJobs, 'cover:parks', 'cover', true, () => {
       const mesh = buildParks(data, keep);
       if (mesh) this.cityGroup.add(mesh);
     });
     if (!budget.skipTrees) {
-      enqueue(coverJobs, 'cover', () => {
+      enqueue(coverJobs, 'cover:trees', 'cover', false, () => {
         const trees = buildParkTrees(data, keep);
         if (trees) {
           trees.visible = true;
@@ -489,7 +524,7 @@ export class CityRenderer3D implements IMapRenderer {
         }
       });
     }
-    enqueue(coverJobs, 'cover', () => {
+    enqueue(coverJobs, 'cover:roads', 'cover', true, () => {
       const roadGroup = buildRoads(data, keep, !budget.skipRoadMarks);
       if (roadGroup) {
         this.cityGroup.add(roadGroup);
@@ -499,20 +534,23 @@ export class CityRenderer3D implements IMapRenderer {
         }
       }
     });
-    for (const landmark of LANDMARKS) {
+    for (let sourceIndex = 0; sourceIndex < LANDMARKS.length; sourceIndex++) {
+      const landmark = LANDMARKS[sourceIndex]!;
       if (lookLandmarkKinds.has(landmark.kind)) continue;
-      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs, 'rest');
+      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs, 'rest', sourceIndex);
     }
     if (!budget.skipNoticedStock) {
-      for (const entry of this.noticedEntries) {
+      for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
+        const entry = this.noticedEntries[sourceIndex]!;
         if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
-          pushNoticed(entry, restJobs, 'rest');
+          pushNoticed(entry, restJobs, 'rest', sourceIndex);
         }
       }
-      for (const entry of this.noticedEntries) {
+      for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
+        const entry = this.noticedEntries[sourceIndex]!;
         if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
         if (!inKeep(entry.x, entry.z)) continue;
-        pushNoticed(entry, restJobs, 'rest');
+        pushNoticed(entry, restJobs, 'rest', sourceIndex);
       }
     }
     const chunkWork: { chunkId: number; major: boolean; dist: number }[] = [];
@@ -534,7 +572,8 @@ export class CityRenderer3D implements IMapRenderer {
     }
     chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
     for (const job of chunkWork) {
-      enqueue(chunkJobs, 'chunk', () => {
+      enqueue(chunkJobs, `chunk:${job.chunkId}:${job.major ? 'major' : 'minor'}`, 'chunk', true, () => {
+        const picksBefore = this.scratch.picks.length;
         const built = buildChunkTier(
           data,
           job.chunkId,
@@ -548,13 +587,19 @@ export class CityRenderer3D implements IMapRenderer {
             mesh.material = this.buildingMaterial;
             this.buildingMeshes.push(mesh);
             if (!job.major) this.minorMeshes.push(mesh);
+            const previous = mesh.onAfterRender;
+            mesh.onAfterRender = (...args) => {
+              previous?.(...args);
+              this.stockDrawnThisFrame = true;
+            };
           }
           this.cityGroup.add(built);
+          this.stockBuildings += Math.max(0, this.scratch.picks.length - picksBefore);
         }
       });
     }
     if (!budget.skipWindows) {
-      enqueue(restJobs, 'rest', () => {
+      enqueue(restJobs, 'decor:windows-roofs-signs', 'rest', false, () => {
         const windows = buildWindowMesh(this.scratch);
         if (windows) {
           windows.visible = false;
@@ -568,7 +613,7 @@ export class CityRenderer3D implements IMapRenderer {
       });
     }
     if (!budget.skipLamps) {
-      enqueue(restJobs, 'rest', () => {
+      enqueue(restJobs, 'decor:lamps', 'rest', false, () => {
         const lamps = buildStreetLamps(data);
         if (lamps) {
           lamps.visible = false;
@@ -588,10 +633,7 @@ export class CityRenderer3D implements IMapRenderer {
   private drainBuildQueue(): void {
     const keepLoad = meshBudget().chunkKeepM != null;
     const head = this.buildQueue[0];
-    if (!head) {
-      if (this.cityStreamed) this.markReady();
-      return;
-    }
+    if (!head) return;
     const view = viewParam();
     const n = buildJobsThisFrame({
       ready: this.readyNotified,
@@ -601,14 +643,28 @@ export class CityRenderer3D implements IMapRenderer {
     });
     let i = 0;
     while (i < n && this.buildQueue.length > 0 && this.buildQueue[0]!.kind === head.kind) {
+      const job = this.buildQueue.shift()!;
+      if (this.disposed) return;
+      this.diagnostics.startJob(job.id);
+      const childCount = this.cityGroup.children.length;
+      let fatalReason: string | undefined;
       try {
-        this.buildQueue.shift()!.run();
-      } catch {
-        // One mesh job must not stall the rest of London.
+        job.run();
+        this.diagnostics.completeJob(job.id);
+      } catch (error) {
+        this.diagnostics.failJob(job.id, error);
+        if (job.essential) {
+          fatalReason = job.id;
+        }
+      } finally {
+        for (const child of this.cityGroup.children.slice(childCount)) this.geometryTracker.trackTree(child);
+      }
+      if (fatalReason) {
+        this.onFatal(fatalReason);
+        return;
       }
       i += 1;
     }
-    if (this.cityStreamed && this.buildQueue.length === 0) this.markReady();
   }
 
   private markReady(): void {
@@ -886,7 +942,15 @@ export class CityRenderer3D implements IMapRenderer {
 
   frame(t: number, dt: number): void {
     if (this.disposed) return;
+    const startedAt = performance.now();
     this.drainBuildQueue();
+    if (this.disposed) return;
+    if (this.cityStreamed && this.buildQueue.length === 0 && this.stockBuildings === 0) {
+      const error = new Error('No ordinary stock buildings emitted');
+      this.diagnostics.recordError('coverage:stock', true, error);
+      this.onFatal('coverage:stock');
+      return;
+    }
     if (this.cssW === 0 || this.cssH === 0) return;
     if (window.location.search !== this.lastSearch) {
       this.lastSearch = window.location.search;
@@ -943,12 +1007,22 @@ export class CityRenderer3D implements IMapRenderer {
         core.material.opacity = 0.45 + 0.2 * Math.sin(t * 0.006);
     }
 
+    this.stockDrawnThisFrame = false;
     this.renderer.render(this.scene3d, this.rig.camera);
 
     this.overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
     this.overlay.drawAreaLabels(this.overlayCtx, this.cam.zoom);
     this.overlay.draw(this.overlayCtx, t, dt, this.cam.zoom);
     if (this.selected) this.drawBuildingCard(this.overlayCtx, this.selected);
+    this.diagnostics.setCamera(this.cam);
+    this.diagnostics.recordFrame({
+      mode: '3d', durationMs: performance.now() - startedAt, stockDrawn: this.stockDrawnThisFrame,
+      stockBuildings: this.stockBuildings, drawCalls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles, geometryBytes: this.geometryTracker.bytes(),
+      textures: this.renderer.info.memory.textures,
+    });
+    const state = this.diagnostics.getState();
+    if (state === 'ready' || state === 'degraded') this.markReady();
   }
 
   dispose(): void {
@@ -964,5 +1038,6 @@ export class CityRenderer3D implements IMapRenderer {
     this.buildingMaterial.dispose();
     this.glowTexture.dispose();
     this.renderer.dispose();
+    this.geometryTracker.clear();
   }
 }
