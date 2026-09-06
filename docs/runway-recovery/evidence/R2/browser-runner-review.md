@@ -46,3 +46,12 @@ seconds, covering the locator operations identified previously. The seven
 line functional fix introduces no new issue on inspection. Supplied syntax,
 diff, and lint checks pass; browser evidence remains pending and was not
 rerun in this review.
+
+## Final scoped re-review: `7f75bb6..0af8ef3`
+
+PASS. The runner now queries the existing catalog entry through the listbox
+with exact accessible name `Farringdon Neighbourhood`, asserts one match,
+clicks it, verifies the input becomes `Farringdon`, and verifies the listbox
+closes. This matches the corrected brief and introduces no new issue in the
+six-line change. Fitzrovia remains correctly recorded as an open catalog
+issue; no browser or suite rerun was performed.
