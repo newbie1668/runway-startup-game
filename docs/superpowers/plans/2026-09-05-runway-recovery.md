@@ -90,9 +90,9 @@ if (errors.length) throw new Error(errors.join('\n'));
 
 **Owner:** runtime worker. **Depends:** R0. **Allowed files:** new `lib/game/mapDiagnostics.ts`, new `lib/game/render3d/diagnostics.ts`, `lib/game/render3d/CityRenderer3D.ts`, `components/game/MapCanvas.tsx`, new `scripts/test-map-diagnostics.ts`, focused geometry/host tests, `lib/game/render3d/factory.ts`, browser runner. **Interfaces:** consume existing `IMapRenderer` and queue state; produce C1 `MapDiagnostics` and read-only `MapQaBridge`.
 
-- [ ] Add C1's exact types. Implement the debug reporter and an optional callback from 3D/2D lifecycle to `MapCanvas`; do not expose Three.js objects through the bridge.
-- [ ] Count job completion/failure, active mode, geometry bytes, render counters and first useful frame. Bounded error history keeps the latest 20 errors plus a total count. Do not perform a scene traversal every frame.
-- [ ] Add focused tests for state transitions and unique-buffer accounting; then assert in browser QA that forced 3D actually reports `mode: '3d'` and essential failures never report ready.
+- [x] Add C1's exact types. Implement the debug reporter and an optional callback from 3D/2D lifecycle to `MapCanvas`; do not expose Three.js objects through the bridge.
+- [x] Count job completion/failure, active mode, geometry bytes, render counters and first useful frame. Bounded error history keeps the latest 20 errors plus a total count. Do not perform a scene traversal every frame.
+- [x] Add focused tests for state transitions and unique-buffer accounting; then assert in browser QA that forced 3D actually reports `mode: '3d'` and essential failures never report ready.
 
 ```ts
 // Required observable cases in test-map-diagnostics.ts:
@@ -103,9 +103,11 @@ if (errors.length) throw new Error(errors.join('\n'));
 // generation disposed -> no later callback can change its state
 ```
 
-- [ ] Record B1–B3 diagnostic snapshots before/after. Run required gates. Commit and submit the packet; geometry and asset shapes must be unchanged.
+- [x] Record B1–B3 diagnostic snapshots before/after. Run required gates. Commit and submit the packet; geometry and asset shapes must be unchanged.
 
 **Acceptance:** readiness/mode are distinguishable, errors have stable job IDs, metrics have documented meaning, and the debug bridge is absent without `qa=1`.
+
+R1 observability accepted on 6 September 2026; [results and remaining 3D failures](../../runway-recovery/evidence/R1/README.md). This does not approve G1. The next bounded optimization is [R5a-0](../../runway-recovery/evidence/R1/next-task.md).
 
 ## R2 — Fix the independently observed hydration error
 

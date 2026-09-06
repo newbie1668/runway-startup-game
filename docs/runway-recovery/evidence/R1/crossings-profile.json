@@ -1,0 +1,8 @@
+{
+  "command": "pnpm tsx: decode committed binary then call riverCrossingSpans once",
+  "node": "v26.5.0",
+  "citySha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0",
+  "crossingsMs": 17915.150917,
+  "spanCount": 15,
+  "outputSha256": "449a9b5a9274067f4dfe75f93598a000557c6abbb30c2c777d00d07019abf6a1"
+}
