@@ -1,0 +1,10 @@
+{
+  "sha": "db38a6d8312c6468e3a3f27b980a60c1d4264e2e",
+  "dirtyStateAtStart": [" M docs/runway-recovery/status.md"],
+  "results": [
+    {"command":"pnpm test:game","start":"2026-09-06T02:44:16.855Z","end":"2026-09-06T02:47:24.013Z","elapsedMs":187156,"exitCode":0,"log":"test-game.log"},
+    {"command":"pnpm test:ui","start":"2026-09-06T02:47:34.528Z","end":"2026-09-06T02:47:35.211Z","elapsedMs":682,"exitCode":0,"log":"test-ui.log"},
+    {"command":"pnpm lint","start":"2026-09-06T02:47:39.854Z","end":"2026-09-06T02:47:43.535Z","elapsedMs":3681,"exitCode":0,"log":"lint.log"},
+    {"command":"pnpm build","start":"2026-09-06T02:47:53.353Z","end":"2026-09-06T02:48:05.243Z","elapsedMs":11893,"exitCode":0,"log":"build.log"}
+  ]
+}
