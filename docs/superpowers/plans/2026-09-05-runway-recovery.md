@@ -127,7 +127,7 @@ R1 observability accepted on 6 September 2026; [results and remaining 3D failure
 
 **Interface:** `createResourcePool()` produces `{ retain(resource: { dispose(): void }): () => void; dispose(): void }`; each returned release is idempotent, shared resources are disposed once after final release, and pool disposal disposes all remaining resources once. The renderer owns generation IDs, pending jobs and loader cancellation.
 
-- [ ] Write the ownership example below, implement the pool and confirm it passes.
+- [x] Write the ownership example below, implement the pool and confirm it passes. Pure primitive only: [R3a-1 evidence](../../runway-recovery/evidence/R3a/README.md).
 
 ```ts
 let disposed = 0;
@@ -168,8 +168,8 @@ assert.equal(disposed, 1);
 
 **Owner:** compact pure-helper worker. **Depends:** R0. **Allowed files:** new `lib/game/render3d/cityIndex.ts`, new `lib/game/render3d/coverage.ts`, new `scripts/test-city-coverage.ts`. **Interfaces:** C3 exact `indexCity`, `cellsForBounds`, `coverageDelta`, `CityCell`, `BoundsXZ` and `CellId`.
 
-- [ ] Implement the index from the existing `CityData` type. Group each building once by centroid at 400 m, extend owner-cell bounds to its footprint, sort output. Never mutate decoded data.
-- [ ] Add boundary, negative-coordinate, empty-scene and deterministic-output fixtures. Use this delta behavior as a minimum example:
+- [x] Implement the index from the existing `CityData` type. Group each building once by centroid at 400 m, extend owner-cell bounds to its footprint, sort output. Never mutate decoded data.
+- [x] Add boundary, negative-coordinate, empty-scene and deterministic-output fixtures. Use this delta behavior as a minimum example:
 
 ```ts
 assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']), {
@@ -179,10 +179,14 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 });
 ```
 
-- [ ] Decode the committed binary and assert each original building index appears in exactly one owner cell; selection includes a cell whose footprint bounds overlap even when its centroid lies outside the view.
-- [ ] Run `pnpm tsx scripts/test-city-coverage.ts` and required gates. Include index construction time and counts; do not claim this proves rendered performance.
+- [x] Decode the committed binary and assert each original building index appears in exactly one owner cell; selection includes a cell whose footprint bounds overlap even when its centroid lies outside the view.
+- [x] Run `pnpm tsx scripts/test-city-coverage.ts` and required gates. Include index construction time and counts; do not claim this proves rendered performance.
 
 **Acceptance:** stable, no-duplicate selection that the runtime can consume. No Three.js or DOM dependency in these helpers.
+
+## R5a-0 — Remove the measured river-query bottleneck
+
+- [x] Optimize water lookup and reuse identical crossing spans without changing output. [Accepted evidence](../../runway-recovery/evidence/R5a-0/README.md): cold calculation 15.6× faster; B2/B3 now ready under five seconds; default B1 remains red.
 
 ## R5a — Introduce a bounded, measurable scheduler
 

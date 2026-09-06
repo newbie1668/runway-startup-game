@@ -1,6 +1,6 @@
 # Next worker packet: R5a-0 river/road setup cost
 
-Status: prepared, **not dispatched**. No product input is required. R1's measured diagnostics prerequisite is available; the next implementation worker should be Luna Medium with fresh task-only context when capacity is available. The lead supplies the exact newly verified HEAD and creates an isolated `task/runway-r5a-water-query` worktree before dispatch. Never point a worker at a moving PR alone.
+Status: **completed and accepted**; see [R5a-0 results](../R5a-0/README.md). The original dispatch recipe below is retained as history; do not rerun it. No product input is required. R1's measured diagnostics prerequisite is available; the next implementation worker should be Luna Medium with fresh task-only context when capacity is available. The lead supplies the exact newly verified HEAD and creates an isolated `task/runway-r5a-water-query` worktree before dispatch. Never point a worker at a moving PR alone.
 
 ## Outcome and evidence
 

@@ -1,0 +1,15 @@
+{
+  "command": "RUNWAY_CASES=B1-3d-default,B2-3d-citystreet,B3-3d-mid RUNWAY_EVIDENCE_DIR=docs/runway-recovery/evidence/R5a-0/browser node scripts/test-map-diagnostics-browser.mjs",
+  "exitCode": 1,
+  "captureHead": "ab41bc8293ffa82610c04ce812d83cdac8e96efd",
+  "buildHead": "655ca6c5e14af6d438560b22c7e2a0929954f4cb",
+  "appAndAssetTreesUnchangedSinceBuild": true,
+  "startedAt": "2026-09-06T20:35:52.280Z",
+  "finishedAt": "2026-09-06T20:36:43.732Z",
+  "summary": {
+    "cases": 3,
+    "expectedCases": 3,
+    "failed": 1,
+    "incomplete": 0
+  }
+}
