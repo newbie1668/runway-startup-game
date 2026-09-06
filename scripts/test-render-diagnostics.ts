@@ -73,6 +73,10 @@ async function main(): Promise<void> {
   CityRenderer3D.prototype['drainBuildQueue'].call(fake);
   assert.equal(fake.buildQueue.length, 0, 'optional failure allows remaining work');
   assert.equal(reporter.snapshot().failedJobs, 1);
+  const beforeDispose = reporter.snapshot();
+  reporter.dispose();
+  reporter.completeJob('optional:after');
+  assert.equal(reporter.snapshot().completedJobs, beforeDispose.completedJobs, 'disposed reporters ignore late job settlement');
 
   let fatalCalls = 0;
   const essentialReporter = createMapDiagnostics(2, () => clock++);

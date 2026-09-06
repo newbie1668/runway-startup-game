@@ -340,8 +340,14 @@ export class CityRenderer3D implements IMapRenderer {
       this.diagnostics.registerJob(id, essential);
       this.diagnostics.startJob(id);
       return load().then(
-        (value) => { this.diagnostics.completeJob(id); return value; },
-        (error) => { this.diagnostics.failJob(id, error); throw error; },
+        (value) => {
+          if (!this.disposed) this.diagnostics.completeJob(id);
+          return value;
+        },
+        (error) => {
+          if (!this.disposed) this.diagnostics.failJob(id, error);
+          throw error;
+        },
       );
     };
     const cityPromise = trackLoad('load:city', true, () => fetch(CITY_BIN_URL)
@@ -355,6 +361,7 @@ export class CityRenderer3D implements IMapRenderer {
 
     void Promise.all([cityPromise, landmarksPromise, noticedPromise])
       .then(([data, prefabs, noticed]) => {
+        if (this.disposed) return;
         this.diagnostics.registerJob('plan:city', true);
         this.diagnostics.startJob('plan:city');
         this.landmarkPrefabs = prefabs;
@@ -589,7 +596,7 @@ export class CityRenderer3D implements IMapRenderer {
             if (!job.major) this.minorMeshes.push(mesh);
             const previous = mesh.onAfterRender;
             mesh.onAfterRender = (...args) => {
-              previous?.(...args);
+              previous?.call(mesh, ...args);
               this.stockDrawnThisFrame = true;
             };
           }
