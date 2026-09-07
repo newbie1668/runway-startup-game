@@ -82,7 +82,11 @@ function errorIsFixture(error) { return /503|fixture:|manifest/i.test(error?.mes
 function assessEvents(entry, events, kind) {
   const expected = events.filter((event) => {
     if (kind === 'manifest-503') return (event.type === 'http' && event.status === 503 && event.url.endsWith('/map/noticed/manifest.json')) || (event.type === 'console.error' && event.location?.url?.endsWith('/map/noticed/manifest.json') && errorIsFixture(event));
-    if (kind === 'context-loss') return event.type === 'requestfailed' && event.url.endsWith('/map/london-city.bin');
+    if (kind === 'context-loss') {
+      if (event.type === 'requestfailed' && event.url.endsWith('/map/london-city.bin')) return true;
+      if (event.type === 'console.error' || event.type === 'pageerror') return /webgl context lost|contextlost|context loss/i.test(event.message ?? '');
+      return false;
+    }
     if (kind === 'constructor-failure') return event.type === 'console.error' && errorIsFixture(event);
     return false;
   });
@@ -118,10 +122,13 @@ function installFixture(page, kind) {
     const originalRemove = HTMLCanvasElement.prototype.removeEventListener;
     const ids = new WeakMap(); let nextId = 0;
     const records = [];
+    const getContextCalls = [];
     const idFor = (canvas) => { let id = ids.get(canvas); if (!id) { id = `canvas-${++nextId}`; ids.set(canvas, id); } return id; };
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(type, ...args) { if (type === 'webgl2') getContextCalls.push({ type, canvas: idFor(this) }); return originalGetContext.call(this, type, ...args); };
     HTMLCanvasElement.prototype.addEventListener = function(type, listener, options) { if (/^webgl(contextlost|contextrestored|contextcreationerror)$/.test(type)) records.push({ action: 'add', type, canvas: idFor(this) }); return originalAdd.call(this, type, listener, options); };
     HTMLCanvasElement.prototype.removeEventListener = function(type, listener, options) { if (/^webgl(contextlost|contextrestored|contextcreationerror)$/.test(type)) records.push({ action: 'remove', type, canvas: idFor(this) }); return originalRemove.call(this, type, listener, options); };
-    window.__r3aFixture = { records, originalDprConfigurable: original.configurable };
+    window.__r3aFixture = { records, getContextCalls, originalDprConfigurable: original.configurable };
   });
   return Promise.resolve();
 }
@@ -147,10 +154,10 @@ async function runCase(definition, result) {
       const state = await waitFor(page, (value) => value.snapshot?.mode === '3d' && ['ready', 'degraded'].includes(value.snapshot?.state), 30_000);
       entry.snapshots.push({ atMs: 0, ...state }); entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
       check(entry, '3D mode remains active', state.mapMode === '3d' && state.snapshot?.mode === '3d', state);
-      check(entry, '3D useful ready or degraded', ['ready', 'degraded'].includes(state.mapState) && ['ready', 'degraded'].includes(state.snapshot?.state), state);
+      check(entry, '3D useful degraded state', state.mapState === 'degraded' && state.snapshot?.state === 'degraded', state);
       check(entry, 'stock draw is useful', state.snapshot?.stockDrawn === true && state.snapshot.stockBuildings > 0 && state.snapshot.drawCalls > 0 && state.snapshot.triangles > 0, state.snapshot);
       check(entry, 'map ready marker', state.mapReady === '1', state);
-      check(entry, 'manifest failure is optional or recorded asset error', state.snapshot?.errors?.every((error) => error.jobId === 'load:noticed' || error.jobId === 'asset:noticed:manifest'), state.snapshot);
+      check(entry, 'manifest failure recorded as optional 503 asset error', state.snapshot?.errors?.some((error) => error.jobId === 'asset:noticed:manifest' && !error.essential && /503/.test(error.message)), state.snapshot);
       check(entry, 'no essential load failure', !state.snapshot?.errors?.some((error) => error.essential), state.snapshot);
       entry.final = state;
     } else if (definition.kind === 'context-loss') {
@@ -180,8 +187,10 @@ async function runCase(definition, result) {
       const fixture = await evaluate(page, () => ({ ...window.__r3aFixture }));
       const registered = new Set(fixture.records.filter((record) => record.action === 'add').map((record) => `${record.canvas}:${record.type}`));
       const removed = new Set(fixture.records.filter((record) => record.action === 'remove').map((record) => `${record.canvas}:${record.type}`));
+      const webgl2CallCanvasIds = new Set(fixture.getContextCalls.filter((call) => call.type === 'webgl2').map((call) => call.canvas));
       check(entry, '2D fallback is ready', state.mapMode === '2d' && state.mapState === 'fallback' && state.mapReady === '1' && state.snapshot?.mode === '2d', state);
       check(entry, 'constructor failure is essential and identified', state.snapshot?.errors?.some((error) => error.jobId === 'init:3d' && error.essential && /fixture: pixel ratio unavailable/i.test(error.message)), state.snapshot);
+      check(entry, 'failed renderer attempted real WebGL2 context', [...webgl2CallCanvasIds].some((canvas) => registered.has(`${canvas}:webglcontextlost`)), { fixture, webgl2CallCanvasIds: [...webgl2CallCanvasIds], registered: [...registered] });
       check(entry, 'failed renderer listeners are removed', [...registered].every((value) => removed.has(value)), { fixture, registered: [...registered], removed: [...removed] });
       entry.fixture = fixture; entry.final = state;
     }
