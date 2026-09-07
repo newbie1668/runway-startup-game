@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 async function main(): Promise<void> {
-const THREE = await import('three');
+const require = createRequire(__filename);
+const THREE = require('three') as typeof import('three');
 const { createResourcePool } = await import('../lib/game/render3d/sceneResources');
 const { retainMatteScene, retainSceneResources } = await import('../lib/game/render3d/sceneResourceTree');
 
@@ -97,34 +99,44 @@ partialGeometry.dispose = () => { partialGeometryDisposals += 1; };
 partialMaterial.dispose = () => { partialMaterialDisposals += 1; };
 partialMap.dispose = () => { partialMapDisposals += 1; };
 const partialRoot = new THREE.Group();
-partialRoot.add(new THREE.Mesh(partialGeometry, partialMaterial));
-const failingMesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
-const failingMaterial = failingMesh.material;
-Object.defineProperty(failingMesh, 'material', { configurable: true, get: () => failingMaterial, set: () => { throw new Error('material assignment failed'); } });
+const convertedMesh = new THREE.Mesh(partialGeometry, partialMaterial);
+partialRoot.add(convertedMesh);
+const failingGeometry = new THREE.BoxGeometry();
+const failingMaterial = new THREE.MeshStandardMaterial();
+let failingGeometryDisposals = 0;
+let failingMaterialDisposals = 0;
+failingGeometry.dispose = () => { failingGeometryDisposals += 1; };
+failingMaterial.dispose = () => { failingMaterialDisposals += 1; };
+const failingMesh = new THREE.Mesh(failingGeometry, failingMaterial);
+let orphanMaterial: THREE.Material | undefined;
+Object.defineProperty(failingMesh, 'material', { configurable: true, get: () => failingMaterial, set: (value: THREE.Material) => { orphanMaterial = value; throw new Error('material assignment failed'); } });
 partialRoot.add(failingMesh);
-let orphanDisposals = 0;
+const identityDisposals = new Map<object, number>();
 const originalLambertDispose = THREE.MeshLambertMaterial.prototype.dispose;
-const originalMaterialDispose = THREE.Material.prototype.dispose;
 THREE.MeshLambertMaterial.prototype.dispose = function spyDispose(this: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
-  orphanDisposals += 1;
+  identityDisposals.set(this, (identityDisposals.get(this) ?? 0) + 1);
   return originalLambertDispose.call(this);
 };
-THREE.Material.prototype.dispose = function spyMaterialDispose(this: THREE.Material): THREE.Material {
-  orphanDisposals += 1;
-  return originalMaterialDispose.call(this);
-};
 const partialPool = createResourcePool();
-assert.throws(() => retainMatteScene(partialPool, partialRoot), /material assignment failed/);
-THREE.MeshLambertMaterial.prototype.dispose = originalLambertDispose;
-THREE.Material.prototype.dispose = originalMaterialDispose;
+try {
+  assert.throws(() => retainMatteScene(partialPool, partialRoot), /material assignment failed/);
+} finally {
+  THREE.MeshLambertMaterial.prototype.dispose = originalLambertDispose;
+}
 partialPool.dispose();
-assert.equal(orphanDisposals, 1);
+assert.ok(orphanMaterial);
+assert.equal(identityDisposals.get(orphanMaterial!), 1);
+assert.equal(identityDisposals.get(convertedMesh.material as THREE.Material), 1);
 assert.equal(partialGeometryDisposals, 1);
 assert.equal(partialMaterialDisposals, 1);
 assert.equal(partialMapDisposals, 1);
+assert.equal(failingGeometryDisposals, 1);
+assert.equal(failingMaterialDisposals, 1);
 
 const bitmapClass = class FakeImageBitmap { closes = 0; close(): void { this.closes += 1; } };
+const imageBitmapDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'ImageBitmap');
 Object.defineProperty(globalThis, 'ImageBitmap', { configurable: true, value: bitmapClass });
+try {
 const sharedBitmap = new bitmapClass();
 const bitmapTextureA = new THREE.Texture(sharedBitmap as unknown as ImageBitmap);
 const bitmapTextureB = new THREE.Texture(sharedBitmap as unknown as ImageBitmap);
@@ -137,7 +149,10 @@ bitmapReleaseA();
 assert.equal(sharedBitmap.closes, 0);
 bitmapReleaseB();
 assert.equal(sharedBitmap.closes, 1);
-delete (globalThis as { ImageBitmap?: unknown }).ImageBitmap;
+} finally {
+  if (imageBitmapDescriptor) Object.defineProperty(globalThis, 'ImageBitmap', imageBitmapDescriptor);
+  else delete (globalThis as { ImageBitmap?: unknown }).ImageBitmap;
+}
 
 const closedPool = createResourcePool();
 closedPool.dispose();
