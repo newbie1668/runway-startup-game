@@ -18,3 +18,10 @@ Spec: PASS. Quality: FAIL.
 Spec: PASS. Quality: PASS.
 
 - PASS `scripts/test-renderer-disposal.ts:8,118-121`: the original `WebGLRenderer` is captured before the fixture and restored in the existing `finally`, so every throw/assertion path restores both the shared Three constructor and `globalThis.window`. No regression is introduced by this two-line scope change.
+
+## Browser-capture correction review — bc849d9..fc7349c
+
+Spec: PASS. Quality: PASS.
+
+- PASS `lib/game/render3d/CityRenderer3D.ts:257-262,448-460,1187-1200`: diagnostics are disposed only when the renderer created them; an injected host reporter survives both ordinary teardown and constructor rollback for the host's 2D fallback.
+- PASS `scripts/test-renderer-disposal.ts:48-80,103-132`: actual `createMapDiagnostics` instances remain usable after both paths, retaining the init error, `3D fallback` reason and useful 2D frame.

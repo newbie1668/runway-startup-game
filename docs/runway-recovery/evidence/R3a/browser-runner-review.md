@@ -19,3 +19,9 @@ Spec: FAIL. Quality: FAIL.
 Spec: PASS. Quality: PASS.
 
 - `test-map-lifecycle-browser.mjs:154` now waits within the existing 30-second deadline for 3D degraded shell and QA state, ready marker, and useful stock before it evaluates the strict L1 assertions. This removes the premature-ready capture without widening the fixture or event allowances.
+
+## Final-capture correction review — d5cf209..48e28c5
+
+Spec: PASS. Quality: PASS.
+
+- PASS `scripts/test-map-lifecycle-browser.mjs:175,181-204`: L2 now captures a final screenshot after the held route is released and settled; the shared finalizer requires exactly one successful final capture for every completed case. The change does not alter fixture behavior, deadlines, or error allowances.
