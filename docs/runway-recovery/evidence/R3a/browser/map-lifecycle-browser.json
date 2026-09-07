@@ -1,0 +1,1249 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-07T15:15:28.490Z",
+  "finishedAt": "2026-09-07T15:15:54.271Z",
+  "baseUrl": "http://127.0.0.1:4318",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1
+  },
+  "routes": [
+    {
+      "id": "L1-optional-manifest-503",
+      "path": "/game?map=3d&look=citystreet&chrome=0&qa=1"
+    },
+    {
+      "id": "L2-context-loss-pending-load",
+      "path": "/game?map=debug&look=citystreet&chrome=0&qa=1"
+    },
+    {
+      "id": "L3-constructor-failure",
+      "path": "/game?map=3d&look=citystreet&chrome=0&qa=1"
+    }
+  ],
+  "provenance": {
+    "exactSHA": "c9e91ee82e1514989a1c59e5e6e0a7e7e6eb2988",
+    "dirty": false
+  },
+  "environment": {
+    "node": "v26.5.0",
+    "pnpm": "10.33.0",
+    "playwright": "1.63.0",
+    "os": {
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M1"
+    },
+    "browser": "153.0.8010.12"
+  },
+  "cases": [
+    {
+      "id": "L1-optional-manifest-503",
+      "path": "/game?map=3d&look=citystreet&chrome=0&qa=1",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0&qa=1",
+      "startedAt": "2026-09-07T15:15:28.867Z",
+      "assertions": [
+        {
+          "label": "3D mode remains active",
+          "pass": true,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "degraded",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 8,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 27,
+              "failedJobs": 0,
+              "errorCount": 1,
+              "errors": [
+                {
+                  "jobId": "asset:noticed:manifest",
+                  "essential": false,
+                  "message": "HTTP 503"
+                }
+              ],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "landmark:rest:bishop:13",
+                "ms": 0.20000000298023224
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1163.9000000059605
+              },
+              "residentCells": null,
+              "stockBuildings": 5609,
+              "stockDrawn": true,
+              "drawCalls": 25,
+              "triangles": 470012,
+              "geometryBytes": 202545952,
+              "textures": 0,
+              "firstUsefulFrameMs": 4758.100000008941,
+              "frameP95Ms": 1702,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "degraded",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "3D useful degraded state",
+          "pass": true,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "degraded",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 8,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 27,
+              "failedJobs": 0,
+              "errorCount": 1,
+              "errors": [
+                {
+                  "jobId": "asset:noticed:manifest",
+                  "essential": false,
+                  "message": "HTTP 503"
+                }
+              ],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "landmark:rest:bishop:13",
+                "ms": 0.20000000298023224
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1163.9000000059605
+              },
+              "residentCells": null,
+              "stockBuildings": 5609,
+              "stockDrawn": true,
+              "drawCalls": 25,
+              "triangles": 470012,
+              "geometryBytes": 202545952,
+              "textures": 0,
+              "firstUsefulFrameMs": 4758.100000008941,
+              "frameP95Ms": 1702,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "degraded",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "stock draw is useful",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 8,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 27,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:manifest",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "landmark:rest:bishop:13",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1163.9000000059605
+            },
+            "residentCells": null,
+            "stockBuildings": 5609,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 470012,
+            "geometryBytes": 202545952,
+            "textures": 0,
+            "firstUsefulFrameMs": 4758.100000008941,
+            "frameP95Ms": 1702,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "map ready marker",
+          "pass": true,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "degraded",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 8,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 27,
+              "failedJobs": 0,
+              "errorCount": 1,
+              "errors": [
+                {
+                  "jobId": "asset:noticed:manifest",
+                  "essential": false,
+                  "message": "HTTP 503"
+                }
+              ],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "landmark:rest:bishop:13",
+                "ms": 0.20000000298023224
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1163.9000000059605
+              },
+              "residentCells": null,
+              "stockBuildings": 5609,
+              "stockDrawn": true,
+              "drawCalls": 25,
+              "triangles": 470012,
+              "geometryBytes": 202545952,
+              "textures": 0,
+              "firstUsefulFrameMs": 4758.100000008941,
+              "frameP95Ms": 1702,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "degraded",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "manifest failure recorded as optional 503 asset error",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 8,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 27,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:manifest",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "landmark:rest:bishop:13",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1163.9000000059605
+            },
+            "residentCells": null,
+            "stockBuildings": 5609,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 470012,
+            "geometryBytes": 202545952,
+            "textures": 0,
+            "firstUsefulFrameMs": 4758.100000008941,
+            "frameP95Ms": 1702,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "no essential load failure",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 8,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 27,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:manifest",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "landmark:rest:bishop:13",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1163.9000000059605
+            },
+            "residentCells": null,
+            "stockBuildings": 5609,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 470012,
+            "geometryBytes": 202545952,
+            "textures": 0,
+            "firstUsefulFrameMs": 4758.100000008941,
+            "frameP95Ms": 1702,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "no unexpected browser errors",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "snapshots": [
+        {
+          "atMs": 0,
+          "snapshot": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 8,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 27,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:manifest",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "landmark:rest:bishop:13",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1163.9000000059605
+            },
+            "residentCells": null,
+            "stockBuildings": 5609,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 470012,
+            "geometryBytes": 202545952,
+            "textures": 0,
+            "firstUsefulFrameMs": 4758.100000008941,
+            "frameP95Ms": 1702,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "degraded",
+          "mapReady": "1",
+          "bridge": true
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R3a/browser/screenshots/l1-optional-manifest-503-final.png",
+          "ok": true,
+          "capturedAt": "2026-09-07T15:15:35.912Z"
+        }
+      ],
+      "errors": [],
+      "failed": false,
+      "events": [
+        {
+          "type": "http",
+          "url": "http://127.0.0.1:4318/map/noticed/manifest.json",
+          "status": 503,
+          "stage": "runtime"
+        },
+        {
+          "type": "console.error",
+          "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+          "location": {
+            "url": "http://127.0.0.1:4318/map/noticed/manifest.json",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          "stage": "runtime"
+        }
+      ],
+      "final": {
+        "snapshot": {
+          "mode": "3d",
+          "state": "degraded",
+          "generation": 1,
+          "camera": {
+            "x": 108.61635380053188,
+            "y": 38.460000000000605,
+            "zoom": 468.75
+          },
+          "queuedJobs": 8,
+          "pendingEssentialJobs": 0,
+          "completedJobs": 27,
+          "failedJobs": 0,
+          "errorCount": 1,
+          "errors": [
+            {
+              "jobId": "asset:noticed:manifest",
+              "essential": false,
+              "message": "HTTP 503"
+            }
+          ],
+          "activeJobId": null,
+          "lastJob": {
+            "id": "landmark:rest:bishop:13",
+            "ms": 0.20000000298023224
+          },
+          "slowestJob": {
+            "id": "plan:city",
+            "ms": 1163.9000000059605
+          },
+          "residentCells": null,
+          "stockBuildings": 5609,
+          "stockDrawn": true,
+          "drawCalls": 25,
+          "triangles": 470012,
+          "geometryBytes": 202545952,
+          "textures": 0,
+          "firstUsefulFrameMs": 4758.100000008941,
+          "frameP95Ms": 1702,
+          "fallbackReason": null
+        },
+        "mapMode": "3d",
+        "mapState": "degraded",
+        "mapReady": "1",
+        "bridge": true
+      },
+      "finishedAt": "2026-09-07T15:15:36.195Z",
+      "expectedFixtureEvents": [
+        {
+          "type": "http",
+          "url": "http://127.0.0.1:4318/map/noticed/manifest.json",
+          "status": 503,
+          "stage": "runtime"
+        },
+        {
+          "type": "console.error",
+          "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+          "location": {
+            "url": "http://127.0.0.1:4318/map/noticed/manifest.json",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          "stage": "runtime"
+        }
+      ],
+      "cleanupEvents": [],
+      "unexpectedEvents": []
+    },
+    {
+      "id": "L2-context-loss-pending-load",
+      "path": "/game?map=debug&look=citystreet&chrome=0&qa=1",
+      "url": "http://127.0.0.1:4318/game?map=debug&look=citystreet&chrome=0&qa=1",
+      "startedAt": "2026-09-07T15:15:36.197Z",
+      "assertions": [
+        {
+          "label": "city request started while held",
+          "pass": true
+        },
+        {
+          "label": "debug context-loss hook exists",
+          "pass": true
+        },
+        {
+          "label": "2D fallback is ready",
+          "pass": false,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "disposed",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 1,
+              "pendingEssentialJobs": 1,
+              "completedJobs": 2,
+              "failedJobs": 0,
+              "errorCount": 1,
+              "errors": [
+                {
+                  "jobId": "contextlost",
+                  "essential": true,
+                  "message": "WebGL context lost"
+                }
+              ],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "load:noticed",
+                "ms": 121.5
+              },
+              "slowestJob": {
+                "id": "load:noticed",
+                "ms": 121.5
+              },
+              "residentCells": null,
+              "stockBuildings": 0,
+              "stockDrawn": false,
+              "drawCalls": 1,
+              "triangles": 2,
+              "geometryBytes": 2792,
+              "textures": 0,
+              "firstUsefulFrameMs": null,
+              "frameP95Ms": 0.20000000298023224,
+              "fallbackReason": null
+            },
+            "mapMode": "2d",
+            "mapState": "disposed",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "context-loss error and reason recorded",
+          "pass": false,
+          "detail": {
+            "mode": "3d",
+            "state": "disposed",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 1,
+            "pendingEssentialJobs": 1,
+            "completedJobs": 2,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "contextlost",
+                "essential": true,
+                "message": "WebGL context lost"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "residentCells": null,
+            "stockBuildings": 0,
+            "stockDrawn": false,
+            "drawCalls": 1,
+            "triangles": 2,
+            "geometryBytes": 2792,
+            "textures": 0,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 0.20000000298023224,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "pending city request aborted",
+          "pass": true,
+          "detail": {
+            "cityFetchStarted": true,
+            "citySignalAborted": true,
+            "citySettled": true,
+            "cityResult": "error:AbortError",
+            "cityStartedAt": 232.20000000298023,
+            "citySettledAt": 10074.59999999404
+          }
+        },
+        {
+          "label": "debug hook removed after fallback",
+          "pass": true
+        },
+        {
+          "label": "no late 3D transition or stock mutation",
+          "pass": false,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "disposed",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 1,
+              "pendingEssentialJobs": 1,
+              "completedJobs": 2,
+              "failedJobs": 0,
+              "errorCount": 1,
+              "errors": [
+                {
+                  "jobId": "contextlost",
+                  "essential": true,
+                  "message": "WebGL context lost"
+                }
+              ],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "load:noticed",
+                "ms": 121.5
+              },
+              "slowestJob": {
+                "id": "load:noticed",
+                "ms": 121.5
+              },
+              "residentCells": null,
+              "stockBuildings": 0,
+              "stockDrawn": false,
+              "drawCalls": 1,
+              "triangles": 2,
+              "geometryBytes": 2792,
+              "textures": 0,
+              "firstUsefulFrameMs": null,
+              "frameP95Ms": 0.20000000298023224,
+              "fallbackReason": null
+            },
+            "mapMode": "2d",
+            "mapState": "disposed",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "no unexpected browser errors",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "snapshots": [
+        {
+          "label": "before-context-loss",
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 1,
+            "pendingEssentialJobs": 1,
+            "completedJobs": 2,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "residentCells": null,
+            "stockBuildings": 0,
+            "stockDrawn": false,
+            "drawCalls": 1,
+            "triangles": 2,
+            "geometryBytes": 2792,
+            "textures": 0,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 0.29999999701976776,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "label": "after-context-loss",
+          "snapshot": {
+            "mode": "3d",
+            "state": "disposed",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 1,
+            "pendingEssentialJobs": 1,
+            "completedJobs": 2,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "contextlost",
+                "essential": true,
+                "message": "WebGL context lost"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "residentCells": null,
+            "stockBuildings": 0,
+            "stockDrawn": false,
+            "drawCalls": 1,
+            "triangles": 2,
+            "geometryBytes": 2792,
+            "textures": 0,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 0.20000000298023224,
+            "fallbackReason": null
+          },
+          "mapMode": "2d",
+          "mapState": "disposed",
+          "mapReady": "1",
+          "bridge": true
+        },
+        {
+          "label": "after-held-route-release",
+          "snapshot": {
+            "mode": "3d",
+            "state": "disposed",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 1,
+            "pendingEssentialJobs": 1,
+            "completedJobs": 2,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "contextlost",
+                "essential": true,
+                "message": "WebGL context lost"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 121.5
+            },
+            "residentCells": null,
+            "stockBuildings": 0,
+            "stockDrawn": false,
+            "drawCalls": 1,
+            "triangles": 2,
+            "geometryBytes": 2792,
+            "textures": 0,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 0.20000000298023224,
+            "fallbackReason": null
+          },
+          "mapMode": "2d",
+          "mapState": "disposed",
+          "mapReady": "1",
+          "bridge": true
+        }
+      ],
+      "screenshots": [],
+      "errors": [],
+      "failed": true,
+      "events": [
+        {
+          "type": "requestfailed",
+          "url": "http://127.0.0.1:4318/map/london-city.bin",
+          "message": "net::ERR_ABORTED",
+          "stage": "runtime"
+        }
+      ],
+      "fixture": {
+        "cityFetchStarted": true,
+        "citySignalAborted": true,
+        "citySettled": true,
+        "cityResult": "error:AbortError",
+        "cityStartedAt": 232.20000000298023,
+        "citySettledAt": 10074.59999999404
+      },
+      "final": {
+        "snapshot": {
+          "mode": "3d",
+          "state": "disposed",
+          "generation": 1,
+          "camera": {
+            "x": 108.61635380053188,
+            "y": 38.460000000000605,
+            "zoom": 468.75
+          },
+          "queuedJobs": 1,
+          "pendingEssentialJobs": 1,
+          "completedJobs": 2,
+          "failedJobs": 0,
+          "errorCount": 1,
+          "errors": [
+            {
+              "jobId": "contextlost",
+              "essential": true,
+              "message": "WebGL context lost"
+            }
+          ],
+          "activeJobId": null,
+          "lastJob": {
+            "id": "load:noticed",
+            "ms": 121.5
+          },
+          "slowestJob": {
+            "id": "load:noticed",
+            "ms": 121.5
+          },
+          "residentCells": null,
+          "stockBuildings": 0,
+          "stockDrawn": false,
+          "drawCalls": 1,
+          "triangles": 2,
+          "geometryBytes": 2792,
+          "textures": 0,
+          "firstUsefulFrameMs": null,
+          "frameP95Ms": 0.20000000298023224,
+          "fallbackReason": null
+        },
+        "mapMode": "2d",
+        "mapState": "disposed",
+        "mapReady": "1",
+        "bridge": true
+      },
+      "finishedAt": "2026-09-07T15:15:53.520Z",
+      "expectedFixtureEvents": [
+        {
+          "type": "requestfailed",
+          "url": "http://127.0.0.1:4318/map/london-city.bin",
+          "message": "net::ERR_ABORTED",
+          "stage": "runtime"
+        }
+      ],
+      "cleanupEvents": [],
+      "unexpectedEvents": []
+    },
+    {
+      "id": "L3-constructor-failure",
+      "path": "/game?map=3d&look=citystreet&chrome=0&qa=1",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0&qa=1",
+      "startedAt": "2026-09-07T15:15:53.520Z",
+      "assertions": [
+        {
+          "label": "2D fallback is ready",
+          "pass": false,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "disposed",
+              "generation": 1,
+              "camera": null,
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 0,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": null,
+              "slowestJob": null,
+              "residentCells": null,
+              "stockBuildings": null,
+              "stockDrawn": null,
+              "drawCalls": null,
+              "triangles": null,
+              "geometryBytes": null,
+              "textures": null,
+              "firstUsefulFrameMs": null,
+              "frameP95Ms": null,
+              "fallbackReason": null
+            },
+            "mapMode": "2d",
+            "mapState": "disposed",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "constructor failure is essential and identified",
+          "pass": false,
+          "detail": {
+            "mode": "3d",
+            "state": "disposed",
+            "generation": 1,
+            "camera": null,
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 0,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": null,
+            "slowestJob": null,
+            "residentCells": null,
+            "stockBuildings": null,
+            "stockDrawn": null,
+            "drawCalls": null,
+            "triangles": null,
+            "geometryBytes": null,
+            "textures": null,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": null,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "failed renderer attempted real WebGL2 context",
+          "pass": true,
+          "detail": {
+            "fixture": {
+              "records": [
+                {
+                  "action": "add",
+                  "type": "webglcontextlost",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "add",
+                  "type": "webglcontextrestored",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "add",
+                  "type": "webglcontextcreationerror",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextlost",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextlost",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextrestored",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextcreationerror",
+                  "canvas": "canvas-2"
+                }
+              ],
+              "getContextCalls": [
+                {
+                  "type": "webgl2",
+                  "canvas": "canvas-1"
+                },
+                {
+                  "type": "webgl2",
+                  "canvas": "canvas-2"
+                }
+              ],
+              "originalDprConfigurable": true
+            },
+            "webgl2CallCanvasIds": [
+              "canvas-1",
+              "canvas-2"
+            ],
+            "registered": [
+              "canvas-2:webglcontextlost",
+              "canvas-2:webglcontextrestored",
+              "canvas-2:webglcontextcreationerror"
+            ]
+          }
+        },
+        {
+          "label": "failed renderer listeners are removed",
+          "pass": true,
+          "detail": {
+            "fixture": {
+              "records": [
+                {
+                  "action": "add",
+                  "type": "webglcontextlost",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "add",
+                  "type": "webglcontextrestored",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "add",
+                  "type": "webglcontextcreationerror",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextlost",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextlost",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextrestored",
+                  "canvas": "canvas-2"
+                },
+                {
+                  "action": "remove",
+                  "type": "webglcontextcreationerror",
+                  "canvas": "canvas-2"
+                }
+              ],
+              "getContextCalls": [
+                {
+                  "type": "webgl2",
+                  "canvas": "canvas-1"
+                },
+                {
+                  "type": "webgl2",
+                  "canvas": "canvas-2"
+                }
+              ],
+              "originalDprConfigurable": true
+            },
+            "registered": [
+              "canvas-2:webglcontextlost",
+              "canvas-2:webglcontextrestored",
+              "canvas-2:webglcontextcreationerror"
+            ],
+            "removed": [
+              "canvas-2:webglcontextlost",
+              "canvas-2:webglcontextrestored",
+              "canvas-2:webglcontextcreationerror"
+            ]
+          }
+        },
+        {
+          "label": "no unexpected browser errors",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "snapshots": [
+        {
+          "atMs": 0,
+          "snapshot": {
+            "mode": "3d",
+            "state": "disposed",
+            "generation": 1,
+            "camera": null,
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 0,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": null,
+            "slowestJob": null,
+            "residentCells": null,
+            "stockBuildings": null,
+            "stockDrawn": null,
+            "drawCalls": null,
+            "triangles": null,
+            "geometryBytes": null,
+            "textures": null,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": null,
+            "fallbackReason": null
+          },
+          "mapMode": "2d",
+          "mapState": "disposed",
+          "mapReady": "1",
+          "bridge": true
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R3a/browser/screenshots/l3-constructor-failure-final.png",
+          "ok": true,
+          "capturedAt": "2026-09-07T15:15:54.212Z"
+        }
+      ],
+      "errors": [],
+      "failed": true,
+      "events": [],
+      "fixture": {
+        "records": [
+          {
+            "action": "add",
+            "type": "webglcontextlost",
+            "canvas": "canvas-2"
+          },
+          {
+            "action": "add",
+            "type": "webglcontextrestored",
+            "canvas": "canvas-2"
+          },
+          {
+            "action": "add",
+            "type": "webglcontextcreationerror",
+            "canvas": "canvas-2"
+          },
+          {
+            "action": "remove",
+            "type": "webglcontextlost",
+            "canvas": "canvas-2"
+          },
+          {
+            "action": "remove",
+            "type": "webglcontextlost",
+            "canvas": "canvas-2"
+          },
+          {
+            "action": "remove",
+            "type": "webglcontextrestored",
+            "canvas": "canvas-2"
+          },
+          {
+            "action": "remove",
+            "type": "webglcontextcreationerror",
+            "canvas": "canvas-2"
+          }
+        ],
+        "getContextCalls": [
+          {
+            "type": "webgl2",
+            "canvas": "canvas-1"
+          },
+          {
+            "type": "webgl2",
+            "canvas": "canvas-2"
+          }
+        ],
+        "originalDprConfigurable": true
+      },
+      "final": {
+        "snapshot": {
+          "mode": "3d",
+          "state": "disposed",
+          "generation": 1,
+          "camera": null,
+          "queuedJobs": 0,
+          "pendingEssentialJobs": 0,
+          "completedJobs": 0,
+          "failedJobs": 0,
+          "errorCount": 0,
+          "errors": [],
+          "activeJobId": null,
+          "lastJob": null,
+          "slowestJob": null,
+          "residentCells": null,
+          "stockBuildings": null,
+          "stockDrawn": null,
+          "drawCalls": null,
+          "triangles": null,
+          "geometryBytes": null,
+          "textures": null,
+          "firstUsefulFrameMs": null,
+          "frameP95Ms": null,
+          "fallbackReason": null
+        },
+        "mapMode": "2d",
+        "mapState": "disposed",
+        "mapReady": "1",
+        "bridge": true
+      },
+      "finishedAt": "2026-09-07T15:15:54.271Z",
+      "expectedFixtureEvents": [],
+      "cleanupEvents": [],
+      "unexpectedEvents": []
+    }
+  ],
+  "failures": [
+    {
+      "type": "case",
+      "id": "L2-context-loss-pending-load"
+    },
+    {
+      "type": "case",
+      "id": "L3-constructor-failure"
+    }
+  ],
+  "runtimeCapture": "deferred until lead integrates R3a runtime and build",
+  "summary": {
+    "cases": 3,
+    "expectedCases": 3,
+    "failed": 2,
+    "incomplete": 0
+  },
+  "exitStatus": 1
+}
