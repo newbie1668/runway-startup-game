@@ -5,6 +5,7 @@ import { createResourcePool } from '../lib/game/render3d/sceneResources';
 
 const require = createRequire(import.meta.url);
 const three = require('three') as typeof import('three');
+const originalRenderer = three.WebGLRenderer;
 
 const originalWindow = globalThis.window;
 const listeners: string[] = [];
@@ -84,7 +85,6 @@ try {
     newerDebug,
   );
 
-  const originalRenderer = three.WebGLRenderer;
   let rendererDisposals = 0;
   const constructionListeners: string[] = [];
   class FakeRenderer {
@@ -114,8 +114,8 @@ try {
     'an allocated renderer is disposed when later construction fails',
   );
   assert.deepEqual(constructionListeners, ['remove:webglcontextlost']);
-  (three as unknown as { WebGLRenderer: typeof originalRenderer }).WebGLRenderer = originalRenderer;
   console.log('renderer disposal passed');
 } finally {
+  (three as unknown as { WebGLRenderer: typeof originalRenderer }).WebGLRenderer = originalRenderer;
   globalThis.window = originalWindow;
 }
