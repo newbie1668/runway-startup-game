@@ -179,6 +179,7 @@ async function runCase(definition, result) {
       releaseCity?.();
       await sleep(500);
       const settled = await snapshot(page); entry.snapshots.push({ label: 'after-held-route-release', ...settled });
+      entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
       check(entry, 'no late 3D transition or stock mutation', settled.mapMode === '2d' && settled.snapshot?.mode === '2d' && settled.snapshot?.stockDrawn == null, settled);
       entry.fixture = fixture; entry.final = settled;
     } else {
@@ -203,6 +204,7 @@ async function runCase(definition, result) {
     if (server) await deadline(server.close(), cleanupTimeout, 'browser server close timed out').catch((error) => entry.errors.push({ stage: 'cleanup', message: error.message }));
     clearTimeout(timer); entry.finishedAt = new Date().toISOString(); entry.events = [...events]; assessEvents(entry, entry.events, definition.kind);
     for (const capture of entry.screenshots) if (!capture.ok) check(entry, 'screenshot captured', false, capture);
+    check(entry, 'exactly one successful final screenshot', entry.screenshots.length === 1 && entry.screenshots.filter((capture) => capture.ok).length === 1, entry.screenshots);
   }
   entry.failed ||= timedOut.value || entry.errors.some((error) => !String(error.stage).startsWith('cleanup')) || entry.assertions.some((assertion) => !assertion.pass);
   return entry;
