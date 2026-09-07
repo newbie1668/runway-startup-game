@@ -8,12 +8,11 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { NOTICED_BAKE_HEIGHT_SCALE, TOWER_HEIGHT_SCALE } from './buildingStyle';
 import { METERS_TO_WORLD } from '../geo';
-import { makeMatteLambert } from './matteGltf';
 import { buildUniqueNoticed, isUniqueNoticedId, uniquePlanRing } from './uniqueNoticed';
 import { meshBudget } from './lookClip';
+import { loadPrefabScene, type PrefabLoadOptions } from './prefabLoad';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -53,17 +52,20 @@ interface NoticedManifest {
   }>;
 }
 
-export async function loadNoticedPrefabs(): Promise<{
+export async function loadNoticedPrefabs(options: PrefabLoadOptions): Promise<{
   entries: NoticedEntry[];
   prefabs: Map<string, THREE.Object3D>;
 }> {
-  const loader = new GLTFLoader();
   let manifest: NoticedManifest;
   try {
-    const res = await fetch(`${NOTICED_DIR}/manifest.json`);
-    if (!res.ok) return { entries: [], prefabs: new Map() };
+    if (options.signal.aborted || !options.isCurrent()) return { entries: [], prefabs: new Map() };
+    const res = await fetch(`${NOTICED_DIR}/manifest.json`, { signal: options.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (options.signal.aborted || !options.isCurrent()) return { entries: [], prefabs: new Map() };
     manifest = (await res.json()) as NoticedManifest;
-  } catch {
+    if (options.signal.aborted || !options.isCurrent()) return { entries: [], prefabs: new Map() };
+  } catch (error) {
+    if (!options.signal.aborted && options.isCurrent()) options.onError('asset:noticed:manifest', error);
     return { entries: [], prefabs: new Map() };
   }
 
@@ -72,23 +74,11 @@ export async function loadNoticedPrefabs(): Promise<{
   const prefabs = new Map<string, THREE.Object3D>();
   await Promise.all(
     (manifest.files ?? []).map(async (file) => {
-      try {
-        if (!shouldLoadNoticedGlb(file.id, skipGlb)) {
-          if (isStreetNoticedId(file.id)) return;
-          prefabs.set(file.id, new THREE.Group());
-          entries.push({
-            id: file.id,
-            name: file.name,
-            x: file.x,
-            z: file.z,
-            exclusionM: file.exclusionM,
-            heightM: file.heightM ?? 120,
-          });
-          return;
-        }
-        const gltf = await loader.loadAsync(`${NOTICED_DIR}/${file.file}`);
-        makeMatteLambert(gltf.scene, { keepMaps: true });
-        prefabs.set(file.id, gltf.scene);
+      if (options.signal.aborted || !options.isCurrent()) return;
+      if (!shouldLoadNoticedGlb(file.id, skipGlb)) {
+        if (isStreetNoticedId(file.id)) return;
+        if (options.signal.aborted || !options.isCurrent()) return;
+        prefabs.set(file.id, new THREE.Group());
         entries.push({
           id: file.id,
           name: file.name,
@@ -97,9 +87,19 @@ export async function loadNoticedPrefabs(): Promise<{
           exclusionM: file.exclusionM,
           heightM: file.heightM ?? 120,
         });
-      } catch {
-        // OSM extrusion remains for this footprint.
+        return;
       }
+      const scene = await loadPrefabScene(`asset:noticed:${file.id}`, `${NOTICED_DIR}/${file.file}`, options, { keepMaps: true });
+      if (!scene || options.signal.aborted || !options.isCurrent()) return;
+      prefabs.set(file.id, scene);
+      entries.push({
+        id: file.id,
+        name: file.name,
+        x: file.x,
+        z: file.z,
+        exclusionM: file.exclusionM,
+        heightM: file.heightM ?? 120,
+      });
     }),
   );
   return { entries, prefabs };

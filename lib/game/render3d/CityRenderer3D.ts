@@ -70,6 +70,8 @@ import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
 import { createGlowSpriteTexture } from './textures';
 import { createGeometryTracker } from './diagnostics';
 import { createMapDiagnostics, type MapDiagnosticsReporter } from '../mapDiagnostics';
+import { createResourcePool } from './sceneResources';
+import { retainSceneResources } from './sceneResourceTree';
 
 const CITY_BIN_URL = '/map/london-city.bin';
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
@@ -184,6 +186,10 @@ export class CityRenderer3D implements IMapRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly diagnostics: MapDiagnosticsReporter;
   private readonly geometryTracker = createGeometryTracker();
+  private readonly resources = createResourcePool();
+  private readonly loadController = new AbortController();
+  private generation = 0;
+  private groundRelease: (() => void) | null = null;
   private stockBuildings = 0;
   private stockDrawnThisFrame = false;
   private readonly scene3d = new THREE.Scene();
@@ -237,6 +243,7 @@ export class CityRenderer3D implements IMapRenderer {
 
   private disposed = false;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
+  private debugContextLoss: (() => void) | null = null;
 
   constructor(
     cityCanvas: HTMLCanvasElement,
@@ -295,15 +302,21 @@ export class CityRenderer3D implements IMapRenderer {
 
     this.groundMesh = buildGround();
     this.scene3d.add(this.groundMesh);
-    this.scene3d.add(buildTubeLines());
+    this.groundRelease = retainSceneResources(this.resources, this.groundMesh);
+    const tubeLines = buildTubeLines();
+    this.scene3d.add(tubeLines);
+    retainSceneResources(this.resources, tubeLines);
 
     this.glowTexture = createGlowSpriteTexture();
     const { group: hubGlowGroup, sprites } = buildHubGlows(this.glowTexture);
     this.hubGlowSprites = sprites;
     this.scene3d.add(hubGlowGroup);
+    retainSceneResources(this.resources, hubGlowGroup);
 
     this.scene3d.add(this.cityGroup);
     this.buildingMaterial = createBuildingMaterial();
+    this.resources.retain(this.buildingMaterial);
+    this.resources.retain(this.glowTexture);
 
     this.beamGroup.visible = false;
     const beamMat = new THREE.MeshBasicMaterial({
@@ -332,36 +345,46 @@ export class CityRenderer3D implements IMapRenderer {
     core.renderOrder = 13;
     this.beamGroup.add(beam, core);
     this.scene3d.add(this.beamGroup);
+    retainSceneResources(this.resources, this.beamGroup);
     this.geometryTracker.trackTree(this.scene3d);
 
     this.cityCanvas.addEventListener('webglcontextlost', this.handleContextLost);
 
+    const generation = this.generation;
+    const isCurrent = () => this.isCurrent(generation);
+    const onAssetError = (id: string, error: unknown) => {
+      if (isCurrent()) this.diagnostics.recordError(id, false, error);
+    };
     const trackLoad = <T>(id: string, essential: boolean, load: () => Promise<T>): Promise<T> => {
       this.diagnostics.registerJob(id, essential);
       this.diagnostics.startJob(id);
       return load().then(
         (value) => {
-          if (!this.disposed) this.diagnostics.completeJob(id);
+          if (isCurrent()) this.diagnostics.completeJob(id);
           return value;
         },
         (error) => {
-          if (!this.disposed) this.diagnostics.failJob(id, error);
+          if (isCurrent()) this.diagnostics.failJob(id, error);
           throw error;
         },
       );
     };
-    const cityPromise = trackLoad('load:city', true, () => fetch(CITY_BIN_URL)
+    const cityPromise = trackLoad('load:city', true, () => fetch(CITY_BIN_URL, { signal: this.loadController.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.arrayBuffer();
       })
-      .then((buf) => decodeCity(buf)));
-    const landmarksPromise = trackLoad('load:landmarks', false, loadLandmarkPrefabs).catch(() => new Map<LandmarkKind, THREE.Object3D>());
-    const noticedPromise = trackLoad('load:noticed', false, loadNoticedPrefabs).catch(() => ({ entries: [], prefabs: new Map<string, THREE.Object3D>() }));
+      .then((buf) => {
+        if (!isCurrent()) throw new DOMException('Obsolete city load', 'AbortError');
+        return decodeCity(buf);
+      }));
+    const prefabOptions = { resources: this.resources, signal: this.loadController.signal, isCurrent, onError: onAssetError };
+    const landmarksPromise = trackLoad('load:landmarks', false, () => loadLandmarkPrefabs(prefabOptions));
+    const noticedPromise = trackLoad('load:noticed', false, () => loadNoticedPrefabs(prefabOptions));
 
     void Promise.all([cityPromise, landmarksPromise, noticedPromise])
       .then(([data, prefabs, noticed]) => {
-        if (this.disposed) return;
+        if (!isCurrent()) return;
         this.diagnostics.registerJob('plan:city', true);
         this.diagnostics.startJob('plan:city');
         this.landmarkPrefabs = prefabs;
@@ -374,24 +397,30 @@ export class CityRenderer3D implements IMapRenderer {
           this.diagnostics.completeJob('plan:city');
         } catch (error) {
           this.diagnostics.failJob('plan:city', error);
-          if (!this.disposed) this.onFatal('City layout failed');
+          if (isCurrent()) this.onFatal('City layout failed');
         }
       })
       .catch(() => {
-        if (!this.disposed) this.onFatal('City data failed');
+        if (isCurrent()) this.onFatal('City data failed');
       });
 
     if (new URLSearchParams(window.location.search).get('map') === 'debug') {
-      (window as unknown as { __runwayForceContextLoss?: () => void }).__runwayForceContextLoss =
-        () => {
+      this.debugContextLoss = () => {
           this.renderer.getContext().getExtension('WEBGL_lose_context')?.loseContext();
         };
+      (window as unknown as { __runwayForceContextLoss?: () => void }).__runwayForceContextLoss = this.debugContextLoss;
     }
+  }
+
+  private isCurrent(generation: number): boolean {
+    return !this.disposed && !this.loadController.signal.aborted && this.generation === generation;
   }
 
   private handleContextLost = (e: Event): void => {
     e.preventDefault();
+    if (this.disposed) return;
     this.diagnostics.recordError('contextlost', true, new Error('WebGL context lost'));
+    if (this.contextLostTimer) clearTimeout(this.contextLostTimer);
     this.contextLostTimer = setTimeout(() => {
       if (this.disposed) return;
       try {
@@ -452,13 +481,15 @@ export class CityRenderer3D implements IMapRenderer {
           }
         : null;
     if (keep) {
-      this.scene3d.remove(this.groundMesh);
-      this.groundMesh.geometry.dispose();
-      const oldMat = this.groundMesh.material;
-      if (Array.isArray(oldMat)) oldMat.forEach((m) => m.dispose());
-      else oldMat.dispose();
-      this.groundMesh = buildGround(keep);
+      const oldGround = this.groundMesh;
+      const oldRelease = this.groundRelease;
+      const nextGround = buildGround(keep);
+      const nextRelease = retainSceneResources(this.resources, nextGround);
+      this.scene3d.remove(oldGround);
+      this.groundMesh = nextGround;
+      this.groundRelease = nextRelease;
       this.scene3d.add(this.groundMesh);
+      oldRelease?.();
       this.geometryTracker.trackTree(this.groundMesh);
     }
     const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
@@ -590,8 +621,13 @@ export class CityRenderer3D implements IMapRenderer {
           keep,
         );
         if (built) {
+          const replacedMaterials = new Set<THREE.Material>();
           for (const mesh of chunkTierMeshes(built)) {
+            const previousMaterial = mesh.material;
             mesh.material = this.buildingMaterial;
+            for (const material of Array.isArray(previousMaterial) ? previousMaterial : [previousMaterial]) {
+              replacedMaterials.add(material);
+            }
             this.buildingMeshes.push(mesh);
             if (!job.major) this.minorMeshes.push(mesh);
             const previous = mesh.onAfterRender;
@@ -599,6 +635,10 @@ export class CityRenderer3D implements IMapRenderer {
               previous?.call(mesh, ...args);
               this.stockDrawnThisFrame = true;
             };
+          }
+          for (const material of replacedMaterials) {
+            const release = this.resources.retain(material);
+            release();
           }
           this.cityGroup.add(built);
           this.stockBuildings += Math.max(0, this.scratch.picks.length - picksBefore);
@@ -664,7 +704,10 @@ export class CityRenderer3D implements IMapRenderer {
           fatalReason = job.id;
         }
       } finally {
-        for (const child of this.cityGroup.children.slice(childCount)) this.geometryTracker.trackTree(child);
+        for (const child of this.cityGroup.children.slice(childCount)) {
+          retainSceneResources(this.resources, child);
+          this.geometryTracker.trackTree(child);
+        }
       }
       if (fatalReason) {
         this.onFatal(fatalReason);
@@ -1033,18 +1076,27 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
-    if (this.contextLostTimer) clearTimeout(this.contextLostTimer);
-    this.cityCanvas.removeEventListener('webglcontextlost', this.handleContextLost);
-    this.scene3d.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) obj.geometry.dispose();
-      const material = (obj as Partial<THREE.Mesh>).material;
-      if (Array.isArray(material)) material.forEach((m) => m.dispose());
-      else material?.dispose();
-    });
-    this.buildingMaterial.dispose();
-    this.glowTexture.dispose();
-    this.renderer.dispose();
-    this.geometryTracker.clear();
+    this.generation += 1;
+    this.loadController.abort();
+    const cleanup: Array<() => void> = [
+      () => { if (this.contextLostTimer) clearTimeout(this.contextLostTimer); this.contextLostTimer = null; },
+      () => this.cityCanvas.removeEventListener('webglcontextlost', this.handleContextLost),
+      () => {
+        const target = window as unknown as { __runwayForceContextLoss?: () => void };
+        if (this.debugContextLoss && target.__runwayForceContextLoss === this.debugContextLoss) delete target.__runwayForceContextLoss;
+      },
+      () => { this.buildQueue = []; this.scratch = createScratch(); this.buildingMeshes.length = 0; this.minorMeshes.length = 0; },
+      () => { this.landmarkPrefabs.clear(); this.noticedPrefabs.clear(); this.noticedEntries = []; this.hubGlowSprites.clear(); this.selected = null; this.lastPlayerHubId = null; this.tier2RoadMesh = this.markMesh = this.lampGroup = null; this.windowMesh = null; },
+      () => { this.scene3d.clear(); },
+      () => this.resources.dispose(),
+      () => this.renderer.dispose(),
+      () => this.geometryTracker.clear(),
+      () => this.diagnostics.dispose(),
+    ];
+    for (const action of cleanup) {
+      try { action(); } catch { /* teardown continues; disposed diagnostics cannot safely report */ }
+    }
   }
 }
