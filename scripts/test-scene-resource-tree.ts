@@ -87,6 +87,42 @@ matteDropRelease();
 matteDropPool.dispose();
 assert.equal(matteDropMapDisposals, 1);
 
+const partialGeometry = new THREE.BoxGeometry();
+const partialMap = new THREE.Texture();
+const partialMaterial = new THREE.MeshStandardMaterial({ map: partialMap });
+let partialGeometryDisposals = 0;
+let partialMaterialDisposals = 0;
+let partialMapDisposals = 0;
+partialGeometry.dispose = () => { partialGeometryDisposals += 1; };
+partialMaterial.dispose = () => { partialMaterialDisposals += 1; };
+partialMap.dispose = () => { partialMapDisposals += 1; };
+const partialRoot = new THREE.Group();
+partialRoot.add(new THREE.Mesh(partialGeometry, partialMaterial));
+const failingMesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+const failingMaterial = failingMesh.material;
+Object.defineProperty(failingMesh, 'material', { configurable: true, get: () => failingMaterial, set: () => { throw new Error('material assignment failed'); } });
+partialRoot.add(failingMesh);
+let orphanDisposals = 0;
+const originalLambertDispose = THREE.MeshLambertMaterial.prototype.dispose;
+const originalMaterialDispose = THREE.Material.prototype.dispose;
+THREE.MeshLambertMaterial.prototype.dispose = function spyDispose(this: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
+  orphanDisposals += 1;
+  return originalLambertDispose.call(this);
+};
+THREE.Material.prototype.dispose = function spyMaterialDispose(this: THREE.Material): THREE.Material {
+  orphanDisposals += 1;
+  return originalMaterialDispose.call(this);
+};
+const partialPool = createResourcePool();
+assert.throws(() => retainMatteScene(partialPool, partialRoot), /material assignment failed/);
+THREE.MeshLambertMaterial.prototype.dispose = originalLambertDispose;
+THREE.Material.prototype.dispose = originalMaterialDispose;
+partialPool.dispose();
+assert.equal(orphanDisposals, 1);
+assert.equal(partialGeometryDisposals, 1);
+assert.equal(partialMaterialDisposals, 1);
+assert.equal(partialMapDisposals, 1);
+
 const bitmapClass = class FakeImageBitmap { closes = 0; close(): void { this.closes += 1; } };
 Object.defineProperty(globalThis, 'ImageBitmap', { configurable: true, value: bitmapClass });
 const sharedBitmap = new bitmapClass();

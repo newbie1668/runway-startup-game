@@ -49,13 +49,17 @@ export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions):
   const keepMaps = opts?.keepMaps ?? false;
   const disposeResource = opts?.disposeResource ?? ((resource: { dispose(): void }) => resource.dispose());
   root.traverse((obj) => {
-    if (!(obj instanceof THREE.Mesh)) return;
-    const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+    if (!(obj instanceof THREE.Mesh || (obj as THREE.Mesh & { isMesh?: boolean }).isMesh === true)) return;
+    const mesh = obj as THREE.Mesh;
+    const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const mapped = list.map((mat) => {
       if (!mat || mat instanceof THREE.MeshBasicMaterial) return mat;
       const color =
         'color' in mat && mat.color instanceof THREE.Color ? mat.color.getHex() : 0x9aa4ae;
-      const map = 'map' in mat && mat.map ? mat.map : null;
+      const map =
+        'map' in mat && mat.map && typeof mat.map === 'object' && (mat.map as THREE.Texture).isTexture
+          ? (mat.map as THREE.Texture)
+          : null;
       const hadMap = !!map;
       if (!keepMaps && map && 'dispose' in map) disposeResource(map);
       const next = new THREE.MeshLambertMaterial({
@@ -74,7 +78,14 @@ export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions):
       disposeResource(mat);
       return next;
     });
-    obj.material = Array.isArray(obj.material) ? mapped : mapped[0]!;
+    try {
+      mesh.material = Array.isArray(mesh.material) ? mapped : mapped[0]!;
+    } catch (error) {
+      // Assignment can fail after constructors have created materials that are
+      // no longer reachable from the scene. Dispose those orphans transactionally.
+      for (const next of mapped) if (next && next !== mesh.material && !(next instanceof THREE.MeshBasicMaterial)) next.dispose();
+      throw error;
+    }
   });
 }
 
