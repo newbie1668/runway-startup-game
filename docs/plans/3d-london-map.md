@@ -1,5 +1,10 @@
 # SFSIM-style 3D London Map for RUNWAY
 
+> Historical implementation plan. For the current owner-confirmed daytime
+> recovery, use [the recovery entry point](../runway-recovery/README.md).
+> Its product contract supersedes conflicting night-camera and asset-pipeline
+> decisions here; the original architecture history remains useful evidence.
+
 > **This plan is a self-contained execution spec for an AI agent (e.g. Sonnet 5) in a fresh session.** Follow it phase by phase. Every phase ends with a verification gate — do not start the next phase until the gate is green. Commit at each gate. Do not improvise art direction or architecture beyond what is specified.
 
 ## Context

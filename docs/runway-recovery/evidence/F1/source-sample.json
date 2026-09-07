@@ -1,0 +1,264 @@
+{
+  "recordedAt": "2026-09-05T07:08:56.609848+00:00",
+  "status": "initial feasibility sample; not an F1 GO",
+  "mapSource": {
+    "url": "https://api.openstreetmap.org/api/0.6/map?bbox=-0.14,51.518,-0.134,51.5215",
+    "rawSha256": "17e8d0ca27890f094414bf7d780d4508d5468089b8ee78f862af2feb6faf9972",
+    "attribution": "OpenStreetMap contributors",
+    "licenseUrl": "https://www.openstreetmap.org/copyright"
+  },
+  "candidateRoute": {
+    "from": "Percy Street junction",
+    "to": "Tottenham Street junction",
+    "roadWayIds": ["1301782548", "4068454", "30279582"],
+    "approxCenterlineLengthM": 273.3,
+    "coordinatesWgs84": [
+      {
+        "latitude": 51.5180299,
+        "longitude": -0.1342984
+      },
+      {
+        "latitude": 51.518077,
+        "longitude": -0.1343458
+      },
+      {
+        "latitude": 51.5183857,
+        "longitude": -0.1346563
+      },
+      {
+        "latitude": 51.5184705,
+        "longitude": -0.1347409
+      },
+      {
+        "latitude": 51.5189168,
+        "longitude": -0.1352038
+      },
+      {
+        "latitude": 51.5191104,
+        "longitude": -0.1354059
+      },
+      {
+        "latitude": 51.5192944,
+        "longitude": -0.1355989
+      },
+      {
+        "latitude": 51.5193289,
+        "longitude": -0.1356335
+      },
+      {
+        "latitude": 51.5193831,
+        "longitude": -0.1356907
+      },
+      {
+        "latitude": 51.5194405,
+        "longitude": -0.1357506
+      },
+      {
+        "latitude": 51.5194721,
+        "longitude": -0.1357837
+      },
+      {
+        "latitude": 51.5198325,
+        "longitude": -0.1361599
+      },
+      {
+        "latitude": 51.5200607,
+        "longitude": -0.1363982
+      },
+      {
+        "latitude": 51.5200969,
+        "longitude": -0.136436
+      }
+    ],
+    "boundsStatus": "route endpoints verified against shared OSM junction nodes; full frontage survey bounds pending"
+  },
+  "entities": [
+    {
+      "sourceId": "osm:way:138339533",
+      "sourceVersion": 8,
+      "sourceTimestamp": "2026-01-10T19:05:59Z",
+      "url": "https://www.openstreetmap.org/way/138339533",
+      "tags": {
+        "addr:housenumber": "26",
+        "addr:street": "Charlotte Street",
+        "building": "yes",
+        "building:colour": "white",
+        "building:levels": "4",
+        "building:material": "plaster",
+        "roof:levels": "1",
+        "roof:shape": "double_saltbox",
+        "source": "Bing",
+        "source:addr:housenumber": "extrapolation;OS 1:1250 map dated 1953",
+        "wikidata": "Q27081860"
+      },
+      "footprint": [
+        {
+          "latitude": 51.5189443,
+          "longitude": -0.1348655
+        },
+        {
+          "latitude": 51.518899,
+          "longitude": -0.1348183
+        },
+        {
+          "latitude": 51.5188376,
+          "longitude": -0.1349749
+        },
+        {
+          "latitude": 51.5188475,
+          "longitude": -0.1349852
+        },
+        {
+          "latitude": 51.5188829,
+          "longitude": -0.1350221
+        },
+        {
+          "latitude": 51.5189443,
+          "longitude": -0.1348655
+        }
+      ],
+      "geometryState": "provider-reported; imagery alignment not surveyed"
+    },
+    {
+      "sourceId": "osm:way:138339551",
+      "sourceVersion": 8,
+      "sourceTimestamp": "2024-10-10T09:17:33Z",
+      "url": "https://www.openstreetmap.org/way/138339551",
+      "tags": {
+        "addr:housenumber": "28",
+        "addr:street": "Charlotte Street",
+        "building": "yes",
+        "building:colour": "brown",
+        "building:levels": "4",
+        "building:material": "brick",
+        "wikidata": "Q66478891"
+      },
+      "footprint": [
+        {
+          "latitude": 51.5190303,
+          "longitude": -0.1348262
+        },
+        {
+          "latitude": 51.5190046,
+          "longitude": -0.1347994
+        },
+        {
+          "latitude": 51.518981,
+          "longitude": -0.1347748
+        },
+        {
+          "latitude": 51.5189495,
+          "longitude": -0.1348526
+        },
+        {
+          "latitude": 51.5189443,
+          "longitude": -0.1348655
+        },
+        {
+          "latitude": 51.5188829,
+          "longitude": -0.1350221
+        },
+        {
+          "latitude": 51.5189322,
+          "longitude": -0.1350736
+        },
+        {
+          "latitude": 51.5190303,
+          "longitude": -0.1348262
+        }
+      ],
+      "geometryState": "provider-reported; imagery alignment not surveyed"
+    },
+    {
+      "sourceId": "osm:way:138339531",
+      "sourceVersion": 7,
+      "sourceTimestamp": "2026-03-09T07:49:23Z",
+      "url": "https://www.openstreetmap.org/way/138339531",
+      "tags": {
+        "addr:housenumber": "30",
+        "addr:street": "Charlotte Street",
+        "building": "yes",
+        "building:colour": "white",
+        "building:levels": "5",
+        "building:material": "plaster",
+        "source": "Bing"
+      },
+      "footprint": [
+        {
+          "latitude": 51.5190785,
+          "longitude": -0.1348766
+        },
+        {
+          "latitude": 51.5190303,
+          "longitude": -0.1348262
+        },
+        {
+          "latitude": 51.5189322,
+          "longitude": -0.1350736
+        },
+        {
+          "latitude": 51.5189804,
+          "longitude": -0.1351239
+        },
+        {
+          "latitude": 51.5190785,
+          "longitude": -0.1348766
+        }
+      ],
+      "geometryState": "provider-reported; imagery alignment not surveyed"
+    }
+  ],
+  "images": [
+    {
+      "commonsPageId": 118422678,
+      "sourceTitle": "File:26 Charlotte Street, Fitzrovia, May 2022.jpg",
+      "descriptionUrl": "https://commons.wikimedia.org/wiki/File:26_Charlotte_Street,_Fitzrovia,_May_2022.jpg",
+      "originalUrl": "https://upload.wikimedia.org/wikipedia/commons/6/60/26_Charlotte_Street%2C_Fitzrovia%2C_May_2022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "downloadUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/26_Charlotte_Street%2C_Fitzrovia%2C_May_2022.jpg/960px-26_Charlotte_Street%2C_Fitzrovia%2C_May_2022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "localFile": "candidate-26.jpg",
+      "sha256": "c2afd815a45409c538e3453b72610e455a865eeebe9e0a90e53d529e20ed556b",
+      "author": "No Swan So Fine",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:No_Swan_So_Fine",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "observedAt": "2022-05-28",
+      "gpsInMetadata": false,
+      "matchVerdict": "candidate: frontage reviewed; dimensions/current condition not verified",
+      "heritageRecord": null
+    },
+    {
+      "commonsPageId": 118422682,
+      "sourceTitle": "File:28 Charlotte Street, Fitzrovia, May 2022.jpg",
+      "descriptionUrl": "https://commons.wikimedia.org/wiki/File:28_Charlotte_Street,_Fitzrovia,_May_2022.jpg",
+      "originalUrl": "https://upload.wikimedia.org/wikipedia/commons/3/31/28_Charlotte_Street%2C_Fitzrovia%2C_May_2022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "downloadUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/28_Charlotte_Street%2C_Fitzrovia%2C_May_2022.jpg/960px-28_Charlotte_Street%2C_Fitzrovia%2C_May_2022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "localFile": "candidate-28.jpg",
+      "sha256": "46989e44d6c83abf9d1a41982a89d707214811dd2712fff17676c3ff5a646410",
+      "author": "No Swan So Fine",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:No_Swan_So_Fine",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "observedAt": "2022-05-28",
+      "gpsInMetadata": false,
+      "matchVerdict": "candidate: frontage reviewed; dimensions/current condition not verified",
+      "heritageRecord": null
+    },
+    {
+      "commonsPageId": 132372665,
+      "sourceTitle": "File:30 Charlotte Street, Fitzrovia, May 2023.jpg",
+      "descriptionUrl": "https://commons.wikimedia.org/wiki/File:30_Charlotte_Street,_Fitzrovia,_May_2023.jpg",
+      "originalUrl": "https://upload.wikimedia.org/wikipedia/commons/b/b7/30_Charlotte_Street%2C_Fitzrovia%2C_May_2023.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "downloadUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b7/30_Charlotte_Street%2C_Fitzrovia%2C_May_2023.jpg/960px-30_Charlotte_Street%2C_Fitzrovia%2C_May_2023.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "localFile": "candidate-30.jpg",
+      "sha256": "0195e5fd912572f73d654667108b678489deba1b8edca9bd792a1e5f3f4715fa",
+      "author": "No Swan So Fine",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:No_Swan_So_Fine",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "observedAt": "2023-05-26",
+      "gpsInMetadata": false,
+      "matchVerdict": "rejected for Charlotte Street: attached heritage record 1379038 is 30 Tottenham Street",
+      "heritageRecord": "https://historicengland.org.uk/listing/the-list/list-entry/1379038?section=comments-and-photos"
+    }
+  ]
+}
