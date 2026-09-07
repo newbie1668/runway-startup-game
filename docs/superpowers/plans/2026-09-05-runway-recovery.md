@@ -192,9 +192,9 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 **Owner:** pure-helper worker. **Depends:** R1. **Allowed files:** new `lib/game/render3d/buildScheduler.ts`, new `scripts/test-build-scheduler.ts`. **Interfaces:** C4 `BuildJob`, `BuildScheduler`, `DrainResult`, `createBuildScheduler`.
 
-- [ ] Use a queue preserving essential-visible priority supplied by the caller. Drain until the injected clock reaches `budgetMs`; retain incomplete jobs for the next frame and record failures by ID/essential flag.
-- [ ] With a fake clock, test that three jobs each consuming 3 ms cannot all run inside a 4 ms drain; preserve remaining work for the next drain. Test multi-step jobs, a throw, cancellation, and obsolete generations.
-- [ ] Ensure `cancelGeneration` invokes each cancelled job's cleanup once and removes it; optional failures cannot block unrelated jobs or vanish from results.
+- [x] Use a queue preserving essential-visible priority supplied by the caller. Drain until the injected clock reaches `budgetMs`; retain incomplete jobs for the next frame and record failures by ID/essential flag.
+- [x] With a fake clock, test that three jobs each consuming 3 ms cannot all run inside a 4 ms drain; preserve remaining work for the next drain. Test multi-step jobs, a throw, cancellation, and obsolete generations.
+- [x] Ensure `cancelGeneration` invokes each cancelled job's cleanup once and removes it; optional failures cannot block unrelated jobs or vanish from results.
 - [ ] Run focused and required gates; no renderer integration in this packet.
 
 **Acceptance:** tests show bounded scheduling and observable failure/cancellation. A single oversized job remains a measured overrun for R5b to split, not an excuse to exceed the budget.
