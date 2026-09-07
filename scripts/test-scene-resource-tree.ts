@@ -102,36 +102,54 @@ const partialRoot = new THREE.Group();
 const convertedMesh = new THREE.Mesh(partialGeometry, partialMaterial);
 partialRoot.add(convertedMesh);
 const failingGeometry = new THREE.BoxGeometry();
-const failingMaterial = new THREE.MeshStandardMaterial();
+const failingMaterial = [new THREE.MeshStandardMaterial(), new THREE.MeshStandardMaterial()];
 let failingGeometryDisposals = 0;
-let failingMaterialDisposals = 0;
+const failingMaterialDisposals = new Map<THREE.Material, number>();
 failingGeometry.dispose = () => { failingGeometryDisposals += 1; };
-failingMaterial.dispose = () => { failingMaterialDisposals += 1; };
+for (const sourceMaterial of failingMaterial) {
+  sourceMaterial.dispose = () => {
+    failingMaterialDisposals.set(sourceMaterial, (failingMaterialDisposals.get(sourceMaterial) ?? 0) + 1);
+  };
+}
 const failingMesh = new THREE.Mesh(failingGeometry, failingMaterial);
-let orphanMaterial: THREE.Material | undefined;
-Object.defineProperty(failingMesh, 'material', { configurable: true, get: () => failingMaterial, set: (value: THREE.Material) => { orphanMaterial = value; throw new Error('material assignment failed'); } });
+let orphanMaterials: THREE.Material[] | undefined;
+const assignmentError = new Error('material assignment failed');
+const orphanCleanupError = new Error('first orphan disposer failed');
+Object.defineProperty(failingMesh, 'material', { configurable: true, get: () => failingMaterial, set: (value: THREE.Material | THREE.Material[]) => { orphanMaterials = Array.isArray(value) ? value : [value]; throw assignmentError; } });
 partialRoot.add(failingMesh);
 const identityDisposals = new Map<object, number>();
 const originalLambertDispose = THREE.MeshLambertMaterial.prototype.dispose;
 THREE.MeshLambertMaterial.prototype.dispose = function spyDispose(this: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
   identityDisposals.set(this, (identityDisposals.get(this) ?? 0) + 1);
-  return originalLambertDispose.call(this);
+  const result = originalLambertDispose.call(this);
+  if (this === orphanMaterials?.[0]) throw orphanCleanupError;
+  return result;
 };
 const partialPool = createResourcePool();
 try {
-  assert.throws(() => retainMatteScene(partialPool, partialRoot), /material assignment failed/);
+  let conversionError: unknown;
+  try {
+    retainMatteScene(partialPool, partialRoot);
+  } catch (error) {
+    conversionError = error;
+  }
+  assert.ok(conversionError instanceof AggregateError);
+  assert.deepEqual(conversionError.errors, [assignmentError, orphanCleanupError]);
 } finally {
   THREE.MeshLambertMaterial.prototype.dispose = originalLambertDispose;
 }
 partialPool.dispose();
-assert.ok(orphanMaterial);
-assert.equal(identityDisposals.get(orphanMaterial!), 1);
+assert.ok(orphanMaterials);
+assert.equal(orphanMaterials.length, 2);
+assert.equal(identityDisposals.get(orphanMaterials[0]!), 1);
+assert.equal(identityDisposals.get(orphanMaterials[1]!), 1);
 assert.equal(identityDisposals.get(convertedMesh.material as THREE.Material), 1);
 assert.equal(partialGeometryDisposals, 1);
 assert.equal(partialMaterialDisposals, 1);
 assert.equal(partialMapDisposals, 1);
 assert.equal(failingGeometryDisposals, 1);
-assert.equal(failingMaterialDisposals, 1);
+assert.equal(failingMaterialDisposals.get(failingMaterial[0]), 1);
+assert.equal(failingMaterialDisposals.get(failingMaterial[1]), 1);
 
 const bitmapClass = class FakeImageBitmap { closes = 0; close(): void { this.closes += 1; } };
 const imageBitmapDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'ImageBitmap');

@@ -79,7 +79,16 @@ export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions):
     } catch (error) {
       // Assignment can fail after constructors have created materials that are
       // no longer reachable from the scene. Dispose those orphans transactionally.
-      for (const next of mapped) if (next && next !== obj.material && !(next instanceof THREE.MeshBasicMaterial)) next.dispose();
+      const cleanupErrors: unknown[] = [];
+      for (const next of mapped) {
+        if (!next || next === obj.material || next instanceof THREE.MeshBasicMaterial) continue;
+        try {
+          next.dispose();
+        } catch (cleanup) {
+          cleanupErrors.push(cleanup);
+        }
+      }
+      if (cleanupErrors.length) throw new AggregateError([error, ...cleanupErrors], 'Matte material assignment failed');
       throw error;
     }
   });
