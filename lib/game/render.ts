@@ -138,7 +138,13 @@ export class MapRenderer implements IMapRenderer {
   }
 
   setCamera(c: CameraState) {
-    this.cam = { ...c };
+    // Camera state can come from the 3D renderer after a context-loss
+    // fallback. Keep that handoff inside the 2D renderer's established zoom
+    // range so a perspective zoom cannot make the schematic unreadable.
+    const zoom = Number.isFinite(c.zoom)
+      ? Math.min(this.maxZoom, Math.max(this.minZoom, c.zoom))
+      : this.cam.zoom;
+    this.cam = { ...c, zoom };
     this.clampCamera();
   }
 
