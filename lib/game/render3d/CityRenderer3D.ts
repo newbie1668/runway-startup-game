@@ -248,7 +248,11 @@ export class CityRenderer3D implements IMapRenderer {
   constructor(
     cityCanvas: HTMLCanvasElement,
     overlayCanvas: HTMLCanvasElement,
-    opts: { onFatal: (reason?: string) => void; onReady?: () => void; diagnostics?: MapDiagnosticsReporter },
+    opts: {
+      onFatal: (reason?: string) => void;
+      onReady?: () => void;
+      diagnostics?: MapDiagnosticsReporter;
+    },
   ) {
     this.cityCanvas = cityCanvas;
     this.overlayCanvas = overlayCanvas;
@@ -271,144 +275,192 @@ export class CityRenderer3D implements IMapRenderer {
       antialias: !this.isCoarsePointer && !budget.skipAntialias,
       powerPreference: 'high-performance',
     });
-    this.diagnostics.selectMode('3d');
-    this.renderer.setPixelRatio(
-      Math.min(
-        window.devicePixelRatio || 1,
-        budget.pixelRatioCap,
-        this.isCoarsePointer ? Math.min(1.5, budget.pixelRatioCap) : budget.pixelRatioCap,
-      ),
-    );
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NoToneMapping;
-    this.renderer.toneMappingExposure = 1;
-    this.renderer.setClearColor(SKY, 1);
-    this.renderer.shadowMap.enabled = false;
-
-    this.scene3d.fog = null;
-    this.scene3d.background = new THREE.Color(SKY);
-
-    this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.55);
-    const amb = new THREE.AmbientLight(0xe8e0d4, 0.18);
-    this.sun = new THREE.DirectionalLight(0xfff3dc, 1.35);
-    this.sun.castShadow = false;
-    const originX = WORLD.width / 2;
-    const originZ = WORLD.height / 2;
-    this.sunTarget.position.set(originX, 0, originZ);
-    this.sun.position.set(originX + SUN_DIR.x * 120, SUN_DIR.y * 120, originZ + SUN_DIR.z * 120);
-    this.sun.target = this.sunTarget;
-    this.scene3d.add(this.hemi, amb, this.sun, this.sunTarget);
-    this.overlay.atmosphere = 'day';
-
-    this.groundMesh = buildGround();
-    this.scene3d.add(this.groundMesh);
-    this.groundRelease = retainSceneResources(this.resources, this.groundMesh);
-    const tubeLines = buildTubeLines();
-    this.scene3d.add(tubeLines);
-    retainSceneResources(this.resources, tubeLines);
-
-    this.glowTexture = createGlowSpriteTexture();
-    const { group: hubGlowGroup, sprites } = buildHubGlows(this.glowTexture);
-    this.hubGlowSprites = sprites;
-    this.scene3d.add(hubGlowGroup);
-    retainSceneResources(this.resources, hubGlowGroup);
-
-    this.scene3d.add(this.cityGroup);
-    this.buildingMaterial = createBuildingMaterial();
-    this.resources.retain(this.buildingMaterial);
-    this.resources.retain(this.glowTexture);
-
-    this.beamGroup.visible = false;
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0xffe566,
-      transparent: true,
-      opacity: 0.42,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.12, 1, 20, 1, true), beamMat);
-    beam.position.y = 0.5;
-    beam.name = 'shaft';
-    beam.renderOrder = 12;
-    const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xfff6b0,
-      transparent: true,
-      opacity: 0.55,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 1, 12, 1, true), coreMat);
-    core.position.y = 0.5;
-    core.name = 'core';
-    core.renderOrder = 13;
-    this.beamGroup.add(beam, core);
-    this.scene3d.add(this.beamGroup);
-    retainSceneResources(this.resources, this.beamGroup);
-    this.geometryTracker.trackTree(this.scene3d);
-
-    this.cityCanvas.addEventListener('webglcontextlost', this.handleContextLost);
-
-    const generation = this.generation;
-    const isCurrent = () => this.isCurrent(generation);
-    const onAssetError = (id: string, error: unknown) => {
-      if (isCurrent()) this.diagnostics.recordError(id, false, error);
-    };
-    const trackLoad = <T>(id: string, essential: boolean, load: () => Promise<T>): Promise<T> => {
-      this.diagnostics.registerJob(id, essential);
-      this.diagnostics.startJob(id);
-      return load().then(
-        (value) => {
-          if (isCurrent()) this.diagnostics.completeJob(id);
-          return value;
-        },
-        (error) => {
-          if (isCurrent()) this.diagnostics.failJob(id, error);
-          throw error;
-        },
+    try {
+      this.diagnostics.selectMode('3d');
+      this.renderer.setPixelRatio(
+        Math.min(
+          window.devicePixelRatio || 1,
+          budget.pixelRatioCap,
+          this.isCoarsePointer ? Math.min(1.5, budget.pixelRatioCap) : budget.pixelRatioCap,
+        ),
       );
-    };
-    const cityPromise = trackLoad('load:city', true, () => fetch(CITY_BIN_URL, { signal: this.loadController.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.arrayBuffer();
-      })
-      .then((buf) => {
-        if (!isCurrent()) throw new DOMException('Obsolete city load', 'AbortError');
-        return decodeCity(buf);
-      }));
-    const prefabOptions = { resources: this.resources, signal: this.loadController.signal, isCurrent, onError: onAssetError };
-    const landmarksPromise = trackLoad('load:landmarks', false, () => loadLandmarkPrefabs(prefabOptions));
-    const noticedPromise = trackLoad('load:noticed', false, () => loadNoticedPrefabs(prefabOptions));
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+      this.renderer.toneMapping = THREE.NoToneMapping;
+      this.renderer.toneMappingExposure = 1;
+      this.renderer.setClearColor(SKY, 1);
+      this.renderer.shadowMap.enabled = false;
 
-    void Promise.all([cityPromise, landmarksPromise, noticedPromise])
-      .then(([data, prefabs, noticed]) => {
-        if (!isCurrent()) return;
-        this.diagnostics.registerJob('plan:city', true);
-        this.diagnostics.startJob('plan:city');
-        this.landmarkPrefabs = prefabs;
-        this.noticedEntries = noticed.entries;
-        this.noticedPrefabs = noticed.prefabs;
-        try {
-          for (const prefab of prefabs.values()) this.geometryTracker.trackTree(prefab);
-          for (const prefab of noticed.prefabs.values()) this.geometryTracker.trackTree(prefab);
-          this.onCityData(data);
-          this.diagnostics.completeJob('plan:city');
-        } catch (error) {
-          this.diagnostics.failJob('plan:city', error);
-          if (isCurrent()) this.onFatal('City layout failed');
-        }
-      })
-      .catch(() => {
-        if (isCurrent()) this.onFatal('City data failed');
+      this.scene3d.fog = null;
+      this.scene3d.background = new THREE.Color(SKY);
+
+      this.hemi = new THREE.HemisphereLight(0xd4deea, 0x6a6054, 0.55);
+      const amb = new THREE.AmbientLight(0xe8e0d4, 0.18);
+      this.sun = new THREE.DirectionalLight(0xfff3dc, 1.35);
+      this.sun.castShadow = false;
+      const originX = WORLD.width / 2;
+      const originZ = WORLD.height / 2;
+      this.sunTarget.position.set(originX, 0, originZ);
+      this.sun.position.set(originX + SUN_DIR.x * 120, SUN_DIR.y * 120, originZ + SUN_DIR.z * 120);
+      this.sun.target = this.sunTarget;
+      this.scene3d.add(this.hemi, amb, this.sun, this.sunTarget);
+      this.overlay.atmosphere = 'day';
+
+      this.groundMesh = buildGround();
+      this.scene3d.add(this.groundMesh);
+      this.groundRelease = retainSceneResources(this.resources, this.groundMesh);
+      const tubeLines = buildTubeLines();
+      this.scene3d.add(tubeLines);
+      retainSceneResources(this.resources, tubeLines);
+
+      this.glowTexture = createGlowSpriteTexture();
+      const { group: hubGlowGroup, sprites } = buildHubGlows(this.glowTexture);
+      this.hubGlowSprites = sprites;
+      this.scene3d.add(hubGlowGroup);
+      retainSceneResources(this.resources, hubGlowGroup);
+
+      this.scene3d.add(this.cityGroup);
+      this.buildingMaterial = createBuildingMaterial();
+      this.resources.retain(this.buildingMaterial);
+      this.resources.retain(this.glowTexture);
+
+      this.beamGroup.visible = false;
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xffe566,
+        transparent: true,
+        opacity: 0.42,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
       });
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.12, 1, 20, 1, true), beamMat);
+      beam.position.y = 0.5;
+      beam.name = 'shaft';
+      beam.renderOrder = 12;
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0xfff6b0,
+        transparent: true,
+        opacity: 0.55,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 1, 12, 1, true), coreMat);
+      core.position.y = 0.5;
+      core.name = 'core';
+      core.renderOrder = 13;
+      this.beamGroup.add(beam, core);
+      this.scene3d.add(this.beamGroup);
+      retainSceneResources(this.resources, this.beamGroup);
+      this.geometryTracker.trackTree(this.scene3d);
 
-    if (new URLSearchParams(window.location.search).get('map') === 'debug') {
-      this.debugContextLoss = () => {
+      this.cityCanvas.addEventListener('webglcontextlost', this.handleContextLost);
+
+      const generation = this.generation;
+      const isCurrent = () => this.isCurrent(generation);
+      const onAssetError = (id: string, error: unknown) => {
+        if (isCurrent()) this.diagnostics.recordError(id, false, error);
+      };
+      const trackLoad = <T>(id: string, essential: boolean, load: () => Promise<T>): Promise<T> => {
+        this.diagnostics.registerJob(id, essential);
+        this.diagnostics.startJob(id);
+        return load().then(
+          (value) => {
+            if (isCurrent()) this.diagnostics.completeJob(id);
+            return value;
+          },
+          (error) => {
+            if (isCurrent()) this.diagnostics.failJob(id, error);
+            throw error;
+          },
+        );
+      };
+      const cityPromise = trackLoad('load:city', true, () =>
+        fetch(CITY_BIN_URL, { signal: this.loadController.signal })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.arrayBuffer();
+          })
+          .then((buf) => {
+            if (!isCurrent()) throw new DOMException('Obsolete city load', 'AbortError');
+            return decodeCity(buf);
+          }),
+      );
+      const prefabOptions = {
+        resources: this.resources,
+        signal: this.loadController.signal,
+        isCurrent,
+        onError: onAssetError,
+      };
+      const landmarksPromise = trackLoad('load:landmarks', false, () =>
+        loadLandmarkPrefabs(prefabOptions),
+      );
+      const noticedPromise = trackLoad('load:noticed', false, () =>
+        loadNoticedPrefabs(prefabOptions),
+      );
+
+      void Promise.all([cityPromise, landmarksPromise, noticedPromise])
+        .then(([data, prefabs, noticed]) => {
+          if (!isCurrent()) return;
+          this.diagnostics.registerJob('plan:city', true);
+          this.diagnostics.startJob('plan:city');
+          this.landmarkPrefabs = prefabs;
+          this.noticedEntries = noticed.entries;
+          this.noticedPrefabs = noticed.prefabs;
+          try {
+            for (const prefab of prefabs.values()) this.geometryTracker.trackTree(prefab);
+            for (const prefab of noticed.prefabs.values()) this.geometryTracker.trackTree(prefab);
+            this.onCityData(data);
+            this.diagnostics.completeJob('plan:city');
+          } catch (error) {
+            this.diagnostics.failJob('plan:city', error);
+            if (isCurrent()) this.onFatal('City layout failed');
+          }
+        })
+        .catch(() => {
+          if (isCurrent()) this.onFatal('City data failed');
+        });
+
+      if (new URLSearchParams(window.location.search).get('map') === 'debug') {
+        this.debugContextLoss = () => {
           this.renderer.getContext().getExtension('WEBGL_lose_context')?.loseContext();
         };
-      (window as unknown as { __runwayForceContextLoss?: () => void }).__runwayForceContextLoss = this.debugContextLoss;
+        (window as unknown as { __runwayForceContextLoss?: () => void }).__runwayForceContextLoss =
+          this.debugContextLoss;
+      }
+    } catch (error) {
+      this.rollbackConstruction();
+      throw error;
+    }
+  }
+
+  /** Release resources acquired after WebGL allocation when construction cannot reach the factory. */
+  private rollbackConstruction(): void {
+    this.disposed = true;
+    this.generation += 1;
+    this.loadController.abort();
+    const cleanup: Array<() => void> = [
+      () => {
+        if (this.contextLostTimer) clearTimeout(this.contextLostTimer);
+        this.contextLostTimer = null;
+      },
+      () => this.cityCanvas.removeEventListener('webglcontextlost', this.handleContextLost),
+      () => {
+        const target = window as unknown as { __runwayForceContextLoss?: () => void };
+        if (this.debugContextLoss && target.__runwayForceContextLoss === this.debugContextLoss)
+          delete target.__runwayForceContextLoss;
+      },
+      () => this.scene3d.clear(),
+      () => this.resources.dispose(),
+      () => this.renderer.dispose(),
+      () => this.geometryTracker.clear(),
+      () => this.diagnostics.dispose(),
+    ];
+    for (const action of cleanup) {
+      try {
+        action();
+      } catch {
+        /* preserve the construction error for factory fallback */
+      }
     }
   }
 
@@ -498,11 +550,22 @@ export class CityRenderer3D implements IMapRenderer {
     const chunkJobs: BuildJob[] = [];
     const restJobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
-    const enqueue = (into: BuildJob[], id: string, kind: BuildJobKind, essential: boolean, run: () => void): void => {
+    const enqueue = (
+      into: BuildJob[],
+      id: string,
+      kind: BuildJobKind,
+      essential: boolean,
+      run: () => void,
+    ): void => {
       this.diagnostics.registerJob(id, essential);
       into.push({ id, kind, essential, run });
     };
-    const pushNoticed = (entry: NoticedEntry, into: BuildJob[], kind: BuildJobKind, sourceIndex: number): void => {
+    const pushNoticed = (
+      entry: NoticedEntry,
+      into: BuildJob[],
+      kind: BuildJobKind,
+      sourceIndex: number,
+    ): void => {
       enqueue(into, `noticed:${kind}:${entry.id}:${sourceIndex}`, kind, false, () => {
         const prefab = this.noticedPrefabs.get(entry.id) ?? null;
         if (!prefab && !isUniqueNoticedId(entry.id)) return;
@@ -539,11 +602,13 @@ export class CityRenderer3D implements IMapRenderer {
     };
     for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
       const entry = this.noticedEntries[sourceIndex]!;
-      if (lookNoticedId && entry.id === lookNoticedId) pushNoticed(entry, heroJobs, 'hero', sourceIndex);
+      if (lookNoticedId && entry.id === lookNoticedId)
+        pushNoticed(entry, heroJobs, 'hero', sourceIndex);
     }
     for (let sourceIndex = 0; sourceIndex < LANDMARKS.length; sourceIndex++) {
       const landmark = LANDMARKS[sourceIndex]!;
-      if (lookLandmarkKinds.has(landmark.kind)) pushLandmark(landmark, heroJobs, 'hero', sourceIndex);
+      if (lookLandmarkKinds.has(landmark.kind))
+        pushLandmark(landmark, heroJobs, 'hero', sourceIndex);
     }
     enqueue(coverJobs, 'cover:water', 'cover', true, () => {
       const mesh = buildWater(data, keep);
@@ -610,40 +675,48 @@ export class CityRenderer3D implements IMapRenderer {
     }
     chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
     for (const job of chunkWork) {
-      enqueue(chunkJobs, `chunk:${job.chunkId}:${job.major ? 'major' : 'minor'}`, 'chunk', true, () => {
-        const picksBefore = this.scratch.picks.length;
-        const built = buildChunkTier(
-          data,
-          job.chunkId,
-          job.major,
-          landmarkAnchors,
-          this.scratch,
-          keep,
-        );
-        if (built) {
-          const replacedMaterials = new Set<THREE.Material>();
-          for (const mesh of chunkTierMeshes(built)) {
-            const previousMaterial = mesh.material;
-            mesh.material = this.buildingMaterial;
-            for (const material of Array.isArray(previousMaterial) ? previousMaterial : [previousMaterial]) {
-              replacedMaterials.add(material);
+      enqueue(
+        chunkJobs,
+        `chunk:${job.chunkId}:${job.major ? 'major' : 'minor'}`,
+        'chunk',
+        true,
+        () => {
+          const picksBefore = this.scratch.picks.length;
+          const built = buildChunkTier(
+            data,
+            job.chunkId,
+            job.major,
+            landmarkAnchors,
+            this.scratch,
+            keep,
+          );
+          if (built) {
+            const replacedMaterials = new Set<THREE.Material>();
+            for (const mesh of chunkTierMeshes(built)) {
+              const previousMaterial = mesh.material;
+              mesh.material = this.buildingMaterial;
+              for (const material of Array.isArray(previousMaterial)
+                ? previousMaterial
+                : [previousMaterial]) {
+                replacedMaterials.add(material);
+              }
+              this.buildingMeshes.push(mesh);
+              if (!job.major) this.minorMeshes.push(mesh);
+              const previous = mesh.onAfterRender;
+              mesh.onAfterRender = (...args) => {
+                previous?.call(mesh, ...args);
+                this.stockDrawnThisFrame = true;
+              };
             }
-            this.buildingMeshes.push(mesh);
-            if (!job.major) this.minorMeshes.push(mesh);
-            const previous = mesh.onAfterRender;
-            mesh.onAfterRender = (...args) => {
-              previous?.call(mesh, ...args);
-              this.stockDrawnThisFrame = true;
-            };
+            for (const material of replacedMaterials) {
+              const release = this.resources.retain(material);
+              release();
+            }
+            this.cityGroup.add(built);
+            this.stockBuildings += Math.max(0, this.scratch.picks.length - picksBefore);
           }
-          for (const material of replacedMaterials) {
-            const release = this.resources.retain(material);
-            release();
-          }
-          this.cityGroup.add(built);
-          this.stockBuildings += Math.max(0, this.scratch.picks.length - picksBefore);
-        }
-      });
+        },
+      );
     }
     if (!budget.skipWindows) {
       enqueue(restJobs, 'decor:windows-roofs-signs', 'rest', false, () => {
@@ -1066,9 +1139,13 @@ export class CityRenderer3D implements IMapRenderer {
     if (this.selected) this.drawBuildingCard(this.overlayCtx, this.selected);
     this.diagnostics.setCamera(this.cam);
     this.diagnostics.recordFrame({
-      mode: '3d', durationMs: performance.now() - startedAt, stockDrawn: this.stockDrawnThisFrame,
-      stockBuildings: this.stockBuildings, drawCalls: this.renderer.info.render.calls,
-      triangles: this.renderer.info.render.triangles, geometryBytes: this.geometryTracker.bytes(),
+      mode: '3d',
+      durationMs: performance.now() - startedAt,
+      stockDrawn: this.stockDrawnThisFrame,
+      stockBuildings: this.stockBuildings,
+      drawCalls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+      geometryBytes: this.geometryTracker.bytes(),
       textures: this.renderer.info.memory.textures,
     });
     const state = this.diagnostics.getState();
@@ -1081,22 +1158,46 @@ export class CityRenderer3D implements IMapRenderer {
     this.generation += 1;
     this.loadController.abort();
     const cleanup: Array<() => void> = [
-      () => { if (this.contextLostTimer) clearTimeout(this.contextLostTimer); this.contextLostTimer = null; },
+      () => {
+        if (this.contextLostTimer) clearTimeout(this.contextLostTimer);
+        this.contextLostTimer = null;
+      },
       () => this.cityCanvas.removeEventListener('webglcontextlost', this.handleContextLost),
       () => {
         const target = window as unknown as { __runwayForceContextLoss?: () => void };
-        if (this.debugContextLoss && target.__runwayForceContextLoss === this.debugContextLoss) delete target.__runwayForceContextLoss;
+        if (this.debugContextLoss && target.__runwayForceContextLoss === this.debugContextLoss)
+          delete target.__runwayForceContextLoss;
       },
-      () => { this.buildQueue = []; this.scratch = createScratch(); this.buildingMeshes.length = 0; this.minorMeshes.length = 0; },
-      () => { this.landmarkPrefabs.clear(); this.noticedPrefabs.clear(); this.noticedEntries = []; this.hubGlowSprites.clear(); this.selected = null; this.lastPlayerHubId = null; this.tier2RoadMesh = this.markMesh = this.lampGroup = null; this.windowMesh = null; },
-      () => { this.scene3d.clear(); },
+      () => {
+        this.buildQueue = [];
+        this.scratch = createScratch();
+        this.buildingMeshes.length = 0;
+        this.minorMeshes.length = 0;
+      },
+      () => {
+        this.landmarkPrefabs.clear();
+        this.noticedPrefabs.clear();
+        this.noticedEntries = [];
+        this.hubGlowSprites.clear();
+        this.selected = null;
+        this.lastPlayerHubId = null;
+        this.tier2RoadMesh = this.markMesh = this.lampGroup = null;
+        this.windowMesh = null;
+      },
+      () => {
+        this.scene3d.clear();
+      },
       () => this.resources.dispose(),
       () => this.renderer.dispose(),
       () => this.geometryTracker.clear(),
       () => this.diagnostics.dispose(),
     ];
     for (const action of cleanup) {
-      try { action(); } catch { /* teardown continues; disposed diagnostics cannot safely report */ }
+      try {
+        action();
+      } catch {
+        /* teardown continues; disposed diagnostics cannot safely report */
+      }
     }
   }
 }
