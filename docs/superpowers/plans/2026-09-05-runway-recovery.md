@@ -147,9 +147,10 @@ pool.dispose();
 assert.equal(disposed, 1);
 ```
 
-- [ ] Integrate ownership for geometry, material textures, prefab sources and clones. Mark the generation disposed before aborting/clearing work; a late resolved GLB must be released without attaching or firing ready.
+- [x] Integrate ownership for geometry, material textures, prefab sources and clones. Mark the generation disposed before aborting/clearing work; a late resolved GLB must be released without attaching or firing ready.
 - [ ] Test rapid mount/unmount, context loss during loading, and delayed asset completion. Check handlers/queues/pick references as well as GPU objects. Do not rebake or change asset appearance.
-- [ ] Run required gates and the repeated-tour resource check; submit exact counts and any unmeasured browser overhead.
+- [x] Run required app gates and actual late-load/context-loss/constructor-failure browser checks. [R3a evidence](../../runway-recovery/evidence/R3a/README.md).
+- [ ] Complete the repeated-tour resource check with R6 navigation/eviction; submit counts and any unmeasured browser overhead. R3a ownership implementation may feed R3b before this dependent integration check; G1 remains open.
 
 **Acceptance:** no obsolete generation mutates the scene; shared assets survive another clone's removal; renderer teardown releases its owned resources once.
 
@@ -195,7 +196,7 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 - [x] Use a queue preserving essential-visible priority supplied by the caller. Drain until the injected clock reaches `budgetMs`; retain incomplete jobs for the next frame and record failures by ID/essential flag.
 - [x] With a fake clock, test that three jobs each consuming 3 ms cannot all run inside a 4 ms drain; preserve remaining work for the next drain. Test multi-step jobs, a throw, cancellation, and obsolete generations.
 - [x] Ensure `cancelGeneration` invokes each cancelled job's cleanup once and removes it; optional failures cannot block unrelated jobs or vanish from results.
-- [ ] Run focused and required gates; no renderer integration in this packet.
+- [x] Run focused and required gates; no renderer integration in this packet. [R5a evidence](../../runway-recovery/evidence/R5a/README.md).
 
 **Acceptance:** tests show bounded scheduling and observable failure/cancellation. A single oversized job remains a measured overrun for R5b to split, not an excuse to exceed the budget.
 
@@ -223,6 +224,8 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 - [ ] Run full G1 verification on default `/game` as well as debug views. Tech lead and independent reviewer compare performance to the G0 limits and confirm no art/hero drift.
 
 **Acceptance:** G1 meets the city-navigation portion of P4, game/fallback requirements P5–P9 and the reliability/performance criteria. Close street exploration and real-place fidelity remain for F2–F5/G2. Offline source/asset preparation may proceed in parallel; no enriched runtime integration until this gate passes.
+
+- [ ] Normalize/clamp the camera when close 3D falls back to 2D; the R3a L2 screenshot shows over-zoomed framing despite successful lifecycle recovery. Verify a readable fallback image.
 
 ## R7 — Review faithful street reconstruction (G2)
 
