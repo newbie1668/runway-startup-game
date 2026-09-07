@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { CityRenderer3D } from '../lib/game/render3d/CityRenderer3D';
 import { createResourcePool } from '../lib/game/render3d/sceneResources';
+import { createMapDiagnostics } from '../lib/game/mapDiagnostics';
 
 const require = createRequire(import.meta.url);
 const three = require('three') as typeof import('three');
@@ -13,6 +14,7 @@ const debug = () => undefined;
 const newerDebug = () => undefined;
 const fixture = Object.create(CityRenderer3D.prototype) as Record<string, unknown>;
 const pool = createResourcePool();
+const hostDiagnostics = createMapDiagnostics(0, () => 0);
 let disposed = 0;
 pool.retain({
   dispose: () => {
@@ -52,11 +54,8 @@ fixture.geometryTracker = {
     disposed++;
   },
 };
-fixture.diagnostics = {
-  dispose: () => {
-    disposed++;
-  },
-};
+fixture.diagnostics = hostDiagnostics;
+fixture.ownsDiagnostics = false;
 globalThis.window = { __runwayForceContextLoss: debug } as unknown as Window & typeof globalThis;
 
 try {
@@ -74,7 +73,14 @@ try {
     undefined,
   );
   assert.deepEqual(listeners, ['webglcontextlost']);
-  assert.equal(disposed, 4, 'cleanup continues after a throwing resource disposer');
+  assert.equal(disposed, 3, 'cleanup continues after a throwing resource disposer');
+  hostDiagnostics.recordError('init', false, new Error('3D init failed'));
+  hostDiagnostics.selectMode('2d', '3D fallback');
+  hostDiagnostics.recordFrame({ mode: '2d', durationMs: 1 });
+  const hostSnapshot = hostDiagnostics.snapshot();
+  assert.equal(hostSnapshot.state, 'fallback');
+  assert.equal(hostSnapshot.fallbackReason, '3D fallback');
+  assert.equal(hostSnapshot.firstUsefulFrameMs, 0);
   (
     globalThis.window as unknown as { __runwayForceContextLoss?: () => void }
   ).__runwayForceContextLoss = newerDebug;
@@ -104,8 +110,9 @@ try {
     removeEventListener: (type: string) => constructionListeners.push(`remove:${type}`),
   } as unknown as HTMLCanvasElement;
   const overlay = { getContext: () => ({}) } as unknown as HTMLCanvasElement;
+  const constructionDiagnostics = createMapDiagnostics(0, () => 0);
   assert.throws(
-    () => new CityRenderer3D(canvas, overlay, { onFatal: () => undefined }),
+    () => new CityRenderer3D(canvas, overlay, { onFatal: () => undefined, diagnostics: constructionDiagnostics }),
     /pixel ratio failed/,
   );
   assert.equal(
@@ -114,6 +121,13 @@ try {
     'an allocated renderer is disposed when later construction fails',
   );
   assert.deepEqual(constructionListeners, ['remove:webglcontextlost']);
+  constructionDiagnostics.recordError('init', false, new Error('3D init failed'));
+  constructionDiagnostics.selectMode('2d', '3D fallback');
+  constructionDiagnostics.recordFrame({ mode: '2d', durationMs: 1 });
+  const constructionSnapshot = constructionDiagnostics.snapshot();
+  assert.equal(constructionSnapshot.state, 'fallback');
+  assert.equal(constructionSnapshot.fallbackReason, '3D fallback');
+  assert.equal(constructionSnapshot.firstUsefulFrameMs, 0);
   console.log('renderer disposal passed');
 } finally {
   (three as unknown as { WebGLRenderer: typeof originalRenderer }).WebGLRenderer = originalRenderer;

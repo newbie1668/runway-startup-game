@@ -185,6 +185,7 @@ export class CityRenderer3D implements IMapRenderer {
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly diagnostics: MapDiagnosticsReporter;
+  private readonly ownsDiagnostics: boolean;
   private readonly geometryTracker = createGeometryTracker();
   private readonly resources = createResourcePool();
   private readonly loadController = new AbortController();
@@ -258,6 +259,7 @@ export class CityRenderer3D implements IMapRenderer {
     this.overlayCanvas = overlayCanvas;
     this.overlayCtx = overlayCanvas.getContext('2d')!;
     this.onFatal = opts.onFatal;
+    this.ownsDiagnostics = opts.diagnostics === undefined;
     this.diagnostics = opts.diagnostics ?? createMapDiagnostics(0, () => performance.now());
     this.onReady = opts.onReady ?? (() => undefined);
     this.isCoarsePointer =
@@ -453,7 +455,9 @@ export class CityRenderer3D implements IMapRenderer {
       () => this.resources.dispose(),
       () => this.renderer.dispose(),
       () => this.geometryTracker.clear(),
-      () => this.diagnostics.dispose(),
+      () => {
+        if (this.ownsDiagnostics) this.diagnostics.dispose();
+      },
     ];
     for (const action of cleanup) {
       try {
@@ -1190,7 +1194,9 @@ export class CityRenderer3D implements IMapRenderer {
       () => this.resources.dispose(),
       () => this.renderer.dispose(),
       () => this.geometryTracker.clear(),
-      () => this.diagnostics.dispose(),
+      () => {
+        if (this.ownsDiagnostics) this.diagnostics.dispose();
+      },
     ];
     for (const action of cleanup) {
       try {
