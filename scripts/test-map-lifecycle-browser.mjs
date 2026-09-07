@@ -151,7 +151,7 @@ async function runCase(definition, result) {
     }
     await page.goto(entry.url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     if (definition.kind === 'manifest-503') {
-      const state = await waitFor(page, (value) => value.snapshot?.mode === '3d' && ['ready', 'degraded'].includes(value.snapshot?.state), 30_000);
+      const state = await waitFor(page, (value) => value.mapMode === '3d' && value.mapState === 'degraded' && value.snapshot?.mode === '3d' && value.snapshot?.state === 'degraded' && value.mapReady === '1' && value.snapshot?.stockDrawn === true && value.snapshot.stockBuildings > 0, 30_000);
       entry.snapshots.push({ atMs: 0, ...state }); entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
       check(entry, '3D mode remains active', state.mapMode === '3d' && state.snapshot?.mode === '3d', state);
       check(entry, '3D useful degraded state', state.mapState === 'degraded' && state.snapshot?.state === 'degraded', state);
