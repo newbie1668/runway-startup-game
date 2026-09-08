@@ -20,14 +20,7 @@ import {
 } from '../geo';
 import { HUB_POS } from '../overlay';
 import type { HubId } from '../types';
-import {
-  dequantizeX,
-  dequantizeY,
-  type CityBuilding,
-  type CityData,
-  type CityPoly,
-  type CityRoad,
-} from './format';
+import { dequantizeX, dequantizeY, type CityData, type CityPoly, type CityRoad } from './format';
 import { fromRgb565 } from './osmColour';
 import {
   STYLE_HOUSE,
@@ -61,7 +54,6 @@ import {
   emitStreetUniqueWalls,
   STREET_UNIQUE_LABEL,
   streetUniqueAt,
-  streetUniqueBlocksStock,
   type StreetEmit,
 } from './uniqueStreet';
 import { splitChunkCells } from './chunkCells';
@@ -246,6 +238,7 @@ const HUB_GLOW_HEIGHT_M = 4;
 const tmpColor = new THREE.Color();
 
 export type BuildingPick = {
+  sourceIndex: number;
   x: number;
   z: number;
   heightWorld: number;
@@ -423,7 +416,7 @@ export function buildChunkTier(
   cityData: CityData,
   chunkId: number,
   major: boolean,
-  landmarkAnchors: readonly { x: number; y: number; r: number }[] = [],
+  excludedBuildingIndices: ReadonlySet<number> = new Set(),
   scratch?: CityScratch,
   keep: KeepDisk | null = null,
 ): THREE.Group | null {
@@ -624,8 +617,10 @@ export function buildChunkTier(
 
   const citystreetPt = project(CITYSTREET_AT);
 
-  for (const b of cityData.buildings as CityBuilding[]) {
+  for (let buildingIndex = 0; buildingIndex < cityData.buildings.length; buildingIndex++) {
+    const b = cityData.buildings[buildingIndex]!;
     if (b.chunkId !== chunkId || b.major !== major) continue;
+    if (excludedBuildingIndices.has(buildingIndex)) continue;
     const n = b.verts.length / 2;
     if (n < 3) continue;
 
@@ -643,14 +638,14 @@ export function buildChunkTier(
     cz /= n;
 
     if (!inKeepDisk(cx, cz, keep, 120 * METERS_TO_WORLD)) continue;
-    if (landmarkAnchors.some((a) => Math.hypot(cx - a.x, cz - a.y) < a.r)) continue;
     if (nearLondonCityAirport(cx, cz, 10) || ring.some((p) => nearLondonCityAirport(p.x, p.z, 10)))
       continue;
 
     const areaM2 = footprintAreaM2(ring);
     const [lng, lat] = unproject(cx, cz);
-    const streetKind = streetUniqueAt(lng, lat);
-    if (streetUniqueBlocksStock(streetKind)) continue;
+    const matchedStreetKind = streetUniqueAt(lng, lat);
+    // Poultry's custom tray asset is parked; retain its committed ordinary footprint.
+    const streetKind = matchedStreetKind === 'no-1-poultry' ? null : matchedStreetKind;
     const district = districtAt(lng, lat);
     const distStreetM = Math.hypot(cx - citystreetPt.x, cz - citystreetPt.y) / METERS_TO_WORLD;
     const cheapsideNotice =
@@ -1447,6 +1442,7 @@ export function buildChunkTier(
     if (scratch) {
       const named = streetKind ? STREET_UNIQUE_LABEL[streetKind] : null;
       scratch.picks.push({
+        sourceIndex: buildingIndex,
         x: cx,
         z: cz,
         heightWorld,

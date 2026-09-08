@@ -72,6 +72,11 @@ import { createGeometryTracker } from './diagnostics';
 import { createMapDiagnostics, type MapDiagnosticsReporter } from '../mapDiagnostics';
 import { createResourcePool } from './sceneResources';
 import { retainSceneResources } from './sceneResourceTree';
+import {
+  excludedBuildingIndices,
+  mapReplacementAnchors,
+  selectActiveReplacementIds,
+} from './stockReplacements';
 
 const CITY_BIN_URL = '/map/london-city.bin';
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
@@ -175,6 +180,17 @@ function viewParam(): string | null {
 }
 
 type BuildJob = { id: string; kind: BuildJobKind; essential: boolean; run: () => void };
+
+function hasVisibleGeometry(root: THREE.Object3D): boolean {
+  let visible = false;
+  root.traverse((object) => {
+    if (visible || !(object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh)) return;
+    const position = object.geometry.getAttribute('position');
+    const index = object.geometry.getIndex();
+    if (position && position.count > 0 && (!index || index.count > 0)) visible = true;
+  });
+  return visible;
+}
 
 export class CityRenderer3D implements IMapRenderer {
   private readonly cityCanvas: HTMLCanvasElement;
@@ -491,17 +507,32 @@ export class CityRenderer3D implements IMapRenderer {
   private onCityData(data: CityData): void {
     if (this.disposed) return;
     this.scratch = createScratch();
-    const landmarkAnchors = [
-      ...LANDMARKS.map((l) => {
+    const replacementMapping = mapReplacementAnchors(data, [
+      ...LANDMARKS.map((l, sourceIndex) => {
         const p = project(l.at);
-        return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
+        return { id: `landmark:${sourceIndex}:${l.kind}`, x: p.x, z: p.y };
       }),
       ...this.noticedEntries.map((e) => ({
+        id: `noticed:${e.id}`,
         x: e.x,
-        y: e.z,
-        r: e.exclusionM * METERS_TO_WORLD,
+        z: e.z,
       })),
-    ];
+    ]);
+    const enabledReplacementIds = new Set<string>();
+    const availableReplacementIds = new Set<string>();
+    let stockExclusions: ReadonlySet<number> | null = null;
+    const finalizeStockExclusions = (): ReadonlySet<number> => {
+      if (stockExclusions) return stockExclusions;
+      const activeIds = selectActiveReplacementIds(
+        [...enabledReplacementIds].map((id) => ({
+          id,
+          enabled: true,
+          available: availableReplacementIds.has(id),
+        })),
+      );
+      stockExclusions = excludedBuildingIndices(activeIds, replacementMapping);
+      return stockExclusions;
+    };
     const look = new URLSearchParams(window.location.search).get('look');
     const lookNoticedId =
       look === 'charrington'
@@ -551,6 +582,7 @@ export class CityRenderer3D implements IMapRenderer {
     const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
     const heroJobs: BuildJob[] = [];
     const coverJobs: BuildJob[] = [];
+    const replacementJobs: BuildJob[] = [];
     const chunkJobs: BuildJob[] = [];
     const restJobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
@@ -571,11 +603,14 @@ export class CityRenderer3D implements IMapRenderer {
       sourceIndex: number,
     ): void => {
       enqueue(into, `noticed:${kind}:${entry.id}:${sourceIndex}`, kind, false, () => {
+        const replacementId = `noticed:${entry.id}`;
+        enabledReplacementIds.add(replacementId);
         const prefab = this.noticedPrefabs.get(entry.id) ?? null;
         if (!prefab && !isUniqueNoticedId(entry.id)) return;
         const group = instantiateNoticed(entry, prefab);
         group.position.set(entry.x, 0, entry.z);
         this.cityGroup.add(group);
+        if (hasVisibleGeometry(group)) availableReplacementIds.add(replacementId);
       });
     };
     const pushLandmark = (
@@ -585,6 +620,8 @@ export class CityRenderer3D implements IMapRenderer {
       sourceIndex: number,
     ): void => {
       enqueue(into, `landmark:${kind}:${landmark.kind}:${sourceIndex}`, kind, false, () => {
+        const replacementId = `landmark:${sourceIndex}:${landmark.kind}`;
+        enabledReplacementIds.add(replacementId);
         const p = project(landmark.at);
         const group = instantiateLandmark(landmark.kind, this.landmarkPrefabs);
         group.position.set(p.x, 0, p.y);
@@ -596,6 +633,7 @@ export class CityRenderer3D implements IMapRenderer {
           group.rotation.y += landmark.yaw;
         }
         this.cityGroup.add(group);
+        if (hasVisibleGeometry(group)) availableReplacementIds.add(replacementId);
       });
     };
     const allowLandmark = (landmark: (typeof LANDMARKS)[number]): boolean => {
@@ -644,20 +682,20 @@ export class CityRenderer3D implements IMapRenderer {
     for (let sourceIndex = 0; sourceIndex < LANDMARKS.length; sourceIndex++) {
       const landmark = LANDMARKS[sourceIndex]!;
       if (lookLandmarkKinds.has(landmark.kind)) continue;
-      if (allowLandmark(landmark)) pushLandmark(landmark, restJobs, 'rest', sourceIndex);
+      if (allowLandmark(landmark)) pushLandmark(landmark, replacementJobs, 'rest', sourceIndex);
     }
     if (!budget.skipNoticedStock) {
       for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
         const entry = this.noticedEntries[sourceIndex]!;
         if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
-          pushNoticed(entry, restJobs, 'rest', sourceIndex);
+          pushNoticed(entry, replacementJobs, 'rest', sourceIndex);
         }
       }
       for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
         const entry = this.noticedEntries[sourceIndex]!;
         if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
         if (!inKeep(entry.x, entry.z)) continue;
-        pushNoticed(entry, restJobs, 'rest', sourceIndex);
+        pushNoticed(entry, replacementJobs, 'rest', sourceIndex);
       }
     }
     const chunkWork: { chunkId: number; major: boolean; dist: number }[] = [];
@@ -690,7 +728,7 @@ export class CityRenderer3D implements IMapRenderer {
             data,
             job.chunkId,
             job.major,
-            landmarkAnchors,
+            finalizeStockExclusions(),
             this.scratch,
             keep,
           );
@@ -749,8 +787,8 @@ export class CityRenderer3D implements IMapRenderer {
     // Wide cameras must paint nearby chunks before the cover jobs, or chrome=0
     // sits on brown ground until water/parks/roads finish (and used to OOM first).
     this.buildQueue = keep
-      ? [...heroJobs, ...chunkJobs, ...coverJobs, ...restJobs]
-      : [...heroJobs, ...coverJobs, ...restJobs, ...chunkJobs];
+      ? [...heroJobs, ...replacementJobs, ...chunkJobs, ...coverJobs, ...restJobs]
+      : [...heroJobs, ...coverJobs, ...replacementJobs, ...chunkJobs, ...restJobs];
     this.cityStreamed = true;
   }
 
