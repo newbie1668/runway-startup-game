@@ -113,7 +113,7 @@ function assessEvents(entry, events, kind) {
 function cityFixture() {
   const raw = execFileSync('pnpm', ['tsx', 'scripts/map-failure-fixture.ts'], { encoding: 'utf8' }).trim();
   const fixture = JSON.parse(raw);
-  if (fixture.kind !== 'bounded-wardian-city-fixture' || fixture.count > 80 || !Array.isArray(fixture.originalIndices) || fixture.originalIndices.length !== fixture.count || !fixture.originalIndices.includes(fixture.nearestOriginalIndex) || fixture.anchorRetained !== true || !fixture.fixture?.base64 || fixture.noticedTarget?.id !== noticedTarget.id || fixture.noticedTarget?.file !== noticedTarget.file) {
+  if (fixture.kind !== 'bounded-wardian-city-fixture' || fixture.count > 80 || !Array.isArray(fixture.originalIndices) || fixture.originalIndices.length !== fixture.count || !fixture.originalIndices.includes(fixture.targetOriginalIndex) || fixture.anchorRetained !== true || fixture.replacementMapping?.unmatchedIds?.length !== 0 || fixture.replacementMapping?.ambiguousIds?.length !== 0 || !fixture.fixture?.base64 || fixture.noticedTarget?.id !== noticedTarget.id || fixture.noticedTarget?.file !== noticedTarget.file) {
     throw new Error('map failure fixture has an invalid bounded-city contract');
   }
   return fixture;
@@ -235,7 +235,7 @@ async function runCase(definition, result) {
       entry.snapshots.push({ atMs: 0, ...state }); entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
       check(entry, 'actual target GLB request intercepted', entry.fixture.glbRequests >= 1, entry.fixture);
       check(entry, 'restricted manifest was requested', entry.fixture.noticedManifestRequests >= 1, entry.fixture);
-      check(entry, 'bounded city fixture retains the Wardian anchor footprint', fixture.anchorRetained === true && fixture.originalIndices.includes(fixture.nearestOriginalIndex), entry.fixtureProvenance);
+      check(entry, 'bounded city fixture retains the mapped Wardian target footprint', fixture.anchorRetained === true && fixture.originalIndices.includes(fixture.targetOriginalIndex) && fixture.replacementMapping?.unmatchedIds?.length === 0 && fixture.replacementMapping?.ambiguousIds?.length === 0, entry.fixtureProvenance);
       check(entry, '3D remains useful and degraded', state.mapMode === '3d' && state.mapState === 'degraded' && state.snapshot?.mode === '3d' && state.snapshot?.state === 'degraded' && state.snapshot?.stockDrawn === true && state.snapshot.stockBuildings > 0 && state.snapshot.drawCalls > 0 && state.snapshot.triangles > 0, state);
       check(entry, 'exact optional GLB failure is recorded', state.snapshot?.errors?.some((error) => error.jobId === `asset:noticed:${noticedTarget.id}` && !error.essential && /HTTP 503/.test(error.message)), state.snapshot);
       check(entry, 'no essential load failure', !state.snapshot?.errors?.some((error) => error.essential), state.snapshot);
