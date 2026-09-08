@@ -57,6 +57,7 @@ import {
   type StreetEmit,
 } from './uniqueStreet';
 import { splitChunkCells } from './chunkCells';
+import type { CellId } from './cityIndex';
 import {
   aabbHitsKeep,
   CITYSTREET_AT,
@@ -412,18 +413,32 @@ function principalAxis(
  * into DRAW_CELL_M cells so the 8.5 wu mid frustum can skip off-screen
  * stock. The keep-disk is not clipped.
  */
-export function buildChunkTier(
+type DetailedGeometry = {
+  positions: number[];
+  normals: number[];
+  colors: number[];
+  indices: number[];
+  sourceBuildingIndices: number[];
+};
+
+/**
+ * The detailed stock recipe.  Selection is deliberately supplied by the
+ * caller: the cell path must not discover, copy, or re-index city data.
+ */
+function emitDetailedBuildings(
   cityData: CityData,
-  chunkId: number,
-  major: boolean,
+  buildingIndices: readonly number[] | null,
+  chunkId: number | null,
+  major: boolean | null,
   excludedBuildingIndices: ReadonlySet<number> = new Set(),
   scratch?: CityScratch,
   keep: KeepDisk | null = null,
-): THREE.Group | null {
+): DetailedGeometry | null {
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
+  const sourceBuildingIndices: number[] = [];
 
   const pushVertex = (
     x: number,
@@ -617,9 +632,11 @@ export function buildChunkTier(
 
   const citystreetPt = project(CITYSTREET_AT);
 
-  for (let buildingIndex = 0; buildingIndex < cityData.buildings.length; buildingIndex++) {
+  const selected = buildingIndices ?? cityData.buildings.map((_, index) => index);
+  for (const buildingIndex of selected) {
     const b = cityData.buildings[buildingIndex]!;
-    if (b.chunkId !== chunkId || b.major !== major) continue;
+    const positionStart = positions.length;
+    if ((chunkId !== null && b.chunkId !== chunkId) || (major !== null && b.major !== major)) continue;
     if (excludedBuildingIndices.has(buildingIndex)) continue;
     const n = b.verts.length / 2;
     if (n < 3) continue;
@@ -1454,10 +1471,88 @@ export function buildChunkTier(
         address: named?.name ?? pal.streetAddress(district, seed),
       });
     }
+    if (positions.length > positionStart) sourceBuildingIndices.push(buildingIndex);
   }
 
   if (positions.length === 0) return null;
-  return splitChunkCells({ positions, normals, colors, indices, chunkId, major });
+  return { positions, normals, colors, indices, sourceBuildingIndices };
+}
+
+/**
+ * Keep-disk stock for (chunkId, major). Emit as one buffer, then split
+ * into DRAW_CELL_M cells so the 8.5 wu mid frustum can skip off-screen
+ * stock. The keep-disk is not clipped.
+ */
+export function buildChunkTier(
+  cityData: CityData,
+  chunkId: number,
+  major: boolean,
+  excludedBuildingIndices: ReadonlySet<number> = new Set(),
+  scratch?: CityScratch,
+  keep: KeepDisk | null = null,
+): THREE.Group | null {
+  const geometry = emitDetailedBuildings(
+    cityData,
+    null,
+    chunkId,
+    major,
+    excludedBuildingIndices,
+    scratch,
+    keep,
+  );
+  if (!geometry) return null;
+  return splitChunkCells({ ...geometry, chunkId, major });
+}
+
+export function buildCellStockBatch(args: {
+  cityData: CityData;
+  cellId: CellId;
+  buildingIndices: readonly number[];
+  excludedBuildingIndices: ReadonlySet<number>;
+  material: THREE.Material;
+  scratch?: CityScratch;
+  keep?: KeepDisk | null;
+}): THREE.Group | null {
+  const { cityData, cellId, buildingIndices, excludedBuildingIndices, material, scratch } = args;
+  if (buildingIndices.length > 16) throw new RangeError('buildingIndices must contain at most 16 entries');
+  const seen = new Set<number>();
+  for (const index of buildingIndices) {
+    if (!Number.isInteger(index) || index < 0 || index >= cityData.buildings.length) {
+      throw new RangeError(`invalid building index: ${index}`);
+    }
+    if (seen.has(index)) throw new RangeError(`duplicate building index: ${index}`);
+    seen.add(index);
+  }
+
+  const emitted = emitDetailedBuildings(
+    cityData,
+    buildingIndices,
+    null,
+    null,
+    excludedBuildingIndices,
+    scratch,
+    args.keep ?? null,
+  );
+  if (!emitted) return null;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(emitted.positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(emitted.normals, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(emitted.colors, 3));
+  geometry.setIndex(emitted.indices);
+  geometry.computeBoundingSphere();
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.frustumCulled = true;
+  mesh.userData.cellId = cellId;
+  mesh.userData.sourceBuildingIndices = emitted.sourceBuildingIndices;
+  const group = new THREE.Group();
+  group.frustumCulled = false;
+  group.userData.cellId = cellId;
+  group.userData.sourceBuildingIndices = emitted.sourceBuildingIndices;
+  group.add(mesh);
+  return group;
 }
 
 export function buildWindowMesh(scratch: CityScratch): THREE.InstancedMesh | null {
