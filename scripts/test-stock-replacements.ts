@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import * as THREE from 'three';
 import { LANDMARKS, project } from '../lib/game/geo';
 import { buildChunkTier, chunkTierMeshes, createScratch } from '../lib/game/render3d/cityBuilder';
 import { decodeCity, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
@@ -10,6 +11,10 @@ import {
   selectActiveReplacementIds,
 } from '../lib/game/render3d/stockReplacements';
 import { shouldLoadNoticedGlb } from '../lib/game/render3d/noticedPrefabs';
+import {
+  attachVisibleReplacement,
+  hasVisibleReplacementGeometry,
+} from '../lib/game/render3d/replacementAvailability';
 
 let passed = 0;
 function check(label: string, fn: () => void): void {
@@ -86,6 +91,42 @@ check('active IDs are deterministic and duplicates are malformed', () => {
       { id: 'a', enabled: false, available: false },
     ]),
   );
+});
+
+check('only visible nonempty roots activate replacements', () => {
+  const material = new THREE.MeshBasicMaterial();
+  const empty = new THREE.Group();
+  assert.equal(hasVisibleReplacementGeometry(empty), false);
+
+  const zeroInstances = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, 1);
+  zeroInstances.count = 0;
+  assert.equal(hasVisibleReplacementGeometry(zeroInstances), false);
+
+  const hidden = new THREE.Group();
+  hidden.visible = false;
+  hidden.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material));
+  assert.equal(hasVisibleReplacementGeometry(hidden), false);
+
+  const visible = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+  assert.equal(hasVisibleReplacementGeometry(visible), true);
+});
+
+check('throwing partial attachment cannot activate a replacement', () => {
+  const root = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+  const attached = new THREE.Group();
+  const active = new Set<string>();
+  assert.throws(() => {
+    if (
+      attachVisibleReplacement(root, (candidate) => {
+        attached.add(candidate);
+        throw new Error('optional replacement failed after partial output');
+      })
+    ) {
+      active.add('partial');
+    }
+  });
+  assert.equal(attached.children.length, 1);
+  assert.equal(active.has('partial'), false);
 });
 
 check('only an active, uniquely-contained anchor suppresses its own source footprint', () => {

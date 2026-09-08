@@ -77,6 +77,7 @@ import {
   mapReplacementAnchors,
   selectActiveReplacementIds,
 } from './stockReplacements';
+import { attachVisibleReplacement } from './replacementAvailability';
 
 const CITY_BIN_URL = '/map/london-city.bin';
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
@@ -180,17 +181,6 @@ function viewParam(): string | null {
 }
 
 type BuildJob = { id: string; kind: BuildJobKind; essential: boolean; run: () => void };
-
-function hasVisibleGeometry(root: THREE.Object3D): boolean {
-  let visible = false;
-  root.traverse((object) => {
-    if (visible || !(object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh)) return;
-    const position = object.geometry.getAttribute('position');
-    const index = object.geometry.getIndex();
-    if (position && position.count > 0 && (!index || index.count > 0)) visible = true;
-  });
-  return visible;
-}
 
 export class CityRenderer3D implements IMapRenderer {
   private readonly cityCanvas: HTMLCanvasElement;
@@ -609,8 +599,9 @@ export class CityRenderer3D implements IMapRenderer {
         if (!prefab && !isUniqueNoticedId(entry.id)) return;
         const group = instantiateNoticed(entry, prefab);
         group.position.set(entry.x, 0, entry.z);
-        this.cityGroup.add(group);
-        if (hasVisibleGeometry(group)) availableReplacementIds.add(replacementId);
+        if (attachVisibleReplacement(group, (root) => this.cityGroup.add(root))) {
+          availableReplacementIds.add(replacementId);
+        }
       });
     };
     const pushLandmark = (
@@ -632,8 +623,9 @@ export class CityRenderer3D implements IMapRenderer {
         } else if (landmark.yaw) {
           group.rotation.y += landmark.yaw;
         }
-        this.cityGroup.add(group);
-        if (hasVisibleGeometry(group)) availableReplacementIds.add(replacementId);
+        if (attachVisibleReplacement(group, (root) => this.cityGroup.add(root))) {
+          availableReplacementIds.add(replacementId);
+        }
       });
     };
     const allowLandmark = (landmark: (typeof LANDMARKS)[number]): boolean => {
