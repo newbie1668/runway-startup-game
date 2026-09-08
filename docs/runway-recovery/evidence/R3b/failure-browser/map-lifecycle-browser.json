@@ -1,0 +1,703 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-08T11:34:35.197Z",
+  "finishedAt": "2026-09-08T11:34:39.718Z",
+  "baseUrl": "http://127.0.0.1:4318",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1
+  },
+  "routes": [
+    {
+      "id": "L6-noticed-glb-503",
+      "path": "/game?map=3d&look=wardian&chrome=0&qa=1"
+    }
+  ],
+  "provenance": {
+    "exactSHA": "00a19e577a1381a67cb0b1a67b3e51ebf2373ff3",
+    "dirty": false
+  },
+  "environment": {
+    "node": "v26.5.0",
+    "pnpm": "10.33.0",
+    "playwright": "1.63.0",
+    "os": {
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M1"
+    },
+    "browser": "153.0.8010.12"
+  },
+  "cases": [
+    {
+      "id": "L6-noticed-glb-503",
+      "path": "/game?map=3d&look=wardian&chrome=0&qa=1",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=wardian&chrome=0&qa=1",
+      "startedAt": "2026-09-08T11:34:35.461Z",
+      "assertions": [
+        {
+          "label": "actual target GLB request intercepted",
+          "pass": true,
+          "detail": {
+            "cityRequests": 1,
+            "noticedManifestRequests": 1,
+            "glbRequests": 1,
+            "noticedTarget": {
+              "id": "bagshaw-building-wardian-east",
+              "name": "Bagshaw Building (Wardian East)",
+              "file": "bagshaw-building-wardian-east.glb",
+              "bytes": 8576,
+              "x": 151.14295564101428,
+              "z": 50.26157999999867,
+              "exclusionM": 40,
+              "heightM": 179,
+              "photo": false,
+              "shape": "taper"
+            }
+          }
+        },
+        {
+          "label": "restricted manifest was requested",
+          "pass": true,
+          "detail": {
+            "cityRequests": 1,
+            "noticedManifestRequests": 1,
+            "glbRequests": 1,
+            "noticedTarget": {
+              "id": "bagshaw-building-wardian-east",
+              "name": "Bagshaw Building (Wardian East)",
+              "file": "bagshaw-building-wardian-east.glb",
+              "bytes": 8576,
+              "x": 151.14295564101428,
+              "z": 50.26157999999867,
+              "exclusionM": 40,
+              "heightM": 179,
+              "photo": false,
+              "shape": "taper"
+            }
+          }
+        },
+        {
+          "label": "bounded city fixture retains the mapped Wardian target footprint",
+          "pass": true,
+          "detail": {
+            "schema": 1,
+            "kind": "bounded-wardian-city-fixture",
+            "target": {
+              "id": "bagshaw-building-wardian-east",
+              "lng": -0.0224,
+              "lat": 51.5017,
+              "x": 151.14295564101428,
+              "z": 50.26157999999867
+            },
+            "count": 80,
+            "originalIndices": [
+              49404,
+              48948,
+              48938,
+              49065,
+              48910,
+              49400,
+              48973,
+              49067,
+              49401,
+              78304,
+              49020,
+              49402,
+              78293,
+              49403,
+              78305,
+              49068,
+              78294,
+              49016,
+              49405,
+              48928,
+              49017,
+              48972,
+              49066,
+              49077,
+              49075,
+              48929,
+              49073,
+              48930,
+              78297,
+              78337,
+              78338,
+              49007,
+              49008,
+              49037,
+              49395,
+              49396,
+              49399,
+              49076,
+              48992,
+              48971,
+              48927,
+              48921,
+              78390,
+              49012,
+              78342,
+              49398,
+              49045,
+              78328,
+              49046,
+              48970,
+              48994,
+              49048,
+              49047,
+              49009,
+              49038,
+              78308,
+              49011,
+              48988,
+              49125,
+              48979,
+              78329,
+              49040,
+              49397,
+              48997,
+              49071,
+              48924,
+              49014,
+              49018,
+              78350,
+              48980,
+              49015,
+              78326,
+              48947,
+              48957,
+              49010,
+              49049,
+              49041,
+              49078,
+              49133,
+              49013
+            ],
+            "targetOriginalIndex": 49404,
+            "replacementMapping": {
+              "unmatchedIds": [],
+              "ambiguousIds": []
+            },
+            "nearestOriginalIndex": 49404,
+            "nearestDistanceWorld": 0,
+            "anchorRetained": true,
+            "noticedTarget": {
+              "id": "bagshaw-building-wardian-east",
+              "name": "Bagshaw Building (Wardian East)",
+              "file": "bagshaw-building-wardian-east.glb",
+              "bytes": 8576,
+              "x": 151.14295564101428,
+              "z": 50.26157999999867,
+              "exclusionM": 40,
+              "heightM": 179,
+              "photo": false,
+              "shape": "taper"
+            },
+            "simplification": "80 closest real building footprints; all roads, parks and water deliberately omitted",
+            "source": {
+              "path": "public/map/london-city.bin",
+              "commit": "00a19e577a1381a67cb0b1a67b3e51ebf2373ff3",
+              "sha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0"
+            },
+            "manifestSource": {
+              "path": "public/map/noticed/manifest.json",
+              "commit": "00a19e577a1381a67cb0b1a67b3e51ebf2373ff3",
+              "sha256": "0c83ce701c14b3b02aab19459550223ddc6694a5ceb477cda36d7d2767942cf1"
+            },
+            "fixture": {
+              "sha256": "3f0efc562693079103bba8e0f49bd146cd787e34b0a42cca9eba845f5c1f2367"
+            }
+          }
+        },
+        {
+          "label": "3D remains useful and degraded",
+          "pass": true,
+          "detail": {
+            "snapshot": {
+              "mode": "3d",
+              "state": "degraded",
+              "generation": 1,
+              "camera": {
+                "x": 151.02205084828654,
+                "y": 50.30000000000001,
+                "zoom": 367.3469387755102
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 143,
+              "failedJobs": 0,
+              "errorCount": 1,
+              "errors": [
+                {
+                  "jobId": "asset:noticed:bagshaw-building-wardian-east",
+                  "essential": false,
+                  "message": "HTTP 503"
+                }
+              ],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "decor:lamps",
+                "ms": 0.20000000298023224
+              },
+              "slowestJob": {
+                "id": "load:noticed",
+                "ms": 388.20000000298023
+              },
+              "residentCells": null,
+              "stockBuildings": 80,
+              "stockDrawn": true,
+              "drawCalls": 46,
+              "triangles": 35739,
+              "geometryBytes": 4751222,
+              "textures": 4,
+              "firstUsefulFrameMs": 1096,
+              "frameP95Ms": 40.80000001192093,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "degraded",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "exact optional GLB failure is recorded",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 151.02205084828654,
+              "y": 50.30000000000001,
+              "zoom": 367.3469387755102
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 143,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:bagshaw-building-wardian-east",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "decor:lamps",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 388.20000000298023
+            },
+            "residentCells": null,
+            "stockBuildings": 80,
+            "stockDrawn": true,
+            "drawCalls": 46,
+            "triangles": 35739,
+            "geometryBytes": 4751222,
+            "textures": 4,
+            "firstUsefulFrameMs": 1096,
+            "frameP95Ms": 40.80000001192093,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "no essential load failure",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 151.02205084828654,
+              "y": 50.30000000000001,
+              "zoom": 367.3469387755102
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 143,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:bagshaw-building-wardian-east",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "decor:lamps",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 388.20000000298023
+            },
+            "residentCells": null,
+            "stockBuildings": 80,
+            "stockDrawn": true,
+            "drawCalls": 46,
+            "triangles": 35739,
+            "geometryBytes": 4751222,
+            "textures": 4,
+            "firstUsefulFrameMs": 1096,
+            "frameP95Ms": 40.80000001192093,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "no unexpected browser errors",
+          "pass": false,
+          "detail": [
+            {
+              "type": "console.error",
+              "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+              "location": {
+                "url": "http://127.0.0.1:4318/map/noticed/bagshaw-building-wardian-east.glb",
+                "line": 0,
+                "column": 0,
+                "lineNumber": 0,
+                "columnNumber": 0
+              },
+              "stage": "runtime"
+            }
+          ]
+        },
+        {
+          "label": "exactly one successful final screenshot",
+          "pass": true,
+          "detail": [
+            {
+              "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R3b/failure-browser/screenshots/l6-noticed-glb-503-final.png",
+              "ok": true,
+              "capturedAt": "2026-09-08T11:34:39.658Z"
+            }
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "atMs": 0,
+          "snapshot": {
+            "mode": "3d",
+            "state": "degraded",
+            "generation": 1,
+            "camera": {
+              "x": 151.02205084828654,
+              "y": 50.30000000000001,
+              "zoom": 367.3469387755102
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 143,
+            "failedJobs": 0,
+            "errorCount": 1,
+            "errors": [
+              {
+                "jobId": "asset:noticed:bagshaw-building-wardian-east",
+                "essential": false,
+                "message": "HTTP 503"
+              }
+            ],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "decor:lamps",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "load:noticed",
+              "ms": 388.20000000298023
+            },
+            "residentCells": null,
+            "stockBuildings": 80,
+            "stockDrawn": true,
+            "drawCalls": 46,
+            "triangles": 35739,
+            "geometryBytes": 4751222,
+            "textures": 4,
+            "firstUsefulFrameMs": 1096,
+            "frameP95Ms": 40.80000001192093,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "degraded",
+          "mapReady": "1",
+          "bridge": true
+        }
+      ],
+      "screenshots": [
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R3b/failure-browser/screenshots/l6-noticed-glb-503-final.png",
+          "ok": true,
+          "capturedAt": "2026-09-08T11:34:39.658Z"
+        }
+      ],
+      "errors": [],
+      "failed": true,
+      "events": [
+        {
+          "type": "http",
+          "url": "http://127.0.0.1:4318/map/noticed/bagshaw-building-wardian-east.glb",
+          "status": 503,
+          "stage": "runtime"
+        },
+        {
+          "type": "console.error",
+          "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+          "location": {
+            "url": "http://127.0.0.1:4318/map/noticed/bagshaw-building-wardian-east.glb",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          "stage": "runtime"
+        }
+      ],
+      "fixtureProvenance": {
+        "schema": 1,
+        "kind": "bounded-wardian-city-fixture",
+        "target": {
+          "id": "bagshaw-building-wardian-east",
+          "lng": -0.0224,
+          "lat": 51.5017,
+          "x": 151.14295564101428,
+          "z": 50.26157999999867
+        },
+        "count": 80,
+        "originalIndices": [
+          49404,
+          48948,
+          48938,
+          49065,
+          48910,
+          49400,
+          48973,
+          49067,
+          49401,
+          78304,
+          49020,
+          49402,
+          78293,
+          49403,
+          78305,
+          49068,
+          78294,
+          49016,
+          49405,
+          48928,
+          49017,
+          48972,
+          49066,
+          49077,
+          49075,
+          48929,
+          49073,
+          48930,
+          78297,
+          78337,
+          78338,
+          49007,
+          49008,
+          49037,
+          49395,
+          49396,
+          49399,
+          49076,
+          48992,
+          48971,
+          48927,
+          48921,
+          78390,
+          49012,
+          78342,
+          49398,
+          49045,
+          78328,
+          49046,
+          48970,
+          48994,
+          49048,
+          49047,
+          49009,
+          49038,
+          78308,
+          49011,
+          48988,
+          49125,
+          48979,
+          78329,
+          49040,
+          49397,
+          48997,
+          49071,
+          48924,
+          49014,
+          49018,
+          78350,
+          48980,
+          49015,
+          78326,
+          48947,
+          48957,
+          49010,
+          49049,
+          49041,
+          49078,
+          49133,
+          49013
+        ],
+        "targetOriginalIndex": 49404,
+        "replacementMapping": {
+          "unmatchedIds": [],
+          "ambiguousIds": []
+        },
+        "nearestOriginalIndex": 49404,
+        "nearestDistanceWorld": 0,
+        "anchorRetained": true,
+        "noticedTarget": {
+          "id": "bagshaw-building-wardian-east",
+          "name": "Bagshaw Building (Wardian East)",
+          "file": "bagshaw-building-wardian-east.glb",
+          "bytes": 8576,
+          "x": 151.14295564101428,
+          "z": 50.26157999999867,
+          "exclusionM": 40,
+          "heightM": 179,
+          "photo": false,
+          "shape": "taper"
+        },
+        "simplification": "80 closest real building footprints; all roads, parks and water deliberately omitted",
+        "source": {
+          "path": "public/map/london-city.bin",
+          "commit": "00a19e577a1381a67cb0b1a67b3e51ebf2373ff3",
+          "sha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0"
+        },
+        "manifestSource": {
+          "path": "public/map/noticed/manifest.json",
+          "commit": "00a19e577a1381a67cb0b1a67b3e51ebf2373ff3",
+          "sha256": "0c83ce701c14b3b02aab19459550223ddc6694a5ceb477cda36d7d2767942cf1"
+        },
+        "fixture": {
+          "sha256": "3f0efc562693079103bba8e0f49bd146cd787e34b0a42cca9eba845f5c1f2367"
+        }
+      },
+      "fixture": {
+        "cityRequests": 1,
+        "noticedManifestRequests": 1,
+        "glbRequests": 1,
+        "noticedTarget": {
+          "id": "bagshaw-building-wardian-east",
+          "name": "Bagshaw Building (Wardian East)",
+          "file": "bagshaw-building-wardian-east.glb",
+          "bytes": 8576,
+          "x": 151.14295564101428,
+          "z": 50.26157999999867,
+          "exclusionM": 40,
+          "heightM": 179,
+          "photo": false,
+          "shape": "taper"
+        }
+      },
+      "final": {
+        "snapshot": {
+          "mode": "3d",
+          "state": "degraded",
+          "generation": 1,
+          "camera": {
+            "x": 151.02205084828654,
+            "y": 50.30000000000001,
+            "zoom": 367.3469387755102
+          },
+          "queuedJobs": 0,
+          "pendingEssentialJobs": 0,
+          "completedJobs": 143,
+          "failedJobs": 0,
+          "errorCount": 1,
+          "errors": [
+            {
+              "jobId": "asset:noticed:bagshaw-building-wardian-east",
+              "essential": false,
+              "message": "HTTP 503"
+            }
+          ],
+          "activeJobId": null,
+          "lastJob": {
+            "id": "decor:lamps",
+            "ms": 0.20000000298023224
+          },
+          "slowestJob": {
+            "id": "load:noticed",
+            "ms": 388.20000000298023
+          },
+          "residentCells": null,
+          "stockBuildings": 80,
+          "stockDrawn": true,
+          "drawCalls": 46,
+          "triangles": 35739,
+          "geometryBytes": 4751222,
+          "textures": 4,
+          "firstUsefulFrameMs": 1096,
+          "frameP95Ms": 40.80000001192093,
+          "fallbackReason": null
+        },
+        "mapMode": "3d",
+        "mapState": "degraded",
+        "mapReady": "1",
+        "bridge": true
+      },
+      "finishedAt": "2026-09-08T11:34:39.718Z",
+      "expectedFixtureEvents": [
+        {
+          "type": "http",
+          "url": "http://127.0.0.1:4318/map/noticed/bagshaw-building-wardian-east.glb",
+          "status": 503,
+          "stage": "runtime"
+        }
+      ],
+      "cleanupEvents": [],
+      "unexpectedEvents": [
+        {
+          "type": "console.error",
+          "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+          "location": {
+            "url": "http://127.0.0.1:4318/map/noticed/bagshaw-building-wardian-east.glb",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          },
+          "stage": "runtime"
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "type": "invalid-case-selection",
+      "ids": [
+        "L4-city-http-503",
+        "L5-city-binary-corrupt"
+      ]
+    },
+    {
+      "type": "case",
+      "id": "L6-noticed-glb-503"
+    }
+  ],
+  "runtimeCapture": "browser fixture capture; provenance records the exact source SHA and bounded fixture hashes",
+  "summary": {
+    "cases": 1,
+    "expectedCases": 1,
+    "failed": 2,
+    "incomplete": 0
+  },
+  "exitStatus": 1
+}
