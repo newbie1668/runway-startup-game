@@ -67,6 +67,7 @@ import {
   type KeepDisk,
 } from './lookClip';
 import { pointInRing, pointOverWater, waterRings, type WaterRing } from './waterQuery';
+import type { StockDetail } from './detailPolicy';
 
 export { chunkTierMeshes } from './chunkCells';
 
@@ -433,6 +434,7 @@ function emitDetailedBuildings(
   excludedBuildingIndices: ReadonlySet<number> = new Set(),
   scratch?: CityScratch,
   keep: KeepDisk | null = null,
+  detail: StockDetail = 'street',
 ): DetailedGeometry | null {
   const positions: number[] = [];
   const normals: number[] = [];
@@ -675,6 +677,80 @@ function emitDetailedBuildings(
     );
     const storedRoof = b.style === 0 ? inferRoof(style) : b.roof;
     const seed = hashBuildingIndex(b.heightM, b.chunkId, b.verts, 0x7fffffff, cx, cz);
+    const osmWall = fromRgb565(b.wall565);
+    const osmRoof = fromRgb565(b.roof565);
+    const baseHex = pal.wallHex(style, district, cx, cz, seed, osmWall);
+    const vScale = extrusionScale(style, b.heightM, district);
+    const heightWorld = b.heightM * METERS_TO_WORLD * vScale;
+
+    // Cheap representations deliberately stop before footprint analysis and
+    // unique recipes. They retain the original ring and shared picking data.
+    if (detail !== 'street') {
+      const roofHex = osmRoof
+        ? pal.clampRoofColour(osmRoof)
+        : pal.roofHex(style, storedRoof !== 0 && b.heightM <= 22, seed);
+      const wallBottomHex = pal.mixHex(baseHex, pal.AO_DARK, 0.1);
+      const emitWall = (a: { x: number; z: number }, bp: { x: number; z: number }) => {
+        const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
+        const dx = bp.x - a.x;
+        const dz = bp.z - a.z;
+        const flip = (-dz * heightWorld) * nx + (dx * heightWorld) * nz < 0;
+        const a0 = pushVertex(a.x, 0, a.z, nx, 0, nz, wallBottomHex);
+        const b0 = pushVertex(bp.x, 0, bp.z, nx, 0, nz, wallBottomHex);
+        const a1 = pushVertex(a.x, heightWorld, a.z, nx, 0, nz, baseHex);
+        const b1 = pushVertex(bp.x, heightWorld, bp.z, nx, 0, nz, baseHex);
+        if (!flip) indices.push(a0, b0, b1, a0, b1, a1);
+        else indices.push(a0, b1, b0, a0, a1, b1);
+
+        if (detail !== 'neighbourhood') return;
+        const edgeM = Math.hypot(dx, dz) / METERS_TO_WORLD;
+        const cols = Math.max(1, Math.min(8, Math.round(edgeM / 6)));
+        const rows = Math.max(1, Math.min(8, Math.floor(b.heightM / 4)));
+        const elen = Math.hypot(dx, dz) || 1;
+        const tx = dx / elen;
+        const tz = dz / elen;
+        const glass = pal.windowHex(seed);
+        const outward = 0.012 * METERS_TO_WORLD;
+        for (let col = 0; col < cols; col++) {
+          const t = (col + 0.5) / cols;
+          const halfU = Math.min(1.25 * METERS_TO_WORLD, (elen / cols) * 0.28);
+          for (let row = 0; row < rows; row++) {
+            const y0 = heightWorld * (0.18 + (row / rows) * 0.68);
+            const y1 = heightWorld * (0.18 + ((row + 0.66) / rows) * 0.68);
+            const mx = a.x + dx * t + nx * outward;
+            const mz = a.z + dz * t + nz * outward;
+            const p0 = pushVertex(mx - tx * halfU, y0, mz - tz * halfU, nx, 0, nz, glass);
+            const p1 = pushVertex(mx + tx * halfU, y0, mz + tz * halfU, nx, 0, nz, glass);
+            const p2 = pushVertex(mx + tx * halfU, y1, mz + tz * halfU, nx, 0, nz, glass);
+            const p3 = pushVertex(mx - tx * halfU, y1, mz - tz * halfU, nx, 0, nz, glass);
+            if (!flip) indices.push(p0, p1, p2, p0, p2, p3);
+            else indices.push(p0, p2, p1, p0, p3, p2);
+          }
+        }
+      };
+      for (let i = 0; i < n; i++) emitWall(ring[i]!, ring[(i + 1) % n]!);
+      for (let t = 0; t + 2 < b.indices.length; t += 3) {
+        const i0 = b.indices[t]!;
+        let i1 = b.indices[t + 1]!;
+        let i2 = b.indices[t + 2]!;
+        const p0 = ring[i0]; const p1 = ring[i1]; const p2 = ring[i2];
+        if (!p0 || !p1 || !p2) continue;
+        const ny = (p1.z - p0.z) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.z - p0.z);
+        if (ny < 0) { const swap = i1; i1 = i2; i2 = swap; }
+        const r0 = ring[i0]!; const r1 = ring[i1]!; const r2 = ring[i2]!;
+        const v0 = pushVertex(r0.x, heightWorld, r0.z, 0, 1, 0, roofHex);
+        const v1 = pushVertex(r1.x, heightWorld, r1.z, 0, 1, 0, roofHex);
+        const v2 = pushVertex(r2.x, heightWorld, r2.z, 0, 1, 0, roofHex);
+        indices.push(v0, v1, v2);
+      }
+      if (scratch) scratch.picks.push({
+        sourceIndex: buildingIndex, x: cx, z: cz, heightWorld, heightM: b.heightM,
+        areaM2, style, district, label: pal.USE_LABEL[style] ?? pal.STYLE_LABEL[style] ?? 'Building',
+        address: pal.streetAddress(district, seed),
+      });
+      if (positions.length > positionStart) sourceBuildingIndices.push(buildingIndex);
+      continue;
+    }
     const plan = analyzeFootprint(ring, METERS_TO_WORLD);
     const recipe = uniqueStockRecipe({
       plan,
@@ -683,9 +759,7 @@ function emitDetailedBuildings(
       osmRoof: storedRoof,
     });
     const massing = massingFromRecipe(recipe);
-    const osmWall = fromRgb565(b.wall565);
-    const osmRoof = fromRgb565(b.roof565);
-    const baseHex = pal.wallHex(style, district, cx, cz, seed, osmWall);
+
     const wallBottomHex = pal.mixHex(baseHex, pal.AO_DARK, 0.1);
     const pitchedKind =
       recipe.roof.kind === 'gable' ||
@@ -695,8 +769,6 @@ function emitDetailedBuildings(
     const roofHex = osmRoof
       ? pal.clampRoofColour(osmRoof)
       : pal.roofHex(style, pitchedKind && b.heightM <= 22, seed);
-    const vScale = extrusionScale(style, b.heightM, district);
-    const heightWorld = b.heightM * METERS_TO_WORLD * vScale;
     const shopM = style === STYLE_RETAIL ? Math.min(4.0, b.heightM * 0.36) : 0;
     const shopWorld = shopM * METERS_TO_WORLD * vScale;
     const plinthWorld = shopWorld > 0.02 ? 0 : Math.min(4.2 * METERS_TO_WORLD, heightWorld * 0.22);
@@ -1499,6 +1571,7 @@ export function buildChunkTier(
     excludedBuildingIndices,
     scratch,
     keep,
+    'street',
   );
   if (!geometry) return null;
   return splitChunkCells({ ...geometry, chunkId, major });
@@ -1512,8 +1585,13 @@ export function buildCellStockBatch(args: {
   material: THREE.Material;
   scratch?: CityScratch;
   keep?: KeepDisk | null;
+  detail?: StockDetail;
 }): THREE.Group | null {
   const { cityData, cellId, buildingIndices, excludedBuildingIndices, material, scratch } = args;
+  const detail = args.detail ?? 'street';
+  if (detail !== 'overview' && detail !== 'neighbourhood' && detail !== 'street') {
+    throw new RangeError(`unknown stock detail: ${String(args.detail)}`);
+  }
   if (buildingIndices.length > 16) throw new RangeError('buildingIndices must contain at most 16 entries');
   const seen = new Set<number>();
   for (const index of buildingIndices) {
@@ -1532,6 +1610,7 @@ export function buildCellStockBatch(args: {
     excludedBuildingIndices,
     scratch,
     args.keep ?? null,
+    detail,
   );
   if (!emitted) return null;
   const geometry = new THREE.BufferGeometry();

@@ -11,6 +11,7 @@ import {
 } from '../lib/game/render3d/cityBuilder';
 import { indexCity } from '../lib/game/render3d/cityIndex';
 import { decodeCity, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
+import { stockDetailForGroundWidth } from '../lib/game/render3d/detailPolicy';
 
 const ORACLE_INDICES = [45401, 71493, 71693, 72128] as const;
 const ORACLE_BINARY_SHA256 = '6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0';
@@ -93,6 +94,12 @@ function building(x0: number, z0: number, x1: number, z1: number) {
 }
 
 function test(): void {
+  assert.equal(stockDetailForGroundWidth(2400), 'neighbourhood');
+  assert.equal(stockDetailForGroundWidth(2400.01), 'overview');
+  assert.equal(stockDetailForGroundWidth(600), 'street');
+  assert.equal(stockDetailForGroundWidth(600.01), 'neighbourhood');
+  assert.throws(() => stockDetailForGroundWidth(0));
+  assert.throws(() => stockDetailForGroundWidth(Number.NaN));
   const full = city();
   assert.equal(createHash('sha256').update(readFileSync('public/map/london-city.bin')).digest('hex'), ORACLE_BINARY_SHA256);
   const material = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -188,6 +195,28 @@ function test(): void {
   assert.ok(majorOnly && minorOnly);
   assert.ok(canonicalGeometryDigest(majorOnly) !== canonicalGeometryDigest(minorOnly), 'major small building retains parapet geometry');
   assert.deepEqual(mixed!.userData.sourceBuildingIndices, [45401, 21216]);
+
+  const overviewScratch = createScratch();
+  const neighbourhoodScratch = createScratch();
+  const overview = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [45401],
+    excludedBuildingIndices: new Set(), material, scratch: overviewScratch, detail: 'overview',
+  });
+  const neighbourhood = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [45401],
+    excludedBuildingIndices: new Set(), material, scratch: neighbourhoodScratch, detail: 'neighbourhood',
+  });
+  assert.ok(overview && neighbourhood);
+  assert.ok(rawGeometryBytes(overview) < rawGeometryBytes(majorOnly!), 'overview must be cheaper than street');
+  assert.ok(rawGeometryBytes(neighbourhood) < rawGeometryBytes(majorOnly!), 'neighbourhood must be cheaper than street');
+  assert.deepEqual(overviewScratch.windows, []);
+  assert.deepEqual(overviewScratch.rooftops, []);
+  assert.deepEqual(overviewScratch.signs, []);
+  assert.deepEqual(neighbourhoodScratch.windows, []);
+  assert.deepEqual(neighbourhoodScratch.rooftops, []);
+  assert.deepEqual(neighbourhoodScratch.signs, []);
+  assert.deepEqual(overview!.userData.sourceBuildingIndices, [45401]);
+  assert.deepEqual(neighbourhood!.userData.sourceBuildingIndices, [45401]);
   console.log('cell stock batch: 10 checks passed');
 }
 
