@@ -1,5 +1,4 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -42,7 +41,7 @@ function shell(command, args) {
   catch (error) { return `unavailable: ${error.message}`; }
 }
 const baseOrigin = new URL(baseUrl).origin;
-const committedManifest = (path) => JSON.parse(readFileSync(resolve(path), 'utf8'));
+const committedManifest = (path) => JSON.parse(execFileSync('git', ['show', `HEAD:${path}`], { encoding: 'utf8' }));
 const landmarkAssetPaths = new Set((committedManifest('public/map/landmarks/manifest.json').files ?? []).map((entry) => `/map/landmarks/${entry.file}`));
 const noticedAssetPaths = new Set((committedManifest('public/map/noticed/manifest.json').files ?? []).map((entry) => `/map/noticed/${entry.file}`));
 const knownCancellationPaths = new Set(['/map/london-city.bin', '/map/noticed/manifest.json', ...landmarkAssetPaths]);
