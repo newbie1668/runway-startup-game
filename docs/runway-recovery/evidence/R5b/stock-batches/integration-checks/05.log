@@ -1,0 +1,11 @@
+Stock replacement coverage
+  ✓ active IDs are deterministic and duplicates are malformed
+  ✓ only visible nonempty roots activate replacements
+  ✓ throwing partial attachment cannot activate a replacement
+  ✓ only an active, uniquely-contained anchor suppresses its own source footprint
+  ✓ disabled, failed, unmapped, and ambiguous replacements leave stock eligible
+  ✓ a former broad radius cannot remove a neighbouring footprint
+  ✓ Poultry retains ordinary massing and picking while its GLB remains unfetched
+
+Committed mapping summary: mapped=53 unmatched=16 ambiguous=1
+All 7 stock-replacement checks passed.
