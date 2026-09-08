@@ -1,9 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { arch, cpus, platform, release } from 'node:os';
-import { chromium } from '@playwright/test';
+let chromium;
 
 const require = createRequire(import.meta.url);
 const baseUrl = process.env.RUNWAY_BASE_URL ?? 'http://127.0.0.1:4318';
@@ -40,6 +41,40 @@ function shell(command, args) {
   try { return execFileSync(command, args, { encoding: 'utf8' }).trim(); }
   catch (error) { return `unavailable: ${error.message}`; }
 }
+const baseOrigin = new URL(baseUrl).origin;
+const committedManifest = (path) => JSON.parse(readFileSync(resolve(path), 'utf8'));
+const landmarkAssetPaths = new Set((committedManifest('public/map/landmarks/manifest.json').files ?? []).map((entry) => `/map/landmarks/${entry.file}`));
+const noticedAssetPaths = new Set((committedManifest('public/map/noticed/manifest.json').files ?? []).map((entry) => `/map/noticed/${entry.file}`));
+const knownCancellationPaths = new Set(['/map/london-city.bin', '/map/noticed/manifest.json', ...landmarkAssetPaths]);
+const city503ConsoleMessage = 'Failed to load resource: the server responded with a status of 503 (Service Unavailable)';
+function exactPath(url, pathname) {
+  try { const parsed = new URL(url); return parsed.origin === baseOrigin && parsed.pathname === pathname; }
+  catch { return false; }
+}
+function exactFixtureResponse(responses, pathname, status) { return responses.some((response) => response.status === status && exactPath(response.url, pathname)); }
+function expectedCancellation(event, observedRequests, entry) {
+  if (event.type !== 'requestfailed' || event.message !== 'net::ERR_ABORTED') return false;
+  let pathname;
+  try { pathname = new URL(event.url).pathname; } catch { return false; }
+  return knownCancellationPaths.has(pathname) && exactPath(event.url, pathname) && observedRequests.has(event.url)
+    && entry.final?.mapMode === '2d' && entry.final?.mapState === 'fallback'
+    && entry.final?.snapshot?.errors?.some((error) => error.jobId === 'load:city' && error.essential);
+}
+function classifierSelfCheck() {
+  const entry = { final: { mapMode: '2d', mapState: 'fallback', snapshot: { errors: [{ jobId: 'load:city', essential: true }] } } };
+  const observed = new Set([`${baseUrl}/map/london-city.bin`]);
+  const responses = [{ url: `${baseUrl}/map/london-city.bin`, status: 503 }];
+  if (!exactFixtureResponse(responses, '/map/london-city.bin', 503) || !expectedCancellation({ type: 'requestfailed', url: `${baseUrl}/map/london-city.bin`, message: 'net::ERR_ABORTED' }, observed, entry)) throw new Error('classifier self-check expected event rejected');
+  if (exactFixtureResponse(responses, '/map/london-city.bin?other=1', 503) || expectedCancellation({ type: 'requestfailed', url: 'https://third-party.example/map/london-city.bin', message: 'net::ERR_ABORTED' }, observed, entry)) throw new Error('classifier self-check accepted wrong origin/query');
+  if (responses.some((response) => response.status !== 503) || city503ConsoleMessage !== 'Failed to load resource: the server responded with a status of 503 (Service Unavailable)') throw new Error('classifier self-check status/message contract failed');
+  if (expectedCancellation({ type: 'pageerror', url: `${baseUrl}/map/london-city.bin`, message: 'net::ERR_ABORTED' }, observed, entry)) throw new Error('classifier self-check accepted pageerror');
+  console.log(JSON.stringify({ classifierChecks: 'pass', knownLandmarkAssets: landmarkAssetPaths.size, knownNoticedAssets: noticedAssetPaths.size }));
+}
+if (process.env.RUNWAY_CLASSIFIER_CHECKS === '1') {
+  classifierSelfCheck();
+  process.exit(0);
+}
+({ chromium } = await import('@playwright/test'));
 function sleep(ms) { return new Promise((resolvePromise) => setTimeout(resolvePromise, ms)); }
 function slug(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); }
 async function deadline(promise, ms, message) {
@@ -60,13 +95,16 @@ async function evaluate(page, fn, arg) {
 function monitor(page) {
   const phase = { cleanup: false };
   const events = [];
+  const observedRequests = new Set();
   const add = (event) => events.push({ ...event, stage: phase.cleanup ? 'cleanup' : 'runtime' });
   page.on('console', (message) => { if (message.type() === 'error') add({ type: 'console.error', message: message.text(), location: message.location() }); });
   page.on('pageerror', (error) => add({ type: 'pageerror', message: error.message }));
   page.on('crash', () => add({ type: 'crash', message: 'page crashed' }));
+  page.on('request', (request) => observedRequests.add(request.url()));
   page.on('requestfailed', (request) => add({ type: 'requestfailed', url: request.url(), message: request.failure()?.errorText ?? 'unknown' }));
   page.on('response', (response) => { if (response.status() >= 400) add({ type: 'http', url: response.url(), status: response.status() }); });
   events.phase = phase;
+  events.observedRequests = observedRequests;
   return events;
 }
 async function snapshot(page) {
@@ -90,24 +128,25 @@ function check(entry, label, condition, detail) {
   entry.assertions.push({ label, pass: Boolean(condition), ...(detail === undefined ? {} : { detail }) });
   if (!condition) entry.failed = true;
 }
-function errorIsFixture(error) { return /503|fixture:|manifest/i.test(error?.message ?? ''); }
+function errorIsFixture(error) { return /fixture:|pixel ratio unavailable/i.test(error?.message ?? ''); }
+function errorIsChromiumHttp503(error) { return error?.message === city503ConsoleMessage; }
 function assessEvents(entry, events, kind) {
   const expected = events.filter((event) => {
-    if (kind === 'manifest-503') return (event.type === 'http' && event.status === 503 && event.url.endsWith('/map/noticed/manifest.json')) || (event.type === 'console.error' && event.location?.url?.endsWith('/map/noticed/manifest.json') && errorIsFixture(event));
+    if (kind === 'manifest-503') return (event.type === 'http' && event.status === 503 && exactFixtureResponse(entry.fixtureResponses, '/map/noticed/manifest.json', 503) && exactPath(event.url, '/map/noticed/manifest.json')) || (event.type === 'console.error' && exactFixtureResponse(entry.fixtureResponses, '/map/noticed/manifest.json', 503) && exactPath(event.location?.url ?? '', '/map/noticed/manifest.json') && errorIsChromiumHttp503(event));
     if (kind === 'context-loss') {
       if (event.type === 'requestfailed' && event.url.endsWith('/map/london-city.bin')) return true;
       if (event.type === 'console.error' || event.type === 'pageerror') return /webgl context lost|contextlost|context loss/i.test(event.message ?? '');
       return false;
     }
     if (kind === 'constructor-failure') return event.type === 'console.error' && errorIsFixture(event);
-    if (kind === 'city-503') return event.type === 'http' && event.status === 503 && event.url.endsWith('/map/london-city.bin');
-    if (kind === 'city-truncated') return false;
-    if (kind === 'noticed-glb-503') return event.type === 'http' && event.status === 503 && event.url.endsWith(`/map/noticed/${noticedTarget.file}`);
+    if (kind === 'city-503') return (event.type === 'http' && event.status === 503 && exactFixtureResponse(entry.fixtureResponses, '/map/london-city.bin', 503) && exactPath(event.url, '/map/london-city.bin')) || (event.type === 'console.error' && exactFixtureResponse(entry.fixtureResponses, '/map/london-city.bin', 503) && exactPath(event.location?.url ?? '', '/map/london-city.bin') && errorIsChromiumHttp503(event)) || expectedCancellation(event, events.observedRequests, entry);
+    if (kind === 'city-truncated') return expectedCancellation(event, events.observedRequests, entry);
+    if (kind === 'noticed-glb-503') return (event.type === 'http' && event.status === 503 && exactFixtureResponse(entry.fixtureResponses, `/map/noticed/${noticedTarget.file}`, 503) && exactPath(event.url, `/map/noticed/${noticedTarget.file}`)) || (event.type === 'console.error' && exactFixtureResponse(entry.fixtureResponses, `/map/noticed/${noticedTarget.file}`, 503) && exactPath(event.location?.url ?? '', `/map/noticed/${noticedTarget.file}`) && errorIsChromiumHttp503(event));
     return false;
   });
   entry.expectedFixtureEvents = expected;
   entry.cleanupEvents = events.filter((event) => event.stage === 'cleanup');
-  entry.unexpectedEvents = events.filter((event) => event.stage !== 'cleanup' && !expected.includes(event));
+  entry.unexpectedEvents = events.filter((event) => event.stage !== 'cleanup' && ['console.error', 'pageerror', 'crash', 'requestfailed', 'http'].includes(event.type) && !expected.includes(event));
   check(entry, 'no unexpected browser errors', entry.unexpectedEvents.length === 0, entry.unexpectedEvents);
 }
 function cityFixture() {
@@ -158,6 +197,7 @@ function installFixture(page, kind) {
 async function runCase(definition, result) {
   const entry = { id: definition.id, path: definition.path, url: `${baseUrl}${definition.path}`, startedAt: new Date().toISOString(), assertions: [], snapshots: [], screenshots: [], errors: [], failed: false };
   let server; let browser; let context; let page; let events = []; let releaseCity;
+  entry.fixtureResponses = [];
   const timedOut = { value: false };
   const timer = setTimeout(() => { timedOut.value = true; entry.failed = true; entry.errors.push({ stage: 'case-deadline', message: `case exceeded ${caseTimeout} ms` }); void browser?.close().catch(() => {}); try { server?.process()?.kill?.(); } catch {} }, caseTimeout);
   try {
@@ -170,13 +210,13 @@ async function runCase(definition, result) {
     await installFixture(page, definition.kind);
     const fixture = ['city-truncated', 'noticed-glb-503'].includes(definition.kind) ? cityFixture() : null;
     if (fixture) entry.fixtureProvenance = { ...fixture, fixture: { ...fixture.fixture, base64: undefined } };
-    if (definition.kind === 'manifest-503') await page.route('**/map/noticed/manifest.json', (route) => route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: noticed manifest unavailable' }));
+    if (definition.kind === 'manifest-503') await page.route('**/map/noticed/manifest.json', (route) => { entry.fixtureResponses.push({ url: route.request().url(), status: 503, fixture: true }); return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: noticed manifest unavailable' }); });
     if (definition.kind === 'context-loss') {
       await page.route('**/map/london-city.bin', async (route) => { await new Promise((resolvePromise) => { releaseCity = resolvePromise; }); await route.continue().catch(() => {}); });
     }
     if (definition.kind === 'city-503') {
       entry.fixture = { cityRequests: 0, response: 503 };
-      await page.route('**/map/london-city.bin', (route) => { entry.fixture.cityRequests++; return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: city unavailable' }); });
+      await page.route('**/map/london-city.bin', (route) => { entry.fixture.cityRequests++; entry.fixtureResponses.push({ url: route.request().url(), status: 503, fixture: true }); return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: city unavailable' }); });
     }
     if (definition.kind === 'city-truncated') {
       entry.fixture = { cityRequests: 0, response: 'truncated', bytes: 11 };
@@ -187,7 +227,7 @@ async function runCase(definition, result) {
       entry.fixture = { cityRequests: 0, noticedManifestRequests: 0, glbRequests: 0, noticedTarget: selectedNoticedTarget };
       await page.route('**/map/london-city.bin', (route) => { entry.fixture.cityRequests++; return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: Buffer.from(fixture.fixture.base64, 'base64') }); });
       await page.route('**/map/noticed/manifest.json', (route) => { entry.fixture.noticedManifestRequests++; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ files: [selectedNoticedTarget] }) }); });
-      await page.route(`**/map/noticed/${selectedNoticedTarget.file}`, (route) => { entry.fixture.glbRequests++; return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: noticed GLB unavailable' }); });
+      await page.route(`**/map/noticed/${selectedNoticedTarget.file}`, (route) => { entry.fixture.glbRequests++; entry.fixtureResponses.push({ url: route.request().url(), status: 503, fixture: true }); return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: noticed GLB unavailable' }); });
     }
     await page.goto(entry.url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     if (definition.kind === 'manifest-503') {
@@ -260,7 +300,7 @@ async function runCase(definition, result) {
     if (context) await deadline(context.close(), cleanupTimeout, 'context close timed out').catch((error) => entry.errors.push({ stage: 'cleanup', message: error.message }));
     if (browser) await deadline(browser.close(), cleanupTimeout, 'browser close timed out').catch((error) => entry.errors.push({ stage: 'cleanup', message: error.message }));
     if (server) await deadline(server.close(), cleanupTimeout, 'browser server close timed out').catch((error) => entry.errors.push({ stage: 'cleanup', message: error.message }));
-    clearTimeout(timer); entry.finishedAt = new Date().toISOString(); entry.events = [...events]; assessEvents(entry, entry.events, definition.kind);
+    clearTimeout(timer); entry.finishedAt = new Date().toISOString(); entry.events = [...events]; entry.observedRequests = [...events.observedRequests]; assessEvents(entry, events, definition.kind);
     for (const capture of entry.screenshots) if (!capture.ok) check(entry, 'screenshot captured', false, capture);
     check(entry, 'exactly one successful final screenshot', entry.screenshots.length === 1 && entry.screenshots.filter((capture) => capture.ok).length === 1, entry.screenshots);
   }
