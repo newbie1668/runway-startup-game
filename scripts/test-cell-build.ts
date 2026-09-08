@@ -10,7 +10,7 @@ import {
   createScratch,
 } from '../lib/game/render3d/cityBuilder';
 import { indexCity } from '../lib/game/render3d/cityIndex';
-import { decodeCity, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
+import { decodeCity, dequantizeX, dequantizeY, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
 import { stockDetailForGroundWidth } from '../lib/game/render3d/detailPolicy';
 
 const ORACLE_INDICES = [45401, 71493, 71693, 72128] as const;
@@ -217,8 +217,58 @@ function test(): void {
   assert.deepEqual(neighbourhoodScratch.signs, []);
   assert.deepEqual(overview!.userData.sourceBuildingIndices, [45401]);
   assert.deepEqual(neighbourhood!.userData.sourceBuildingIndices, [45401]);
+
+  const parity: Record<string, unknown> = {};
+  for (const detail of ['street', 'overview', 'neighbourhood'] as const) {
+    const s = createScratch();
+    buildCellStockBatch({ cityData: full, cellId: '0,0', buildingIndices: [...ORACLE_INDICES], excludedBuildingIndices: new Set(), material, scratch: s, detail });
+    parity[detail] = s.picks;
+  }
+  assert.deepEqual(parity.overview, parity.street);
+  assert.deepEqual(parity.neighbourhood, parity.street);
+  const bounds = (g: THREE.Group) => {
+    const p = chunkTierMeshes(g)[0]!.geometry.getAttribute('position');
+    const xs = Array.from({ length: p.count }, (_, i) => p.getX(i));
+    const zs = Array.from({ length: p.count }, (_, i) => p.getZ(i));
+    return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+  };
+  const triangleChecks = (g: THREE.Group) => {
+    const geo = chunkTierMeshes(g)[0]!.geometry;
+    const p = geo.getAttribute('position'); const nrm = geo.getAttribute('normal'); const ix = geo.getIndex()!.array;
+    assert.ok(Array.from(p.array as Float32Array).every(Number.isFinite));
+    assert.ok(Array.from(nrm.array as Float32Array).every(Number.isFinite));
+    for (let t = 0; t < ix.length; t += 3) {
+      const ai = Number(ix[t]) * 3, bi = Number(ix[t + 1]) * 3, ci = Number(ix[t + 2]) * 3;
+      const ux = p.array[bi]! - p.array[ai]!, uy = p.array[bi + 1]! - p.array[ai + 1]!, uz = p.array[bi + 2]! - p.array[ai + 2]!;
+      const vx = p.array[ci]! - p.array[ai]!, vy = p.array[ci + 1]! - p.array[ai + 1]!, vz = p.array[ci + 2]! - p.array[ai + 2]!;
+      assert.ok((uy * vz - uz * vy) * nrm.array[ai]! + (uz * vx - ux * vz) * nrm.array[ai + 1]! + (ux * vy - uy * vx) * nrm.array[ai + 2]! > 1e-10);
+    }
+  };
+  for (const i of [0, 1, 2, 3]) {
+    const s = createScratch();
+    const g = buildCellStockBatch({ cityData: full, cellId: '0,0', buildingIndices: [ORACLE_INDICES[i]!], excludedBuildingIndices: new Set(), material, scratch: s, detail: 'overview' })!;
+    triangleChecks(g); assert.equal(s.picks.length, 1);
+  }
+  const fixture = building(10, 10, 30, 20);
+  const footprintBounds = (b: typeof fixture) => {
+    const ring = Array.from({ length: b.verts.length / 2 }, (_, i) => [dequantizeX(b.verts[i * 2]!), dequantizeY(b.verts[i * 2 + 1]!)]);
+    return [Math.min(...ring.map((p) => p[0])), Math.max(...ring.map((p) => p[0])), Math.min(...ring.map((p) => p[1])), Math.max(...ring.map((p) => p[1]))];
+  };
+  const assertBounds = (actual: number[], expected: number[]) => actual.forEach((value, i) => assert.ok(Math.abs(value - expected[i]!) < 1e-4));
+  const fwd = buildCellStockBatch({ cityData: { buildings: [fixture], roads: [], parks: [], water: [] }, cellId: '0,0', buildingIndices: [0], excludedBuildingIndices: new Set(), material, detail: 'overview' })!;
+  assertBounds(bounds(fwd), footprintBounds(fixture));
+  const reverseRing = new Uint16Array([quantizeX(10), quantizeY(10), quantizeX(10), quantizeY(20), quantizeX(30), quantizeY(20), quantizeX(30), quantizeY(10)]);
+  const reversed = { ...fixture, verts: reverseRing };
+  const reversedGroup = buildCellStockBatch({ cityData: { buildings: [reversed], roads: [], parks: [], water: [] }, cellId: '0,0', buildingIndices: [0], excludedBuildingIndices: new Set(), material, detail: 'overview' })!;
+  triangleChecks(reversedGroup); assertBounds(bounds(reversedGroup), footprintBounds(reversed));
+  const concave = { ...fixture, verts: new Uint16Array([quantizeX(10), quantizeY(10), quantizeX(30), quantizeY(10), quantizeX(30), quantizeY(20), quantizeX(20), quantizeY(15), quantizeX(10), quantizeY(20)]), indices: new Uint8Array([0, 1, 3, 0, 3, 4, 1, 2, 3]) };
+  const concaveGroup = buildCellStockBatch({ cityData: { buildings: [concave], roads: [], parks: [], water: [] }, cellId: '0,0', buildingIndices: [0], excludedBuildingIndices: new Set(), material, detail: 'overview' })!;
+  triangleChecks(concaveGroup); assertBounds(bounds(concaveGroup), footprintBounds(concave));
+  assert.ok(rawGeometryBytes(overview) < 110000);
+  assert.ok(chunkTierMeshes(neighbourhood)[0]!.geometry.getAttribute('position').count <= 1100);
   console.log('cell stock batch: 10 checks passed');
 }
+
 
 function rawGeometryBytes(group: THREE.Group | null): number {
   return chunkTierMeshes(group).reduce((total, mesh) => {

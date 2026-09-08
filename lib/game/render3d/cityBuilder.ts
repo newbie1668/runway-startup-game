@@ -743,11 +743,17 @@ function emitDetailedBuildings(
         const v2 = pushVertex(r2.x, heightWorld, r2.z, 0, 1, 0, roofHex);
         indices.push(v0, v1, v2);
       }
-      if (scratch) scratch.picks.push({
+      if (scratch) {
+        // Keep named-street identity identical across detail tiers without
+        // constructing the detailed facade recipe.
+        const named = streetKind ? STREET_UNIQUE_LABEL[streetKind] : null;
+        scratch.picks.push({
         sourceIndex: buildingIndex, x: cx, z: cz, heightWorld, heightM: b.heightM,
-        areaM2, style, district, label: pal.USE_LABEL[style] ?? pal.STYLE_LABEL[style] ?? 'Building',
-        address: pal.streetAddress(district, seed),
-      });
+        areaM2, style, district,
+        label: named?.use ?? pal.USE_LABEL[style] ?? pal.STYLE_LABEL[style] ?? 'Building',
+        address: named?.name ?? pal.streetAddress(district, seed),
+        });
+      }
       if (positions.length > positionStart) sourceBuildingIndices.push(buildingIndex);
       continue;
     }
