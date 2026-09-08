@@ -13,7 +13,8 @@ import { indexCity } from '../lib/game/render3d/cityIndex';
 import { decodeCity, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
 
 const ORACLE_INDICES = [45401, 71493, 71693, 72128] as const;
-const ORACLE_GEOMETRY_SHA256 = 'f30fb062374efe5569f0d311cd652791981df128fc9a60d4c3507f0588032f26';
+const ORACLE_BINARY_SHA256 = '6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0';
+const ORACLE_GEOMETRY_SHA256 = '34976db63c5adda68b52faaf40c35069edae9ce6cb594a99f88252de692a0a61';
 const ORACLE_SCRATCH_SHA256 = '1b577019bb8844db1ba8736b2d92852a837eccd23b9dc1b7cb966f48f4b5525b';
 
 function city(): CityData {
@@ -28,17 +29,42 @@ function sparseOracle(full: CityData): CityData {
   return { ...full, buildings };
 }
 
-function tuples(group: THREE.Group | null): string[] {
-  const out: string[] = [];
+function canonicalGeometryDigest(group: THREE.Object3D | null): string {
+  const triangles: Buffer[] = [];
   for (const mesh of chunkTierMeshes(group)) {
-    for (const name of ['position', 'normal', 'color'] as const) {
+    const index = mesh.geometry.getIndex();
+    assert.ok(index, 'canonical oracle requires indexed geometry');
+    const attrs = ['position', 'normal', 'color'].map((name) => {
       const attribute = mesh.geometry.getAttribute(name);
-      for (let i = 0; i < attribute.count; i++) {
-        out.push(`${name}:${attribute.getX(i)},${attribute.getY(i)},${attribute.getZ(i)}`);
-      }
+      assert.ok(attribute?.array instanceof Float32Array, `${name} must be Float32`);
+      return attribute.array as Float32Array;
+    });
+    const indices = index.array;
+    for (let t = 0; t + 2 < indices.length; t += 3) {
+      const vertices = [indices[t]!, indices[t + 1]!, indices[t + 2]!].map((vertex) => {
+        const bytes = Buffer.alloc(36);
+        let offset = 0;
+        for (const attribute of attrs) {
+          for (let axis = 0; axis < 3; axis++) {
+            bytes.writeFloatLE(attribute[vertex * 3 + axis]!, offset);
+            offset += 4;
+          }
+        }
+        return bytes;
+      });
+      const rotations = [vertices, [vertices[1]!, vertices[2]!, vertices[0]!], [vertices[2]!, vertices[0]!, vertices[1]!]];
+      rotations.sort((a, b) => {
+        for (let i = 0; i < 3; i++) {
+          const order = Buffer.compare(a[i]!, b[i]!);
+          if (order !== 0) return order;
+        }
+        return 0;
+      });
+      triangles.push(Buffer.concat(rotations[0]!));
     }
   }
-  return out.sort();
+  triangles.sort(Buffer.compare);
+  return createHash('sha256').update(Buffer.concat(triangles)).digest('hex');
 }
 
 function sha(value: unknown): string {
@@ -68,6 +94,7 @@ function building(x0: number, z0: number, x1: number, z1: number) {
 
 function test(): void {
   const full = city();
+  assert.equal(createHash('sha256').update(readFileSync('public/map/london-city.bin')).digest('hex'), ORACLE_BINARY_SHA256);
   const material = new THREE.MeshLambertMaterial({ vertexColors: true });
   const legacyScratch = createScratch();
   const legacy = buildChunkTier(sparseOracle(full), 20, true, new Set(), legacyScratch);
@@ -80,15 +107,30 @@ function test(): void {
     material,
     scratch: batchScratch,
   });
-  assert.equal(sha(tuples(legacy).join('\n')), ORACLE_GEOMETRY_SHA256);
-  assert.equal(sha(tuples(batch).join('\n')), ORACLE_GEOMETRY_SHA256);
+  assert.equal(canonicalGeometryDigest(legacy), ORACLE_GEOMETRY_SHA256);
+  assert.equal(canonicalGeometryDigest(batch), ORACLE_GEOMETRY_SHA256);
   assert.equal(scratchDigest(legacyScratch), ORACLE_SCRATCH_SHA256);
   assert.equal(scratchDigest(batchScratch), ORACLE_SCRATCH_SHA256);
   assert.deepEqual(batchScratch.picks.map((pick) => pick.sourceIndex), ORACLE_INDICES);
   const mesh = chunkTierMeshes(batch)[0]!;
   assert.equal(mesh.material, material);
   assert.deepEqual(batch!.userData.sourceBuildingIndices, ORACLE_INDICES);
-  assert.ok(tuples(batch).every((tuple) => !tuple.includes('NaN') && !tuple.includes('Infinity')));
+  for (const mesh of chunkTierMeshes(batch)) {
+    for (const name of ['position', 'normal', 'color'] as const) {
+      const values = mesh.geometry.getAttribute(name).array as Float32Array;
+      assert.ok(Array.from(values).every(Number.isFinite));
+    }
+  }
+
+  const topology = new THREE.BufferGeometry();
+  topology.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+  topology.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+  topology.setAttribute('color', new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1], 3));
+  topology.setIndex([0, 1, 2]);
+  const topologyGroup = new THREE.Group(); topologyGroup.add(new THREE.Mesh(topology));
+  const originalTopologyDigest = canonicalGeometryDigest(topologyGroup);
+  topology.setIndex([0, 2, 1]);
+  assert.notEqual(canonicalGeometryDigest(topologyGroup), originalTopologyDigest, 'winding/connectivity must affect canonical output');
 
   const excludedScratch = createScratch();
   const excluded = buildCellStockBatch({
@@ -104,7 +146,7 @@ function test(): void {
 
   const errorScratch = createScratch();
   const original = JSON.stringify(errorScratch);
-  for (const invalid of [[45401, 45401], [-1], [full.buildings.length], Array.from({ length: 17 }, (_, i) => i)]) {
+  for (const invalid of [[45401, 45401], [-1], [NaN], [1.5], [full.buildings.length], Array.from({ length: 17 }, (_, i) => i)]) {
     assert.throws(() =>
       buildCellStockBatch({
         cityData: full, cellId: '0,0', buildingIndices: invalid,
@@ -119,14 +161,34 @@ function test(): void {
   };
   const ownership = indexCity(crossing, 400);
   const owner = [...ownership.cells.values()].find((cell) => cell.buildingIndices.includes(0))!;
+  assert.equal([...ownership.cells.values()].filter((cell) => cell.buildingIndices.includes(0)).length, 1);
   assert.deepEqual(owner.buildingIndices, [0]);
   const crossingBatch = buildCellStockBatch({
     cityData: crossing, cellId: owner.id, buildingIndices: owner.buildingIndices,
     excludedBuildingIndices: new Set(), material,
   });
   assert.deepEqual(crossingBatch!.userData.sourceBuildingIndices, [0]);
-  assert.ok(tuples(crossingBatch).length > 0);
-  console.log('cell stock batch: 8 checks passed');
+  assert.ok(canonicalGeometryDigest(crossingBatch).length > 0);
+
+  const mixed = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [45401, 21216],
+    excludedBuildingIndices: new Set(), material,
+  });
+  assert.ok(mixed);
+  const majorOnly = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [21216],
+    excludedBuildingIndices: new Set(), material,
+  });
+  const minorCity = { ...full, buildings: full.buildings.slice() };
+  minorCity.buildings[21216] = { ...minorCity.buildings[21216]!, major: false };
+  const minorOnly = buildCellStockBatch({
+    cityData: minorCity, cellId: '0,0', buildingIndices: [21216],
+    excludedBuildingIndices: new Set(), material,
+  });
+  assert.ok(majorOnly && minorOnly);
+  assert.ok(canonicalGeometryDigest(majorOnly) !== canonicalGeometryDigest(minorOnly), 'major small building retains parapet geometry');
+  assert.deepEqual(mixed!.userData.sourceBuildingIndices, [45401, 21216]);
+  console.log('cell stock batch: 10 checks passed');
 }
 
 function rawGeometryBytes(group: THREE.Group | null): number {

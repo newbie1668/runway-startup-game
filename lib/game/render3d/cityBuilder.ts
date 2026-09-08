@@ -1391,7 +1391,7 @@ function emitDetailedBuildings(
       !cheapsideNotice &&
       !pitched &&
       recipe.roof.kind === 'parapet' &&
-      (major || areaM2 > 140) &&
+      (b.major || areaM2 > 140) &&
       b.heightM >= 8 &&
       n <= 24;
     if (wantParapet) {
