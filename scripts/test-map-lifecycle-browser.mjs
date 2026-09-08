@@ -15,11 +15,23 @@ const evaluateTimeout = 3_000;
 const screenshotTimeout = 5_000;
 const cleanupTimeout = 3_000;
 const selected = process.env.RUNWAY_CASES?.split(',').map((value) => value.trim()).filter(Boolean);
+const noticedTarget = {
+  id: 'bagshaw-building-wardian-east',
+  name: 'Bagshaw Building (Wardian East)',
+  file: 'bagshaw-building-wardian-east.glb',
+  x: 151.14295564101428,
+  z: 50.26157999999867,
+  exclusionM: 40,
+  heightM: 179,
+};
 
 const definitions = [
   { id: 'L1-optional-manifest-503', kind: 'manifest-503', path: '/game?map=3d&look=citystreet&chrome=0&qa=1' },
   { id: 'L2-context-loss-pending-load', kind: 'context-loss', path: '/game?map=debug&look=citystreet&chrome=0&qa=1' },
   { id: 'L3-constructor-failure', kind: 'constructor-failure', path: '/game?map=3d&look=citystreet&chrome=0&qa=1' },
+  { id: 'L4-city-503', kind: 'city-503', path: '/game?map=3d&look=wardian&chrome=0&qa=1' },
+  { id: 'L5-city-truncated', kind: 'city-truncated', path: '/game?map=3d&look=wardian&chrome=0&qa=1' },
+  { id: 'L6-noticed-glb-503', kind: 'noticed-glb-503', path: '/game?map=3d&look=wardian&chrome=0&qa=1' },
 ];
 const invalidSelections = selected?.filter((id) => !definitions.some((definition) => definition.id === id)) ?? [];
 const cases = selected?.length ? definitions.filter((definition) => selected.includes(definition.id)) : definitions;
@@ -88,12 +100,23 @@ function assessEvents(entry, events, kind) {
       return false;
     }
     if (kind === 'constructor-failure') return event.type === 'console.error' && errorIsFixture(event);
+    if (kind === 'city-503') return event.type === 'http' && event.status === 503 && event.url.endsWith('/map/london-city.bin');
+    if (kind === 'city-truncated') return false;
+    if (kind === 'noticed-glb-503') return event.type === 'http' && event.status === 503 && event.url.endsWith(`/map/noticed/${noticedTarget.file}`);
     return false;
   });
   entry.expectedFixtureEvents = expected;
   entry.cleanupEvents = events.filter((event) => event.stage === 'cleanup');
   entry.unexpectedEvents = events.filter((event) => event.stage !== 'cleanup' && !expected.includes(event));
   check(entry, 'no unexpected browser errors', entry.unexpectedEvents.length === 0, entry.unexpectedEvents);
+}
+function cityFixture() {
+  const raw = execFileSync('pnpm', ['tsx', 'scripts/map-failure-fixture.ts'], { encoding: 'utf8' }).trim();
+  const fixture = JSON.parse(raw);
+  if (fixture.kind !== 'bounded-wardian-city-fixture' || fixture.count > 80 || !Array.isArray(fixture.originalIndices) || fixture.originalIndices.length !== fixture.count || !fixture.originalIndices.includes(fixture.nearestOriginalIndex) || fixture.anchorRetained !== true || !fixture.fixture?.base64 || fixture.noticedTarget?.id !== noticedTarget.id || fixture.noticedTarget?.file !== noticedTarget.file) {
+    throw new Error('map failure fixture has an invalid bounded-city contract');
+  }
+  return fixture;
 }
 async function screenshot(page, name) {
   const path = join(screenshotsDir, `${slug(name)}.png`);
@@ -145,9 +168,26 @@ async function runCase(definition, result) {
     context.setDefaultTimeout(10_000); context.setDefaultNavigationTimeout(15_000);
     page = await context.newPage(); events = monitor(page); entry.events = events;
     await installFixture(page, definition.kind);
+    const fixture = ['city-truncated', 'noticed-glb-503'].includes(definition.kind) ? cityFixture() : null;
+    if (fixture) entry.fixtureProvenance = { ...fixture, fixture: { ...fixture.fixture, base64: undefined } };
     if (definition.kind === 'manifest-503') await page.route('**/map/noticed/manifest.json', (route) => route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: noticed manifest unavailable' }));
     if (definition.kind === 'context-loss') {
       await page.route('**/map/london-city.bin', async (route) => { await new Promise((resolvePromise) => { releaseCity = resolvePromise; }); await route.continue().catch(() => {}); });
+    }
+    if (definition.kind === 'city-503') {
+      entry.fixture = { cityRequests: 0, response: 503 };
+      await page.route('**/map/london-city.bin', (route) => { entry.fixture.cityRequests++; return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: city unavailable' }); });
+    }
+    if (definition.kind === 'city-truncated') {
+      entry.fixture = { cityRequests: 0, response: 'truncated', bytes: 11 };
+      await page.route('**/map/london-city.bin', (route) => { entry.fixture.cityRequests++; return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: Buffer.from(fixture.fixture.base64, 'base64').subarray(0, 11) }); });
+    }
+    if (definition.kind === 'noticed-glb-503') {
+      const selectedNoticedTarget = fixture.noticedTarget;
+      entry.fixture = { cityRequests: 0, noticedManifestRequests: 0, glbRequests: 0, noticedTarget: selectedNoticedTarget };
+      await page.route('**/map/london-city.bin', (route) => { entry.fixture.cityRequests++; return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: Buffer.from(fixture.fixture.base64, 'base64') }); });
+      await page.route('**/map/noticed/manifest.json', (route) => { entry.fixture.noticedManifestRequests++; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ files: [selectedNoticedTarget] }) }); });
+      await page.route(`**/map/noticed/${selectedNoticedTarget.file}`, (route) => { entry.fixture.glbRequests++; return route.fulfill({ status: 503, contentType: 'text/plain', body: 'fixture: noticed GLB unavailable' }); });
     }
     await page.goto(entry.url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     if (definition.kind === 'manifest-503') {
@@ -182,6 +222,24 @@ async function runCase(definition, result) {
       entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
       check(entry, 'no late 3D transition or stock mutation', settled.mapMode === '2d' && settled.snapshot?.mode === '2d' && settled.snapshot?.stockDrawn == null, settled);
       entry.fixture = fixture; entry.final = settled;
+    } else if (definition.kind === 'city-503' || definition.kind === 'city-truncated') {
+      const state = await waitFor(page, (value) => value.mapMode === '2d' && value.mapState === 'fallback' && value.mapReady === '1', 12_000);
+      entry.snapshots.push({ atMs: 0, ...state }); entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
+      check(entry, 'actual city request intercepted', entry.fixture.cityRequests >= 1, entry.fixture);
+      check(entry, '2D fallback is ready', state.mapMode === '2d' && state.mapState === 'fallback' && state.mapReady === '1' && state.snapshot?.mode === '2d', state);
+      check(entry, 'essential city failure is recorded', state.snapshot?.errors?.some((error) => error.jobId === 'load:city' && error.essential), state.snapshot);
+      check(entry, 'fallback reason identifies production city failure', /City data failed/i.test(state.snapshot?.fallbackReason ?? ''), state.snapshot);
+      entry.final = state;
+    } else if (definition.kind === 'noticed-glb-503') {
+      const state = await waitFor(page, (value) => value.mapMode === '3d' && value.mapState === 'degraded' && value.mapReady === '1' && value.snapshot?.stockDrawn === true && value.snapshot?.stockBuildings > 0 && value.snapshot?.drawCalls > 0 && value.snapshot?.triangles > 0, 30_000);
+      entry.snapshots.push({ atMs: 0, ...state }); entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
+      check(entry, 'actual target GLB request intercepted', entry.fixture.glbRequests >= 1, entry.fixture);
+      check(entry, 'restricted manifest was requested', entry.fixture.noticedManifestRequests >= 1, entry.fixture);
+      check(entry, 'bounded city fixture retains the Wardian anchor footprint', fixture.anchorRetained === true && fixture.originalIndices.includes(fixture.nearestOriginalIndex), entry.fixtureProvenance);
+      check(entry, '3D remains useful and degraded', state.mapMode === '3d' && state.mapState === 'degraded' && state.snapshot?.mode === '3d' && state.snapshot?.state === 'degraded' && state.snapshot?.stockDrawn === true && state.snapshot.stockBuildings > 0 && state.snapshot.drawCalls > 0 && state.snapshot.triangles > 0, state);
+      check(entry, 'exact optional GLB failure is recorded', state.snapshot?.errors?.some((error) => error.jobId === `asset:noticed:${noticedTarget.id}` && !error.essential && /HTTP 503/.test(error.message)), state.snapshot);
+      check(entry, 'no essential load failure', !state.snapshot?.errors?.some((error) => error.essential), state.snapshot);
+      entry.final = state;
     } else {
       const state = await waitFor(page, (value) => value.mapReady === '1' && value.mapMode === '2d', 8_000);
       entry.snapshots.push({ atMs: 0, ...state }); entry.screenshots.push(await screenshot(page, `${definition.id}-final`));
@@ -214,7 +272,7 @@ const result = {
   viewport: { ...viewport, dpr: 1 }, routes: cases.map(({ id, path }) => ({ id, path })),
   provenance: { exactSHA: shell('git', ['rev-parse', 'HEAD']), dirty: shell('git', ['status', '--porcelain']) || false },
   environment: { node: process.version, pnpm: shell('pnpm', ['--version']), playwright: require('@playwright/test/package.json').version, os: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model ?? 'unknown' }, browser: null },
-  cases: [], failures: [], runtimeCapture: 'deferred until lead integrates R3a runtime and build',
+  cases: [], failures: [], runtimeCapture: 'browser fixture capture; provenance records the exact source SHA and bounded fixture hashes',
 };
 await mkdir(screenshotsDir, { recursive: true });
 if (invalidSelections.length) result.failures.push({ type: 'invalid-case-selection', ids: invalidSelections });
