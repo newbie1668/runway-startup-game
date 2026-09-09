@@ -25,7 +25,9 @@ export function createCellStockJob(args: CellStockJobArgs): BuildJob {
   let totalVertices = 0, totalIndices = 0, emitAt = 0, vertexAt = 0, indexAt = 0, targetVertexAt = 0, targetIndexAt = 0, allocationAt = 0;
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   let target: THREE.BufferGeometry | null = null, root: THREE.Group | null = null;
-  let position: Float32Array | null = null, normal: Float32Array | null = null, color: Float32Array | null = null, indices: Uint32Array | null = null;
+  let position: Float32Array | null = null;
+  let normal: Float32Array | Int8Array | null = null, color: Float32Array | Uint8Array | null = null;
+  let indices: Uint32Array | Uint16Array | null = null;
   let phase: 'emit' | 'allocate' | 'copy' | 'publish' = 'emit', terminal = false, transferred = false, stepping = false;
   const cleanup = (): unknown[] => {
     const errors: unknown[] = []; const detached = root; root = null;
@@ -56,13 +58,13 @@ export function createCellStockJob(args: CellStockJobArgs): BuildJob {
   const allocate = (): void => {
     if (totalVertices === 0) { phase = 'publish'; return; } if (!target) target = new THREE.BufferGeometry();
     if (allocationAt === 0) { position = new Float32Array(totalVertices * 3); target.setAttribute('position', new THREE.BufferAttribute(position, 3)); }
-    else if (allocationAt === 1) { normal = new Float32Array(totalVertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3)); }
-    else if (allocationAt === 2) { color = new Float32Array(totalVertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3)); }
-    else { indices = new Uint32Array(totalIndices); target.setIndex(new THREE.BufferAttribute(indices, 1)); phase = 'copy'; } allocationAt++;
+    else if (allocationAt === 1) { normal = args.detail === 'overview' ? new Int8Array(totalVertices * 3) : new Float32Array(totalVertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3, args.detail === 'overview')); }
+    else if (allocationAt === 2) { color = args.detail === 'overview' ? new Uint8Array(totalVertices * 3) : new Float32Array(totalVertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3, args.detail === 'overview')); }
+    else { indices = args.detail === 'overview' && totalVertices <= 65535 ? new Uint16Array(totalIndices) : new Uint32Array(totalIndices); target.setIndex(new THREE.BufferAttribute(indices, 1)); phase = 'copy'; } allocationAt++;
   };
   const copy = (): boolean => {
     const f = fragments[0]!, p = f.geometry.getAttribute('position') as THREE.BufferAttribute, n = f.geometry.getAttribute('normal') as THREE.BufferAttribute, c = f.geometry.getAttribute('color') as THREE.BufferAttribute, ix = f.geometry.getIndex() as THREE.BufferAttribute;
-    if (vertexAt < f.vertices) { const count = Math.min(1365, f.vertices - vertexAt), start = vertexAt * 3, end = (vertexAt + count) * 3; position!.set((p.array as Float32Array).subarray(start, end), targetVertexAt * 3); normal!.set((n.array as Float32Array).subarray(start, end), targetVertexAt * 3); color!.set((c.array as Float32Array).subarray(start, end), targetVertexAt * 3); const a = p.array as Float32Array; for (let i = start; i < end; i += 3) { minX = Math.min(minX, a[i]!); minY = Math.min(minY, a[i + 1]!); minZ = Math.min(minZ, a[i + 2]!); maxX = Math.max(maxX, a[i]!); maxY = Math.max(maxY, a[i + 1]!); maxZ = Math.max(maxZ, a[i + 2]!); } vertexAt += count; targetVertexAt += count; return false; }
+    if (vertexAt < f.vertices) { const count = Math.min(1365, f.vertices - vertexAt), start = vertexAt * 3, end = (vertexAt + count) * 3; position!.set((p.array as Float32Array).subarray(start, end), targetVertexAt * 3); const sourceNormals = n.array as Float32Array, sourceColors = c.array as Float32Array; if (args.detail === 'overview') { for (let i = start; i < end; i++) { (normal as Int8Array)![targetVertexAt * 3 + i - start] = Math.round(Math.max(-1, Math.min(1, sourceNormals[i]!)) * 127); (color as Uint8Array)![targetVertexAt * 3 + i - start] = Math.round(Math.max(0, Math.min(1, sourceColors[i]!)) * 255); } } else { normal!.set(sourceNormals.subarray(start, end), targetVertexAt * 3); color!.set(sourceColors.subarray(start, end), targetVertexAt * 3); } const a = p.array as Float32Array; for (let i = start; i < end; i += 3) { minX = Math.min(minX, a[i]!); minY = Math.min(minY, a[i + 1]!); minZ = Math.min(minZ, a[i + 2]!); maxX = Math.max(maxX, a[i]!); maxY = Math.max(maxY, a[i + 1]!); maxZ = Math.max(maxZ, a[i + 2]!); } vertexAt += count; targetVertexAt += count; return false; }
     if (indexAt < f.indices) { const count = Math.min(4096, f.indices - indexAt), a = ix.array as Uint16Array | Uint32Array, offset = targetVertexAt - f.vertices; for (let i = 0; i < count; i++) indices![targetIndexAt + i] = a[indexAt + i]! + offset; indexAt += count; targetIndexAt += count; return false; }
     const done = fragments.shift()!, result = dispose(done.geometry); if (result.didThrow) throw result.error; vertexAt = indexAt = 0; return fragments.length === 0;
   };

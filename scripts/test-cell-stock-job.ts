@@ -19,13 +19,12 @@ function triangles(group: THREE.Group | null): string[] {
   if (!group) return [];
   const out: string[] = [];
   group.traverse((o) => { if (o instanceof THREE.Mesh) {
-    const p = o.geometry.getAttribute('position').array as Float32Array; const n = o.geometry.getAttribute('normal').array as Float32Array;
-    const c = o.geometry.getAttribute('color').array as Float32Array; const ix = o.geometry.getIndex()!.array;
-    for (let i = 0; i < ix.length; i += 3) out.push([0, 1, 2].map((k) => { const v = Number(ix[i + k]) * 3; return `${p[v]},${p[v + 1]},${p[v + 2]}|${n[v]},${n[v + 1]},${n[v + 2]}|${c[v]},${c[v + 1]},${c[v + 2]}`; }).join(';'));
+    const p = o.geometry.getAttribute('position'), n = o.geometry.getAttribute('normal'), c = o.geometry.getAttribute('color'); const ix = o.geometry.getIndex()!;
+    for (let i = 0; i < ix.count; i += 3) out.push([0, 1, 2].map((k) => { const v = ix.getX(i + k); return `${p.getX(v)},${p.getY(v)},${p.getZ(v)}|${n.getX(v)},${n.getY(v)},${n.getZ(v)}|${c.getX(v)},${c.getY(v)},${c.getZ(v)}`; }).join(';'));
   }});
   return out.sort();
 }
-function drain(job: ReturnType<typeof createCellStockJob>): void { for (let i = 0; i < 1000 && !job.step(); i++); }
+function drain(job: ReturnType<typeof createCellStockJob>): void { let complete = false; for (let i = 0; i < 1000 && !(complete = job.step()); i++); assert.equal(complete, true, 'bounded drain completes'); }
 function run(detail: 'overview' | 'neighbourhood' | 'street'): { group: THREE.Group | null; scratch: ReturnType<typeof createScratch> } {
   let ready: { group: THREE.Group | null; scratch: ReturnType<typeof createScratch> } | undefined;
   drain(createCellStockJob({ id: detail, generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail, now: () => 0, onReady: (value) => { ready = value; } }));
@@ -35,10 +34,23 @@ for (const detail of ['overview', 'neighbourhood', 'street'] as const) {
   const actual = run(detail);
   const expectedScratch = createScratch();
   const expected = buildCellStockBatch({ cityData: city, cellId: cell.id, buildingIndices: [0, 1, 2], excludedBuildingIndices: new Set(), material, detail, scratch: expectedScratch });
-  assert.deepEqual(triangles(actual.group), triangles(expected));
+  if (detail !== 'overview') assert.deepEqual(triangles(actual.group), triangles(expected));
   assert.deepEqual(actual.scratch, expectedScratch);
   const meshes: THREE.Mesh[] = []; actual.group?.traverse((o) => { if (o instanceof THREE.Mesh) meshes.push(o); });
   assert.equal(meshes.length, 1); assert.equal(meshes[0]!.material, material);
+  const geometry = meshes[0]!.geometry, normal = geometry.getAttribute('normal'), color = geometry.getAttribute('color');
+  if (detail === 'overview') {
+    assert.ok(normal.array instanceof Int8Array); assert.ok(color.array instanceof Uint8Array); assert.equal(normal.normalized, true); assert.equal(color.normalized, true);
+    const expectedGeometry = (expected as THREE.Group).children[0]!.constructor === THREE.Mesh ? ((expected as THREE.Group).children[0] as THREE.Mesh).geometry : undefined;
+    assert.ok(expectedGeometry);
+    const expectedNormal = expectedGeometry!.getAttribute('normal'), expectedColor = expectedGeometry!.getAttribute('color');
+    for (let i = 0; i < normal.count; i++) { assert.ok(Math.abs(normal.getX(i) - expectedNormal.getX(i)) <= 0.5 / 127 + 1e-6); assert.ok(Math.abs(normal.getY(i) - expectedNormal.getY(i)) <= 0.5 / 127 + 1e-6); assert.ok(Math.abs(normal.getZ(i) - expectedNormal.getZ(i)) <= 0.5 / 127 + 1e-6); assert.ok(Math.abs(color.getX(i) - expectedColor.getX(i)) <= 0.5 / 255 + 1e-6); assert.ok(Math.abs(color.getY(i) - expectedColor.getY(i)) <= 0.5 / 255 + 1e-6); assert.ok(Math.abs(color.getZ(i) - expectedColor.getZ(i)) <= 0.5 / 255 + 1e-6); }
+    assert.ok(geometry.getIndex()!.array instanceof Uint16Array); assert.ok(geometry.getAttribute('position').array instanceof Float32Array);
+    assert.deepEqual(Array.from(geometry.getAttribute('position').array), Array.from(expectedGeometry!.getAttribute('position').array));
+    assert.deepEqual(Array.from(geometry.getIndex()!.array), Array.from(expectedGeometry!.getIndex()!.array));
+    expectedGeometry!.computeBoundingBox(); assert.deepEqual(geometry.boundingBox?.min.toArray(), expectedGeometry!.boundingBox?.min.toArray()); assert.deepEqual(geometry.boundingBox?.max.toArray(), expectedGeometry!.boundingBox?.max.toArray());
+    assert.equal(geometry.getAttribute('position').array.byteLength + normal.array.byteLength + color.array.byteLength + geometry.getIndex()!.array.byteLength, geometry.getAttribute('position').count * 4 * 3 + normal.count * 3 + color.count * 3 + geometry.getIndex()!.count * 2);
+  }
 }
 let ticks = 0;
 const paused = createCellStockJob({ id: 'deadline', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => ticks++ * 5, sliceMs: 4, onReady: () => assert.fail('must pause') });
@@ -104,4 +116,18 @@ for (const cleanupError of [false, undefined]) {
 }
 // Dense committed data proves real Uint32 offset behaviour and a finite winding tuple above 65535.
 const { readFileSync } = createRequire(import.meta.url)('node:fs'); const binary = readFileSync('public/map/london-city.bin'); const denseCity = decodeCity(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength)); const denseCell = [...indexCity(denseCity, 400).cells.values()].sort((a, b) => b.buildingIndices.length - a.buildingIndices.length)[0]!; let dense: THREE.Group | null = null; drain(createCellStockJob({ id: 'dense', generation: 1, essential: true, cityData: denseCity, cell: denseCell, excludedBuildingIndices: new Set(), material, detail: 'street', now: () => 0, onReady: (v) => { dense = v.group; } })); const denseMesh = dense!.children[0] as THREE.Mesh; const denseIndex = denseMesh.geometry.getIndex()!.array as Uint32Array; let denseMax = 0; for (const value of denseIndex) denseMax = Math.max(denseMax, value); assert.ok(denseIndex instanceof Uint32Array); assert.ok(denseMax > 65535, 'real packed index offsets exceed Uint16'); const densePosition = denseMesh.geometry.getAttribute('position').array as Float32Array; const denseNormal = denseMesh.geometry.getAttribute('normal').array as Float32Array; const ia = denseIndex.findIndex((value) => value > 65535); const a = denseIndex[ia - (ia % 3)]! * 3, b = denseIndex[ia - (ia % 3) + 1]! * 3, c = denseIndex[ia - (ia % 3) + 2]! * 3; const ux = densePosition[b]! - densePosition[a]!, uy = densePosition[b + 1]! - densePosition[a + 1]!, uz = densePosition[b + 2]! - densePosition[a + 2]!, vx = densePosition[c]! - densePosition[a]!, vy = densePosition[c + 1]! - densePosition[a + 1]!, vz = densePosition[c + 2]! - densePosition[a + 2]!; assert.ok((uy * vz - uz * vy) * denseNormal[a]! + (uz * vx - ux * vz) * denseNormal[a + 1]! + (ux * vy - uy * vx) * denseNormal[a + 2]! > 0, 'high-offset packed tuple retains winding');
+// A bounded synthetic cell exercises the overview Uint32 fallback once its
+// packed vertex count crosses the Uint16 limit.
+const complexBuilding = denseCity.buildings[76922]!;
+const overflowBuildings = Array.from({ length: 64 }, () => complexBuilding);
+const overflowCity: CityData = { ...denseCity, buildings: overflowBuildings };
+const overflowCell: CityCell = { ...denseCell, buildingIndices: overflowBuildings.map((_, i) => i) };
+let overflow: THREE.Group | null = null;
+drain(createCellStockJob({ id: 'overview-overflow', generation: 1, essential: true, cityData: overflowCity, cell: overflowCell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: (v) => { overflow = v.group; } }));
+const overflowMesh = overflow!.children[0] as THREE.Mesh, overflowGeometry = overflowMesh.geometry;
+const overflowIndex = overflowGeometry.getIndex()!.array as Uint32Array;
+let overflowMax = 0; for (const value of overflowIndex) overflowMax = Math.max(overflowMax, value);
+assert.ok(overflowIndex instanceof Uint32Array); assert.ok(overflowMax > 65535);
+const overflowNormal = overflowGeometry.getAttribute('normal'), overflowColor = overflowGeometry.getAttribute('color');
+assert.ok(overflowNormal.getX(0) >= -1 && overflowNormal.getX(0) <= 1); assert.ok(overflowColor.getX(0) >= 0 && overflowColor.getX(0) <= 1);
 console.log('cell stock job checks passed');
