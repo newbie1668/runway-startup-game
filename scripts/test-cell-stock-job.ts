@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import * as THREE from 'three';
 import { buildCellStockBatch, createScratch } from '../lib/game/render3d/cityBuilder';
 import { createCellStockJob } from '../lib/game/render3d/cellStockJob';
@@ -13,6 +14,7 @@ function building(x: number, z: number) {
 const city: CityData = { buildings: [building(10, 10), building(30, 10), building(50, 10)], roads: [], parks: [], water: [] };
 const cell: CityCell = { id: '0,0', bounds: { minX: 0, minZ: 0, maxX: 100, maxZ: 100 }, buildingIndices: [0, 1, 2] };
 const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+assert.equal(createRequire(import.meta.url)('three').BufferGeometry, THREE.BufferGeometry, 'spies use production Three constructors');
 function triangles(group: THREE.Group | null): string[] {
   if (!group) return [];
   const out: string[] = [];
@@ -50,4 +52,12 @@ const completed = createCellStockJob({ id: 'complete', generation: 1, essential:
 drain(completed); const geometry = (complete!.children[0] as THREE.Mesh).geometry; let disposed = 0; geometry.addEventListener('dispose', () => disposed++); const scratchJson = JSON.stringify(completedScratch); completed.cancel(); assert.equal(disposed, 0); assert.equal(complete!.parent, adopted); assert.equal(JSON.stringify(completedScratch), scratchJson); assert.deepEqual(completedIds, [0, 1, 2]); assert.equal(completed.step(), true);
 assert.throws(() => createCellStockJob({ id: 'bad', generation: 1, essential: true, cityData: city, cell: { ...cell, buildingIndices: [0, 0] }, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: () => {} }));
 assert.throws(() => createCellStockJob({ id: 'bad-time', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, sliceMs: 5, onReady: () => {} }));
+const many: CityData = { ...city, buildings: Array.from({ length: 20 }, (_, i) => building(10 + i * 10, 40)) };
+let selectedReads = 0; let unrelatedReads = 0;
+const proxied = new Proxy(many.buildings, { get(target, key, receiver) { if (typeof key === 'string' && /^\d+$/.test(key)) { if (Number(key) < 20) selectedReads++; else unrelatedReads++; } return Reflect.get(target, key, receiver); } });
+const capped = createCellStockJob({ id: 'cap', generation: 1, essential: true, cityData: { ...many, buildings: proxied }, cell: { ...cell, buildingIndices: Array.from({ length: 20 }, (_, i) => i) }, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: () => {} });
+assert.equal(capped.step(), false); assert.equal(selectedReads, 16, 'constant clock starts at most sixteen source records'); assert.equal(unrelatedReads, 0);
+const parent = new THREE.Group(); let thrownRoot: THREE.Group | null = null; let thrownGeometry: THREE.BufferGeometry | null = null;
+const throwing = createCellStockJob({ id: 'throw', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: (v) => { thrownRoot = v.group; thrownGeometry = (v.group!.children[0] as THREE.Mesh).geometry; parent.add(v.group!); throw new Error('publish-error'); } });
+assert.throws(() => drain(throwing), /publish-error/); assert.equal(thrownRoot!.parent, null); assert.ok(thrownGeometry);
 console.log('cell stock job checks passed');
