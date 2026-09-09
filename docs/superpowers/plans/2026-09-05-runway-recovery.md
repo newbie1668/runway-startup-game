@@ -204,12 +204,14 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 **Owner:** capable geometry worker with tech-lead review. **Depends:** R4, R5a; serialize after R3b. **Allowed files:** `lib/game/render3d/cityBuilder.ts`, `lib/game/render3d/chunkCells.ts`, new `lib/game/render3d/detailPolicy.ts`, new `scripts/test-cell-build.ts`, focused existing geometry tests. **Interfaces:** consume C3 owner cells and C4 jobs; produce cell-owned stock/cover meshes with `overview | neighbourhood | street` detail and measured buffer costs.
 
-- [ ] Extract the existing per-building emission from `buildChunkTier` behind a cell batch entry point. Process at most 16 building indices per step initially; stop earlier when measured work reaches the generation slice. Preserve the existing detailed output on the accepted fixture before changing detail.
-- [ ] Add an overview path that emits footprint walls and caps only; neighbourhood adds readable facades; street adds bounded fine detail. All tiers keep each eligible building's massing. Select before emission, not after building full-detail arrays.
+- [x] Extract the existing per-building emission from `buildChunkTier` behind a cell batch entry point. Process at most 16 building indices per step initially; stop earlier when measured work reaches the generation slice. Preserve the existing detailed output on the accepted fixture before changing detail.
+- [x] Add an overview path that emits footprint walls and caps only; neighbourhood adds readable facades; street adds bounded fine detail. All tiers keep each eligible building's massing. Select before emission, not after building full-detail arrays.
 - [ ] Build cover only for needed bounds and preserve roads/parks/water continuity. Keep one authoritative shared material owner; avoid copying full chunk buffers solely to repartition them.
-- [ ] Test equal eligible-building coverage across detail tiers, fewer vertices/bytes at overview, no duplicate owner-cell buildings, finite normals/positions and unchanged footprint bounds. Compare raw geometry totals plus rendered reference images.
+- [x] Test equal eligible-building coverage across detail tiers, fewer vertices/bytes at overview, no duplicate owner-cell buildings, finite normals/positions and unchanged footprint bounds. Compare raw geometry totals plus rendered reference images.
 - [ ] Profile the largest cell. If one building remains an unbounded step, split that building's facade emission or assign it a pre-approved cheaper representation. Do not add new data pipelines to this packet.
 - [ ] Run required gates and submit geometry/time measurements. Any visible regression returns to this worker before R6.
+
+Stock helper acceptance: [R5b-1](../../runway-recovery/evidence/R5b/stock-batches/README.md), [R5b-2](../../runway-recovery/evidence/R5b/detail-tiers/README.md), [R5b-3](../../runway-recovery/evidence/R5b/cell-jobs/README.md). Full R5b remains open for cover and measured emission limits before R6.
 
 **Acceptance:** peak generation cost is bounded at the source, coarse views retain stock, and the largest cell can be processed without a long whole-city operation. This is a high-risk packet; split by stock/cover if either exceeds one independently reviewable change.
 

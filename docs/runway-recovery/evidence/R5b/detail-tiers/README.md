@@ -1,6 +1,6 @@
 # R5b-2 detail tier evidence
 
-The reviewed API creates overview walls/caps, neighbourhood facades and existing street detail before allocating geometry. The renderer does not consume these tiers yet. Worker correction `65e9edc` passed independent review and was integrated at `11a5803`. Combined application checks are pending the R5b-3 cell job correction.
+The reviewed API creates overview walls/caps, neighbourhood facades and existing street detail before allocating geometry. The renderer does not consume these tiers yet. Worker correction `65e9edc` passed independent review and was integrated at `11a5803`. Combined application checks passed at `0aa752e`; see the [cell-job integration evidence](../cell-jobs/README.md).
 
 The standalone comparison was captured on clean source `52a07f8350c7d648545a758c7d4f21054f730ef3` on 9 September 2026. The same first 16 original building records of the densest 400 m owner cell `14,10` appear in each panel, with identical camera, lighting and material. The committed binary SHA-256 is `6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0`.
 

@@ -174,6 +174,12 @@ The overview can show simplified city-wide massing from the committed data; clos
 
 Preserve existing landmark geometry while testing scheduling/coverage. Keep shared materials reused. Prefetch and eviction need a bounded hysteresis ring to avoid rebuild thrash near cell borders.
 
+### 9 September storage ruling: overview packing
+
+[Actual cell-buffer accounting](evidence/R5b/cell-jobs/overview-budget.json) totals 186.12 MiB for the overview alone, so full Float32 normal/colour and Uint32 index storage cannot meet the 128 MiB initial ceiling. The next bounded packet may pack overview normals as normalized Int8, linear vertex colours as normalized Uint8, and indices as Uint16 when the vertex count permits (otherwise Uint32). Positions remain Float32 without modification; neighbourhood/street keep existing precision. Coverage, heights, footprint bounds and winding must remain unchanged. Normal/colour round-to-nearest errors are bounded by 0.5/127 and 0.5/255 per component, respectively.
+
+This is an explicit storage contract revision for the API-only cell job, replacing exact overview normal/colour tuple equality with those bounded errors. Street tuple equality stays exact. Preserve incremental allocation/copy units and all accepted ownership/error semantics. Validate actual packed buffers and rendered output, then repeat aggregate accounting. The predicted 93.06 MiB overview cost still excludes cover, heroes, detailed cells and overhead; it does not approve G1 or a higher resident budget. No new binary, bake, dependency or shader pipeline is authorized.
+
 ## C5: renderer integration (R6)
 
 `CityRenderer3D` remains the adapter that joins the preceding modules. Refresh coverage when camera bounds, zoom tier or viewport materially change, including `fitOverview`, `focusHub`, `lookAt`, pan, zoom and query changes. Avoid rebuilding on every pointer pixel: compare required cell sets/detail tiers.
