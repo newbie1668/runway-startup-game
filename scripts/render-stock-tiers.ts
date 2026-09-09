@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import * as THREE from 'three';
+import { chromium } from '@playwright/test';
+import { buildCellStockBatch, chunkTierMeshes, createScratch } from '../lib/game/render3d/cityBuilder';
+import { indexCity } from '../lib/game/render3d/cityIndex';
+import { decodeCity } from '../lib/game/render3d/format';
+
+async function main() {
+const BINARY = 'public/map/london-city.bin';
+const BINARY_SHA = '6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0';
+const SOURCE_SHA = '11a5803a9edb61cbafe229f6a3a7930b9843d72e';
+const require = createRequire(import.meta.url);
+const sourceSHA = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim() || false;
+assert.equal(sourceSHA, SOURCE_SHA);
+const outputDir = resolve(process.env.RUNWAY_EVIDENCE_DIR ?? 'tier-preview');
+const html = await readFile(new URL('./stock-tier-preview.html', import.meta.url));
+const cityBytes = await readFile(BINARY); assert.equal(createHash('sha256').update(cityBytes).digest('hex'), BINARY_SHA);
+const city = decodeCity(cityBytes.buffer.slice(cityBytes.byteOffset, cityBytes.byteOffset + cityBytes.byteLength));
+const cell = indexCity(city, 400).cells.get('14,10'); assert.ok(cell); assert.equal(cell.buildingIndices.length, 320);
+const selected = cell.buildingIndices.slice(0, 16); const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+function extract(detail: 'overview' | 'neighbourhood' | 'street') {
+  const scratch = createScratch(); const group = buildCellStockBatch({ cityData: city, cellId: '14,10', buildingIndices: selected, excludedBuildingIndices: new Set(), material, scratch, detail }); assert.ok(group);
+  const meshes = chunkTierMeshes(group); assert.ok(meshes.length > 0); const mesh = meshes[0]!; const geometry = mesh.geometry;
+  const attrs = (name: string) => Array.from(geometry.getAttribute(name).array as Float32Array);
+  const indices = Array.from(geometry.getIndex()!.array as Uint32Array | Uint16Array | Uint8Array);
+  const rawBytes = attrs('position').length * 4 + attrs('normal').length * 4 + attrs('color').length * 4 + indices.length * (geometry.getIndex()!.array.BYTES_PER_ELEMENT);
+  const sourceIds = [...new Set(meshes.flatMap((m) => (m.userData.sourceBuildingIndices as number[] ?? [])))];
+  const result = { detail, positions: attrs('position'), normals: attrs('normal'), colors: attrs('color'), indices, sourceIds, picks: scratch.picks, vertices: attrs('position').length / 3, triangles: indices.length / 3, rawBytes };
+  group.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); }); return result;
+}
+const tiers = (['overview', 'neighbourhood', 'street'] as const).map(extract); material.dispose();
+assert.deepEqual(tiers.map((tier) => tier.sourceIds), tiers.map(() => selected));
+const fixture = { sourceSHA, dirty, binarySHA256: BINARY_SHA, selectedIndices: selected, tiers: tiers.map(({ detail, positions, normals, colors, indices, sourceIds, picks, vertices, triangles, rawBytes }) => ({ detail, positions, normals, colors, indices, sourceIds, picks, vertices, triangles, rawBytes })) };
+const threeBuildDir = dirname(require.resolve('three')); const threeModule = await readFile(join(threeBuildDir, 'three.module.js')); const threeCore = await readFile(join(threeBuildDir, 'three.core.js'));
+const errors: Array<Record<string, string>> = []; let server: ReturnType<typeof createServer> | undefined; let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+try {
+  server = createServer((request, response) => { const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname; if (path === '/') { response.setHeader('content-type', 'text/html'); response.end(html); } else if (path === '/fixture.json') { response.setHeader('content-type', 'application/json'); response.end(JSON.stringify(fixture)); } else if (path === '/three.module.js') { response.setHeader('content-type', 'text/javascript'); response.end(threeModule); } else if (path === '/three.core.js') { response.setHeader('content-type', 'text/javascript'); response.end(threeCore); } else { response.statusCode = 404; response.end('not found'); } });
+  await new Promise<void>((resolvePromise, reject) => { server!.once('error', reject); server!.listen(0, '127.0.0.1', resolvePromise); }); const address = server.address(); assert.ok(address && typeof address === 'object');
+  browser = await chromium.launch({ headless: true }); const page = await browser.newPage({ viewport: { width: 2400, height: 650 }, deviceScaleFactor: 1 }); page.on('console', (message) => { if (message.type() === 'error') errors.push({ type: 'console.error', message: message.text() }); }); page.on('pageerror', (error) => errors.push({ type: 'pageerror', message: error.message }));
+  await page.goto(`http://127.0.0.1:${address.port}/`, { waitUntil: 'load' }); await page.waitForFunction(() => (window as unknown as { __stockTierPreview?: { renderComplete?: boolean } }).__stockTierPreview?.renderComplete === true, null, { timeout: 10_000 }); const qa = await page.evaluate(() => (window as unknown as { __stockTierPreview: Record<string, unknown> }).__stockTierPreview); assert.equal(qa.canvasCount, 3); assert.ok((qa.drawCounts as number[]).every((count) => count > 0)); assert.deepEqual(errors, []); const png = join(outputDir, 'stock-tier-comparison.png'); await mkdir(outputDir, { recursive: true }); await page.screenshot({ path: png, fullPage: false });
+  const tierSummaries = tiers.map((tier) => ({ detail: tier.detail, sourceIds: tier.sourceIds, picks: tier.picks, vertices: tier.vertices, triangles: tier.triangles, rawBytes: tier.rawBytes }));
+  const result = { schema: 1, runtimeCapture: 'standalone geometry preview, not in-game performance or fidelity acceptance', sourceSHA: fixture.sourceSHA, exactSHA: SOURCE_SHA, dirty: fixture.dirty, binarySHA256: BINARY_SHA, selectedIndices: selected, selectedIDs: selected, viewport: { width: 2400, height: 650, dpr: 1 }, camera: qa.camera, tiers: tierSummaries, errors, outputPath: png, browser: await browser.version(), playwright: require('@playwright/test/package.json').version, three: THREE.REVISION, rawVertexDataExcluded: true };
+  await writeFile(join(outputDir, 'stock-tier-comparison.json'), `${JSON.stringify(result, null, 2)}\n`); console.log(JSON.stringify(result));
+} finally { await browser?.close().catch(() => {}); await new Promise<void>((resolvePromise) => server?.close(() => resolvePromise()) ?? resolvePromise()); material.dispose(); }
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });
