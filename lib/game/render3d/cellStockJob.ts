@@ -5,292 +5,64 @@ import type { CityCell } from './cityIndex';
 import type { StockDetail } from './detailPolicy';
 import type { CityData } from './format';
 
-export type CellStockReady = {
-  group: THREE.Group | null;
-  scratch: CityScratch;
-  sourceBuildingIndices: readonly number[];
-  geometryBytes: number;
-};
-
-export type CellStockJobArgs = {
-  id: string;
-  generation: number;
-  essential: boolean;
-  cityData: CityData;
-  cell: CityCell;
-  excludedBuildingIndices: ReadonlySet<number>;
-  material: THREE.Material;
-  detail: StockDetail;
-  now: () => number;
-  sliceMs?: number;
-  onReady: (ready: CellStockReady) => void;
-};
-
+export type CellStockReady = { group: THREE.Group | null; scratch: CityScratch; sourceBuildingIndices: readonly number[]; geometryBytes: number };
+export type CellStockJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cell: CityCell; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; onReady: (ready: CellStockReady) => void };
 type Fragment = { geometry: THREE.BufferGeometry; vertices: number; indices: number };
+function clear(s: CityScratch): void { s.windows.length = s.windowColors.length = s.picks.length = s.rooftops.length = s.rooftopColors.length = s.signs.length = 0; }
+function append(a: CityScratch, b: CityScratch): void { a.windows.push(...b.windows); a.windowColors.push(...b.windowColors); a.picks.push(...b.picks); a.rooftops.push(...b.rooftops); a.rooftopColors.push(...b.rooftopColors); a.signs.push(...b.signs); }
+function dispose(g: THREE.BufferGeometry): unknown | undefined { try { g.dispose(); } catch (e) { return e; } }
 
-function appendScratch(target: CityScratch, source: CityScratch): void {
-  target.windows.push(...source.windows);
-  target.windowColors.push(...source.windowColors);
-  target.picks.push(...source.picks);
-  target.rooftops.push(...source.rooftops);
-  target.rooftopColors.push(...source.rooftopColors);
-  target.signs.push(...source.signs);
-}
-
-function clearScratch(scratch: CityScratch): void {
-  scratch.windows.length = 0;
-  scratch.windowColors.length = 0;
-  scratch.picks.length = 0;
-  scratch.rooftops.length = 0;
-  scratch.rooftopColors.length = 0;
-  scratch.signs.length = 0;
-}
-
-function disposeGeometry(geometry: THREE.BufferGeometry | null): unknown | undefined {
-  if (!geometry) return undefined;
-  try { geometry.dispose(); return undefined; } catch (error) { return error; }
-}
-
-function cleanupError(original: unknown, errors: unknown[]): never {
-  if (errors.length === 0) throw original;
-  throw new AggregateError([original, ...errors], 'Cell stock job failed and cleanup failed');
-}
-
-/**
- * Builds one owner cell without touching unrelated city records.  It deliberately
- * emits one record at a time because the existing batch builder's 16-record cap
- * is an emission bound, not a cell-sized allocation contract.
- */
 export function createCellStockJob(args: CellStockJobArgs): BuildJob {
   const sliceMs = args.sliceMs ?? 4;
-  if (!Number.isFinite(sliceMs) || sliceMs <= 0 || sliceMs > 4) {
-    throw new RangeError('sliceMs must be a finite positive number no greater than 4');
-  }
-  if (args.detail !== 'overview' && args.detail !== 'neighbourhood' && args.detail !== 'street') {
-    throw new RangeError(`unknown stock detail: ${String(args.detail)}`);
-  }
-  const sourceBuildingIndices = [...args.cell.buildingIndices];
-  const selected = new Set<number>();
-  for (const index of sourceBuildingIndices) {
-    if (!Number.isInteger(index) || index < 0 || index >= args.cityData.buildings.length) {
-      throw new RangeError(`invalid building index: ${index}`);
-    }
-    if (selected.has(index)) throw new RangeError(`duplicate building index: ${index}`);
-    selected.add(index);
-  }
-  const excluded = new Set<number>();
-  for (const index of args.excludedBuildingIndices) {
-    if (!Number.isInteger(index) || index < 0 || index >= args.cityData.buildings.length) {
-      throw new RangeError(`invalid excluded building index: ${index}`);
-    }
-    excluded.add(index);
-  }
-
-  const scratch = createScratch();
-  const fragments: Fragment[] = [];
-  const emittedSourceBuildingIndices: number[] = [];
-  let root: THREE.Group | null = null;
-  let target: THREE.BufferGeometry | null = null;
-  let stopped = false;
-  let transferred = false;
-  let stepping = false;
-  let phase: 'emit' | 'allocate' | 'copy' | 'publish' = 'emit';
-  let emitAt = 0;
-  const fragmentAt = 0;
-  let vertexAt = 0;
-  let indexAt = 0;
-  let targetVertexAt = 0;
-  let targetIndexAt = 0;
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
+  if (!Number.isFinite(sliceMs) || sliceMs <= 0 || sliceMs > 4) throw new RangeError('sliceMs must be a finite positive number no greater than 4');
+  if (!['overview', 'neighbourhood', 'street'].includes(args.detail)) throw new RangeError(`unknown stock detail: ${String(args.detail)}`);
+  const sources = [...args.cell.buildingIndices], excluded = new Set<number>(), seen = new Set<number>();
+  const valid = (n: number) => Number.isInteger(n) && n >= 0 && n < args.cityData.buildings.length;
+  for (const n of sources) { if (!valid(n)) throw new RangeError(`invalid building index: ${n}`); if (seen.has(n)) throw new RangeError(`duplicate building index: ${n}`); seen.add(n); }
+  for (const n of args.excludedBuildingIndices) { if (!valid(n)) throw new RangeError(`invalid excluded building index: ${n}`); excluded.add(n); }
+  const scratch = createScratch(), fragments: Fragment[] = [], emitted: number[] = [];
+  let totalVertices = 0, totalIndices = 0, emitAt = 0, vertexAt = 0, indexAt = 0, targetVertexAt = 0, targetIndexAt = 0, allocationAt = 0;
+  let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let target: THREE.BufferGeometry | null = null, root: THREE.Group | null = null;
+  let position: Float32Array | null = null, normal: Float32Array | null = null, color: Float32Array | null = null, indices: Uint32Array | null = null;
+  let phase: 'emit' | 'allocate' | 'copy' | 'publish' = 'emit', terminal = false, transferred = false, stepping = false;
   const cleanup = (): unknown[] => {
-    const errors: unknown[] = [];
-    if (root?.parent) root.parent.remove(root);
-    root = null;
-    if (!transferred) {
-      const targetError = disposeGeometry(target);
-      if (targetError !== undefined) errors.push(targetError);
-      target = null;
-    }
-    for (const fragment of fragments) {
-      const error = disposeGeometry(fragment.geometry);
-      if (error !== undefined) errors.push(error);
-    }
-    fragments.length = 0;
-    emittedSourceBuildingIndices.length = 0;
-    clearScratch(scratch);
-    return errors;
+    const errors: unknown[] = []; const detached = root; root = null;
+    if (detached?.parent) { try { detached.parent.remove(detached); } catch (e) { errors.push(e); } }
+    if (!transferred && target) { const e = dispose(target); if (e) errors.push(e); } target = null;
+    while (fragments.length) { const f = fragments.shift()!; const e = dispose(f.geometry); if (e) errors.push(e); }
+    clear(scratch); emitted.length = 0; position = normal = color = null; indices = null; return errors;
   };
-  const stop = (): unknown[] => {
-    if (stopped) return [];
-    stopped = true; // must precede user-observable disposal hooks
-    return cleanup();
-  };
-  const fail = (error: unknown): never => cleanupError(error, stop());
-  const pastDeadline = (deadline: number): boolean => args.now() >= deadline;
-
-  const emitOne = (index: number): void => {
-    const fragmentScratch = createScratch();
-    let group: THREE.Group | null = null;
+  const stop = () => { if (terminal) return []; terminal = true; return cleanup(); };
+  const fail = (error: unknown): never => { const errors = stop(); if (errors.length) throw new AggregateError([error, ...errors], 'Cell stock job failed and cleanup failed'); throw error; };
+  const emit = (source: number): void => {
+    const local = createScratch(); let group: THREE.Group | null = null; let staged: Fragment[] = [];
     try {
-      group = buildCellStockBatch({
-        cityData: args.cityData,
-        cellId: args.cell.id,
-        buildingIndices: [index],
-        excludedBuildingIndices: excluded,
-        material: args.material,
-        detail: args.detail,
-        scratch: fragmentScratch,
-      });
-      if (stopped) {
-        group?.traverse((object) => {
-          if (object instanceof THREE.Mesh) object.geometry.dispose();
-        });
-        return;
-      }
+      group = buildCellStockBatch({ cityData: args.cityData, cellId: args.cell.id, buildingIndices: [source], excludedBuildingIndices: excluded, material: args.material, detail: args.detail, scratch: local });
+      if (terminal) { group?.traverse((o) => { if (o instanceof THREE.Mesh) dispose(o.geometry); }); return; }
       if (!group) return;
-      const meshes: THREE.Mesh[] = [];
-      group.traverse((object) => { if (object instanceof THREE.Mesh) meshes.push(object); });
-      for (const mesh of meshes) {
-        const position = mesh.geometry.getAttribute('position');
-        const normal = mesh.geometry.getAttribute('normal');
-        const color = mesh.geometry.getAttribute('color');
-        const indexAttribute = mesh.geometry.getIndex();
-        if (!position || !normal || !color || !indexAttribute) throw new Error('stock fragment is not indexed and complete');
-        fragments.push({ geometry: mesh.geometry, vertices: position.count, indices: indexAttribute.count });
-      }
-      const emitted = group.userData.sourceBuildingIndices as readonly number[] | undefined;
-      if (emitted) emittedSourceBuildingIndices.push(...emitted);
-      appendScratch(scratch, fragmentScratch);
-    } catch (error) {
-      if (group) group.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
-      throw error;
-    }
+      group.traverse((o) => { if (o instanceof THREE.Mesh) { const p = o.geometry.getAttribute('position'), n = o.geometry.getAttribute('normal'), c = o.geometry.getAttribute('color'), ix = o.geometry.getIndex(); if (!p || !n || !c || !ix) throw new Error('stock fragment is not indexed and complete'); staged.push({ geometry: o.geometry, vertices: p.count, indices: ix.count }); } });
+      fragments.push(...staged); for (const f of staged) { totalVertices += f.vertices; totalIndices += f.indices; } staged = [];
+      const ids = group.userData.sourceBuildingIndices as readonly number[] | undefined; if (ids) emitted.push(...ids); append(scratch, local);
+    } catch (e) { for (const f of staged) dispose(f.geometry); throw e; }
   };
-
   const allocate = (): void => {
-    let vertices = 0;
-    let indices = 0;
-    for (const fragment of fragments) { vertices += fragment.vertices; indices += fragment.indices; }
-    if (vertices === 0) { phase = 'publish'; return; }
-    const position = new Float32Array(vertices * 3);
-    const normal = new Float32Array(vertices * 3);
-    const color = new Float32Array(vertices * 3);
-    const index = new Uint32Array(indices);
-    target = new THREE.BufferGeometry();
-    target.setAttribute('position', new THREE.BufferAttribute(position, 3));
-    target.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
-    target.setAttribute('color', new THREE.BufferAttribute(color, 3));
-    target.setIndex(new THREE.BufferAttribute(index, 1));
-    phase = 'copy';
+    if (totalVertices === 0) { phase = 'publish'; return; } if (!target) target = new THREE.BufferGeometry();
+    if (allocationAt === 0) { position = new Float32Array(totalVertices * 3); target.setAttribute('position', new THREE.BufferAttribute(position, 3)); }
+    else if (allocationAt === 1) { normal = new Float32Array(totalVertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3)); }
+    else if (allocationAt === 2) { color = new Float32Array(totalVertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3)); }
+    else { indices = new Uint32Array(totalIndices); target.setIndex(new THREE.BufferAttribute(indices, 1)); phase = 'copy'; } allocationAt++;
   };
-
-  const copyOne = (): boolean => {
-    const fragment = fragments[fragmentAt]!;
-    const position = fragment.geometry.getAttribute('position') as THREE.BufferAttribute;
-    const normal = fragment.geometry.getAttribute('normal') as THREE.BufferAttribute;
-    const color = fragment.geometry.getAttribute('color') as THREE.BufferAttribute;
-    const index = fragment.geometry.getIndex() as THREE.BufferAttribute;
-    const targetPosition = target!.getAttribute('position') as THREE.BufferAttribute;
-    const targetNormal = target!.getAttribute('normal') as THREE.BufferAttribute;
-    const targetColor = target!.getAttribute('color') as THREE.BufferAttribute;
-    const targetIndex = target!.getIndex() as THREE.BufferAttribute;
-    if (vertexAt < fragment.vertices) {
-      const count = Math.min(1365, fragment.vertices - vertexAt); // <= 4096 entries per attribute
-      const srcStart = vertexAt * 3;
-      const srcEnd = (vertexAt + count) * 3;
-      (targetPosition.array as Float32Array).set((position.array as Float32Array).subarray(srcStart, srcEnd), targetVertexAt * 3);
-      (targetNormal.array as Float32Array).set((normal.array as Float32Array).subarray(srcStart, srcEnd), targetVertexAt * 3);
-      (targetColor.array as Float32Array).set((color.array as Float32Array).subarray(srcStart, srcEnd), targetVertexAt * 3);
-      const values = position.array as Float32Array;
-      for (let v = srcStart; v < srcEnd; v += 3) {
-        minX = Math.min(minX, values[v]!); minY = Math.min(minY, values[v + 1]!); minZ = Math.min(minZ, values[v + 2]!);
-        maxX = Math.max(maxX, values[v]!); maxY = Math.max(maxY, values[v + 1]!); maxZ = Math.max(maxZ, values[v + 2]!);
-      }
-      vertexAt += count;
-      targetVertexAt += count;
-      return false;
-    }
-    if (indexAt < fragment.indices) {
-      const count = Math.min(4096, fragment.indices - indexAt);
-      const source = index.array as Uint16Array | Uint32Array;
-      const destination = targetIndex.array as Uint32Array;
-      for (let i = 0; i < count; i++) destination[targetIndexAt + i] = source[indexAt + i]! + (targetVertexAt - fragment.vertices);
-      indexAt += count;
-      targetIndexAt += count;
-      return false;
-    }
-    const error = disposeGeometry(fragment.geometry);
-    if (error !== undefined) throw error;
-    fragments.splice(fragmentAt, 1);
-    vertexAt = 0;
-    indexAt = 0;
-    return fragments.length === 0;
+  const copy = (): boolean => {
+    const f = fragments[0]!, p = f.geometry.getAttribute('position') as THREE.BufferAttribute, n = f.geometry.getAttribute('normal') as THREE.BufferAttribute, c = f.geometry.getAttribute('color') as THREE.BufferAttribute, ix = f.geometry.getIndex() as THREE.BufferAttribute;
+    if (vertexAt < f.vertices) { const count = Math.min(1365, f.vertices - vertexAt), start = vertexAt * 3, end = (vertexAt + count) * 3; position!.set((p.array as Float32Array).subarray(start, end), targetVertexAt * 3); normal!.set((n.array as Float32Array).subarray(start, end), targetVertexAt * 3); color!.set((c.array as Float32Array).subarray(start, end), targetVertexAt * 3); const a = p.array as Float32Array; for (let i = start; i < end; i += 3) { minX = Math.min(minX, a[i]!); minY = Math.min(minY, a[i + 1]!); minZ = Math.min(minZ, a[i + 2]!); maxX = Math.max(maxX, a[i]!); maxY = Math.max(maxY, a[i + 1]!); maxZ = Math.max(maxZ, a[i + 2]!); } vertexAt += count; targetVertexAt += count; return false; }
+    if (indexAt < f.indices) { const count = Math.min(4096, f.indices - indexAt), a = ix.array as Uint16Array | Uint32Array, offset = targetVertexAt - f.vertices; for (let i = 0; i < count; i++) indices![targetIndexAt + i] = a[indexAt + i]! + offset; indexAt += count; targetIndexAt += count; return false; }
+    const done = fragments.shift()!, error = dispose(done.geometry); if (error) throw error; vertexAt = indexAt = 0; return fragments.length === 0;
   };
-
   const publish = (): void => {
-    if (target) {
-      target.boundingBox = new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ));
-      const center = target.boundingBox.getCenter(new THREE.Vector3());
-      target.boundingSphere = new THREE.Sphere(center, center.distanceTo(target.boundingBox.max));
-      const mesh = new THREE.Mesh(target, args.material);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = true;
-      mesh.userData.cellId = args.cell.id;
-      mesh.userData.sourceBuildingIndices = emittedSourceBuildingIndices;
-      root = new THREE.Group();
-      root.frustumCulled = false;
-      root.userData.cellId = args.cell.id;
-      root.userData.sourceBuildingIndices = emittedSourceBuildingIndices;
-      root.add(mesh);
-    }
-    const bytes = target ? (target.getAttribute('position').array.byteLength + target.getAttribute('normal').array.byteLength + target.getAttribute('color').array.byteLength + target.getIndex()!.array.byteLength) : 0;
-    args.onReady({ group: root, scratch, sourceBuildingIndices: emittedSourceBuildingIndices, geometryBytes: bytes });
-    if (stopped) return;
-    transferred = true;
-    target = null;
+    if (target) { target.boundingBox = new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)); const center = target.boundingBox.getCenter(new THREE.Vector3()); target.boundingSphere = new THREE.Sphere(center, center.distanceTo(target.boundingBox.max)); const mesh = new THREE.Mesh(target, args.material); mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = true; mesh.userData.cellId = args.cell.id; mesh.userData.sourceBuildingIndices = emitted; root = new THREE.Group(); root.frustumCulled = false; root.userData.cellId = args.cell.id; root.userData.sourceBuildingIndices = emitted; root.add(mesh); }
+    const bytes = target ? target.getAttribute('position').array.byteLength + target.getAttribute('normal').array.byteLength + target.getAttribute('color').array.byteLength + target.getIndex()!.array.byteLength : 0;
+    args.onReady({ group: root, scratch, sourceBuildingIndices: emitted, geometryBytes: bytes }); if (terminal) return; terminal = true; transferred = true; target = null;
   };
-
-  return {
-    id: args.id,
-    generation: args.generation,
-    essential: args.essential,
-    cancel() {
-      const errors = stop();
-      if (errors.length) throw new AggregateError(errors, 'Cell stock job cleanup failed');
-    },
-    step() {
-      if (stopped) return true;
-      if (stepping) throw new Error('Reentrant cell stock job step is unsupported');
-      stepping = true;
-      try {
-        const deadline = args.now() + sliceMs;
-        let units = 0;
-        while (!stopped && units < 16) {
-          if (pastDeadline(deadline)) return false;
-          if (phase === 'emit') {
-            if (emitAt >= sourceBuildingIndices.length) { phase = 'allocate'; continue; }
-            emitOne(sourceBuildingIndices[emitAt++]!);
-            units++;
-          } else if (phase === 'allocate') {
-            allocate();
-            units++;
-          } else if (phase === 'copy') {
-            if (copyOne()) phase = 'publish';
-            units++;
-          } else {
-            publish();
-            return true;
-          }
-        }
-        return false;
-      } catch (error) {
-        return fail(error);
-      } finally {
-        stepping = false;
-      }
-    },
-  };
+  return { id: args.id, generation: args.generation, essential: args.essential, cancel() { const errors = stop(); if (errors.length) throw new AggregateError(errors, 'Cell stock job cleanup failed'); }, step() { if (terminal) return true; if (stepping) throw new Error('Reentrant cell stock job step is unsupported'); stepping = true; try { const deadline = args.now() + sliceMs; let units = 0; while (!terminal && units < 16) { if (args.now() >= deadline) return false; if (phase === 'emit') { if (emitAt === sources.length) { phase = 'allocate'; continue; } emit(sources[emitAt++]!); } else if (phase === 'allocate') allocate(); else if (phase === 'copy') { if (copy()) phase = 'publish'; } else { publish(); return true; } units++; } return terminal; } catch (e) { return fail(e); } finally { stepping = false; } } };
 }
