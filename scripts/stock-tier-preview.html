@@ -17,6 +17,9 @@ camera.position.copy(centre).add(new THREE.Vector3(span * 0.8, span * 0.8, span 
 const shared = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xffffff });
 for (let i = 0; i < payload.tiers.length; i++) {
   const tier = payload.tiers[i]; const geometry = new THREE.BufferGeometry();
+  const known = ['Float32Array', 'Int8Array', 'Uint8Array', 'Uint16Array', 'Uint32Array'];
+  if (!known.includes(tier.positionStorage) || !known.includes(tier.normalStorage) || !known.includes(tier.colorStorage) || !known.includes(tier.indexStorage)) throw new Error(`unknown preview storage for ${tier.detail}`);
+  if (tier.positionStorage !== 'Float32Array' || (tier.buildMode === 'batch' && (tier.normalStorage !== 'Float32Array' || tier.colorStorage !== 'Float32Array' || tier.indexStorage !== 'Uint32Array'))) throw new Error(`unexpected preview storage for ${tier.detail}`);
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(tier.positions, 3));
   if (tier.normalStorage === 'Int8Array') { const packed = Int8Array.from(tier.normals, (value) => Math.round(value * 127)); geometry.setAttribute('normal', new THREE.BufferAttribute(packed, 3, true)); } else geometry.setAttribute('normal', new THREE.Float32BufferAttribute(tier.normals, 3));
   if (tier.colorStorage === 'Uint8Array') { const packed = Uint8Array.from(tier.colors, (value) => Math.round(value * 255)); geometry.setAttribute('color', new THREE.BufferAttribute(packed, 3, true)); } else geometry.setAttribute('color', new THREE.Float32BufferAttribute(tier.colors, 3));

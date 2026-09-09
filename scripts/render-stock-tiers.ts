@@ -27,8 +27,9 @@ const cell = indexCity(city, 400).cells.get('14,10'); assert.ok(cell); assert.eq
 const selected = cell.buildingIndices.slice(0, 16); const material = new THREE.MeshLambertMaterial({ vertexColors: true });
 const buildMode = process.env.RUNWAY_PREVIEW_BUILD === 'cell-job' ? 'cell-job' : 'batch';
 function extract(detail: 'overview' | 'neighbourhood' | 'street') {
-  let scratch = createScratch(); let group: THREE.Group | null;
+  let scratch = createScratch(); let group: THREE.Group | null = null;
   let previewJob: ReturnType<typeof createCellStockJob> | undefined;
+  try {
   if (buildMode === 'cell-job') {
     let ready: { group: THREE.Group | null; scratch: typeof scratch } | undefined;
     previewJob = createCellStockJob({ id: `preview-${detail}`, generation: 1, essential: true, cityData: city, cell: { ...cell, buildingIndices: selected }, excludedBuildingIndices: new Set(), material, detail, now: () => 0, onReady: (value) => { ready = value; } });
@@ -38,16 +39,14 @@ function extract(detail: 'overview' | 'neighbourhood' | 'street') {
     group = buildCellStockBatch({ cityData: city, cellId: '14,10', buildingIndices: selected, excludedBuildingIndices: new Set(), material, scratch, detail });
   }
   assert.ok(group);
-  try {
     const meshes = chunkTierMeshes(group); assert.ok(meshes.length > 0); const mesh = meshes[0]!; const geometry = mesh.geometry;
     const attrs = (name: string) => { const attribute = geometry.getAttribute(name); const values: number[] = []; for (let i = 0; i < attribute.count; i++) values.push(attribute.getX(i), attribute.itemSize > 1 ? attribute.getY(i) : 0, attribute.itemSize > 2 ? attribute.getZ(i) : 0); return values; };
     const indices = Array.from(geometry.getIndex()!.array as Uint32Array | Uint16Array | Uint8Array);
     const rawBytes = geometry.getAttribute('position').array.byteLength + geometry.getAttribute('normal').array.byteLength + geometry.getAttribute('color').array.byteLength + geometry.getIndex()!.array.byteLength;
     const sourceIds = [...new Set(meshes.flatMap((m) => (m.userData.sourceBuildingIndices as number[] ?? [])))];
-    return { detail, positions: attrs('position'), normals: attrs('normal'), colors: attrs('color'), indices, sourceIds, picks: scratch.picks, vertices: geometry.getAttribute('position').count, triangles: indices.length / 3, rawBytes, buildMode, normalStorage: geometry.getAttribute('normal').array.constructor.name, colorStorage: geometry.getAttribute('color').array.constructor.name, indexStorage: geometry.getIndex()!.array.constructor.name, normalNormalized: geometry.getAttribute('normal').normalized, colorNormalized: geometry.getAttribute('color').normalized };
+    return { detail, positions: attrs('position'), normals: attrs('normal'), colors: attrs('color'), indices, sourceIds, picks: scratch.picks, vertices: geometry.getAttribute('position').count, triangles: indices.length / 3, rawBytes, buildMode, positionStorage: geometry.getAttribute('position').array.constructor.name, normalStorage: geometry.getAttribute('normal').array.constructor.name, colorStorage: geometry.getAttribute('color').array.constructor.name, indexStorage: geometry.getIndex()!.array.constructor.name, normalNormalized: geometry.getAttribute('normal').normalized, colorNormalized: geometry.getAttribute('color').normalized };
   } finally {
-    if (previewJob && !group) previewJob.cancel();
-    group.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
+    try { previewJob?.cancel(); } finally { group?.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); }); }
   }
 }
 let tiers;
@@ -57,7 +56,7 @@ try {
   material.dispose();
 }
 assert.deepEqual(tiers.map((tier) => tier.sourceIds), tiers.map(() => selected));
-const fixture = { sourceSHA, dirty, binarySHA256: BINARY_SHA, selectedIndices: selected, buildMode, tiers: tiers.map(({ detail, positions, normals, colors, indices, sourceIds, picks, vertices, triangles, rawBytes, normalStorage, colorStorage, indexStorage, normalNormalized, colorNormalized }) => ({ detail, positions, normals, colors, indices, sourceIds, picks, vertices, triangles, rawBytes, buildMode, normalStorage, colorStorage, indexStorage, normalNormalized, colorNormalized })) };
+const fixture = { sourceSHA, dirty, binarySHA256: BINARY_SHA, selectedIndices: selected, buildMode, tiers: tiers.map(({ detail, positions, normals, colors, indices, sourceIds, picks, vertices, triangles, rawBytes, positionStorage, normalStorage, colorStorage, indexStorage, normalNormalized, colorNormalized }) => ({ detail, positions, normals, colors, indices, sourceIds, picks, vertices, triangles, rawBytes, buildMode, positionStorage, normalStorage, colorStorage, indexStorage, normalNormalized, colorNormalized })) };
 const threeBuildDir = dirname(require.resolve('three')); const threeModule = await readFile(join(threeBuildDir, 'three.module.js')); const threeCore = await readFile(join(threeBuildDir, 'three.core.js'));
 const errors: Array<Record<string, string>> = []; let server: ReturnType<typeof createServer> | undefined; let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 const captureStartedAt = new Date().toISOString();
@@ -66,7 +65,7 @@ try {
   await new Promise<void>((resolvePromise, reject) => { server!.once('error', reject); server!.listen(0, '127.0.0.1', resolvePromise); }); const address = server.address(); assert.ok(address && typeof address === 'object');
   browser = await chromium.launch({ headless: true }); const page = await browser.newPage({ viewport: { width: 2400, height: 650 }, deviceScaleFactor: 1 }); page.on('console', (message) => { if (message.type() === 'error') errors.push({ type: 'console.error', message: message.text() }); }); page.on('pageerror', (error) => errors.push({ type: 'pageerror', message: error.message }));
   await page.goto(`http://127.0.0.1:${address.port}/`, { waitUntil: 'load' }); await page.waitForFunction(() => (window as unknown as { __stockTierPreview?: { renderComplete?: boolean } }).__stockTierPreview?.renderComplete === true, null, { timeout: 10_000 }); const qa = await page.evaluate(() => (window as unknown as { __stockTierPreview: Record<string, unknown> }).__stockTierPreview); assert.equal(qa.canvasCount, 3); assert.ok((qa.drawCounts as number[]).every((count) => count > 0)); assert.deepEqual(errors, []); const png = join(outputDir, 'stock-tier-comparison.png'); await mkdir(outputDir, { recursive: true }); await page.screenshot({ path: png, fullPage: false });
-  const tierSummaries = tiers.map((tier) => ({ detail: tier.detail, sourceIds: tier.sourceIds, picks: tier.picks, vertices: tier.vertices, triangles: tier.triangles, rawBytes: tier.rawBytes, buildMode: tier.buildMode, normalStorage: tier.normalStorage, colorStorage: tier.colorStorage, normalNormalized: tier.normalNormalized, colorNormalized: tier.colorNormalized }));
+  const tierSummaries = tiers.map((tier) => ({ detail: tier.detail, sourceIds: tier.sourceIds, picks: tier.picks, vertices: tier.vertices, triangles: tier.triangles, rawBytes: tier.rawBytes, buildMode: tier.buildMode, positionStorage: tier.positionStorage, normalStorage: tier.normalStorage, colorStorage: tier.colorStorage, indexStorage: tier.indexStorage, normalNormalized: tier.normalNormalized, colorNormalized: tier.colorNormalized }));
   const result = { schema: 1, runtimeCapture: 'standalone geometry preview, not in-game performance or fidelity acceptance', sourceSHA: fixture.sourceSHA, exactSHA: fixture.sourceSHA, dirty: fixture.dirty, captureStartedAt, captureFinishedAt: new Date().toISOString(), binarySHA256: BINARY_SHA, selectedIndices: selected, selectedIDs: selected, buildMode, viewport: { width: 2400, height: 650, dpr: 1 }, camera: qa.camera, tiers: tierSummaries, errors, outputPath: png, browser: await browser.version(), playwright: require('@playwright/test/package.json').version, three: THREE.REVISION, rawVertexDataExcluded: true };
   await writeFile(join(outputDir, 'stock-tier-comparison.json'), `${JSON.stringify(result, null, 2)}\n`); console.log(JSON.stringify(result));
 } finally {
