@@ -3,8 +3,8 @@ import { createRequire } from 'node:module';
 import * as THREE from 'three';
 import { buildCellStockBatch, createScratch } from '../lib/game/render3d/cityBuilder';
 import { createCellStockJob } from '../lib/game/render3d/cellStockJob';
-import type { CityCell } from '../lib/game/render3d/cityIndex';
-import { quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
+import { indexCity, type CityCell } from '../lib/game/render3d/cityIndex';
+import { decodeCity, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
 
 function building(x: number, z: number) {
   return { major: false, heightM: 12, chunkId: 0, style: 4, roof: 0, wall565: 0, roof565: 0,
@@ -60,4 +60,14 @@ assert.equal(capped.step(), false); assert.equal(selectedReads, 16, 'constant cl
 const parent = new THREE.Group(); let thrownRoot: THREE.Group | null = null; let thrownGeometry: THREE.BufferGeometry | null = null;
 const throwing = createCellStockJob({ id: 'throw', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: (v) => { thrownRoot = v.group; thrownGeometry = (v.group!.children[0] as THREE.Mesh).geometry; parent.add(v.group!); throw new Error('publish-error'); } });
 assert.throws(() => drain(throwing), /publish-error/); assert.equal(thrownRoot!.parent, null); assert.ok(thrownGeometry);
+// Lifecycle cases use the actual Three constructors; restore prototype spies even on assertion failure.
+function oneUnitClock() { const values = [0, 0, 5]; return () => values.shift() ?? 5; }
+function disposeSpy<T>(run: (disposed: THREE.BufferGeometry[]) => T): T { const original = THREE.BufferGeometry.prototype.dispose; const disposed: THREE.BufferGeometry[] = []; THREE.BufferGeometry.prototype.dispose = function () { disposed.push(this); return original.call(this); }; try { return run(disposed); } finally { THREE.BufferGeometry.prototype.dispose = original; } }
+disposeSpy((disposed) => { const job = createCellStockJob({ id: 'mid-emit', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: oneUnitClock(), onReady: () => assert.fail('published') }); assert.equal(job.step(), false); job.cancel(); assert.equal(disposed.length, 1, 'cancel after emitted fragment disposes it once'); });
+disposeSpy((disposed) => { let clock = oneUnitClock(); const job = createCellStockJob({ id: 'mid-copy', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => clock(), onReady: () => assert.fail('published') }); for (let i = 0; i < 7; i++) { clock = oneUnitClock(); job.step(); } job.cancel(); assert.ok(disposed.length >= 3, 'cancel during copy drains target and fragments'); assert.equal(new Set(disposed).size, disposed.length, 'each owned geometry disposed once'); });
+disposeSpy((disposed) => { const scene = new THREE.Group(); const reentrant = createCellStockJob({ id: 'publish-cancel', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: (v) => { scene.add(v.group!); reentrant.cancel(); } }); drain(reentrant); assert.equal(scene.children.length, 0); assert.equal(new Set(disposed).size, disposed.length, 'reentrant publication cancellation disposes each resource once'); });
+const guardedBuildings = city.buildings.slice(); Object.defineProperty(guardedBuildings, '2', { get() { throw new Error('unselected building read'); } });
+let safeReady = false; drain(createCellStockJob({ id: 'unselected', generation: 1, essential: true, cityData: { ...city, buildings: guardedBuildings }, cell: { ...cell, buildingIndices: [0, 1] }, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: () => { safeReady = true; } })); assert.ok(safeReady, 'unselected getter remains untouched');
+// Dense committed data proves real Uint32 offset behaviour and a finite winding tuple above 65535.
+const { readFileSync } = createRequire(import.meta.url)('node:fs'); const binary = readFileSync('public/map/london-city.bin'); const denseCity = decodeCity(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength)); const denseCell = [...indexCity(denseCity, 400).cells.values()].sort((a, b) => b.buildingIndices.length - a.buildingIndices.length)[0]!; let dense: THREE.Group | null = null; drain(createCellStockJob({ id: 'dense', generation: 1, essential: true, cityData: denseCity, cell: denseCell, excludedBuildingIndices: new Set(), material, detail: 'street', now: () => 0, onReady: (v) => { dense = v.group; } })); const denseMesh = dense!.children[0] as THREE.Mesh; const denseIndex = denseMesh.geometry.getIndex()!.array as Uint32Array; let denseMax = 0; for (const value of denseIndex) denseMax = Math.max(denseMax, value); assert.ok(denseIndex instanceof Uint32Array); assert.ok(denseMax > 65535, 'real packed index offsets exceed Uint16');
 console.log('cell stock job checks passed');
