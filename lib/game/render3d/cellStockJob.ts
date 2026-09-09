@@ -51,7 +51,7 @@ export function createCellStockJob(args: CellStockJobArgs): BuildJob {
       for (const fragment of staged) { const p = fragment.geometry.getAttribute('position'), n = fragment.geometry.getAttribute('normal'), c = fragment.geometry.getAttribute('color'), ix = fragment.geometry.getIndex(); if (!p || !n || !c || !ix) throw new Error('stock fragment is not indexed and complete'); fragment.vertices = p.count; fragment.indices = ix.count; }
       fragments.push(...staged); for (const f of staged) { totalVertices += f.vertices; totalIndices += f.indices; } staged = [];
       const ids = group.userData.sourceBuildingIndices as readonly number[] | undefined; if (ids) emitted.push(...ids); append(scratch, local);
-    } catch (e) { for (const f of staged) dispose(f.geometry); throw e; }
+    } catch (e) { const errors: unknown[] = []; while (staged.length) { const f = staged.shift()!; const result = dispose(f.geometry); if (result.didThrow) errors.push(result.error); } if (errors.length) throw new AggregateError([e, ...errors], 'Cell stock fragment validation and cleanup failed'); throw e; }
   };
   const allocate = (): void => {
     if (totalVertices === 0) { phase = 'publish'; return; } if (!target) target = new THREE.BufferGeometry();

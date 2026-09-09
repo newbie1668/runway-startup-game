@@ -72,6 +72,36 @@ let safeReady = false; drain(createCellStockJob({ id: 'unselected', generation: 
 { let synchronous: ReturnType<typeof createCellStockJob>; const proxied = new Proxy(city.buildings, { get(target, key, receiver) { if (key === '0') synchronous.cancel(); return Reflect.get(target, key, receiver); } }); const original = THREE.BufferGeometry.prototype.dispose; THREE.BufferGeometry.prototype.dispose = function () { throw false; }; try { synchronous = createCellStockJob({ id: 'cancel-during-build', generation: 1, essential: true, cityData: { ...city, buildings: proxied }, cell: { ...cell, buildingIndices: [0] }, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: () => {} }); assert.throws(() => synchronous.step(), AggregateError); } finally { THREE.BufferGeometry.prototype.dispose = original; } }
 { let materialDisposals = 0; const originalMaterialDispose = material.dispose; material.dispose = () => { materialDisposals++; }; try { disposeSpy(() => { const job = createCellStockJob({ id: 'material-safe', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: oneUnitClock(), onReady: () => {} }); job.step(); job.cancel(); }); assert.equal(materialDisposals, 0, 'caller material is never disposed during cancellation'); } finally { material.dispose = originalMaterialDispose; } }
 { let clock = oneUnitClock(); let job: ReturnType<typeof createCellStockJob>; const original = THREE.BufferGeometry.prototype.dispose; const disposed: THREE.BufferGeometry[] = []; let first = true; THREE.BufferGeometry.prototype.dispose = function () { disposed.push(this); if (first) { first = false; job.cancel(); throw false; } return original.call(this); }; try { job = createCellStockJob({ id: 'reentrant-dispose', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => clock(), onReady: () => {} }); for (let i = 0; i < 3; i++) { clock = oneUnitClock(); job.step(); } let thrown: unknown; try { job.cancel(); } catch (error) { thrown = error; } assert.ok(thrown instanceof AggregateError, 'throwing disposer retains cleanup error'); assert.ok((thrown as AggregateError).errors.includes(false), 'falsy disposal error is retained'); assert.equal(new Set(disposed).size, disposed.length, 'reentrant cleanup disposes each geometry once'); assert.equal(disposed.length, 3, 'later fragments drain after first disposer throws'); } finally { THREE.BufferGeometry.prototype.dispose = original; } }
+for (const cleanupError of [false, undefined]) {
+  const originalGetAttribute = THREE.BufferGeometry.prototype.getAttribute, originalDispose = THREE.BufferGeometry.prototype.dispose, originalMaterialDispose = material.dispose;
+  const visited: THREE.BufferGeometry[] = [], disposed: THREE.BufferGeometry[] = [];
+  let stagedGeometry: THREE.BufferGeometry | undefined, materialDisposals = 0;
+  THREE.BufferGeometry.prototype.getAttribute = function (name) {
+    if (name === 'normal') {
+      if (!visited.includes(this)) visited.push(this);
+      if (visited.length === 2) { stagedGeometry = visited[1]; return undefined; }
+    }
+    return originalGetAttribute.call(this, name);
+  };
+  THREE.BufferGeometry.prototype.dispose = function () { disposed.push(this); originalDispose.call(this); if (this === stagedGeometry) throw cleanupError; };
+  material.dispose = () => { materialDisposals++; };
+  try {
+    const job = createCellStockJob({ id: 'invalid-attributes-cleanup-throws', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: () => assert.fail('invalid fragment must not publish') });
+    assert.throws(() => job.step(), (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.equal(error.errors.length, 2);
+      assert.ok(error.errors[0] instanceof Error);
+      assert.equal(error.errors[0].message, 'stock fragment is not indexed and complete');
+      assert.equal(error.errors[1], cleanupError, 'falsy staged disposal error is retained');
+      return true;
+    });
+    assert.equal(visited.length, 2, 'a valid fragment is owned before the invalid fragment');
+    assert.deepEqual(disposed, [stagedGeometry, visited[0]], 'staged geometry and earlier owned fragment both drain');
+    assert.equal(new Set(disposed).size, disposed.length, 'each geometry is disposed exactly once');
+    job.cancel(); assert.equal(job.step(), true); assert.equal(disposed.length, 2, 'terminal job does not dispose again');
+    assert.equal(materialDisposals, 0, 'caller material remains untouched');
+  } finally { THREE.BufferGeometry.prototype.getAttribute = originalGetAttribute; THREE.BufferGeometry.prototype.dispose = originalDispose; material.dispose = originalMaterialDispose; }
+}
 // Dense committed data proves real Uint32 offset behaviour and a finite winding tuple above 65535.
 const { readFileSync } = createRequire(import.meta.url)('node:fs'); const binary = readFileSync('public/map/london-city.bin'); const denseCity = decodeCity(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength)); const denseCell = [...indexCity(denseCity, 400).cells.values()].sort((a, b) => b.buildingIndices.length - a.buildingIndices.length)[0]!; let dense: THREE.Group | null = null; drain(createCellStockJob({ id: 'dense', generation: 1, essential: true, cityData: denseCity, cell: denseCell, excludedBuildingIndices: new Set(), material, detail: 'street', now: () => 0, onReady: (v) => { dense = v.group; } })); const denseMesh = dense!.children[0] as THREE.Mesh; const denseIndex = denseMesh.geometry.getIndex()!.array as Uint32Array; let denseMax = 0; for (const value of denseIndex) denseMax = Math.max(denseMax, value); assert.ok(denseIndex instanceof Uint32Array); assert.ok(denseMax > 65535, 'real packed index offsets exceed Uint16'); const densePosition = denseMesh.geometry.getAttribute('position').array as Float32Array; const denseNormal = denseMesh.geometry.getAttribute('normal').array as Float32Array; const ia = denseIndex.findIndex((value) => value > 65535); const a = denseIndex[ia - (ia % 3)]! * 3, b = denseIndex[ia - (ia % 3) + 1]! * 3, c = denseIndex[ia - (ia % 3) + 2]! * 3; const ux = densePosition[b]! - densePosition[a]!, uy = densePosition[b + 1]! - densePosition[a + 1]!, uz = densePosition[b + 2]! - densePosition[a + 2]!, vx = densePosition[c]! - densePosition[a]!, vy = densePosition[c + 1]! - densePosition[a + 1]!, vz = densePosition[c + 2]! - densePosition[a + 2]!; assert.ok((uy * vz - uz * vy) * denseNormal[a]! + (uz * vx - ux * vz) * denseNormal[a + 1]! + (ux * vy - uy * vx) * denseNormal[a + 2]! > 0, 'high-offset packed tuple retains winding');
 console.log('cell stock job checks passed');
