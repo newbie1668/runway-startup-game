@@ -1,0 +1,49 @@
+{
+  "comparison": "same-source batch versus cell-job, 800x600 panels",
+  "pixelsPerPanel": 480000,
+  "sourceSHA": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+  "results": [
+    {
+      "tier": "overview",
+      "meanAbsoluteChannelDifference": [
+        0.0116125,
+        0.040525,
+        0.056647916666666666
+      ],
+      "maxChannelDifference": [
+        1,
+        2,
+        2
+      ],
+      "differentPixels": 34980
+    },
+    {
+      "tier": "neighbourhood",
+      "meanAbsoluteChannelDifference": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maxChannelDifference": [
+        0,
+        0,
+        0
+      ],
+      "differentPixels": 0
+    },
+    {
+      "tier": "street",
+      "meanAbsoluteChannelDifference": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maxChannelDifference": [
+        0,
+        0,
+        0
+      ],
+      "differentPixels": 0
+    }
+  ]
+}
