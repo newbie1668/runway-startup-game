@@ -177,10 +177,13 @@ export const COVER_PAGE_INDICES = COVER_PAGE_VERTICES * 3;
 const COVER_COPY_CHUNK = 4096;
 /** Triangles or vertices visited between yields while computing normals and bounds. */
 const COVER_MATH_CHUNK = 256;
+/** Page meshes attached to a parent between yields when no `parent` option streams them. */
+export const COVER_ATTACH_CHUNK = 16;
 
 interface CoverPage {
   positions: Float32Array;
   colors: Float32Array | null;
+  normals: Float32Array | null;
   indices: Uint16Array;
   vertexCount: number;
   indexCount: number;
@@ -191,8 +194,15 @@ export interface CoverPageOptions {
   colors?: boolean;
   /** Emit constant +Y normals instead of accumulated face normals. */
   upNormals?: boolean;
+  /** Callers supply every vertex normal through `normal()` instead of page-local accumulation. */
+  normals?: boolean;
   /** Applied to every page mesh before it is attached. */
   decorate?(mesh: THREE.Mesh): void;
+  /**
+   * Attach each page to this object as soon as it is finalised, so finishing
+   * never walks a page list. `finish()` must then receive the same object.
+   */
+  parent?: THREE.Object3D;
 }
 
 /**
@@ -211,6 +221,8 @@ export interface CoverPageWriter {
   reserve(vertices: number, indices: number): Generator<void>;
   /** Append one vertex to the reserved page and return its page-local index. */
   vertex(x: number, y: number, z: number, r?: number, g?: number, b?: number): number;
+  /** Set the normal of a page-local vertex; requires the `normals` option. */
+  normal(index: number, nx: number, ny: number, nz: number): void;
   /** Append one triangle of page-local indices. */
   triangle(a: number, b: number, c: number): void;
   /** Clip `points` to `bounds` and fan-triangulate every surviving piece. */
@@ -222,7 +234,11 @@ export interface CoverPageWriter {
   ): Generator<void>;
   /** Finalise the current page into a mesh even if it is not full. */
   flush(): Generator<void>;
-  /** Flush, then attach every page mesh to `parent` in order; returns the page count. */
+  /**
+   * Flush, then make sure every page mesh is attached to `parent` in order;
+   * returns the page count. Without the `parent` option, attachment yields
+   * after every `COVER_ATTACH_CHUNK` pages.
+   */
   finish(parent: THREE.Object3D): Generator<void, number>;
 }
 
@@ -231,13 +247,17 @@ export function createCoverPageWriter(
   material: THREE.Material | (() => THREE.Material),
   options: CoverPageOptions = {},
 ): CoverPageWriter {
+  if (options.normals && options.upNormals)
+    throw new RangeError('cover page writer cannot combine explicit and up normals');
   let page: CoverPage | null = null;
   let resolved: THREE.Material | null = typeof material === 'function' ? null : material;
   const meshes: THREE.Mesh[] = [];
+  let attached = 0;
   const current = (): CoverPage => {
     page ??= {
       positions: new Float32Array(COVER_PAGE_VERTICES * 3),
       colors: options.colors ? new Float32Array(COVER_PAGE_VERTICES * 3) : null,
+      normals: options.normals ? new Float32Array(COVER_PAGE_VERTICES * 3) : null,
       indices: new Uint16Array(COVER_PAGE_INDICES),
       vertexCount: 0,
       indexCount: 0,
@@ -276,6 +296,15 @@ export function createCoverPageWriter(
       }
       return index;
     },
+    normal(index, nx, ny, nz) {
+      const active = current();
+      if (!active.normals) throw new RangeError('cover page writer has no explicit normals');
+      if (index < 0 || index >= active.vertexCount)
+        throw new RangeError('cover normal references a vertex outside its page');
+      active.normals[index * 3] = nx;
+      active.normals[index * 3 + 1] = ny;
+      active.normals[index * 3 + 2] = nz;
+    },
     triangle(a, b, c) {
       const active = current();
       if (active.indexCount + 3 > COVER_PAGE_INDICES) throw new RangeError('cover page is full');
@@ -293,6 +322,7 @@ export function createCoverPageWriter(
       active.indices[active.indexCount++] = c;
     },
     *polygon(points, y, bounds, shade = null) {
+      if (options.normals) throw new RangeError('polygon() cannot supply explicit normals');
       for (const piece of clippedCoverPieces(points, bounds)) {
         yield* writer.reserve(piece.length, (piece.length - 2) * 3);
         const base = writer.vertexCount;
@@ -310,11 +340,21 @@ export function createCoverPageWriter(
       page.vertexCount = page.indexCount = 0;
       options.decorate?.(mesh);
       meshes.push(mesh);
+      if (options.parent) {
+        options.parent.add(mesh);
+        attached++;
+      }
     },
     *finish(parent) {
+      if (options.parent && options.parent !== parent)
+        throw new RangeError('cover pages are already attached to another parent');
       yield* writer.flush();
       page = null;
-      for (const mesh of meshes) parent.add(mesh);
+      while (attached < meshes.length) {
+        const end = Math.min(attached + COVER_ATTACH_CHUNK, meshes.length);
+        for (; attached < end; attached++) parent.add(meshes[attached]!);
+        yield;
+      }
       return meshes.length;
     },
   };
@@ -361,8 +401,14 @@ function* pageMesh(
       ),
     );
   }
-  const normal = new THREE.BufferAttribute(new Float32Array(page.vertexCount * 3), 3);
+  const normal = new THREE.BufferAttribute(
+    page.normals
+      ? yield* copyInto(new Float32Array(page.vertexCount * 3), page.normals, page.vertexCount * 3)
+      : new Float32Array(page.vertexCount * 3),
+    3,
+  );
   geometry.setAttribute('normal', normal);
+  const explicitNormals = page.normals !== null;
   yield;
   const a = new THREE.Vector3(),
     b = new THREE.Vector3(),
@@ -370,7 +416,7 @@ function* pageMesh(
   const cb = new THREE.Vector3(),
     ab = new THREE.Vector3(),
     n = new THREE.Vector3();
-  for (let i = 0; !upNormals && i < triangles.length; i += 3) {
+  for (let i = 0; !upNormals && !explicitNormals && i < triangles.length; i += 3) {
     const ia = triangles[i]!,
       ib = triangles[i + 1]!,
       ic = triangles[i + 2]!;
@@ -389,8 +435,8 @@ function* pageMesh(
   const box = new THREE.Box3();
   for (let i = 0; i < position.count; i++) {
     if (upNormals) n.set(0, 1, 0);
-    else n.fromBufferAttribute(normal, i).normalize();
-    normal.setXYZ(i, n.x, n.y, n.z);
+    else if (!explicitNormals) n.fromBufferAttribute(normal, i).normalize();
+    if (!explicitNormals) normal.setXYZ(i, n.x, n.y, n.z);
     box.expandByPoint(a.fromBufferAttribute(position, i));
     if ((i + 1) % COVER_MATH_CHUNK === 0) yield;
   }
