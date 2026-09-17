@@ -2,15 +2,16 @@
 
 Continue from **draft PR #30**, branch `build/runway-recovery`, base `docs/runway-recovery-plan` (planning PR #29). This is the active integration branch; do not restart from old map PR #27 or the primary checkout. The owner subsequently requested completion of PR #30. No merge or deployment is authorized by this handoff.
 
-Continuation checkpoint: R5b-4a is independently accepted and integrated at
-`e60eb1d`; [focused and integration checks](../evidence/R5b/cover-index/README.md)
-passed. PR head remains `5745874`. Bounded cover paging at `dc93c16` is under
-independent review, with road/park logical-geometry test corrections active.
-R6 is preserved as an unaccepted local integration draft on
-`devin/1789676440-camera-stream`; the parent owns all runtime integration.
-Keep Fitzrovia search from `8bd024f`. Source audit `1aa3fef` is accepted as an
-honest modelling NO-GO packet. See [current status](../status.md) before using
-the historical interrupted-draft notes below.
+Continuation checkpoint: source `8393133` independently passes bounded cover
+and renderer/stream review; [repository gates and reports](../evidence/R6/README.md)
+are recorded. Camera-driven stock/cover generation, detail, prefetch, replacement
+and eviction are connected to `CityRenderer3D`. Fitzrovia is unique in search.
+The parent owns integration in `devin/1789676440-camera-stream` and publishes
+reviewed checkpoints to this PR's `build/runway-recovery` branch. Fresh
+production browser acceptance is next: the earlier 21-second useful frame is
+unresolved, and 127.54 MiB CPU-only overview excludes landmarks/GPU/browser work.
+Source audit `1aa3fef` is accepted as an honest modelling NO-GO packet.
+See [current status](../status.md) before using the historical notes below.
 
 ## First read
 
@@ -19,7 +20,7 @@ the historical interrupted-draft notes below.
 3. [Latest verified compact overview checkpoint](../evidence/R5b/compact-overview/README.md).
 4. [Accepted cover-index contract](cover-index-task.md), [cover source inventory](cover-source-inventory.md), and [preparation notes](cover-preparation.md). Preparation includes historical estimates; the current measured overview total is 93.06 MiB.
 
-## Completed and verified
+## Earlier completed and verified checkpoint
 
 Source `f1af3e85e763e3d06a412f5df9912ef0affd0454`, evidence commit `403d927c7e1d4e056f8312c9d050bf7d38179dc5`:
 
