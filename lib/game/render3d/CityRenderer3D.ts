@@ -59,6 +59,7 @@ import { attachVisibleReplacement } from './replacementAvailability';
 import { createBuildScheduler, type BuildJob as ScheduledJob } from './buildScheduler';
 import { indexCity } from './cityIndex';
 import { CityStream } from './cityStream';
+import { createIdleGeneration, type IdleGeneration } from './idleGeneration';
 import { createCoverIndexJob } from './coverIndex';
 import { cameraGroundBounds } from './streamCoverage';
 
@@ -209,6 +210,7 @@ export class CityRenderer3D implements IMapRenderer {
   private coverIndexBuild: ScheduledJob | null = null;
   private readonly coverIndexScheduler = createBuildScheduler();
   private cityStream: CityStream | null = null;
+  private idleGeneration: IdleGeneration | null = null;
   private lastStreamCamera = '';
   private hubGlowSprites: Map<HubId, THREE.Sprite> = new Map();
   private lastPlayerHubId: HubId | null = null;
@@ -414,6 +416,26 @@ export class CityRenderer3D implements IMapRenderer {
           if (isCurrent()) this.onFatal('City data failed');
         });
 
+      if (
+        typeof window.requestIdleCallback === 'function' &&
+        typeof window.cancelIdleCallback === 'function'
+      ) {
+        this.idleGeneration = createIdleGeneration(
+          (callback) => window.requestIdleCallback(callback),
+          (handle) => window.cancelIdleCallback(handle),
+          () =>
+            !this.disposed &&
+            this.cssW > 0 &&
+            this.cssH > 0 &&
+            !this.coverIndexBuild &&
+            this.cityStream?.idle === false,
+          () => {
+            this.syncRig();
+            this.drainStreaming();
+          },
+        );
+      }
+
       if (new URLSearchParams(window.location.search).get('map') === 'debug') {
         this.debugContextLoss = () => {
           this.renderer.getContext().getExtension('WEBGL_lose_context')?.loseContext();
@@ -433,6 +455,7 @@ export class CityRenderer3D implements IMapRenderer {
     this.generation += 1;
     this.loadController.abort();
     const cleanup: Array<() => void> = [
+      () => this.idleGeneration?.dispose(),
       () => {
         if (this.contextLostTimer) clearTimeout(this.contextLostTimer);
         this.contextLostTimer = null;
@@ -1105,6 +1128,7 @@ export class CityRenderer3D implements IMapRenderer {
     });
     const state = this.diagnostics.getState();
     if (state === 'ready' || state === 'degraded') this.markReady();
+    this.idleGeneration?.wake();
   }
 
   dispose(): void {
@@ -1113,6 +1137,7 @@ export class CityRenderer3D implements IMapRenderer {
     this.generation += 1;
     this.loadController.abort();
     const cleanup: Array<() => void> = [
+      () => this.idleGeneration?.dispose(),
       () => {
         if (this.contextLostTimer) clearTimeout(this.contextLostTimer);
         this.contextLostTimer = null;

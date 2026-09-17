@@ -16,6 +16,7 @@ const fixture = Object.create(CityRenderer3D.prototype) as Record<string, unknow
 const pool = createResourcePool();
 const hostDiagnostics = createMapDiagnostics(0, () => 0);
 let disposed = 0;
+let idleDisposals = 0;
 pool.retain({
   dispose: () => {
     disposed++;
@@ -23,6 +24,7 @@ pool.retain({
   },
 });
 fixture.disposed = false;
+fixture.idleGeneration = { dispose: () => idleDisposals++ };
 fixture.generation = 4;
 fixture.loadController = new AbortController();
 fixture.contextLostTimer = null;
@@ -74,6 +76,7 @@ try {
   );
   assert.deepEqual(listeners, ['webglcontextlost']);
   assert.equal(disposed, 3, 'cleanup continues after a throwing resource disposer');
+  assert.equal(idleDisposals, 1, 'idle generation stops before renderer teardown');
   hostDiagnostics.recordError('init', false, new Error('3D init failed'));
   hostDiagnostics.selectMode('2d', '3D fallback');
   hostDiagnostics.recordFrame({ mode: '2d', durationMs: 1 });
@@ -85,6 +88,7 @@ try {
     globalThis.window as unknown as { __runwayForceContextLoss?: () => void }
   ).__runwayForceContextLoss = newerDebug;
   CityRenderer3D.prototype.dispose.call(fixture);
+  assert.equal(idleDisposals, 1, 'repeated teardown does not cancel a new idle callback');
   assert.equal(
     (globalThis.window as unknown as { __runwayForceContextLoss?: () => void })
       .__runwayForceContextLoss,
