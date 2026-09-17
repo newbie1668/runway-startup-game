@@ -1,0 +1,7 @@
+{
+ "url": "https://api.geograph.org.uk/api/photo/3033698/?format=json",
+ "retrievedAt": "2026-09-17T19:17:18.006Z",
+ "status": 200,
+ "sha256": "d6526de3adfd0610ff5ee7e8fdbe683b0d0f343e7947cdc76ed3dd8757e0612d",
+ "body": "{\"title\":\"Looking from Charlotte Street into Colville Place\",\"grid_reference\":\"TQ2981\",\"profile_link\":\"\\/profile\\/17822\",\"realname\":\"Basher Eyre\",\"imgserver\":\"https:\\/\\/s2.geograph.org.uk\",\"thumbnail\":\"\\/geophotos\\/03\\/03\\/36\\/3033698_a504c0da_120x120.jpg\",\"image\":\"\\/geophotos\\/03\\/03\\/36\\/3033698_a504c0da.jpg\",\"sizeinfo\":[\"480\",\"640\",\"0\",\"0\",\"0\",\"0\"],\"taken\":\"2012-07-07\",\"submitted\":1342025159,\"tags\":\"top:Business, Retail, Services?top:City, Town centre?top:Housing, Dwellings?top:Paths?top:Roads, Road transport\",\"wgs84_lat\":\"51.519205\",\"wgs84_long\":\"-0.135081\"}"
+}
