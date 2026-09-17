@@ -208,13 +208,6 @@ export class CityStream {
     append('cover', plan.prefetchCover, 'overview', false);
     if (plan.detail !== 'overview') append('trees', plan.visibleCover, plan.detail, false);
     if (plan.detail !== 'overview') append('decor', plan.detailedStock, plan.detail, false);
-    const wanted = new Set([...plan.visibleStock, ...plan.prefetchStock]);
-    append(
-      'stock',
-      [...this.options.cityIndex.cells.keys()].filter((id) => !wanted.has(id)),
-      'overview',
-      false,
-    );
     this.requests = requests;
     this.cursor = 0;
   }
@@ -401,9 +394,6 @@ export class CityStream {
   private trimResidents(): void {
     if (!this.plan) return;
     const retain = new Set(this.plan.retainStock);
-    for (const id of this.stocks.ids()) {
-      if (this.stocks.get(id)!.detail === 'overview') retain.add(id);
-    }
     this.stocks.evictOutside(retain);
     this.covers.evictOutside(new Set(this.plan.retainCover));
     this.trees.evictOutside(new Set(this.plan.detail === 'overview' ? [] : this.plan.retainCover));

@@ -115,6 +115,10 @@ while (!stream.idle) {
 }
 assert.deepEqual(failures, []);
 assert(stream.stockBuildings >= 1);
+assert(
+  !stream.buildingMeshes().some((mesh) => mesh.userData.cellId === secondId),
+  'idle background work never builds stock beyond the prefetch ring',
+);
 assert(tracker.bytes() > 0);
 const oldMesh = stream.buildingMeshes().find((mesh) => mesh.userData.cellId === firstId);
 assert.ok(oldMesh);
@@ -137,6 +141,11 @@ assert.equal(materialDisposals, 0, 'shared building material survives cell evict
 ready({ minX: 0, minZ: 0, maxX: 80, maxZ: 20 });
 assert.equal(stream.stockBuildings, 2, 'overview retains both ordinary buildings');
 assert.equal(stream.buildingMeshes().length, 2, 'each owner cell publishes once');
+ready(first);
+assert(
+  !stream.buildingMeshes().some((mesh) => mesh.userData.cellId === secondId),
+  'overview residents outside hysteresis are evicted after moving close',
+);
 stream.update(first);
 stream.drain();
 stream.update(second);
