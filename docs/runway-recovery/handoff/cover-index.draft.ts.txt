@@ -1,0 +1,100 @@
+import { METERS_TO_WORLD } from '../geo';
+import { dequantizeX, dequantizeY, type CityData } from './format';
+import type { BuildJob } from './buildScheduler';
+import type { BoundsXZ, CellId } from './cityIndex';
+
+export type CoverLayer = 'roads' | 'parks' | 'water';
+export interface CoverSelection { readonly roads: readonly number[]; readonly parks: readonly number[]; readonly water: readonly number[] }
+export interface CoverIndex {
+  readonly cellSizeM: number;
+  readonly cells: ReadonlyMap<CellId, CoverSelection>;
+  readonly featureBounds: { readonly roads: readonly BoundsXZ[]; readonly parks: readonly BoundsXZ[]; readonly water: readonly BoundsXZ[] };
+  readonly bounds: BoundsXZ | null;
+}
+
+const CELL_SIZE_M = 400;
+const CELL_WORLD = CELL_SIZE_M * METERS_TO_WORLD;
+const LAYERS: readonly CoverLayer[] = ['roads', 'parks', 'water'];
+type MutableCell = { roads: number[]; parks: number[]; water: number[] };
+type LayerState = { layer: CoverLayer; records: readonly { pts: Uint16Array }[] | readonly { verts: Uint16Array }[]; cursor: number; phase: 'record' | 'vertex' | 'bucket'; vertex: number; minX: number; minZ: number; maxX: number; maxZ: number; ix: number; iz: number; endIx: number; endIz: number };
+
+function malformed(layer: CoverLayer, index: number): RangeError { return new RangeError(`${layer} ${index} has a malformed geometry record`); }
+function cellId(ix: number, iz: number): CellId { return `${ix},${iz}` as CellId; }
+function emptySelection(): MutableCell { return { roads: [], parks: [], water: [] }; }
+function mergeBounds(a: BoundsXZ | null, b: BoundsXZ): BoundsXZ {
+  return a ? { minX: Math.min(a.minX, b.minX), minZ: Math.min(a.minZ, b.minZ), maxX: Math.max(a.maxX, b.maxX), maxZ: Math.max(a.maxZ, b.maxZ) } : { ...b };
+}
+
+export function createCoverIndexJob(args: { id: string; generation: number; essential: boolean; cityData: CityData; now: () => number; sliceMs?: number; onReady(index: CoverIndex): void }): BuildJob {
+  const sliceMs = args.sliceMs ?? 4;
+  if (!Number.isFinite(sliceMs) || sliceMs <= 0) throw new RangeError('sliceMs must be a finite positive number');
+  const cells = new Map<CellId, MutableCell>();
+  const featureBounds = { roads: new Array<BoundsXZ>(args.cityData.roads.length), parks: new Array<BoundsXZ>(args.cityData.parks.length), water: new Array<BoundsXZ>(args.cityData.water.length) };
+  const states: LayerState[] = LAYERS.map((layer) => ({ layer, records: args.cityData[layer], cursor: 0, phase: 'record', vertex: 0, minX: 0, minZ: 0, maxX: 0, maxZ: 0, ix: 0, iz: 0, endIx: 0, endIz: 0 }));
+  let layerAt = 0; let overall: BoundsXZ | null = null; let terminal = false;
+  let localCells: Map<CellId, MutableCell> | undefined = cells;
+  let localStates: LayerState[] | undefined = states;
+  let localBounds: typeof featureBounds | undefined = featureBounds;
+  const fail = (error: unknown): never => { terminal = true; localCells = undefined; localStates = undefined; localBounds = undefined; throw error; };
+  const job: BuildJob = {
+    id: args.id, generation: args.generation, essential: args.essential,
+    step() {
+      if (terminal) return true;
+      let start: number;
+      try { start = args.now(); } catch (e) { return fail(e); }
+      let units = 0;
+      try {
+        while (units < 64) {
+          if (units > 0) { const elapsed = args.now() - start; if (elapsed >= sliceMs) return false; }
+          if (layerAt >= LAYERS.length) {
+            const publishedCells = new Map<CellId, CoverSelection>();
+            for (const [id, bucket] of localCells!) publishedCells.set(id, bucket);
+            const index: CoverIndex = { cellSizeM: CELL_SIZE_M, cells: publishedCells, featureBounds: localBounds!, bounds: overall };
+            terminal = true; localCells = undefined; localStates = undefined; localBounds = undefined;
+            units++; args.onReady(index); return true;
+          }
+          const state = localStates![layerAt];
+          const records = state.records;
+          if (state.cursor >= records.length) { layerAt++; units++; continue; }
+          const record = records[state.cursor]!;
+          if (state.phase === 'record') {
+            const points = 'pts' in record ? record.pts : record.verts;
+            const minPairs = 'pts' in record ? 2 : 3;
+            if (points.length < minPairs * 2 || points.length % 2 !== 0) throw malformed(state.layer, state.cursor);
+            state.vertex = 0; state.minX = Infinity; state.minZ = Infinity; state.maxX = -Infinity; state.maxZ = -Infinity; state.phase = 'vertex'; units++; continue;
+          }
+          const points = 'pts' in record ? record.pts : record.verts;
+          if (state.phase === 'vertex') {
+            const x = dequantizeX(points[state.vertex * 2]!); const z = dequantizeY(points[state.vertex * 2 + 1]!);
+            state.minX = Math.min(state.minX, x); state.minZ = Math.min(state.minZ, z); state.maxX = Math.max(state.maxX, x); state.maxZ = Math.max(state.maxZ, z); state.vertex++;
+            units++;
+            if (state.vertex >= points.length / 2) {
+              const b = { minX: state.minX, minZ: state.minZ, maxX: state.maxX, maxZ: state.maxZ };
+              localBounds![state.layer][state.cursor] = b; overall = mergeBounds(overall, b);
+              state.ix = Math.floor(state.minX / CELL_WORLD); state.iz = Math.floor(state.minZ / CELL_WORLD); state.endIx = Math.floor(state.maxX / CELL_WORLD); state.endIz = Math.floor(state.maxZ / CELL_WORLD); state.phase = 'bucket';
+            }
+            continue;
+          }
+          const id = cellId(state.ix, state.iz); let bucket = localCells!.get(id); if (!bucket) { bucket = emptySelection(); localCells!.set(id, bucket); }
+          bucket[state.layer].push(state.cursor); units++;
+          if (state.ix < state.endIx) state.ix++; else if (state.iz < state.endIz) { state.ix = Math.floor(state.minX / CELL_WORLD); state.iz++; } else { state.cursor++; state.phase = 'record'; }
+        }
+        return false;
+      } catch (e) { return fail(e); }
+    },
+    cancel() { terminal = true; localCells = undefined; localStates = undefined; localBounds = undefined; },
+  };
+  return job;
+}
+
+function validBounds(b: BoundsXZ): void { if (![b.minX, b.minZ, b.maxX, b.maxZ].every(Number.isFinite) || b.minX > b.maxX || b.minZ > b.maxZ) throw new RangeError('bounds must be finite and ordered'); }
+export function coverForBounds(index: CoverIndex, bounds: BoundsXZ, padM = 0): CoverSelection {
+  validBounds(bounds); if (!Number.isFinite(padM) || padM < 0) throw new RangeError('padM must be finite and nonnegative');
+  const pad = padM * METERS_TO_WORLD; const q = { minX: bounds.minX - pad, minZ: bounds.minZ - pad, maxX: bounds.maxX + pad, maxZ: bounds.maxZ + pad };
+  if (![q.minX, q.minZ, q.maxX, q.maxZ].every(Number.isFinite)) throw new RangeError('expanded bounds overflow');
+  if (!index.bounds || q.maxX < index.bounds.minX || q.minX > index.bounds.maxX || q.maxZ < index.bounds.minZ || q.minZ > index.bounds.maxZ) return { roads: [], parks: [], water: [] };
+  const out = { roads: new Set<number>(), parks: new Set<number>(), water: new Set<number>() };
+  const minIx = Math.floor(q.minX / (index.cellSizeM * METERS_TO_WORLD)); const maxIx = Math.floor(q.maxX / (index.cellSizeM * METERS_TO_WORLD)); const minIz = Math.floor(q.minZ / (index.cellSizeM * METERS_TO_WORLD)); const maxIz = Math.floor(q.maxZ / (index.cellSizeM * METERS_TO_WORLD));
+  for (let ix = minIx; ix <= maxIx; ix++) for (let iz = minIz; iz <= maxIz; iz++) { const bucket = index.cells.get(cellId(ix, iz)); if (!bucket) continue; for (const layer of LAYERS) for (const n of bucket[layer]) { const b = index.featureBounds[layer][n]!; if (b.maxX >= q.minX && b.minX <= q.maxX && b.maxZ >= q.minZ && b.minZ <= q.maxZ) out[layer].add(n); } }
+  return { roads: [...out.roads].sort((a, b) => a - b), parks: [...out.parks].sort((a, b) => a - b), water: [...out.water].sort((a, b) => a - b) };
+}

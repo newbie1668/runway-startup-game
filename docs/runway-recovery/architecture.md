@@ -141,6 +141,14 @@ For the current orthographic camera, derive ground bounds from `CameraRig.ground
 
 Cover geometry (roads/parks/water) must cover the same visible bounds. Cache or spatially restrict existing cover generation; do not leave cover in the old initial disk after buildings move. A 400 m grid is an initial engineering choice, not a reason to alter geography.
 
+### R5b-4a cover selection seam
+
+Use a separate world-origin 400 m cover grid, including cells with no building owner. Index original roads, parks and water by every cell intersecting each dequantized feature AABB. A long road or enclosing polygon must be selected even when none of its vertices lie inside the view. Keep the original CityData for water/crossing/RNG context; the index returns original numeric record indices, never a subset wrapper.
+
+`createCoverIndexJob` implements C4 with at most 64 units per step and a default 4 ms target. Each record transition, vertex-pair AABB update and bucket insertion is a separate unit. Publication avoids whole-index copying or sorting. `coverForBounds` gathers intersecting buckets, filters feature AABBs, deduplicates and returns ascending original indices; query padding uses metres. Query loops are not an emission timing guarantee and must be measured in R6. No geometry or renderer hookup belongs to this helper acceptance.
+
+This pure CPU index has no GPU resource ownership. It marks terminal and detaches private references before its one publication callback; cancellation or callback errors never mutate an already published index. Unpublished cancellation drops private state. The geometry-job disposal contract remains separate.
+
 ## C4: bounded generation and detail (R5)
 
 Use one scheduler seam; measure time as well as queue length.

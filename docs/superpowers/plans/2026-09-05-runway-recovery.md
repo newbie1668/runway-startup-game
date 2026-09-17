@@ -211,6 +211,8 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 - [ ] Profile the largest cell. If one building remains an unbounded step, split that building's facade emission or assign it a pre-approved cheaper representation. Do not add new data pipelines to this packet.
 - [ ] Run required gates and submit geometry/time measurements. Any visible regression returns to this worker before R6.
 
+Bounded cover decomposition: R5b-4a adds the pure incremental cover index (`coverIndex.ts`, `test-cover-index.ts`) under C3; subsequent water/park/road emission packets consume its original indices. This is a lead-approved two-file scope addition, with no renderer hookup or geometry pipeline changes.
+
 Stock helper acceptance: [R5b-1](../../runway-recovery/evidence/R5b/stock-batches/README.md), [R5b-2](../../runway-recovery/evidence/R5b/detail-tiers/README.md), [R5b-3](../../runway-recovery/evidence/R5b/cell-jobs/README.md), [R5b-3a](../../runway-recovery/evidence/R5b/compact-overview/README.md). Full R5b remains open for cover and measured emission limits before R6.
 
 **Acceptance:** peak generation cost is bounded at the source, coarse views retain stock, and the largest cell can be processed without a long whole-city operation. This is a high-risk packet; split by stock/cover if either exceeds one independently reviewable change.

@@ -1,0 +1,44 @@
+# Recovery handoff — 17 September 2026
+
+Continue from **draft PR #30**, branch `build/runway-recovery`, base `docs/runway-recovery-plan` (planning PR #29). This is the active integration branch; do not restart from old map PR #27 or the primary checkout. The owner requested publication and handoff, not further implementation in this session. No merge or deployment is authorized by this handoff.
+
+## First read
+
+1. [Execution status](../status.md), [product contract](../product.md), [architecture](../architecture.md), [agent contract](../agent-contract.md).
+2. [Runtime recovery plan](../../superpowers/plans/2026-09-05-runway-recovery.md) and [London fidelity plan](../../superpowers/plans/2026-09-05-london-fidelity.md).
+3. [Latest verified compact overview checkpoint](../evidence/R5b/compact-overview/README.md).
+4. [Next exact task: cover index](cover-index-task.md), [cover source inventory](cover-source-inventory.md), and [preparation notes](cover-preparation.md). Preparation includes historical estimates; the current measured overview total is 93.06 MiB.
+
+## Completed and verified
+
+Source `f1af3e85e763e3d06a412f5df9912ef0affd0454`, evidence commit `403d927c7e1d4e056f8312c9d050bf7d38179dc5`:
+
+- Replacement/ordinary-stock fallback and 2D camera clamp are integrated. Earlier final R3b browser evidence passes three failure cases and two normal views at its recorded source.
+- Selected building batches, three detail tiers, bounded cell stock job and compact overview storage passed their scoped reviews. These newer helpers are **not connected to CityRenderer3D**.
+- Overview geometry buffers total 97,580,844 bytes (93.06 MiB), half the previous 186.12 MiB, preserving the same 113,563 emitted original buildings and 1,609 nonempty cells. Six existing omissions remain unchanged.
+- Paired standalone browser previews passed with no browser errors. Neighbourhood/street are pixel-identical; overview has small colour-rounding differences. This is a bounded fixture, not full-map fidelity evidence.
+- All eight sequential integration checks passed on clean `f1af3e8`: `pnpm test:game`, `pnpm test:ui`, `pnpm lint`, `pnpm build`, and the cell-build, cell-stock-job, scheduler and offline geodata scripts. [Exact logs/exits](../evidence/R5b/compact-overview/integration-checks/results.json). Later commits are documentation/evidence only; these checks were not rerun for handoff.
+
+## Interrupted draft and what is left to commit
+
+R5b-4a stopped at a worker usage limit. There is **no completed submission, no test file, no test result, and no independent review**. The original isolated worktree has one untracked file: `lib/game/render3d/coverIndex.ts`.
+
+A byte-for-byte copy is preserved remotely as [cover-index.draft.ts.txt](cover-index.draft.ts.txt), SHA-256 `584b85f7c471f65896e22d11c7562eaeff51fd75461d2dcb111d43e3d23bb9ce`. It is intentionally outside compiled source. Recover it into the allowed production path only when resuming its task; do not treat it as accepted code. The original local file remains untouched.
+
+Known draft gaps observed during handoff (not an exhaustive review): publication copies every bucket into a new Map despite the bounded-publication contract; queries enumerate the unbounded query rectangle rather than clamping to index bounds; closure references and construction allocations require checking against the cancellation/constructor contract. The required `scripts/test-cover-index.ts` is entirely missing. Complete the task card, add its tests, get scoped independent review, run integration gates, then commit/integrate the implementation. Do not simply commit this draft as done.
+
+The previously uncommitted architecture/status/plan edits are included in this handoff commit. **No accepted integration work remains uncommitted after this publication.** The pending production implementation is the cover-index draft and its missing tests.
+
+Two unrelated untracked files remain in the user's original primary checkout (`worktree-3d-london-map` at `d36b8a4`): `lib/game/render3d/buildScheduler.ts` and `scripts/test-build-scheduler.ts`. They predate this work and were left untouched. Accepted scheduler code is already on the integration branch; do not overwrite or blindly stage these primary-checkout files.
+
+## Remaining sequence
+
+1. Finish and review R5b-4a cover index using the exact task card. It must preserve full CityData identity and original road/park/water indices, with bounded vertex and bucket work.
+2. Implement bounded cover emission for water, parks, roads and trees. Preserve crossing/water context, deterministic retained-record behavior, coverage across boundaries and shared material ownership. Wrapping current whole-city functions in a scheduler does not satisfy C4. Follow the source inventory before decomposition.
+3. Complete R5b profiling, including remaining atomic-building limits, then R6: connect index/scheduler/detail/cell jobs, camera coverage, readiness, resource budgets, prefetch/hysteresis and eviction. Cover must follow all camera paths. Fix the missing Fitzrovia search entry; earlier R2 used Farringdon and did not close that defect.
+4. Run actual browser navigation/tours, reload, failure and context-loss cases with diagnostics. Measure visible draw calls, geometry/process memory and timing. Default full-city B1 remains red on the earlier renderer at about 1.6 GiB. The 93 MiB figure excludes cover/heroes/detail/overhead and does not certify the 128 MiB budget or G1. 1,609 overview cells also require visible draw-call measurement.
+5. Continue the separate fidelity track: Charlotte Street source completeness, grounded modelling, in-game real-place comparison and mobile acceptance. Source cards for 26/28/30 are evidence, not F1 GO. Most street-fidelity work remains.
+
+Keep gameplay/save/audio/UI semantics, the automatic 2D fallback, dynamic Three import boundary, current bbox/binary/GLBs and main London Startup Map separation intact. Do not deploy to londonstartupmap.com. Never overlap build/browser timing workloads or rerun completed baselines merely because the agent changed.
+
+Historical judgment estimate was roughly 50% of runtime recovery and 20–25% of the full faithful-London goal; these are not measured delivery percentages. [Execution ledger](execution-ledger.md) preserves prior acceptance decisions and rulings for recovery, including interrupted attempts.
