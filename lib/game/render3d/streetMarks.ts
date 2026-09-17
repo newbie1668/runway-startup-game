@@ -41,13 +41,25 @@ export function* polylineDashSteps(
   dashM = DASH_LENGTH_M,
   gapM = DASH_GAP_M,
 ): Generator<void, DashSeg[]> {
-  if (pts.length < 2) return [];
+  const out: DashSeg[] = [];
+  yield* visitPolylineDashSteps(pts, (dash) => {
+    out.push(dash);
+  }, dashM, gapM);
+  return out;
+}
+
+export function* visitPolylineDashSteps(
+  pts: readonly PolyPoint[],
+  visit: (dash: DashSeg) => void,
+  dashM = DASH_LENGTH_M,
+  gapM = DASH_GAP_M,
+): Generator<void> {
+  if (pts.length < 2) return;
   const dashW = dashM * METERS_TO_WORLD;
   const gapW = gapM * METERS_TO_WORLD;
   const period = dashW + gapW;
-  if (period <= 1e-6) return [];
+  if (period <= 1e-6) return;
   const minLen = 0.4 * METERS_TO_WORLD;
-  const out: DashSeg[] = [];
   let inDash = true;
   let remain = dashW;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -70,16 +82,16 @@ export function* polylineDashSteps(
       }
       const take = Math.min(remain, len - local);
       if (inDash && take >= minLen) {
-        out.push({
+        visit({
           a: { x: a.x + ux * local, z: a.z + uz * local },
           b: { x: a.x + ux * (local + take), z: a.z + uz * (local + take) },
         });
+        yield;
       }
       local += take;
       remain -= take;
     }
   }
-  return out;
 }
 
 /**

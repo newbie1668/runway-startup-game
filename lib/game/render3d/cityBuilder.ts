@@ -40,7 +40,7 @@ import {
   type StockMassing,
 } from './buildingStyle';
 import * as pal from './palette';
-import { DASH_WIDTH_M, polylineDashes, polylineDashSteps } from './streetMarks';
+import { DASH_WIDTH_M, polylineDashes, visitPolylineDashSteps } from './streetMarks';
 import { chamferRing, insetRingTowardCentroid, scaleToward } from './footprint';
 import {
   analyzeFootprint,
@@ -4621,8 +4621,19 @@ export function createRoadCoverJob(
     );
     const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
     const marks = function* (points: { x: number; z: number }[]): Generator<void> {
-      for (const dash of yield* polylineDashSteps(points))
-        yield* appendCoverRibbonSteps(markWriter, [dash.a, dash.b], halfDash, MARK_Y, bounds);
+      const pending: { a: CoverPoint; b: CoverPoint }[] = [];
+      const dashes = visitPolylineDashSteps(points, (dash) => {
+        pending.push(dash);
+      });
+      for (;;) {
+        const step = dashes.next();
+        while (pending.length) {
+          const dash = pending.shift()!;
+          yield* appendCoverRibbonSteps(markWriter, [dash.a, dash.b], halfDash, MARK_Y, bounds);
+        }
+        if (step.done) break;
+        yield;
+      }
     };
     for (let tier = 0; tier <= 2; tier++) {
       const walkWriter = createCoverPageWriter(context, () => {
