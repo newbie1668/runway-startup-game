@@ -80,10 +80,14 @@ import {
   pointOverWater,
   waterRings,
   type WaterRing,
-  pointInRingSteps,
   pointOverWaterSteps,
   waterSourceRingsSteps,
 } from './waterQuery';
+import {
+  buildWaterEdgeIndex,
+  indexedPointInRingSteps,
+  type WaterEdgeIndex,
+} from './waterEdgeIndex';
 import type { StockDetail } from './detailPolicy';
 
 export { chunkTierMeshes } from './chunkCells';
@@ -2356,6 +2360,7 @@ export function buildParks(cityData: CityData, keep: KeepDisk | null = null): TH
 type ParkInfo = Omit<NonNullable<ReturnType<typeof parkCentroid>>, 'ring'> & {
   bounds: BoundsXZ;
   ring: CoverSequence<{ x: number; z: number }>;
+  edgeIndex: WaterEdgeIndex;
 };
 const parkInfoCache = new WeakMap<CityPoly, ParkInfo>();
 const parkTileCounts = new WeakMap<CityData, Map<number, number>>();
@@ -2387,11 +2392,13 @@ function* parkInfoSteps(park: CityPoly): Generator<void, ParkInfo | null> {
     acc += a.x * b.z - b.x * a.z;
     yield;
   }
+  const edgeIndex = yield* buildWaterEdgeIndex(ring);
   const info = {
     x: x / n,
     z: z / n,
     ring,
     bounds,
+    edgeIndex,
     areaM2: (Math.abs(acc) * 0.5) / (METERS_TO_WORLD * METERS_TO_WORLD),
   };
   parkInfoCache.set(park, info);
@@ -2468,7 +2475,7 @@ export function createParkCoverJob(
       const info = yield* parkInfoSteps(park);
       yield;
       if (!info) continue;
-      const { ring } = info;
+      const { ring, edgeIndex } = info;
       const cell = parkCellWorld(info.areaM2);
       const cachedTileCount = tileCounts.get(source);
       let tiled = cachedTileCount ?? 0;
@@ -2485,12 +2492,13 @@ export function createParkCoverJob(
           const cx = (x0 + x1) * 0.5,
             cz = (z0 + z1) * 0.5;
           const cornersIn =
-            ((yield* pointInRingSteps(x0, z0, ring)) ? 1 : 0) +
-            ((yield* pointInRingSteps(x1, z0, ring)) ? 1 : 0) +
-            ((yield* pointInRingSteps(x1, z1, ring)) ? 1 : 0) +
-            ((yield* pointInRingSteps(x0, z1, ring)) ? 1 : 0);
+            ((yield* indexedPointInRingSteps(x0, z0, edgeIndex)) ? 1 : 0) +
+            ((yield* indexedPointInRingSteps(x1, z0, edgeIndex)) ? 1 : 0) +
+            ((yield* indexedPointInRingSteps(x1, z1, edgeIndex)) ? 1 : 0) +
+            ((yield* indexedPointInRingSteps(x0, z1, edgeIndex)) ? 1 : 0);
           const tight = cell < 18 * METERS_TO_WORLD;
-          if (!(yield* pointInRingSteps(cx, cz, ring)) && (!tight || cornersIn < 2)) continue;
+          if (!(yield* indexedPointInRingSteps(cx, cz, edgeIndex)) && (!tight || cornersIn < 2))
+            continue;
           if (yield* pointOverWaterSteps(cx, cz, water)) continue;
           if (
             landmarkExclusionAt(cx, cz) !== null ||
@@ -2830,7 +2838,7 @@ function* treeSpotsSteps(cityData: CityData): Generator<void, TreeSpot[]> {
         Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.28;
       const x = info.x + Math.cos(ang) * rad,
         z = info.z + Math.sin(ang) * rad;
-      if (!(yield* pointInRingSteps(x, z, info.ring))) continue;
+      if (!(yield* indexedPointInRingSteps(x, z, info.edgeIndex))) continue;
       if (landmarkExclusionAt(x, z) !== null || nearLondonCityAirport(x, z)) continue;
       spots.push({
         x,
