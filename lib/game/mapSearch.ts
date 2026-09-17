@@ -88,6 +88,15 @@ export function placeCatalog(): readonly PlaceHit[] {
       viewH: 12,
     });
   }
+  const fitzrovia = project([-0.1358, 51.5196]);
+  hits.push({
+    id: 'area:FITZROVIA',
+    label: 'Fitzrovia',
+    kind: 'neighbourhood',
+    x: fitzrovia.x,
+    y: fitzrovia.y,
+    viewH: 1.92,
+  });
   for (const park of PARKS) {
     const at = park.label ?? park.points[0]!;
     const p = project(at);
