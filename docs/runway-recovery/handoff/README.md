@@ -7,9 +7,11 @@ and renderer/stream review; [repository gates and reports](../evidence/R6/README
 are recorded. Camera-driven stock/cover generation, detail, prefetch, replacement
 and eviction are connected to `CityRenderer3D`. Fitzrovia is unique in search.
 The parent owns integration in `devin/1789676440-camera-stream` and publishes
-reviewed checkpoints to this PR's `build/runway-recovery` branch. Fresh
-production browser acceptance is next: the earlier 21-second useful frame is
-unresolved, and 127.54 MiB CPU-only overview excludes landmarks/GPU/browser work.
+reviewed checkpoints to this PR's `build/runway-recovery` branch. Production
+`7a72081` then failed startup (index at 60.4 seconds; no useful frame by 74.3
+seconds). Scheduler correction `e153df9` independently passes review and all
+repository gates; fresh production browser acceptance is next.
+The 127.54 MiB CPU-only overview excludes landmarks/GPU/browser work.
 Source audit `1aa3fef` is accepted as an honest modelling NO-GO packet.
 See [current status](../status.md) before using the historical notes below.
 
@@ -18,7 +20,7 @@ See [current status](../status.md) before using the historical notes below.
 1. [Execution status](../status.md), [product contract](../product.md), [architecture](../architecture.md), [agent contract](../agent-contract.md).
 2. [Runtime recovery plan](../../superpowers/plans/2026-09-05-runway-recovery.md) and [London fidelity plan](../../superpowers/plans/2026-09-05-london-fidelity.md).
 3. [Latest verified compact overview checkpoint](../evidence/R5b/compact-overview/README.md).
-4. [Accepted cover-index contract](cover-index-task.md), [cover source inventory](cover-source-inventory.md), and [preparation notes](cover-preparation.md). Preparation includes historical estimates; the current measured overview total is 93.06 MiB.
+4. [Accepted cover-index contract](cover-index-task.md), [cover source inventory](cover-source-inventory.md), and [preparation notes](cover-preparation.md). Preparation includes historical estimates; 93.06 MiB covers stock only, while the later 127.54 MiB CPU profile includes stock and cover.
 
 ## Earlier completed and verified checkpoint
 
