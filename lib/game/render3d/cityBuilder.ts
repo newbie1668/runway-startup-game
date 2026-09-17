@@ -3354,11 +3354,11 @@ function* polylineWithWaterBreaksSteps(
   overWater: (x: number, z: number) => Generator<void, boolean>,
 ): Generator<void, CoverSequence<{ x: number; z: number }>> {
   const out = new CoverPages<{ x: number; z: number }>();
+  let prev: { x: number; z: number } | null = null;
   for (let i = 0; i < pts.length; i++) {
     yield;
     const p = pts.at(i)!;
-    if (i > 0) {
-      const prev = pts.at(i - 1)!;
+    if (prev) {
       if (!(yield* overWater(prev.x, prev.z)) && !(yield* overWater(p.x, p.z))) {
         const ch = yield* waterChannelOnEdgeSteps(prev, p, overWater);
         if (ch) {
@@ -3370,6 +3370,7 @@ function* polylineWithWaterBreaksSteps(
       }
     }
     out.push(p);
+    prev = p;
   }
   return out;
 }

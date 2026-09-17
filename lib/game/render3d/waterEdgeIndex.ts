@@ -70,10 +70,12 @@ export function* indexedPointInRingSteps(
     const points = node.points;
     for (let i = node.start; i < node.end; i++) {
       const j = i === 0 ? points.length - 1 : i - 1;
-      const xi = points.at(i)!.x;
-      const zi = points.at(i)!.z;
-      const xj = points.at(j)!.x;
-      const zj = points.at(j)!.z;
+      const a = points.at(i)!;
+      const b = points.at(j)!;
+      const xi = a.x;
+      const zi = a.z;
+      const xj = b.x;
+      const zj = b.z;
       if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi)
         inside = !inside;
     }
