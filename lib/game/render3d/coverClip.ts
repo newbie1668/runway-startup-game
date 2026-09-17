@@ -35,6 +35,19 @@ export function appendCoverPolygon(
   y: number,
   bounds: BoundsXZ | null,
 ): number {
+  if (bounds && polygon.length > 3) {
+    let count = 0;
+    for (let i = 1; i < polygon.length - 1; i++) {
+      count += appendCoverPolygon(
+        positions,
+        indices,
+        [polygon[0]!, polygon[i]!, polygon[i + 1]!],
+        y,
+        bounds,
+      );
+    }
+    return count;
+  }
   const clipped = clipCoverPolygon(polygon, bounds);
   if (clipped.length < 3) return 0;
   const base = positions.length / 3;
