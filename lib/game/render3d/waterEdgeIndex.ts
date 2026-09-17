@@ -52,9 +52,14 @@ export function* indexedPointInRingSteps(
 ): Generator<void, boolean> {
   let inside = false;
   const pending = [index];
+  let units = 0;
   while (pending.length) {
+    if (units === 16) {
+      yield;
+      units = 0;
+    }
     const node = pending.pop()!;
-    yield;
+    units++;
     if (z < node.minZ || z >= node.maxZ) continue;
     if (node.kind === 'branch') {
       pending.push(node.right, node.left);

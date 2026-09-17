@@ -47,7 +47,7 @@ for (const ring of rings) {
     }
   }
 }
-assert(indexedUnits < fullEdges / 3, 'Real-ring edge work must fall without changing containment');
+assert(indexedUnits < fullEdges / 3, 'Query resumptions must fall without changing containment');
 
 let random = 20260917;
 const next = (): number => {
@@ -61,18 +61,34 @@ for (let i = 0; i < 2000; i++) {
 }
 
 for (const length of [0, 1, 31, 32, 33, 1025, 65535]) {
+  let reads = 0;
   const points = Array.from({ length }, (_, i) => ({
-    x: i % 7,
-    z: i % 2 === 0 ? -10 : 10,
+    get x() {
+      reads++;
+      return i % 7;
+    },
+    get z() {
+      reads++;
+      return i % 2 === 0 ? -10 : 10;
+    },
   }));
   const built = consume(buildWaterEdgeIndex(points));
   assert(built.units <= length * 2 + 1);
   for (const z of [-10, -10 + 1e-12, 0, 10 - 1e-12, 10]) {
-    const result = consume(indexedPointInRingSteps(2.5, z, built.value));
-    assert.equal(result.value, pointInRing(2.5, z, points));
-    assert(result.units <= length * 2 + 1);
+    const query = indexedPointInRingSteps(2.5, z, built.value);
+    let units = 0;
+    for (;;) {
+      reads = 0;
+      const result = query.next();
+      assert(reads <= 256, 'A query unit reads at most sixteen four-edge leaves');
+      if (result.done) {
+        assert.equal(result.value, pointInRing(2.5, z, points));
+        break;
+      }
+      assert(++units <= length * 2 + 1);
+    }
   }
 }
 console.log(
-  `Water edge hierarchy: ${cases} boundary checks, 2000 source queries, ${(fullEdges / indexedUnits).toFixed(1)}x fewer edge/node units`,
+  `Water edge hierarchy: ${cases} boundary checks, 2000 source queries, bounded 256 coordinate reads/unit, ${(fullEdges / indexedUnits).toFixed(1)}x fewer resumptions than linear edges`,
 );
