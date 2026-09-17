@@ -2,9 +2,12 @@ import type { BoundsXZ } from './cityIndex';
 
 export type CoverPoint = { x: number; z: number };
 
-export function clipCoverPolygon(polygon: CoverPoint[], bounds: BoundsXZ | null): CoverPoint[] {
+export function clipCoverPolygon(
+  polygon: readonly CoverPoint[],
+  bounds: BoundsXZ | null,
+): readonly CoverPoint[] {
   if (!bounds) return polygon;
-  let points = polygon;
+  let points: readonly CoverPoint[] = polygon;
   for (const [axis, edge, sign] of [
     ['x', bounds.minX, 1],
     ['x', bounds.maxX, -1],
@@ -28,30 +31,21 @@ export function clipCoverPolygon(polygon: CoverPoint[], bounds: BoundsXZ | null)
   return points;
 }
 
-export function appendCoverPolygon(
-  positions: number[],
-  indices: number[],
-  polygon: CoverPoint[],
-  y: number,
+/**
+ * Convex pieces of `polygon` inside `bounds`, in fan order. Folded ribbons are
+ * clipped per fan triangle so a self-overlapping quad never loses coverage.
+ * Each piece has at most `polygon.length + 4` points.
+ */
+export function* clippedCoverPieces(
+  polygon: readonly CoverPoint[],
   bounds: BoundsXZ | null,
-): number {
+): Generator<readonly CoverPoint[], void> {
   if (bounds && polygon.length > 3) {
-    let count = 0;
     for (let i = 1; i < polygon.length - 1; i++) {
-      count += appendCoverPolygon(
-        positions,
-        indices,
-        [polygon[0]!, polygon[i]!, polygon[i + 1]!],
-        y,
-        bounds,
-      );
+      yield* clippedCoverPieces([polygon[0]!, polygon[i]!, polygon[i + 1]!], bounds);
     }
-    return count;
+    return;
   }
   const clipped = clipCoverPolygon(polygon, bounds);
-  if (clipped.length < 3) return 0;
-  const base = positions.length / 3;
-  for (const point of clipped) positions.push(point.x, y, point.z);
-  for (let i = 1; i < clipped.length - 1; i++) indices.push(base, base + i, base + i + 1);
-  return clipped.length;
+  if (clipped.length >= 3) yield clipped;
 }

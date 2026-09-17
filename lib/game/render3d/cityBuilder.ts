@@ -58,8 +58,13 @@ import {
 } from './uniqueStreet';
 import { splitChunkCells } from './chunkCells';
 import type { BoundsXZ, CellId } from './cityIndex';
-import { coverMesh, createCoverJob, type CoverJobOptions } from './coverGeometry';
-import { appendCoverPolygon, clipCoverPolygon } from './coverClip';
+import {
+  createCoverJob,
+  createCoverPageWriter,
+  type CoverJobOptions,
+  type CoverPageWriter,
+} from './coverGeometry';
+import { clipCoverPolygon, type CoverPoint } from './coverClip';
 import { readonlyValues } from './coverCollections';
 import {
   aabbHitsKeep,
@@ -654,7 +659,8 @@ function emitDetailedBuildings(
   for (const buildingIndex of selected) {
     const b = cityData.buildings[buildingIndex]!;
     const positionStart = positions.length;
-    if ((chunkId !== null && b.chunkId !== chunkId) || (major !== null && b.major !== major)) continue;
+    if ((chunkId !== null && b.chunkId !== chunkId) || (major !== null && b.major !== major))
+      continue;
     if (excludedBuildingIndices.has(buildingIndex)) continue;
     const n = b.verts.length / 2;
     if (n < 3) continue;
@@ -710,7 +716,7 @@ function emitDetailedBuildings(
         const [nx, nz] = outwardNormal(a.x, a.z, bp.x, bp.z, cx, cz);
         const dx = bp.x - a.x;
         const dz = bp.z - a.z;
-        const flip = (-dz * heightWorld) * nx + (dx * heightWorld) * nz < 0;
+        const flip = -dz * heightWorld * nx + dx * heightWorld * nz < 0;
         const a0 = pushVertex(a.x, 0, a.z, nx, 0, nz, wallBottomHex);
         const b0 = pushVertex(bp.x, 0, bp.z, nx, 0, nz, wallBottomHex);
         const a1 = pushVertex(a.x, heightWorld, a.z, nx, 0, nz, baseHex);
@@ -749,11 +755,19 @@ function emitDetailedBuildings(
         const i0 = b.indices[t]!;
         let i1 = b.indices[t + 1]!;
         let i2 = b.indices[t + 2]!;
-        const p0 = ring[i0]; const p1 = ring[i1]; const p2 = ring[i2];
+        const p0 = ring[i0];
+        const p1 = ring[i1];
+        const p2 = ring[i2];
         if (!p0 || !p1 || !p2) continue;
         const ny = (p1.z - p0.z) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.z - p0.z);
-        if (ny < 0) { const swap = i1; i1 = i2; i2 = swap; }
-        const r0 = ring[i0]!; const r1 = ring[i1]!; const r2 = ring[i2]!;
+        if (ny < 0) {
+          const swap = i1;
+          i1 = i2;
+          i2 = swap;
+        }
+        const r0 = ring[i0]!;
+        const r1 = ring[i1]!;
+        const r2 = ring[i2]!;
         const v0 = pushVertex(r0.x, heightWorld, r0.z, 0, 1, 0, roofHex);
         const v1 = pushVertex(r1.x, heightWorld, r1.z, 0, 1, 0, roofHex);
         const v2 = pushVertex(r2.x, heightWorld, r2.z, 0, 1, 0, roofHex);
@@ -764,10 +778,16 @@ function emitDetailedBuildings(
         // constructing the detailed facade recipe.
         const named = streetKind ? STREET_UNIQUE_LABEL[streetKind] : null;
         scratch.picks.push({
-        sourceIndex: buildingIndex, x: cx, z: cz, heightWorld, heightM: b.heightM,
-        areaM2, style, district,
-        label: named?.use ?? pal.USE_LABEL[style] ?? pal.STYLE_LABEL[style] ?? 'Building',
-        address: named?.name ?? pal.streetAddress(district, seed),
+          sourceIndex: buildingIndex,
+          x: cx,
+          z: cz,
+          heightWorld,
+          heightM: b.heightM,
+          areaM2,
+          style,
+          district,
+          label: named?.use ?? pal.USE_LABEL[style] ?? pal.STYLE_LABEL[style] ?? 'Building',
+          address: named?.name ?? pal.streetAddress(district, seed),
         });
       }
       if (positions.length > positionStart) sourceBuildingIndices.push(buildingIndex);
@@ -1614,7 +1634,8 @@ export function buildCellStockBatch(args: {
   if (detail !== 'overview' && detail !== 'neighbourhood' && detail !== 'street') {
     throw new RangeError(`unknown stock detail: ${String(args.detail)}`);
   }
-  if (buildingIndices.length > 16) throw new RangeError('buildingIndices must contain at most 16 entries');
+  if (buildingIndices.length > 16)
+    throw new RangeError('buildingIndices must contain at most 16 entries');
   const seen = new Set<number>();
   for (const index of buildingIndices) {
     if (!Number.isInteger(index) || index < 0 || index >= cityData.buildings.length) {
@@ -2393,25 +2414,49 @@ export function createParkCoverJob(
       tileCounts = new Map();
       parkTileCounts.set(options.cityData, tileCounts);
     }
-    const positions: number[] = [],
-      colors: number[] = [],
-      indices: number[] = [];
+    const grassWriter = createCoverPageWriter(
+      context,
+      () =>
+        context.own(
+          new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            vertexColors: true,
+            side: THREE.FrontSide,
+            fog: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+          }),
+        ),
+      {
+        colors: true,
+        upNormals: true,
+        decorate(mesh) {
+          mesh.name = 'grass';
+          mesh.receiveShadow = false;
+        },
+      },
+    );
     const base = new THREE.Color(0x6ea84c),
       dark = new THREE.Color(0x5a9340),
       lite = new THREE.Color(0x88bf5e);
     let eligibleGrass = false;
-    const emit = (vertices: { x: number; z: number }[], shade: THREE.Color): void => {
+    const emit = function* (vertices: { x: number; z: number }[], shade: THREE.Color) {
       eligibleGrass = true;
       const clipped = clipCoverPolygon(vertices, bounds);
-      for (let i = 1; i < clipped.length - 1; i++)
-        emitParkVerts(
-          positions,
-          colors,
-          indices,
-          [clipped[0]!, clipped[i]!, clipped[i + 1]!],
-          PARK_Y,
-          shade,
-        );
+      for (let i = 1; i < clipped.length - 1; i++) {
+        const verts = [clipped[0]!, clipped[i]!, clipped[i + 1]!];
+        const cross =
+          (verts[1]!.x - verts[0]!.x) * (verts[2]!.z - verts[0]!.z) -
+          (verts[1]!.z - verts[0]!.z) * (verts[2]!.x - verts[0]!.x);
+        yield* grassWriter.reserve(3, 3);
+        const first = grassWriter.vertexCount;
+        for (const j of cross < 0 ? [0, 2, 1] : [0, 1, 2]) {
+          const v = verts[j]!;
+          grassWriter.vertex(v.x, PARK_Y, v.z, shade.r, shade.g, shade.b);
+        }
+        grassWriter.triangle(first, first + 1, first + 2);
+      }
     };
     for (const source of options.parkIndices) {
       const park = options.cityData.parks[source];
@@ -2458,7 +2503,7 @@ export function createParkCoverJob(
           )
             continue;
           const shade = parkShadeAt(cx, cz, base, dark, lite);
-          emit(
+          yield* emit(
             [
               { x: x0, z: z0 },
               { x: x1, z: z0 },
@@ -2466,7 +2511,7 @@ export function createParkCoverJob(
             ],
             shade,
           );
-          emit(
+          yield* emit(
             [
               { x: x0, z: z0 },
               { x: x1, z: z1 },
@@ -2500,33 +2545,26 @@ export function createParkCoverJob(
             continue;
           if (triangleHitsExclusion(a.x, a.z, b.x, b.z, c.x, c.z)) continue;
           if (yield* pointOverWaterSteps(mx, mz, water)) continue;
-          emit([a, b, c], parkShadeAt(mx, mz, base, dark, lite));
+          yield* emit([a, b, c], parkShadeAt(mx, mz, base, dark, lite));
         }
       }
     }
-    if (indices.length) {
-      const grassMaterial = context.own(
-        new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          vertexColors: true,
-          side: THREE.FrontSide,
-          fog: true,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2,
-        }),
-      );
-      const grass = yield* coverMesh(context, positions, indices, grassMaterial, colors, true);
-      if (grass) {
-        grass.name = 'grass';
-        grass.receiveShadow = false;
-        context.root.add(grass);
-      }
-    }
-    positions.length = colors.length = indices.length = 0;
+    yield* grassWriter.finish(context.root);
     yield;
     if (!eligibleGrass) return;
     const halfW = 2.8 * METERS_TO_WORLD;
+    const pathWriter = createCoverPageWriter(
+      context,
+      () =>
+        context.own(
+          new THREE.MeshBasicMaterial({ color: pal.PARK_PATH, side: THREE.DoubleSide, fog: true }),
+        ),
+      {
+        decorate(mesh) {
+          mesh.receiveShadow = false;
+        },
+      },
+    );
     for (const source of options.parkIndices) {
       const info = yield* parkInfoSteps(options.cityData.parks[source]!);
       yield;
@@ -2559,34 +2597,28 @@ export function createParkCoverJob(
         halfW,
         PARK_Y + 0.012,
       );
-      const offset = positions.length / 3;
       if (!bounds) {
-        positions.push(...path.positions);
-        for (const i of path.indices) indices.push(offset + i);
+        yield* pathWriter.reserve(path.positions.length / 3, path.indices.length);
+        const offset = pathWriter.vertexCount;
+        for (let i = 0; i < path.positions.length; i += 3)
+          pathWriter.vertex(path.positions[i]!, path.positions[i + 1]!, path.positions[i + 2]!);
+        for (let i = 0; i < path.indices.length; i += 3)
+          pathWriter.triangle(
+            offset + path.indices[i]!,
+            offset + path.indices[i + 1]!,
+            offset + path.indices[i + 2]!,
+          );
       } else {
         for (let i = 0; i < path.indices.length; i += 3) {
           const polygon = path.indices.slice(i, i + 3).map((v) => ({
             x: path.positions[v * 3]!,
             z: path.positions[v * 3 + 2]!,
           }));
-          const clipped = clipCoverPolygon(polygon, bounds),
-            start = positions.length / 3;
-          for (const p of clipped) positions.push(p.x, PARK_Y + 0.012, p.z);
-          for (let j = 1; j < clipped.length - 1; j++)
-            indices.push(start, start + j, start + j + 1);
+          yield* pathWriter.polygon(polygon, PARK_Y + 0.012, bounds);
         }
       }
     }
-    if (indices.length) {
-      const material = context.own(
-        new THREE.MeshBasicMaterial({ color: pal.PARK_PATH, side: THREE.DoubleSide, fog: true }),
-      );
-      const paths = yield* coverMesh(context, positions, indices, material);
-      if (paths) {
-        paths.receiveShadow = false;
-        context.root.add(paths);
-      }
-    }
+    yield* pathWriter.finish(context.root);
   });
 }
 
@@ -3063,13 +3095,13 @@ function* roadPtsSteps(road: CityRoad): Generator<
 > {
   const n = road.pts.length / 2;
   if (n < 2) return null;
-  const pts = new Array<{
+  const pts: {
     x: number;
     z: number;
-  }>(n);
+  }[] = [];
   for (let i = 0; i < n; i++) {
     yield;
-    pts[i] = { x: dequantizeX(road.pts[i * 2]!), z: dequantizeY(road.pts[i * 2 + 1]!) };
+    pts.push({ x: dequantizeX(road.pts[i * 2]!), z: dequantizeY(road.pts[i * 2 + 1]!) });
   }
   return pts;
 }
@@ -3109,6 +3141,39 @@ function* appendRibbonSteps(
   }
 }
 
+/** The six zebra bars of one crosswalk as XZ quads, in paint order. */
+function crosswalkBars(
+  x: number,
+  z: number,
+  tx: number,
+  tz: number,
+  roadHalf: number,
+): [CoverPoint, CoverPoint, CoverPoint, CoverPoint][] {
+  const nx = -tz;
+  const nz = tx;
+  const bars = 6;
+  const barW = 0.85 * METERS_TO_WORLD;
+  const gap = 1.05 * METERS_TO_WORLD;
+  const start = -((bars - 1) / 2) * gap;
+  const quads: [CoverPoint, CoverPoint, CoverPoint, CoverPoint][] = [];
+  for (let i = 0; i < bars; i++) {
+    const along = start + i * gap;
+    const cx = x + tx * along;
+    const cz = z + tz * along;
+    const hx = nx * roadHalf * 0.82;
+    const hz = nz * roadHalf * 0.82;
+    const wx = tx * barW * 0.5;
+    const wz = tz * barW * 0.5;
+    quads.push([
+      { x: cx - hx - wx, z: cz - hz - wz },
+      { x: cx + hx - wx, z: cz + hz - wz },
+      { x: cx + hx + wx, z: cz + hz + wz },
+      { x: cx - hx + wx, z: cz - hz + wz },
+    ]);
+  }
+  return quads;
+}
+
 function addCrosswalk(
   pos: number[],
   idx: number[],
@@ -3118,35 +3183,9 @@ function addCrosswalk(
   tz: number,
   roadHalf: number,
 ): void {
-  const nx = -tz;
-  const nz = tx;
-  const bars = 6;
-  const barW = 0.85 * METERS_TO_WORLD;
-  const gap = 1.05 * METERS_TO_WORLD;
-  const start = -((bars - 1) / 2) * gap;
-  for (let i = 0; i < bars; i++) {
-    const along = start + i * gap;
-    const cx = x + tx * along;
-    const cz = z + tz * along;
-    const hx = nx * roadHalf * 0.82;
-    const hz = nz * roadHalf * 0.82;
-    const wx = tx * barW * 0.5;
-    const wz = tz * barW * 0.5;
+  for (const bar of crosswalkBars(x, z, tx, tz, roadHalf)) {
     const base = pos.length / 3;
-    pos.push(
-      cx - hx - wx,
-      MARK_Y + 0.002,
-      cz - hz - wz,
-      cx + hx - wx,
-      MARK_Y + 0.002,
-      cz + hz - wz,
-      cx + hx + wx,
-      MARK_Y + 0.002,
-      cz + hz + wz,
-      cx - hx + wx,
-      MARK_Y + 0.002,
-      cz - hz + wz,
-    );
+    for (const p of bar) pos.push(p.x, MARK_Y + 0.002, p.z);
     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 }
@@ -3247,7 +3286,6 @@ function waterChannelOnEdge(
     }),
   );
 }
-
 
 function* waterChannelOnEdgeSteps(
   a: {
@@ -3373,7 +3411,6 @@ export function splitRoadRuns(
     }),
   );
 }
-
 
 function* splitRoadRunsSteps(
   pts: {
@@ -3608,7 +3645,6 @@ export function stitchWaterSpans(
   );
 }
 
-
 function* stitchWaterSpansSteps(
   approaches: RoadApproach[],
   overWater: (x: number, z: number) => Generator<void, boolean>,
@@ -3673,7 +3709,6 @@ export function walkAcrossWater(
     ),
   );
 }
-
 
 function* walkAcrossWaterSteps(
   a: RoadApproach,
@@ -3929,7 +3964,6 @@ export function buildCrossingSpans(
   );
 }
 
-
 function* buildCrossingSpansSteps(
   approaches: RoadApproach[],
   overWater: (x: number, z: number) => Generator<void, boolean>,
@@ -4184,7 +4218,6 @@ export type PlannedCrosswalk = {
 export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
   return consumeSteps(plannedCrosswalksSteps(cityData));
 }
-
 
 function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCrosswalk[]> {
   const rings = yield* waterRingsSteps(cityData);
@@ -4528,8 +4561,7 @@ export function* roadCoverContextSteps(cityData: CityData): Generator<void, Road
 }
 
 function* appendCoverRibbonSteps(
-  positions: number[],
-  indices: number[],
+  writer: CoverPageWriter,
   points: { x: number; z: number }[],
   halfWidth: number,
   y: number,
@@ -4550,9 +4582,7 @@ function* appendCoverRibbonSteps(
     if (Math.hypot(b.x - a.x, b.z - a.z) < 0.35 * METERS_TO_WORLD) continue;
     const an = normal(i),
       bn = normal(i + 1);
-    appendCoverPolygon(
-      positions,
-      indices,
+    yield* writer.polygon(
       [
         { x: a.x + an.x, z: a.z + an.z },
         { x: a.x - an.x, z: a.z - an.z },
@@ -4595,18 +4625,43 @@ export function createRoadCoverJob(
       );
       return asphaltMaterial;
     };
-    const markPos: number[] = [],
-      markIdx: number[] = [];
+    const markWriter = createCoverPageWriter(
+      context,
+      () =>
+        context.own(
+          new THREE.MeshLambertMaterial({
+            color: pal.MARKING,
+            side: THREE.DoubleSide,
+            fog: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+          }),
+        ),
+      {
+        decorate(mesh) {
+          mesh.renderOrder = 1;
+          mesh.userData.roadMarks = true;
+        },
+      },
+    );
     const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
     const marks = function* (points: { x: number; z: number }[]): Generator<void> {
       for (const dash of yield* polylineDashSteps(points))
-        yield* appendCoverRibbonSteps(markPos, markIdx, [dash.a, dash.b], halfDash, MARK_Y, bounds);
+        yield* appendCoverRibbonSteps(markWriter, [dash.a, dash.b], halfDash, MARK_Y, bounds);
     };
     for (let tier = 0; tier <= 2; tier++) {
-      const walkPos: number[] = [],
-        walkIdx: number[] = [],
-        roadPos: number[] = [],
-        roadIdx: number[] = [];
+      const walkWriter = createCoverPageWriter(context, () => {
+        sidewalkMaterial ??= context.own(
+          new THREE.MeshLambertMaterial({
+            color: pal.PAVEMENT,
+            side: THREE.DoubleSide,
+            fog: true,
+          }),
+        );
+        return sidewalkMaterial;
+      });
+      const roadWriter = createCoverPageWriter(context, asphalt);
       const halfCarriage = (ROAD_WIDTHS_M[tier]! * METERS_TO_WORLD) / 2;
       const halfWalk = halfCarriage + SIDEWALK_M[tier]! * METERS_TO_WORLD;
       for (const index of options.roadIndices) {
@@ -4619,41 +4674,24 @@ export function createRoadCoverJob(
         if (!points) continue;
         for (const run of yield* splitRoadRunsSteps(points, overWater)) {
           for (const piece of yield* clipRibbonPtsSteps(run.pts)) {
-            yield* appendCoverRibbonSteps(walkPos, walkIdx, piece, halfWalk, SIDEWALK_Y, bounds);
-            yield* appendCoverRibbonSteps(roadPos, roadIdx, piece, halfCarriage, ROAD_Y, bounds);
+            yield* appendCoverRibbonSteps(walkWriter, piece, halfWalk, SIDEWALK_Y, bounds);
+            yield* appendCoverRibbonSteps(roadWriter, piece, halfCarriage, ROAD_Y, bounds);
             if (paintMarks && tier <= 1) yield* marks(piece);
           }
         }
       }
-      if (!walkIdx.length && !roadIdx.length) continue;
       const tierGroup = new THREE.Group();
       tierGroup.userData.roadTier = tier;
-      if (walkIdx.length) {
-        sidewalkMaterial ??= context.own(
-          new THREE.MeshLambertMaterial({
-            color: pal.PAVEMENT,
-            side: THREE.DoubleSide,
-            fog: true,
-          }),
-        );
-        const mesh = yield* coverMesh(context, walkPos, walkIdx, sidewalkMaterial);
-        if (mesh) tierGroup.add(mesh);
-      }
-      if (roadIdx.length) {
-        const mesh = yield* coverMesh(context, roadPos, roadIdx, asphalt());
-        if (mesh) tierGroup.add(mesh);
-      }
-      context.root.add(tierGroup);
+      const pages = (yield* walkWriter.finish(tierGroup)) + (yield* roadWriter.finish(tierGroup));
+      if (pages) context.root.add(tierGroup);
     }
-    const stitchPos: number[] = [],
-      stitchIdx: number[] = [];
+    const stitchWriter = createCoverPageWriter(context, asphalt);
     for (const span of roadContext.crossings) {
       yield;
       const points = [{ ...span.pts[0] }, { ...span.pts[1] }];
       if (runTouchesTowerBridge(points)) continue;
       yield* appendCoverRibbonSteps(
-        stitchPos,
-        stitchIdx,
+        stitchWriter,
         points,
         (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2,
         ROAD_Y,
@@ -4661,46 +4699,15 @@ export function createRoadCoverJob(
       );
       if (paintMarks) yield* marks(points);
     }
-    if (stitchIdx.length) {
-      const mesh = yield* coverMesh(context, stitchPos, stitchIdx, asphalt());
-      if (mesh) context.root.add(mesh);
-    }
+    yield* stitchWriter.finish(context.root);
     if (paintMarks) {
       for (const zebra of roadContext.crosswalks) {
         yield;
-        if (!bounds)
-          addCrosswalk(markPos, markIdx, zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half);
-        else {
-          const positions: number[] = [],
-            indices: number[] = [];
-          addCrosswalk(positions, indices, zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half);
-          for (let i = 0; i < positions.length; i += 12) {
-            const points = [];
-            for (let j = i; j < i + 12; j += 3)
-              points.push({ x: positions[j]!, z: positions[j + 2]! });
-            appendCoverPolygon(markPos, markIdx, points, MARK_Y + 0.002, bounds);
-          }
-        }
+        for (const bar of crosswalkBars(zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half))
+          yield* markWriter.polygon(bar, MARK_Y + 0.002, bounds);
       }
     }
-    if (markIdx.length) {
-      const material = context.own(
-        new THREE.MeshLambertMaterial({
-          color: pal.MARKING,
-          side: THREE.DoubleSide,
-          fog: true,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2,
-        }),
-      );
-      const mesh = yield* coverMesh(context, markPos, markIdx, material);
-      if (mesh) {
-        mesh.renderOrder = 1;
-        mesh.userData.roadMarks = true;
-        context.root.add(mesh);
-      }
-    }
+    yield* markWriter.finish(context.root);
   });
 }
 
