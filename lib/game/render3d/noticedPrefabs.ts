@@ -13,6 +13,7 @@ import { METERS_TO_WORLD } from '../geo';
 import { buildUniqueNoticed, isUniqueNoticedId, uniquePlanRing } from './uniqueNoticed';
 import { meshBudget } from './lookClip';
 import { loadPrefabScene, type PrefabLoadOptions } from './prefabLoad';
+import { batchStaticMeshes } from './staticMeshBatch';
 
 export const NOTICED_DIR = '/map/noticed';
 
@@ -116,6 +117,7 @@ export function instantiateNoticed(
       ring: uniquePlanRing(entry.id),
     });
     if (built) {
+      batchStaticMeshes(built, { keepUniquelyNamed: true });
       built.scale.y = TOWER_HEIGHT_SCALE / NOTICED_BAKE_HEIGHT_SCALE;
       return built;
     }

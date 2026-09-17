@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { ResourcePool } from './sceneResources';
 import { retainMatteScene, retainSceneResources } from './sceneResourceTree';
 import type { MatteGltfOptions } from './matteGltf';
+import { batchStaticMeshes } from './staticMeshBatch';
 
 export type PrefabLoadOptions = {
   resources: ResourcePool;
@@ -41,6 +42,13 @@ export async function loadPrefabScene(
     if (obsolete(options)) {
       releaseLateScene(options.resources, scene);
       return null;
+    }
+    // Batch while glTF materials are still shared, so one matte material is
+    // created per batch. A failed batch leaves the parsed scene untouched.
+    try {
+      batchStaticMeshes(scene);
+    } catch (batchError) {
+      options.onError(`${id}:batch`, batchError);
     }
     release = retainMatteScene(options.resources, scene, matteOptions);
     if (obsolete(options)) {
