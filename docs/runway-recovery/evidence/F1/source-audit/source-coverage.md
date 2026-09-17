@@ -1,6 +1,6 @@
 # Charlotte Street pilot: per-entity source coverage (generated)
 
-Generated 2026-09-17T20:22:09.983Z by `pnpm tsx scripts/audit-street-sources.ts --offline`. Do not edit by hand; see [source-audit.json](source-audit.json) for every field, source URL and match tier. "map" = OpenStreetMap tag (edit metadata, not an observation); "observed" = a dated source manually tied to this entity; "inferred" = a candidate label/position join; "—" = unknown. Each photo match states whether identity was verified, remains a candidate, or was rejected.
+Generated 2026-09-17T20:59:08.215Z by `pnpm tsx scripts/audit-street-sources.ts --offline`. Do not edit by hand; see [source-audit.json](source-audit.json) for every field, source URL and match tier. "map" = OpenStreetMap tag (edit metadata, not an observation); "observed" = a dated source manually tied to this entity; "inferred" = a candidate label/position join; "—" = unknown. Each photo match states whether identity was verified, remains a candidate, or was rejected.
 
 ## Route, sources and rule
 
@@ -18,6 +18,10 @@ Generated 2026-09-17T20:22:09.983Z by `pnpm tsx scripts/audit-street-sources.ts 
 | candidatePhotoOnly | 21 | 27 | 48 |
 | noPhoto | 3 | 1 | 4 |
 | photoDated2025Plus | 5 | 2 | 7 |
+| identityVerifiedPhoto2025Plus | 5 | 2 | 7 |
+| buildingsIdentityVerifiedPhoto | 2 | 4 | 6 |
+| buildingPartsIdentityVerifiedPhoto | 3 | 0 | 3 |
+| rejectedPhotoLabels | 0 | 1 | 1 |
 | levelsTagged | 23 | 29 | 52 |
 | heightTagged | 0 | 0 | 0 |
 | roofShapeTagged | 0 | 4 | 4 |

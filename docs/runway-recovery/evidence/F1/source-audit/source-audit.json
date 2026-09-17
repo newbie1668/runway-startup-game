@@ -1,6 +1,6 @@
 {
  "schema": "runway-f1-street-source-audit/v1",
- "recordedAt": "2026-09-17T20:22:09.983Z",
+ "recordedAt": "2026-09-17T20:59:08.215Z",
  "mode": "offline-rebuild",
  "route": {
   "direction": "south-to-north; provider way directions are reversed relative to travel",
@@ -130,6 +130,10 @@
    "candidatePhotoOnly": 21,
    "noPhoto": 3,
    "photoDated2025Plus": 5,
+   "identityVerifiedPhoto2025Plus": 5,
+   "buildingsIdentityVerifiedPhoto": 2,
+   "buildingPartsIdentityVerifiedPhoto": 3,
+   "rejectedPhotoLabels": 0,
    "levelsTagged": 23,
    "heightTagged": 0,
    "roofShapeTagged": 0,
@@ -145,6 +149,10 @@
    "candidatePhotoOnly": 27,
    "noPhoto": 1,
    "photoDated2025Plus": 2,
+   "identityVerifiedPhoto2025Plus": 2,
+   "buildingsIdentityVerifiedPhoto": 4,
+   "buildingPartsIdentityVerifiedPhoto": 0,
+   "rejectedPhotoLabels": 1,
    "levelsTagged": 29,
    "heightTagged": 0,
    "roofShapeTagged": 4,
@@ -160,6 +168,10 @@
    "candidatePhotoOnly": 48,
    "noPhoto": 4,
    "photoDated2025Plus": 7,
+   "identityVerifiedPhoto2025Plus": 7,
+   "buildingsIdentityVerifiedPhoto": 6,
+   "buildingPartsIdentityVerifiedPhoto": 3,
+   "rejectedPhotoLabels": 1,
    "levelsTagged": 52,
    "heightTagged": 0,
    "roofShapeTagged": 4,
@@ -306,7 +318,7 @@
     "residualMinM": 1.3,
     "residualMedianM": 1.84,
     "residualMaxM": 2.31,
-    "note": "residual checks the approximate WGS84→BNG transform against rounded Camden coordinates; it is not a building accuracy estimate"
+    "note": "residual measures only the approximate WGS84→BNG coordinate transform against rounded Camden tree coordinates; it is not an OSM-footprint-to-EA-raster registration figure and not a height/roof error bound"
    },
    "surveyIndex": {
     "dsm": {
@@ -404,13 +416,29 @@
      "status": "bounded inferred sample only; not a surveyed eaves/ridge height, not assigned to the frontage field, and not scaled to other entities"
     }
    ],
-   "limits": "1 m is grid spacing, not universal ±1 m accuracy. EA survey vertical RMSE does not propagate unchanged to roof/eaves/building height. OSM alignment, composite survey selection, DTM interpolation, vegetation, chimneys and roof outliers remain material."
+   "limits": "1 m is grid spacing, not universal ±1 m accuracy. EA survey vertical RMSE does not propagate unchanged to roof/eaves/building height. OSM-footprint-to-raster registration is unmeasured; composite survey selection, DTM interpolation, vegetation, chimneys and roof outliers remain material. Derived dimensions stay inferred even after a survey date is attributed, until field-specific uncertainty is validated against an independent measurement."
   },
   "kartaview": {
    "nearby": {
     "url": "https://api.openstreetcam.org/2.0/photo/?lat=51.5191&lng=-0.1354&radius=150",
     "retrievedAt": "2026-09-17T19:17:15.717Z",
     "sha256": "1fb40c3d4c63de88f72d30c7d1c0f1ec5d3d096bef63a741871b3150442d8be2"
+   },
+   "rights": {
+    "termsUrl": "https://kartaview.org/terms",
+    "termsShellFetch": {
+     "status": 200,
+     "bytes": 2159,
+     "sha256": "1eb3d606dc2fa6f1362662884515526ab2216b95994913c47e24c0b71f750321",
+     "note": "the terms page is a client-rendered SPA; the raw HTTP body is an application shell, so the licence clause below was captured from the rendered page (screenshot kartaview-terms-open-source-license.jpg, 2026-09-17)"
+    },
+    "faqUrl": "https://kartaview.org/faq",
+    "faqStatus": "HTTP 200 shell; rendered page shows \"Cannot find requested page\" (no FAQ licence statement is published at this route on 2026-09-17)",
+    "licenceStatementRendered": "\"… by licensing the street images made available on KartaView and 3D spatial data under Creative Commons Attribution-ShareAlike 4.0 International (\" CC-By-SA License\"), with the license terms available at https://creativecommons.org/licenses/by-sa/4.0/legalcode. … You are free to copy, distribute, transmit and adapt data on KartaView, as long as you comply with the applicable open source license and credit Grab and the KartaView contributors. We require that you use the credit \"© Grab and KartaView Contributors\".\"",
+    "requiredCredit": "© Grab and KartaView Contributors",
+    "licence": "CC BY-SA 4.0 (per Terms of Use §4 as rendered on 2026-09-17)",
+    "licenceUrl": "https://creativecommons.org/licenses/by-sa/4.0/legalcode",
+    "retainedResearchCopies": "three processed-image originals are cached under source-audit/cache with URL, retrieval time and SHA-256 as attributed research/evidence copies under CC BY-SA 4.0 with the required credit; this is a documentation use, not an approval to derive game textures or shipped assets (ShareAlike consequences for derived assets are not assessed here)"
    },
    "frames": [
     {
@@ -435,7 +463,14 @@
       "sha256": "12355c2b4cca274699e874f7e9bdf7787a12c5b1c6d64dea429f87ccb6b45c1d",
       "file": "kartaview-frame-163252803.jpg"
      },
-     "rights": "KartaView image reuse terms were not established from a provider licence statement in this audit; originals are cached for internal evidence inspection only and are not attached or proposed as shipped assets"
+     "contributor": {
+      "sequenceUrl": "https://api.openstreetcam.org/2.0/sequence/969223",
+      "userId": "12139",
+      "orgCode": "CMNT",
+      "deviceName": "Google Pixel",
+      "note": "the public API exposes a numeric contributor userId only; the user endpoint refuses numeric ids (HTTP 400 apiCode 418), so no display name is retained"
+     },
+     "attribution": "© Grab and KartaView Contributors (frame 163252803, sequence 969223, contributor userId 12139), CC BY-SA 4.0"
     },
     {
      "frameId": "197918957",
@@ -459,7 +494,14 @@
       "sha256": "410a476ac1a8329db08147b7bf6ca3c45e637e263cf960aabaee394bdf6371b4",
       "file": "kartaview-frame-197918957.jpg"
      },
-     "rights": "KartaView image reuse terms were not established from a provider licence statement in this audit; originals are cached for internal evidence inspection only and are not attached or proposed as shipped assets"
+     "contributor": {
+      "sequenceUrl": "https://api.openstreetcam.org/2.0/sequence/1123901",
+      "userId": "53",
+      "orgCode": "CMNT",
+      "deviceName": "iPhone6",
+      "note": "the public API exposes a numeric contributor userId only; the user endpoint refuses numeric ids (HTTP 400 apiCode 418), so no display name is retained"
+     },
+     "attribution": "© Grab and KartaView Contributors (frame 197918957, sequence 1123901, contributor userId 53), CC BY-SA 4.0"
     },
     {
      "frameId": "1289673597",
@@ -483,7 +525,14 @@
       "sha256": "802ec58549cc6798280cff5fc6a885281d969446c0ad5f22daa32bb91d5e81f8",
       "file": "kartaview-frame-1289673597.jpg"
      },
-     "rights": "KartaView image reuse terms were not established from a provider licence statement in this audit; originals are cached for internal evidence inspection only and are not attached or proposed as shipped assets"
+     "contributor": {
+      "sequenceUrl": "https://api.openstreetcam.org/2.0/sequence/3556677",
+      "userId": "13127",
+      "orgCode": "CMNT",
+      "deviceName": null,
+      "note": "the public API exposes a numeric contributor userId only; the user endpoint refuses numeric ids (HTTP 400 apiCode 418), so no display name is retained"
+     },
+     "attribution": "© Grab and KartaView Contributors (frame 1289673597, sequence 3556677, contributor userId 13127), CC BY-SA 4.0"
     }
    ]
   },
@@ -4880,7 +4929,7 @@
      "state": "unknown",
      "value": null,
      "sources": [],
-     "note": "no geotagged or address-labelled Commons file found"
+     "note": "no positive Commons candidate found in this audit (0 rejected label(s) excluded); not a claim that no photograph exists anywhere"
     },
     "heritageListing": {
      "state": "unknown",
@@ -5004,7 +5053,7 @@
      "state": "unknown",
      "value": null,
      "sources": [],
-     "note": "no geotagged or address-labelled Commons file found"
+     "note": "no positive Commons candidate found in this audit (0 rejected label(s) excluded); not a claim that no photograph exists anywhere"
     },
     "heritageListing": {
      "state": "unknown",
@@ -5134,7 +5183,7 @@
      "state": "unknown",
      "value": null,
      "sources": [],
-     "note": "no geotagged or address-labelled Commons file found"
+     "note": "no positive Commons candidate found in this audit (0 rejected label(s) excluded); not a claim that no photograph exists anywhere"
     },
     "heritageListing": {
      "state": "unknown",
@@ -9443,9 +9492,8 @@
     },
     "frontageImage": {
      "state": "inferred",
-     "value": "5 geotagged file(s) with camera within 30 m of frontage; none labelled with this address",
+     "value": "4 geotagged file(s) with camera within 30 m of frontage; none labelled with this address",
      "sources": [
-      "https://commons.wikimedia.org/wiki/File:30_Charlotte_Street,_Fitzrovia,_May_2023.jpg",
       "https://commons.wikimedia.org/wiki/File:Wahaca,_Fitzrovia,_London_(8112148426).jpg",
       "https://commons.wikimedia.org/wiki/File:Shochu_Lounge,_Fitzrovia,_London_(3739519411).jpg",
       "https://commons.wikimedia.org/wiki/File:Roka_Shochu_Lounge,_Fitzrovia,_W1_(3694773151).jpg",
@@ -11936,7 +11984,7 @@
      "state": "unknown",
      "value": null,
      "sources": [],
-     "note": "no geotagged or address-labelled Commons file found"
+     "note": "no positive Commons candidate found in this audit (0 rejected label(s) excluded); not a claim that no photograph exists anywhere"
     },
     "heritageListing": {
      "state": "unknown",
