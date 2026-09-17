@@ -14,7 +14,7 @@
  * checking the clock between units. No geometry, Three or browser dependency.
  */
 
-import { METERS_TO_WORLD } from '../geo';
+import { METERS_TO_WORLD, WORLD } from '../geo';
 import { dequantizeX, dequantizeY, type CityData } from './format';
 import type { BuildJob } from './buildScheduler';
 import type { BoundsXZ, CellId } from './cityIndex';
@@ -48,11 +48,11 @@ export interface CoverIndexJobArgs {
   cityData: CityData;
   now: () => number;
   sliceMs?: number;
+  cellSizeM?: number;
   onReady(index: CoverIndex): void;
 }
 
 const CELL_SIZE_M = 400;
-const CELL_WORLD = CELL_SIZE_M * METERS_TO_WORLD;
 const MAX_UNITS_PER_STEP = 64;
 const DEFAULT_SLICE_MS = 4;
 const LAYERS: readonly CoverLayer[] = ['roads', 'parks', 'water'];
@@ -84,6 +84,8 @@ interface LayerCursor {
 
 interface PrivateState {
   cityData: CityData;
+  cellSizeM: number;
+  cellWorld: number;
   cells: Map<CellId, MutableSelection>;
   featureBounds: MutableFeatureBounds;
   cursors: LayerCursor[];
@@ -95,8 +97,8 @@ function cellId(ix: number, iz: number): CellId {
   return `${ix},${iz}` as CellId;
 }
 
-function cellCoord(world: number): number {
-  return Math.floor(world / CELL_WORLD);
+function cellCoord(world: number, cellWorld: number): number {
+  return Math.floor(world / cellWorld);
 }
 
 function newCursor(layer: CoverLayer): LayerCursor {
@@ -197,11 +199,11 @@ function advance(state: PrivateState): boolean {
         state.overall = { ...bounds };
       }
       cursor.points = null;
-      cursor.startIx = cellCoord(bounds.minX);
+      cursor.startIx = cellCoord(bounds.minX, state.cellWorld);
       cursor.ix = cursor.startIx;
-      cursor.iz = cellCoord(bounds.minZ);
-      cursor.endIx = cellCoord(bounds.maxX);
-      cursor.endIz = cellCoord(bounds.maxZ);
+      cursor.iz = cellCoord(bounds.minZ, state.cellWorld);
+      cursor.endIx = cellCoord(bounds.maxX, state.cellWorld);
+      cursor.endIz = cellCoord(bounds.maxZ, state.cellWorld);
       cursor.phase = 'bucket';
     }
     return false;
@@ -242,10 +244,25 @@ export function createCoverIndexJob(args: CoverIndexJobArgs): BuildJob {
   if (typeof sliceMs !== 'number' || !Number.isFinite(sliceMs) || sliceMs <= 0) {
     throw new RangeError('sliceMs must be a finite positive number');
   }
+  const cellSizeM = args.cellSizeM ?? CELL_SIZE_M;
+  if (!Number.isFinite(cellSizeM) || cellSizeM <= 0) {
+    throw new RangeError('cellSizeM must be a finite positive number');
+  }
+  const cellWorld = cellSizeM * METERS_TO_WORLD;
+  const maxCellCoordinate = Math.max(WORLD.width, WORLD.height) / cellWorld;
+  if (
+    !Number.isFinite(cellWorld) ||
+    cellWorld <= 0 ||
+    !Number.isSafeInteger(Math.floor(maxCellCoordinate))
+  ) {
+    throw new RangeError('cellSizeM produces unsafe world cell coordinates');
+  }
   let now: (() => number) | null = args.now;
   let onReady: ((index: CoverIndex) => void) | null = args.onReady;
   let state: PrivateState | null = {
     cityData: args.cityData,
+    cellSizeM,
+    cellWorld,
     cells: new Map(),
     featureBounds: { roads: [], parks: [], water: [] },
     cursors: LAYERS.map(newCursor),
@@ -277,7 +294,7 @@ export function createCoverIndexJob(args: CoverIndexJobArgs): BuildJob {
           const live = state!;
           if (live.layerAt >= LAYERS.length) {
             const index: CoverIndex = {
-              cellSizeM: CELL_SIZE_M,
+              cellSizeM: live.cellSizeM,
               cells: live.cells,
               featureBounds: live.featureBounds,
               bounds: live.overall,

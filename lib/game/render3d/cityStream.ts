@@ -144,18 +144,25 @@ export class CityStream {
     for (const id of this.stocks.ids()) yield* this.stocks.get(id)!.scratch.picks;
   }
 
-  private cellBounds(id: CellId): BoundsXZ {
+  private coverCellBounds(id: CellId): BoundsXZ {
     const [ix, iz] = id.split(',').map(Number);
     const size = this.options.coverIndex.cellSizeM * METERS_TO_WORLD;
     return { minX: ix! * size, minZ: iz! * size, maxX: (ix! + 1) * size, maxZ: (iz! + 1) * size };
   }
 
-  private ordered(ids: readonly CellId[], bounds: BoundsXZ): CellId[] {
+  private ordered(
+    ids: readonly CellId[],
+    bounds: BoundsXZ,
+    grid: 'city' | 'cover',
+  ): CellId[] {
     const x = (bounds.minX + bounds.maxX) / 2;
     const z = (bounds.minZ + bounds.maxZ) / 2;
     const distances = new Map<CellId, number>();
     for (const id of ids) {
-      const cell = this.cellBounds(id);
+      const cell =
+        grid === 'city'
+          ? this.options.cityIndex.cells.get(id)!.bounds
+          : this.coverCellBounds(id);
       distances.set(
         id,
         Math.hypot((cell.minX + cell.maxX) / 2 - x, (cell.minZ + cell.maxZ) / 2 - z),
@@ -193,11 +200,13 @@ export class CityStream {
       ids: readonly CellId[],
       detail: StockDetail,
       essential: boolean,
+      grid: 'city' | 'cover',
     ): void => {
-      for (const id of this.ordered(ids, bounds)) requests.push({ kind, id, detail, essential });
+      for (const id of this.ordered(ids, bounds, grid))
+        requests.push({ kind, id, detail, essential });
     };
     const detailed = new Set(plan.detailedStock);
-    for (const id of this.ordered(plan.visibleStock, bounds)) {
+    for (const id of this.ordered(plan.visibleStock, bounds, 'city')) {
       requests.push({
         kind: 'stock',
         id,
@@ -205,12 +214,14 @@ export class CityStream {
         essential: true,
       });
     }
-    append('cover', plan.visibleCover, plan.detail, true);
+    append('cover', plan.visibleCover, plan.detail, true, 'cover');
     this.essentialEnd = requests.length;
-    append('stock', plan.prefetchStock, 'overview', false);
-    append('cover', plan.prefetchCover, 'overview', false);
-    if (plan.detail !== 'overview') append('trees', plan.visibleCover, plan.detail, false);
-    if (plan.detail !== 'overview') append('decor', plan.detailedStock, plan.detail, false);
+    append('stock', plan.prefetchStock, 'overview', false, 'city');
+    append('cover', plan.prefetchCover, 'overview', false, 'cover');
+    if (plan.detail !== 'overview')
+      append('trees', plan.visibleCover, plan.detail, false, 'cover');
+    if (plan.detail !== 'overview')
+      append('decor', plan.detailedStock, plan.detail, false, 'city');
     this.requests = requests;
     this.cursor = 0;
   }
@@ -366,7 +377,7 @@ export class CityStream {
         },
       });
     }
-    const bounds = this.cellBounds(request.id);
+    const bounds = this.coverCellBounds(request.id);
     if (request.kind === 'trees')
       return createTreeCoverJob({
         ...common,
@@ -408,6 +419,7 @@ export class CityStream {
     const candidates = this.ordered(
       this.stocks.ids().filter((id) => !visible.has(id)),
       this.plan.bounds,
+      'city',
     ).reverse();
     for (const id of candidates) {
       retain.delete(id);

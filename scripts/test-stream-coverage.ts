@@ -72,4 +72,24 @@ assert.equal(
   'overview',
 );
 
+const largeCoverWorld = 1600 * METERS_TO_WORLD;
+const mixedCoverCells = new Map<CellId, CoverSelection>([
+  ['0,0', { roads: [0], parks: [], water: [] }],
+  ['1,0', { roads: [1], parks: [], water: [] }],
+]);
+const mixedCover: CoverIndex = {
+  cellSizeM: 1600,
+  cells: mixedCoverCells,
+  featureBounds: { roads: [], parks: [], water: [] },
+  bounds: null,
+};
+const mixed = planStreamCoverage(city, mixedCover, {
+  minX: 0,
+  minZ: 0,
+  maxX: largeCoverWorld - 1e-9,
+  maxZ: 400 * METERS_TO_WORLD - 1e-9,
+});
+assert.deepEqual(mixed.visibleStock, ['-2,0', '-1,0', '0,0', '1,0', '2,0', '3,0', '4,0'].sort());
+assert.deepEqual(mixed.visibleCover, ['0,0']);
+
 console.log('Camera bounds, stock detail, cover selection, prefetch and hysteresis passed');

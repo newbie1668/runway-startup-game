@@ -632,6 +632,7 @@ export class CityRenderer3D implements IMapRenderer {
         essential: true,
         cityData: data,
         now: () => performance.now(),
+        cellSizeM: 1600,
         onReady: (coverIndex) => {
           this.cityStream = new CityStream({
             data,

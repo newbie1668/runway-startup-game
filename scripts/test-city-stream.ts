@@ -53,6 +53,7 @@ const indexJob = createCoverIndexJob({
   essential: true,
   cityData: data,
   now: () => 0,
+  cellSizeM: 1600,
   onReady: (value) => {
     indexed.value = value;
   },
@@ -75,6 +76,14 @@ let evictions = 0;
 const cityIndex = indexCity(data, 400);
 const firstId = [...cityIndex.cells.values()].find((cell) => cell.buildingIndices.includes(0))!.id;
 const secondId = [...cityIndex.cells.values()].find((cell) => cell.buildingIndices.includes(1))!.id;
+const firstCoverId = [...indexed.value!.cells.entries()].find(([, selection]) =>
+  selection.roads.includes(0),
+)![0];
+const secondCoverId = [...indexed.value!.cells.entries()].find(([, selection]) =>
+  selection.roads.includes(1),
+)![0];
+assert.notEqual(firstId, firstCoverId, 'stock and cover grids use distinct cell IDs');
+assert.notEqual(secondId, secondCoverId, 'stock and cover grids use distinct cell IDs');
 const stream = new CityStream({
   data,
   cityIndex,

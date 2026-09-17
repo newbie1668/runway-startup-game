@@ -36,6 +36,8 @@ function check(label: string, fn: () => void): void {
 const LAYERS: readonly CoverLayer[] = ['roads', 'parks', 'water'];
 const CELL_M = 400;
 const CELL_W = CELL_M * METERS_TO_WORLD;
+const LARGE_CELL_M = 1600;
+const LARGE_CELL_W = LARGE_CELL_M * METERS_TO_WORLD;
 const M = METERS_TO_WORLD;
 
 /** Metre coordinate pairs → frozen quantized road record. */
@@ -75,7 +77,12 @@ const constantClock = (): number => 0;
 
 function build(
   data: CityData,
-  opts: { now?: () => number; sliceMs?: number; maxSteps?: number } = {},
+  opts: {
+    now?: () => number;
+    sliceMs?: number;
+    cellSizeM?: number;
+    maxSteps?: number;
+  } = {},
 ): { index: CoverIndex; steps: number; ready: number } {
   let index: CoverIndex | null = null;
   let ready = 0;
@@ -86,6 +93,7 @@ function build(
     cityData: data,
     now: opts.now ?? constantClock,
     sliceMs: opts.sliceMs,
+    cellSizeM: opts.cellSizeM,
     onReady: (i) => {
       ready += 1;
       index = i;
@@ -593,6 +601,81 @@ check('invalid sliceMs rejected in constructor', () => {
       RangeError,
     );
   }
+});
+
+check('invalid cell sizes rejected in constructor', () => {
+  for (const cellSizeM of [0, -1, NaN, Infinity, -Infinity, Number.MIN_VALUE]) {
+    assert.throws(
+      () =>
+        createCoverIndexJob({
+          id: 'x',
+          generation: 1,
+          essential: false,
+          cityData: city(),
+          now: constantClock,
+          cellSizeM,
+          onReady: () => {},
+        }),
+      RangeError,
+    );
+  }
+});
+
+check('custom 1600 m grid preserves boundary and enclosing selection', () => {
+  const data = city(
+    [road(1599, 800, 1601, 800)],
+    [poly(0, 0, 3400, 0, 3400, 3400, 0, 3400)],
+  );
+  const { index, steps } = build(data, { cellSizeM: LARGE_CELL_M });
+  assert.equal(index.cellSizeM, LARGE_CELL_M);
+  assert.equal(steps, 1);
+  assert.deepEqual([...index.cells.keys()].sort(), [
+    '0,0',
+    '0,1',
+    '0,2',
+    '1,0',
+    '1,1',
+    '1,2',
+    '2,0',
+    '2,1',
+    '2,2',
+  ]);
+  assert.deepEqual(coverForBounds(index, boxM(1599.5, 799, 1600.5, 801)).roads, [0]);
+  assert.deepEqual(coverForBounds(index, boxM(1400, 1400, 1800, 1800)).parks, [0]);
+  assert.deepEqual(
+    coverForBounds(index, {
+      minX: LARGE_CELL_W,
+      minZ: LARGE_CELL_W,
+      maxX: LARGE_CELL_W,
+      maxZ: LARGE_CELL_W,
+    }),
+    { roads: [], parks: [0], water: [] },
+  );
+});
+
+check('1600 m grid keeps work bounded and cancellation unpublished', () => {
+  const widthM = WORLD.width / M;
+  const heightM = WORLD.height / M;
+  const data = city([], [poly(0, 0, widthM, 0, widthM, heightM, 0, heightM)]);
+  let ready = 0;
+  const job = createCoverIndexJob({
+    id: 'large-grid',
+    generation: 1,
+    essential: false,
+    cityData: data,
+    now: constantClock,
+    cellSizeM: LARGE_CELL_M,
+    onReady: () => {
+      ready += 1;
+    },
+  });
+  assert.equal(job.step(), false);
+  job.cancel();
+  assert.equal(job.step(), true);
+  assert.equal(ready, 0);
+  const built = build(data, { cellSizeM: LARGE_CELL_M });
+  assert.ok(built.steps > 1);
+  assert.equal(built.index.cellSizeM, LARGE_CELL_M);
 });
 
 check('malformed records rejected lazily when reached, with layer/index', () => {
