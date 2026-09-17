@@ -28,22 +28,9 @@ import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
 import { CameraRig, FIT_PITCH_SIN } from './cameraRig';
 import {
-  buildChunkTier,
   buildGround,
   buildHubGlows,
-  buildParkTrees,
-  buildParks,
-  buildRoads,
-  buildRooftopMesh,
-  buildFacadeSigns,
-  buildStreetLamps,
   buildTubeLines,
-  buildWater,
-  buildWindowMesh,
-  CHUNK_COLS,
-  CHUNK_COUNT,
-  CHUNK_ROWS,
-  chunkTierMeshes,
   createBuildingMaterial,
   createScratch,
   crossingYawAt,
@@ -55,15 +42,7 @@ import {
 } from './cityBuilder';
 import { decodeCity, type CityData } from './format';
 import { instantiateLandmark, loadLandmarkPrefabs } from './landmarkPrefabs';
-import {
-  aabbHitsKeep,
-  buildJobsThisFrame,
-  CITYSTREET_AT,
-  inKeepDisk,
-  meshBudget,
-  type BuildJobKind,
-  type KeepDisk,
-} from './lookClip';
+import { buildJobsThisFrame, CITYSTREET_AT, meshBudget, type BuildJobKind } from './lookClip';
 import { instantiateNoticed, loadNoticedPrefabs, type NoticedEntry } from './noticedPrefabs';
 import { isUniqueNoticedId } from './uniqueNoticed';
 import { DISTRICT_LABEL, SKY, STYLE_LABEL, USE_LABEL } from './palette';
@@ -78,6 +57,11 @@ import {
   selectActiveReplacementIds,
 } from './stockReplacements';
 import { attachVisibleReplacement } from './replacementAvailability';
+import { createBuildScheduler, type BuildJob as ScheduledJob } from './buildScheduler';
+import { indexCity } from './cityIndex';
+import { CityStream } from './cityStream';
+import { createCoverIndexJob } from './coverIndex';
+import { cameraGroundBounds } from './streamCoverage';
 
 const CITY_BIN_URL = '/map/london-city.bin';
 const HUB_GLOW_DEFAULT_COLOR = 0xb8d4e8;
@@ -196,7 +180,6 @@ export class CityRenderer3D implements IMapRenderer {
   private readonly resources = createResourcePool();
   private readonly loadController = new AbortController();
   private generation = 0;
-  private groundRelease: (() => void) | null = null;
   private stockBuildings = 0;
   private stockDrawnThisFrame = false;
   private readonly scene3d = new THREE.Scene();
@@ -224,6 +207,10 @@ export class CityRenderer3D implements IMapRenderer {
   private readonly sun: THREE.DirectionalLight;
   private readonly sunTarget = new THREE.Object3D();
   private buildQueue: BuildJob[] = [];
+  private coverIndexBuild: ScheduledJob | null = null;
+  private readonly coverIndexScheduler = createBuildScheduler();
+  private cityStream: CityStream | null = null;
+  private lastStreamCamera = '';
   private hubGlowSprites: Map<HubId, THREE.Sprite> = new Map();
   private lastPlayerHubId: HubId | null = null;
   private readonly minorMeshes: THREE.Mesh[] = [];
@@ -315,7 +302,7 @@ export class CityRenderer3D implements IMapRenderer {
 
       this.groundMesh = buildGround();
       this.scene3d.add(this.groundMesh);
-      this.groundRelease = retainSceneResources(this.resources, this.groundMesh);
+      retainSceneResources(this.resources, this.groundMesh);
       const tubeLines = buildTubeLines();
       this.scene3d.add(tubeLines);
       retainSceneResources(this.resources, tubeLines);
@@ -545,35 +532,8 @@ export class CityRenderer3D implements IMapRenderer {
               ? [look]
               : [],
     );
-    const budget = meshBudget();
-    const lookAt = heroLook();
-    const lookPt = project(lookAt.at);
-    const view = viewParam();
-    const keep: KeepDisk | null =
-      budget.chunkKeepM != null
-        ? {
-            x: view === 'wide' ? WORLD.width / 2 : lookPt.x,
-            z: view === 'wide' ? WORLD.height / 2 : lookPt.y,
-            r: budget.chunkKeepM * METERS_TO_WORLD,
-          }
-        : null;
-    if (keep) {
-      const oldGround = this.groundMesh;
-      const oldRelease = this.groundRelease;
-      const nextGround = buildGround(keep);
-      const nextRelease = retainSceneResources(this.resources, nextGround);
-      this.scene3d.remove(oldGround);
-      this.groundMesh = nextGround;
-      this.groundRelease = nextRelease;
-      this.scene3d.add(this.groundMesh);
-      oldRelease?.();
-      this.geometryTracker.trackTree(this.groundMesh);
-    }
-    const inKeep = (x: number, z: number) => inKeepDisk(x, z, keep);
     const heroJobs: BuildJob[] = [];
-    const coverJobs: BuildJob[] = [];
     const replacementJobs: BuildJob[] = [];
-    const chunkJobs: BuildJob[] = [];
     const restJobs: BuildJob[] = [];
     const crossings = riverCrossingSpans(data);
     const enqueue = (
@@ -628,12 +588,6 @@ export class CityRenderer3D implements IMapRenderer {
         }
       });
     };
-    const allowLandmark = (landmark: (typeof LANDMARKS)[number]): boolean => {
-      if (lookLandmarkKinds.has(landmark.kind)) return true;
-      if (look === 'eye') return false;
-      const p = project(landmark.at);
-      return inKeep(p.x, p.y);
-    };
     for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
       const entry = this.noticedEntries[sourceIndex]!;
       if (lookNoticedId && entry.id === lookNoticedId)
@@ -644,144 +598,98 @@ export class CityRenderer3D implements IMapRenderer {
       if (lookLandmarkKinds.has(landmark.kind))
         pushLandmark(landmark, heroJobs, 'hero', sourceIndex);
     }
-    enqueue(coverJobs, 'cover:water', 'cover', true, () => {
-      const mesh = buildWater(data, keep);
-      if (mesh) this.cityGroup.add(mesh);
-    });
-    enqueue(coverJobs, 'cover:parks', 'cover', true, () => {
-      const mesh = buildParks(data, keep);
-      if (mesh) this.cityGroup.add(mesh);
-    });
-    if (!budget.skipTrees) {
-      enqueue(coverJobs, 'cover:trees', 'cover', false, () => {
-        const trees = buildParkTrees(data, keep);
-        if (trees) {
-          trees.visible = true;
-          this.cityGroup.add(trees);
-        }
-      });
-    }
-    enqueue(coverJobs, 'cover:roads', 'cover', true, () => {
-      const roadGroup = buildRoads(data, keep, !budget.skipRoadMarks);
-      if (roadGroup) {
-        this.cityGroup.add(roadGroup);
-        for (const child of roadGroup.children) {
-          if (child.userData.roadTier === 2) this.tier2RoadMesh = child;
-          if (child.userData.roadMarks) this.markMesh = child;
-        }
-      }
-    });
     for (let sourceIndex = 0; sourceIndex < LANDMARKS.length; sourceIndex++) {
       const landmark = LANDMARKS[sourceIndex]!;
       if (lookLandmarkKinds.has(landmark.kind)) continue;
-      if (allowLandmark(landmark)) pushLandmark(landmark, replacementJobs, 'rest', sourceIndex);
+      pushLandmark(landmark, replacementJobs, 'rest', sourceIndex);
     }
-    if (!budget.skipNoticedStock) {
-      for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
-        const entry = this.noticedEntries[sourceIndex]!;
-        if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
-          pushNoticed(entry, replacementJobs, 'rest', sourceIndex);
-        }
-      }
-      for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
-        const entry = this.noticedEntries[sourceIndex]!;
-        if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
-        if (!inKeep(entry.x, entry.z)) continue;
+    for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
+      const entry = this.noticedEntries[sourceIndex]!;
+      if (isUniqueNoticedId(entry.id) && entry.id !== lookNoticedId) {
         pushNoticed(entry, replacementJobs, 'rest', sourceIndex);
       }
     }
-    const chunkWork: { chunkId: number; major: boolean; dist: number }[] = [];
-    for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
-      const col = chunkId % CHUNK_COLS;
-      const row = Math.floor(chunkId / CHUNK_COLS);
-      const x0 = (col / CHUNK_COLS) * WORLD.width;
-      const x1 = ((col + 1) / CHUNK_COLS) * WORLD.width;
-      const z0 = (row / CHUNK_ROWS) * WORLD.height;
-      const z1 = ((row + 1) / CHUNK_ROWS) * WORLD.height;
-      if (!aabbHitsKeep(x0, z0, x1, z1, keep)) continue;
-      const dx = (x0 + x1) / 2 - lookPt.x;
-      const dz = (z0 + z1) / 2 - lookPt.y;
-      const dist = dx * dx + dz * dz;
-      for (const major of [true, false]) {
-        if (budget.skipMinorChunks && !major) continue;
-        chunkWork.push({ chunkId, major, dist });
+    for (let sourceIndex = 0; sourceIndex < this.noticedEntries.length; sourceIndex++) {
+      const entry = this.noticedEntries[sourceIndex]!;
+      if (isUniqueNoticedId(entry.id) || entry.id === lookNoticedId) continue;
+      pushNoticed(entry, replacementJobs, 'rest', sourceIndex);
+    }
+    enqueue(restJobs, 'stream:indices', 'rest', true, () => {
+      const cityIndex = indexCity(data, 400);
+      const exclusions = finalizeStockExclusions();
+      this.diagnostics.registerJob('stream:cover-index', true);
+      this.diagnostics.startJob('stream:cover-index');
+      this.coverIndexBuild = createCoverIndexJob({
+        id: 'stream:cover-index',
+        generation: this.generation,
+        essential: true,
+        cityData: data,
+        now: () => performance.now(),
+        onReady: (coverIndex) => {
+          this.cityStream = new CityStream({
+            data,
+            cityIndex,
+            coverIndex,
+            exclusions,
+            material: this.buildingMaterial,
+            root: this.cityGroup,
+            resources: this.resources,
+            tracker: this.geometryTracker,
+            diagnostics: this.diagnostics,
+            now: () => performance.now(),
+            onStockDrawn: () => {
+              this.stockDrawnThisFrame = true;
+            },
+            onStockEvicted: (picks) => {
+              if (this.selected && picks.includes(this.selected)) this.placeBeam(null);
+            },
+            onFatal: this.onFatal,
+          });
+        },
+      });
+      this.coverIndexScheduler.enqueue(this.coverIndexBuild);
+    });
+    this.buildQueue = [...heroJobs, ...replacementJobs, ...restJobs];
+    this.cityStreamed = true;
+  }
+
+  private drainStreaming(): void {
+    if (this.coverIndexBuild) {
+      try {
+        const result = this.coverIndexScheduler.drain(4, () => performance.now());
+        if (result.failed.length > 0) throw result.failed[0]!.error;
+        if (result.completed.length > 0) {
+          this.diagnostics.completeJob('stream:cover-index');
+          this.coverIndexBuild = null;
+        }
+      } catch (error) {
+        this.diagnostics.failJob('stream:cover-index', error);
+        this.coverIndexBuild?.cancel();
+        this.coverIndexBuild = null;
+        this.onFatal('stream:cover-index');
+        return;
       }
     }
-    chunkWork.sort((a, b) => a.dist - b.dist || Number(b.major) - Number(a.major));
-    for (const job of chunkWork) {
-      enqueue(
-        chunkJobs,
-        `chunk:${job.chunkId}:${job.major ? 'major' : 'minor'}`,
-        'chunk',
-        true,
-        () => {
-          const picksBefore = this.scratch.picks.length;
-          const built = buildChunkTier(
-            data,
-            job.chunkId,
-            job.major,
-            finalizeStockExclusions(),
-            this.scratch,
-            keep,
-          );
-          if (built) {
-            const replacedMaterials = new Set<THREE.Material>();
-            for (const mesh of chunkTierMeshes(built)) {
-              const previousMaterial = mesh.material;
-              mesh.material = this.buildingMaterial;
-              for (const material of Array.isArray(previousMaterial)
-                ? previousMaterial
-                : [previousMaterial]) {
-                replacedMaterials.add(material);
-              }
-              this.buildingMeshes.push(mesh);
-              if (!job.major) this.minorMeshes.push(mesh);
-              const previous = mesh.onAfterRender;
-              mesh.onAfterRender = (...args) => {
-                previous?.call(mesh, ...args);
-                this.stockDrawnThisFrame = true;
-              };
-            }
-            for (const material of replacedMaterials) {
-              const release = this.resources.retain(material);
-              release();
-            }
-            this.cityGroup.add(built);
-            this.stockBuildings += Math.max(0, this.scratch.picks.length - picksBefore);
-          }
-        },
-      );
+    if (!this.cityStream || this.cssW <= 0 || this.cssH <= 0) return;
+    try {
+      const key = [
+        this.cam.x,
+        this.cam.y,
+        this.cam.zoom,
+        this.cssW,
+        this.cssH,
+        this.heroAzimuth,
+      ].join(':');
+      if (key !== this.lastStreamCamera) {
+        this.lastStreamCamera = key;
+        this.cityStream.update(cameraGroundBounds(this.rig, this.cssW, this.cssH));
+      }
+      this.cityStream.drain();
+      this.stockBuildings = this.cityStream?.stockBuildings ?? 0;
+    } catch (error) {
+      this.diagnostics.recordError('stream:camera', true, error);
+      this.onFatal('stream:camera');
     }
-    if (!budget.skipWindows) {
-      enqueue(restJobs, 'decor:windows-roofs-signs', 'rest', false, () => {
-        const windows = buildWindowMesh(this.scratch);
-        if (windows) {
-          windows.visible = false;
-          this.windowMesh = windows;
-          this.cityGroup.add(windows);
-        }
-        const roofs = buildRooftopMesh(this.scratch);
-        if (roofs) this.cityGroup.add(roofs);
-        const signs = buildFacadeSigns(this.scratch);
-        if (signs) this.cityGroup.add(signs);
-      });
-    }
-    if (!budget.skipLamps) {
-      enqueue(restJobs, 'decor:lamps', 'rest', false, () => {
-        const lamps = buildStreetLamps(data);
-        if (lamps) {
-          lamps.visible = false;
-          this.lampGroup = lamps;
-          this.cityGroup.add(lamps);
-        }
-      });
-    }
-    // Wide cameras must paint nearby chunks before the cover jobs, or chrome=0
-    // sits on brown ground until water/parks/roads finish (and used to OOM first).
-    this.buildQueue = keep
-      ? [...heroJobs, ...replacementJobs, ...chunkJobs, ...coverJobs, ...restJobs]
-      : [...heroJobs, ...coverJobs, ...replacementJobs, ...chunkJobs, ...restJobs];
-    this.cityStreamed = true;
   }
 
   private drainBuildQueue(): void {
@@ -853,19 +761,21 @@ export class CityRenderer3D implements IMapRenderer {
   }
 
   private pickBuilding(sx: number, sy: number): BuildingPick | null {
-    if (this.cssW <= 0 || this.cssH <= 0 || this.buildingMeshes.length === 0) return null;
+    const meshes = this.cityStream?.buildingMeshes() ?? this.buildingMeshes;
+    if (this.cssW <= 0 || this.cssH <= 0 || meshes.length === 0) return null;
     this.ndc.set((sx / this.cssW) * 2 - 1, -(sy / this.cssH) * 2 + 1);
     this.raycaster.setFromCamera(this.ndc, this.rig.camera);
-    const hits = this.raycaster.intersectObjects(this.buildingMeshes, false);
+    const hits = this.raycaster.intersectObjects(meshes, false);
     if (hits.length === 0) return null;
     const pt = hits[0]!.point;
-    return nearestPick(this.scratch.picks, pt.x, pt.z, 0.85);
+    const picks = this.cityStream ? [...this.cityStream.picks()] : this.scratch.picks;
+    return nearestPick(picks, pt.x, pt.z, 0.85);
   }
 
   private nearbyLabels(pick: BuildingPick): string[] {
     const out: string[] = [];
     const seen = new Set<string>();
-    for (const p of this.scratch.picks) {
+    for (const p of this.cityStream?.picks() ?? this.scratch.picks) {
       if (p === pick) continue;
       const d = Math.hypot(p.x - pick.x, p.z - pick.z);
       if (d > 0.48 || d < 0.015) continue;
@@ -1102,18 +1012,14 @@ export class CityRenderer3D implements IMapRenderer {
     const startedAt = performance.now();
     this.drainBuildQueue();
     if (this.disposed) return;
-    if (this.cityStreamed && this.buildQueue.length === 0 && this.stockBuildings === 0) {
-      const error = new Error('No ordinary stock buildings emitted');
-      this.diagnostics.recordError('coverage:stock', true, error);
-      this.onFatal('coverage:stock');
-      return;
-    }
     if (this.cssW === 0 || this.cssH === 0) return;
     if (window.location.search !== this.lastSearch) {
       this.lastSearch = window.location.search;
       this.fitAll();
     }
     this.syncRig();
+    this.drainStreaming();
+    if (this.disposed) return;
 
     const minorVisible = true;
     if (minorVisible !== this.lastMinorVisible) {
@@ -1181,6 +1087,7 @@ export class CityRenderer3D implements IMapRenderer {
       triangles: this.renderer.info.render.triangles,
       geometryBytes: this.geometryTracker.bytes(),
       textures: this.renderer.info.memory.textures,
+      residentCells: this.cityStream?.residentCells,
     });
     const state = this.diagnostics.getState();
     if (state === 'ready' || state === 'degraded') this.markReady();
@@ -1207,6 +1114,15 @@ export class CityRenderer3D implements IMapRenderer {
         this.scratch = createScratch();
         this.buildingMeshes.length = 0;
         this.minorMeshes.length = 0;
+      },
+      () => {
+        if (this.coverIndexBuild)
+          this.coverIndexScheduler.cancelGeneration(this.coverIndexBuild.generation);
+        this.coverIndexBuild = null;
+      },
+      () => {
+        this.cityStream?.dispose();
+        this.cityStream = null;
       },
       () => {
         this.landmarkPrefabs.clear();

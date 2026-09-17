@@ -8,6 +8,7 @@ export interface StreamCoveragePlan {
   readonly bounds: BoundsXZ;
   readonly detail: StockDetail;
   readonly visibleStock: readonly CellId[];
+  readonly detailedStock: readonly CellId[];
   readonly prefetchStock: readonly CellId[];
   readonly retainStock: readonly CellId[];
   readonly visibleCover: readonly CellId[];
@@ -103,6 +104,7 @@ export function planStreamCoverage(
     bounds,
     detail,
     visibleStock,
+    detailedStock: cellsForBounds(city, bounds, 0),
     prefetchStock: outside(visibleStock, wantedStock),
     retainStock,
     visibleCover,

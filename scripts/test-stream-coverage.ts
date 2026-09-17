@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { METERS_TO_WORLD } from '../lib/game/geo';
+import { CameraRig } from '../lib/game/render3d/cameraRig';
 import type { CoverIndex, CoverSelection } from '../lib/game/render3d/coverIndex';
 import { cameraGroundBounds, planStreamCoverage } from '../lib/game/render3d/streamCoverage';
 import type { CellId, CityCell, CityIndex } from '../lib/game/render3d/cityIndex';
@@ -41,9 +42,21 @@ const bounds = cameraGroundBounds(
 assert.deepEqual(bounds, { minX: 0, minZ: 0, maxX: 2, maxZ: 2 });
 assert.throws(() => cameraGroundBounds({ groundUnproject: () => ({ x: 0, y: 0 }) }, 0, 80));
 
+const rig = new CameraRig();
+rig.setViewport(1440, 900);
+rig.update({ x: 20, y: 30, zoom: 450 }, Math.PI / 4);
+const beforeRender = cameraGroundBounds(rig, 1440, 900);
+assert(beforeRender.minX < 20 && beforeRender.maxX > 20);
+assert(beforeRender.minZ < 30 && beforeRender.maxZ > 30);
+rig.update({ x: 40, y: 60, zoom: 450 }, Math.PI / 4);
+const moved = cameraGroundBounds(rig, 1440, 900);
+assert(Math.abs(moved.minX - beforeRender.minX - 20) < 1e-9);
+assert(Math.abs(moved.minZ - beforeRender.minZ - 30) < 1e-9);
+
 const street = planStreamCoverage(city, cover, bounds);
 assert.equal(street.detail, 'street');
 assert.deepEqual(street.visibleStock, ['-2,0', '-1,0', '0,0', '1,0'].sort());
+assert.deepEqual(street.detailedStock, ['-1,0', '0,0']);
 assert.deepEqual(street.prefetchStock, ['2,0']);
 assert.deepEqual(street.retainStock, ['-2,0', '0,0', '1,0', '2,0', '3,0', '4,0', '-1,0'].sort());
 assert.deepEqual(street.visibleCover, ['-1,0', '0,0']);

@@ -62,7 +62,7 @@ function addMaterialTextures(material: THREE.Material, resources: Set<Disposable
   visit(material.uniforms);
 }
 
-function collectSceneResources(root: THREE.Object3D): Set<Disposable> {
+export function collectSceneResources(root: THREE.Object3D): Set<Disposable> {
   const resources = new Set<Disposable>();
   root.traverse((object) => {
     const renderable = object as THREE.Object3D & {

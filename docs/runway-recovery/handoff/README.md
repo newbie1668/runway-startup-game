@@ -4,9 +4,13 @@ Continue from **draft PR #30**, branch `build/runway-recovery`, base `docs/runwa
 
 Continuation checkpoint: R5b-4a is independently accepted and integrated at
 `e60eb1d`; [focused and integration checks](../evidence/R5b/cover-index/README.md)
-passed. Bounded water, parks, trees and roads are isolated at `077150a` pending
-independent review. R6 has not started. See [current status](../status.md)
-before using the historical interrupted-draft notes below.
+passed. PR head remains `5745874`. Bounded cover paging at `dc93c16` is under
+independent review, with road/park logical-geometry test corrections active.
+R6 is preserved as an unaccepted local integration draft on
+`devin/1789676440-camera-stream`; the parent owns all runtime integration.
+Keep Fitzrovia search from `8bd024f`. Source audit `1aa3fef` is accepted as an
+honest modelling NO-GO packet. See [current status](../status.md) before using
+the historical interrupted-draft notes below.
 
 ## First read
 

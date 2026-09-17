@@ -30,7 +30,7 @@ export type MapQaBridge = { snapshot(): Readonly<MapDiagnostics> };
 
 export type FrameMetrics =
   | { mode: '2d'; durationMs: number }
-  | { mode: '3d'; durationMs: number; stockDrawn: boolean; stockBuildings: number; drawCalls: number; triangles: number; geometryBytes: number; textures: number };
+  | { mode: '3d'; durationMs: number; stockDrawn: boolean; stockBuildings: number; drawCalls: number; triangles: number; geometryBytes: number; textures: number; residentCells?: number };
 
 export interface MapDiagnosticsReporter extends MapQaBridge {
   getState(): MapLoadState;
@@ -39,6 +39,7 @@ export interface MapDiagnosticsReporter extends MapQaBridge {
   registerJob(id: string, essential: boolean): void;
   startJob(id: string): void;
   completeJob(id: string): void;
+  cancelJob(id: string): void;
   failJob(id: string, error: unknown): void;
   recordError(jobId: string, essential: boolean, error: unknown): void;
   recordFrame(metrics: FrameMetrics): void;
@@ -77,6 +78,7 @@ export function createMapDiagnostics(generation: number, now: () => number): Map
   let geometryBytes: number | null = null;
   let textures: number | null = null;
   let stockDrawn: boolean | null = null;
+  let residentCells: number | null = null;
 
   const active = () => state !== 'disposed' && state !== 'fallback';
   const finishJob = (id: string, failed: boolean, error?: unknown) => {
@@ -106,7 +108,7 @@ export function createMapDiagnostics(generation: number, now: () => number): Map
         errors: Object.freeze(errors.map((entry) => Object.freeze({ ...entry }))),
         activeJobId, lastJob: lastJob && Object.freeze({ ...lastJob }),
         slowestJob: slowestJob && Object.freeze({ ...slowestJob }),
-        residentCells: null, stockBuildings, stockDrawn, drawCalls, triangles, geometryBytes, textures,
+        residentCells, stockBuildings, stockDrawn, drawCalls, triangles, geometryBytes, textures,
         firstUsefulFrameMs, frameP95Ms, fallbackReason: fallbackReason,
       } as MapDiagnostics;
       return Object.freeze(copy);
@@ -118,13 +120,18 @@ export function createMapDiagnostics(generation: number, now: () => number): Map
       mode = '2d'; state = 'fallback'; fallbackReason = reason || '2D selected';
       pending.clear(); essentialPending = 0; activeJobId = null;
       stockBuildings = drawCalls = triangles = geometryBytes = textures = null;
-      stockDrawn = null;
+      stockDrawn = null; residentCells = null;
     },
     setCamera(next) { if (state !== 'disposed') camera = { ...next }; },
     registerJob(id, essential) {
       if (!active()) return;
       if (seen.has(id)) throw new Error(`Job already registered: ${id}`);
       pending.set(id, { essential, startedAt: null }); seen.add(id);
+      if (seen.size > 4096) {
+        for (const previous of seen) {
+          if (!pending.has(previous)) { seen.delete(previous); break; }
+        }
+      }
       if (essential) { essentialPending++; sawEssential = true; usefulFrame = false; if (!essentialFailure) state = 'loading'; }
     },
     startJob(id) {
@@ -133,6 +140,14 @@ export function createMapDiagnostics(generation: number, now: () => number): Map
       job.startedAt = now(); activeJobId = id;
     },
     completeJob(id) { finishJob(id, false); },
+    cancelJob(id) {
+      if (!active()) return;
+      const job = pending.get(id);
+      if (!job) return;
+      pending.delete(id);
+      if (job.essential) essentialPending--;
+      if (activeJobId === id) activeJobId = null;
+    },
     failJob(id, error) { finishJob(id, true, error); },
     recordError(jobId, essential, error) {
       if (!active()) return;
@@ -145,6 +160,7 @@ export function createMapDiagnostics(generation: number, now: () => number): Map
       if (Number.isFinite(metrics.durationMs) && metrics.durationMs >= 0) { samples.push(metrics.durationMs); if (samples.length > 120) samples.shift(); }
       if (metrics.mode === '2d') { if (firstUsefulFrameMs === null) firstUsefulFrameMs = elapsed(now(), startedAt); return; }
       stockDrawn = metrics.stockDrawn;
+      residentCells = metrics.residentCells ?? null;
       stockBuildings = metrics.stockBuildings; drawCalls = metrics.drawCalls; triangles = metrics.triangles;
       geometryBytes = metrics.geometryBytes; textures = metrics.textures;
       if (!usefulFrame && sawEssential && essentialPending === 0 && !essentialFailure && stockDrawn === true && (stockBuildings ?? 0) > 0 && (drawCalls ?? 0) > 0 && (triangles ?? 0) > 0) {
