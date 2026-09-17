@@ -82,7 +82,10 @@ function assertValidPages(root: THREE.Object3D | null): number {
     assert(index.count > 0 && index.count <= COVER_PAGE_INDICES, 'page index cap');
     assert.equal(index.count % 3, 0);
     assert(index.array instanceof Uint16Array, 'page-local 16-bit indices');
-    assert.equal(mesh.geometry.getAttribute('normal').count, position.count);
+    const normal = mesh.geometry.getAttribute('normal');
+    assert.equal(normal.count, position.count);
+    assert(normal.array instanceof Int8Array, 'axis-aligned cover normals use signed bytes');
+    assert(normal.normalized, 'signed cover normals are normalized for the shader');
     const color = mesh.geometry.getAttribute('color');
     if (color) assert.equal(color.count, position.count);
     for (let i = 0; i < index.count; i++) assert(index.getX(i) < position.count, 'index in page');

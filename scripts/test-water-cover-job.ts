@@ -87,10 +87,17 @@ function equalGeometry(data: CityData): void {
   for (let i = 0; i < a.length; i++) {
     const before = a[i]!,
       after = b[i]!;
-    for (const name of ['position', 'normal']) {
+    assert.deepEqual(
+      after.geometry.getAttribute('position').array,
+      before.geometry.getAttribute('position').array,
+    );
+    const beforeNormal = before.geometry.getAttribute('normal'),
+      afterNormal = after.geometry.getAttribute('normal');
+    assert.equal(afterNormal.count, beforeNormal.count);
+    for (let j = 0; j < beforeNormal.count; j++) {
       assert.deepEqual(
-        after.geometry.getAttribute(name).array,
-        before.geometry.getAttribute(name).array,
+        [afterNormal.getX(j), afterNormal.getY(j), afterNormal.getZ(j)],
+        [beforeNormal.getX(j), beforeNormal.getY(j), beforeNormal.getZ(j)],
       );
     }
     assert.deepEqual(

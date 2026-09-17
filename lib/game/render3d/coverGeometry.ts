@@ -166,8 +166,8 @@ export function createCoverJob(
 /**
  * Cover geometry is emitted in fixed-capacity pages. A page is the largest
  * unit ever allocated or copied by a cover job: 16,384 vertices keep every
- * index within Uint16 range and cap one page at 192 KiB positions, 192 KiB
- * normals, 96 KiB indices and (grass only) 192 KiB colours, so a page split
+ * index within Uint16 range and cap one page at 192 KiB positions, 48 KiB
+ * axis normals, 96 KiB indices and (grass only) 192 KiB colours, so a page split
  * costs one extra draw call rather than a multi-million-element copy.
  */
 export const COVER_PAGE_VERTICES = 16384;
@@ -439,6 +439,31 @@ function* pageMesh(
     if (!explicitNormals) normal.setXYZ(i, n.x, n.y, n.z);
     box.expandByPoint(a.fromBufferAttribute(position, i));
     if ((i + 1) % COVER_MATH_CHUNK === 0) yield;
+  }
+  let axisAligned = true;
+  for (let i = 0; i < normal.count; i++) {
+    const nx = normal.getX(i),
+      ny = normal.getY(i),
+      nz = normal.getZ(i);
+    if (
+      (nx !== -1 && nx !== 0 && nx !== 1) ||
+      (ny !== -1 && ny !== 0 && ny !== 1) ||
+      (nz !== -1 && nz !== 0 && nz !== 1)
+    ) {
+      axisAligned = false;
+      break;
+    }
+    if ((i + 1) % COVER_MATH_CHUNK === 0) yield;
+  }
+  if (axisAligned) {
+    const packed = new Int8Array(normal.count * 3);
+    for (let i = 0; i < normal.count; i++) {
+      packed[i * 3] = normal.getX(i) * 127;
+      packed[i * 3 + 1] = normal.getY(i) * 127;
+      packed[i * 3 + 2] = normal.getZ(i) * 127;
+      if ((i + 1) % COVER_COPY_CHUNK === 0) yield;
+    }
+    geometry.setAttribute('normal', new THREE.BufferAttribute(packed, 3, true));
   }
   const center = box.getCenter(new THREE.Vector3());
   let radiusSq = 0;
