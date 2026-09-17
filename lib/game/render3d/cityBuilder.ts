@@ -3795,8 +3795,10 @@ function* snapSpanToApproachesSteps(
       bestZ = a.z;
       bestTier = a.tier;
     }
-    for (const e of runEnds) {
-      yield;
+    for (let i = 0; i < runEnds.length; i++) {
+      if (i % 64 === 0) yield;
+      const e = runEnds[i];
+      if (Math.abs(e.x - pt.x) >= bestD || Math.abs(e.z - pt.z) >= bestD) continue;
       const d = Math.hypot(e.x - pt.x, e.z - pt.z);
       if (d >= bestD) continue;
       if (yield* overWater(e.x, e.z)) continue;
