@@ -16,6 +16,7 @@ import {
 } from '../lib/game/render3d/cityBuilder';
 import { clipCoverPolygon } from '../lib/game/render3d/coverClip';
 import {
+  COVER_ATTACH_CHUNK,
   COVER_PAGE_INDICES,
   COVER_PAGE_VERTICES,
   coverMesh,
@@ -51,7 +52,7 @@ function colorKey(mesh: THREE.Mesh): string {
 }
 
 /** Ordered per-material triangle streams, independent of mesh/page layout. */
-function triangleStreams(root: THREE.Object3D | null, withNormals = true): Map<string, number[]> {
+function triangleStreams(root: THREE.Object3D | null): Map<string, number[]> {
   const streams = new Map<string, number[]>();
   for (const mesh of meshes(root)) {
     const key = colorKey(mesh);
@@ -64,8 +65,7 @@ function triangleStreams(root: THREE.Object3D | null, withNormals = true): Map<s
     for (let i = 0; i < index.count; i++) {
       const v = index.getX(i);
       out.push(position.getX(v), position.getY(v), position.getZ(v));
-      if (withNormals) out.push(normal.getX(v), normal.getY(v), normal.getZ(v));
-      else assert(Math.abs(normal.getY(v)) > 0.999, 'flat cover normal');
+      out.push(normal.getX(v), normal.getY(v), normal.getZ(v));
       if (color) out.push(color.getX(v), color.getY(v), color.getZ(v));
     }
   }
@@ -352,34 +352,144 @@ function waterRing(n: number, cx: number, cz: number, radiusM: number): CityPoly
   for (const [key, stream] of want) assert.deepEqual(got.get(key), stream, key);
   disposeAll(legacy, output);
 }
-// One record larger than a page falls back to per-triangle emission: identical
-// ordered triangles and colours; per-triangle flat normals instead of the
-// legacy shared-vertex accumulation (both point straight up or down).
-{
-  const data = city([], [waterRing(20000, 100, 50, 3000)]);
-  const legacy = buildWater(data);
+// Records below and above the page thresholds, including one whose fan
+// folds back on itself (mixed-sign contributions at shared vertices) and one
+// with duplicated source vertices and degenerate triangles: signed indexed
+// normals must equal the legacy shared-vertex accumulation exactly.
+function foldedRing(n: number): CityPoly {
+  const ring: { x: number; z: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const r = (3000 + 2600 * Math.sin(t * 9)) * M;
+    ring.push({ x: 100 + Math.cos(t) * r, z: 50 + Math.sin(t) * r });
+  }
+  const indices: number[] = [];
+  for (let i = 1; i < n - 1; i++) indices.push(0, i, i + 1);
+  return { verts: q(ring), indices: new Uint16Array(indices) };
+}
+function degenerateRing(n: number): CityPoly {
+  const base = waterRing(n, 100, 50, 3000);
+  const verts = new Uint16Array(base.verts.length + 4);
+  verts.set(base.verts);
+  verts.set(base.verts.subarray(2, 6), base.verts.length); // duplicates of vertices 1 and 2
+  const d1 = n,
+    d2 = n + 1;
+  const indices = [
+    ...base.indices,
+    0,
+    d1,
+    d2, // duplicated corners, same positions as (0, 1, 2)
+    d1,
+    d1,
+    d2, // degenerate: repeated corner
+    3,
+    4,
+    4, // degenerate: zero area
+    0,
+    d2,
+    d1, // reversed winding over duplicated corners
+  ];
+  return { verts, indices: new Uint16Array(indices) };
+}
+const waterJob = (id: string, data: CityData, bounds: BoundsXZ | null = null) => {
   let output: THREE.Group | null = null;
   const peak = measureAllocations(() =>
     run(
       createWaterCoverJob({
         ...jobOptions,
-        id: 'water-pages',
+        id,
         cityData: data,
-        waterIndices: [0],
+        waterIndices: data.water.map((_, i) => i),
+        bounds,
         onReady(group) {
           output = group;
         },
       }),
     ),
   );
-  assert(peak.typed <= COVER_PAGE_VERTICES * 3, `water typed allocations bounded (${peak.typed})`);
-  assert(peak.push <= 64, `water emission keeps no growing JS arrays (${peak.push})`);
+  return { output, peak };
+};
+for (const [label, record] of [
+  ['below-page', waterRing(16000, 100, 50, 3000)],
+  ['above-page', waterRing(20000, 100, 50, 3000)],
+  ['folded-above-page', foldedRing(20000)],
+  ['degenerate-above-page', degenerateRing(20000)],
+  ['degenerate-below-page', degenerateRing(4000)],
+] as const) {
+  const data = city([], [record]);
+  const legacy = buildWater(data);
+  const { output, peak } = waterJob(`water-${label}`, data);
+  assert(
+    peak.typed <= COVER_PAGE_VERTICES * 3,
+    `${label} typed allocations bounded (${peak.typed})`,
+  );
+  assert(peak.push <= 64, `${label} emission keeps no growing JS arrays (${peak.push})`);
   const pages = assertValidPages(output);
-  assert(pages > 2, 'surface and banks span pages');
-  const want = triangleStreams(legacy, false),
-    got = triangleStreams(output, false);
+  if (label.includes('above')) assert(pages > 2, `${label} surface and banks span pages`);
+  const want = triangleStreams(legacy),
+    got = triangleStreams(output);
   assert.deepEqual([...got.keys()], [...want.keys()], 'water then bank material order');
-  for (const [key, stream] of want) assert.deepEqual(got.get(key), stream, key);
+  for (const [key, stream] of want) assert.deepEqual(got.get(key), stream, `${label} ${key}`);
+  disposeAll(legacy, output);
+}
+// Clipped water: every emitted vertex that coincides with a source vertex
+// keeps the legacy accumulated normal of that vertex; vertices introduced on
+// the clip boundary take the face normal of their source triangle.
+{
+  const record = degenerateRing(20000);
+  const data = city([], [record]);
+  const legacy = buildWater(data);
+  const surface = meshes(legacy)[0]!; // legacy adds the merged surface before the banks
+  const sourceNormal = new Map<string, [number, number, number]>();
+  {
+    const position = surface.geometry.getAttribute('position'),
+      normal = surface.geometry.getAttribute('normal');
+    for (let i = 0; i < position.count; i++) {
+      const key = `${position.getX(i)},${position.getZ(i)}`;
+      const value: [number, number, number] = [normal.getX(i), normal.getY(i), normal.getZ(i)];
+      const seen = sourceNormal.get(key);
+      if (seen && (seen[0] !== value[0] || seen[1] !== value[1] || seen[2] !== value[2]))
+        sourceNormal.set(key, [NaN, NaN, NaN]); // duplicated position with distinct normals
+      else sourceNormal.set(key, value);
+    }
+  }
+  // A window on the ring itself (angle pi/2, where the lobed radius peaks)
+  // holds source vertices as well as fan edges that cross its boundary.
+  const edgeZ = 50 + 3210 * M;
+  const bounds: BoundsXZ = {
+    minX: 100 - 1.2,
+    maxX: 100 + 0.9,
+    minZ: edgeZ - 2.1,
+    maxZ: edgeZ + 1.4,
+  };
+  const { output } = waterJob('water-clipped', data, bounds);
+  assertValidPages(output);
+  let matched = 0,
+    introduced = 0;
+  for (const mesh of meshes(output)) {
+    const position = mesh.geometry.getAttribute('position'),
+      normal = mesh.geometry.getAttribute('normal');
+    const legacyMaterial = surface.material as THREE.MeshLambertMaterial;
+    if (
+      (mesh.material as THREE.MeshLambertMaterial).color.getHex() !== legacyMaterial.color.getHex()
+    )
+      continue;
+    for (let i = 0; i < position.count; i++) {
+      assert(position.getX(i) >= bounds.minX - 1e-4 && position.getX(i) <= bounds.maxX + 1e-4);
+      assert(position.getZ(i) >= bounds.minZ - 1e-4 && position.getZ(i) <= bounds.maxZ + 1e-4);
+      const expected = sourceNormal.get(`${position.getX(i)},${position.getZ(i)}`);
+      const actual = [normal.getX(i), normal.getY(i), normal.getZ(i)];
+      if (expected && !Number.isNaN(expected[0])) {
+        matched++;
+        assert.deepEqual(actual, expected, 'clipped source vertex keeps legacy normal');
+      } else {
+        introduced++;
+        const length = Math.hypot(...actual);
+        assert(length < 1e-6 || Math.abs(length - 1) < 1e-6, 'face normal is unit or degenerate');
+      }
+    }
+  }
+  assert(matched > 100 && introduced > 10, `clipping exercised (${matched}/${introduced})`);
   disposeAll(legacy, output);
 }
 
@@ -515,6 +625,128 @@ for (const mode of ['cancel', 'throw'] as const) {
   for (const count of disposals.values()) assert.equal(count, 1, 'page disposed exactly once');
   assert.equal(materialDisposals.length, 1);
   assert.equal(published, 'unset', 'nothing published after cancel or failure');
+}
+
+/* 7b. Page attachment is never one unsliced loop: with a `parent` option each
+ * page is attached as it is finalised; without one, `finish()` attaches at
+ * most COVER_ATTACH_CHUNK pages per generator advancement. Cancelling while
+ * pages are attached publishes nothing, leaves no scene attachment and
+ * disposes every page exactly once. */
+for (const pageCount of [100, 1000, 5000]) {
+  for (const streamed of [true, false]) {
+    let clock = 0;
+    let root: THREE.Group | null = null;
+    let published: unknown = 'unset';
+    let maxAddsPerStep = 0,
+      finishSteps = 0,
+      childrenBeforeFinish = -1;
+    const job = createCoverJob(
+      {
+        ...jobOptions,
+        id: `attach-${pageCount}-${streamed}`,
+        now: () => (clock += 4),
+        onReady: (g) => (published = g),
+      },
+      function* (context) {
+        root = context.root;
+        const material = context.own(new THREE.MeshBasicMaterial());
+        const writer = createCoverPageWriter(
+          context,
+          material,
+          streamed ? { parent: context.root } : {},
+        );
+        for (let i = 0; i < pageCount; i++) {
+          writer.vertex(i, 0, 0);
+          writer.vertex(i + 1, 0, 0);
+          writer.vertex(i, 0, 1);
+          writer.triangle(0, 1, 2);
+          yield* writer.flush();
+        }
+        childrenBeforeFinish = context.root.children.length;
+        const finish = writer.finish(context.root);
+        let before = context.root.children.length;
+        for (;;) {
+          const next = finish.next();
+          maxAddsPerStep = Math.max(maxAddsPerStep, context.root.children.length - before);
+          before = context.root.children.length;
+          if (next.done) break;
+          finishSteps++;
+          yield;
+        }
+      },
+    );
+    run(job);
+    const scene = published as THREE.Group;
+    assert.equal(scene, root, 'root published once');
+    assert.equal(scene.children.length, pageCount, 'every page attached in order');
+    for (let i = 0; i < pageCount; i++)
+      assert.equal((scene.children[i] as THREE.Mesh).geometry.getAttribute('position').getX(0), i);
+    if (streamed) {
+      assert.equal(childrenBeforeFinish, pageCount, 'pages attached as they were finalised');
+      assert.equal(maxAddsPerStep, 0, 'finish attaches nothing when pages stream to the parent');
+    } else {
+      assert.equal(childrenBeforeFinish, 0);
+      assert(
+        maxAddsPerStep <= COVER_ATTACH_CHUNK,
+        `at most ${COVER_ATTACH_CHUNK} additions per advancement (${maxAddsPerStep})`,
+      );
+      assert(
+        finishSteps >= Math.ceil(pageCount / COVER_ATTACH_CHUNK) - 1,
+        'finish yields between chunks',
+      );
+    }
+    disposeAll(scene);
+  }
+}
+for (const streamed of [true, false]) {
+  const disposals = new Map<THREE.BufferGeometry, number>();
+  let published: unknown = 'unset';
+  let root: THREE.Group | null = null;
+  let cancelAt = -1;
+  const pageCount = 200;
+  const job = createCoverJob(
+    { ...jobOptions, id: `attach-cancel-${streamed}`, onReady: (g) => (published = g) },
+    function* (context) {
+      root = context.root;
+      const material = context.own(new THREE.MeshBasicMaterial());
+      const writer = createCoverPageWriter(
+        context,
+        material,
+        streamed ? { parent: context.root } : {},
+      );
+      for (let i = 0; i < pageCount; i++) {
+        writer.vertex(i, 0, 0);
+        writer.vertex(i + 1, 0, 0);
+        writer.vertex(i, 0, 1);
+        writer.triangle(0, 1, 2);
+        yield* writer.flush();
+        const mesh = writer.meshes[i]!;
+        disposals.set(mesh.geometry, 0);
+        mesh.geometry.addEventListener('dispose', () =>
+          disposals.set(mesh.geometry, disposals.get(mesh.geometry)! + 1),
+        );
+        if (streamed && i === 120) {
+          cancelAt = context.root.children.length;
+          job.cancel();
+        }
+      }
+      const finish = writer.finish(context.root);
+      while (!finish.next().done) {
+        if (!streamed && context.root.children.length >= 3 * COVER_ATTACH_CHUNK && cancelAt < 0) {
+          cancelAt = context.root.children.length;
+          job.cancel();
+        }
+        yield;
+      }
+      assert.fail('producer must stop once cancelled');
+    },
+  );
+  while (!job.step());
+  assert(cancelAt > 0 && cancelAt < pageCount, `cancelled mid-attachment (${cancelAt})`);
+  assert.equal(published, 'unset', 'no publication after mid-attachment cancel');
+  assert.equal(root!.parent, null, 'unpublished root is attached to no scene');
+  assert.equal(disposals.size, streamed ? 121 : pageCount);
+  for (const count of disposals.values()) assert.equal(count, 1, 'page disposed exactly once');
 }
 
 /* 8. Writer invariants and the single-page compatibility helper. */
