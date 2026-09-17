@@ -1,8 +1,8 @@
 import { METERS_TO_WORLD } from '../geo';
-import type { ReadonlyWaterRing } from './waterQuery';
+import type { WaterSourceRing } from './waterQuery';
 
 interface RingPage {
-  readonly rings: ReadonlyWaterRing[];
+  readonly rings: WaterSourceRing[];
   next: RingPage | null;
 }
 
@@ -23,7 +23,7 @@ function bucket(): RingBucket {
   return { first, last: first };
 }
 
-function append(bucket: RingBucket, ring: ReadonlyWaterRing): void {
+function append(bucket: RingBucket, ring: WaterSourceRing): void {
   if (bucket.last.rings.length === 64) {
     const next: RingPage = { rings: [], next: null };
     bucket.last.next = next;
@@ -33,7 +33,7 @@ function append(bucket: RingBucket, ring: ReadonlyWaterRing): void {
 }
 
 export function* buildWaterRingIndex(
-  rings: readonly ReadonlyWaterRing[],
+  rings: readonly WaterSourceRing[],
 ): Generator<void, WaterRingIndex> {
   const cells = new Map<string, RingBucket>();
   const fallback = bucket();
@@ -70,7 +70,7 @@ export function* waterRingsAt(
   index: WaterRingIndex,
   x: number,
   z: number,
-): Generator<ReadonlyWaterRing> {
+): Generator<WaterSourceRing> {
   const cell = index.cells.get(`${Math.floor(x / CELL_WORLD)}:${Math.floor(z / CELL_WORLD)}`);
   for (const bucket of [cell, index.fallback]) {
     let page = bucket?.first;

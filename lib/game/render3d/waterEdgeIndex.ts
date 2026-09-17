@@ -1,3 +1,5 @@
+import type { CoverSequence } from './coverSequence';
+
 type Point = Readonly<{ x: number; z: number }>;
 
 interface EdgeBounds {
@@ -11,13 +13,13 @@ export type WaterEdgeIndex = EdgeBounds &
         readonly kind: 'leaf';
         readonly start: number;
         readonly end: number;
-        readonly points: readonly Point[];
+        readonly points: CoverSequence<Point>;
       }
     | { readonly kind: 'branch'; readonly left: WaterEdgeIndex; readonly right: WaterEdgeIndex }
   );
 
 export function* buildWaterEdgeIndex(
-  points: readonly Point[],
+  points: CoverSequence<Point>,
   start = 0,
   end = points.length,
 ): Generator<void, WaterEdgeIndex> {
@@ -26,8 +28,8 @@ export function* buildWaterEdgeIndex(
     let maxZ = -Infinity;
     for (let i = start; i < end; i++) {
       const previous = i === 0 ? points.length - 1 : i - 1;
-      minZ = Math.min(minZ, points[i]!.z, points[previous]!.z);
-      maxZ = Math.max(maxZ, points[i]!.z, points[previous]!.z);
+      minZ = Math.min(minZ, points.at(i)!.z, points.at(previous)!.z);
+      maxZ = Math.max(maxZ, points.at(i)!.z, points.at(previous)!.z);
       yield;
     }
     return { kind: 'leaf', minZ, maxZ, start, end, points };
@@ -68,10 +70,10 @@ export function* indexedPointInRingSteps(
     const points = node.points;
     for (let i = node.start; i < node.end; i++) {
       const j = i === 0 ? points.length - 1 : i - 1;
-      const xi = points[i]!.x;
-      const zi = points[i]!.z;
-      const xj = points[j]!.x;
-      const zj = points[j]!.z;
+      const xi = points.at(i)!.x;
+      const zi = points.at(i)!.z;
+      const xj = points.at(j)!.x;
+      const zj = points.at(j)!.z;
       if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi)
         inside = !inside;
     }

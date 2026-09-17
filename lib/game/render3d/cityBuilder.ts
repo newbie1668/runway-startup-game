@@ -41,6 +41,7 @@ import {
 } from './buildingStyle';
 import * as pal from './palette';
 import { DASH_WIDTH_M, polylineDashes, visitPolylineDashSteps } from './streetMarks';
+import { CoverPages, sourcePointSequence, type CoverSequence } from './coverSequence';
 import { chamferRing, insetRingTowardCentroid, scaleToward } from './footprint';
 import {
   analyzeFootprint,
@@ -81,7 +82,7 @@ import {
   type WaterRing,
   pointInRingSteps,
   pointOverWaterSteps,
-  waterRingsSteps,
+  waterSourceRingsSteps,
 } from './waterQuery';
 import type { StockDetail } from './detailPolicy';
 
@@ -2352,7 +2353,10 @@ export function buildParks(cityData: CityData, keep: KeepDisk | null = null): TH
   return group;
 }
 
-type ParkInfo = NonNullable<ReturnType<typeof parkCentroid>> & { bounds: BoundsXZ };
+type ParkInfo = Omit<NonNullable<ReturnType<typeof parkCentroid>>, 'ring'> & {
+  bounds: BoundsXZ;
+  ring: CoverSequence<{ x: number; z: number }>;
+};
 const parkInfoCache = new WeakMap<CityPoly, ParkInfo>();
 const parkTileCounts = new WeakMap<CityData, Map<number, number>>();
 
@@ -2361,7 +2365,7 @@ function* parkInfoSteps(park: CityPoly): Generator<void, ParkInfo | null> {
   if (cached) return cached;
   const n = park.verts.length / 2;
   if (n < 3) return null;
-  const ring: { x: number; z: number }[] = [];
+  const ring = sourcePointSequence(park.verts);
   const bounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
   let x = 0,
     z = 0,
@@ -2369,7 +2373,6 @@ function* parkInfoSteps(park: CityPoly): Generator<void, ParkInfo | null> {
   for (let i = 0; i < n; i++) {
     const px = dequantizeX(park.verts[i * 2]!),
       pz = dequantizeY(park.verts[i * 2 + 1]!);
-    ring.push({ x: px, z: pz });
     x += px;
     z += pz;
     bounds.minX = Math.min(bounds.minX, px);
@@ -2379,8 +2382,8 @@ function* parkInfoSteps(park: CityPoly): Generator<void, ParkInfo | null> {
     yield;
   }
   for (let i = 0; i < n; i++) {
-    const a = ring[i]!,
-      b = ring[(i + 1) % n]!;
+    const a = ring.at(i)!,
+      b = ring.at((i + 1) % n)!;
     acc += a.x * b.z - b.x * a.z;
     yield;
   }
@@ -2408,7 +2411,7 @@ export function createParkCoverJob(
 ) {
   return createCoverJob(options, function* (context) {
     const bounds = options.bounds ?? null;
-    const water = yield* waterRingsSteps(options.cityData);
+    const water = yield* waterSourceRingsSteps(options.cityData);
     let tileCounts = parkTileCounts.get(options.cityData);
     if (!tileCounts) {
       tileCounts = new Map();
@@ -2528,9 +2531,9 @@ export function createParkCoverJob(
       if (tiled === 0 || tiled * cellM * cellM < info.areaM2 * 0.25) {
         for (let t = 0; t + 2 < park.indices.length; t += 3) {
           yield;
-          const a = ring[park.indices[t]!]!,
-            b = ring[park.indices[t + 1]!]!,
-            c = ring[park.indices[t + 2]!]!;
+          const a = ring.at(park.indices[t]!)!,
+            b = ring.at(park.indices[t + 1]!)!,
+            c = ring.at(park.indices[t + 2]!)!;
           if (!a || !b || !c) continue;
           const mx = (a.x + b.x + c.x) / 3,
             mz = (a.z + b.z + c.z) / 3;
@@ -2575,7 +2578,7 @@ export function createParkCoverJob(
         maxI = 0,
         maxD = 0;
       for (let i = 0; i < info.ring.length; i++) {
-        const p = info.ring[i]!;
+        const p = info.ring.at(i)!;
         if (nearLondonCityAirport(p.x, p.z)) atAirport = true;
         const distance = Math.hypot(p.x - info.x, p.z - info.z);
         if (distance > maxD) {
@@ -2586,8 +2589,8 @@ export function createParkCoverJob(
       }
       if (atAirport) continue;
       const { ring, x: cx, z: cz } = info;
-      const a = ring[maxI]!,
-        b = ring[(maxI + Math.floor(ring.length / 2)) % ring.length]!;
+      const a = ring.at(maxI)!,
+        b = ring.at((maxI + Math.floor(ring.length / 2)) % ring.length)!;
       const path = buildRibbonGeometry(
         [
           { x: a.x * 0.72 + cx * 0.28, z: a.z * 0.72 + cz * 0.28 },
@@ -2840,7 +2843,7 @@ function* treeSpotsSteps(cityData: CityData): Generator<void, TreeSpot[]> {
     }
   }
   const streetSpacing = [20, 26, 36];
-  const rings = yield* waterRingsSteps(cityData);
+  const rings = yield* waterSourceRingsSteps(cityData);
   for (const road of cityData.roads) {
     yield;
     if (road.tier > 2 || spots.length >= TREE_MAX || road.pts.length < 4) continue;
@@ -3082,28 +3085,18 @@ function roadPts(road: CityRoad):
       z: number;
     }[]
   | null {
-  return consumeSteps(roadPtsSteps(road));
+  const points = consumeSteps(roadPtsSteps(road));
+  return points ? Array.from(points) : null;
 }
 
 function* roadPtsSteps(road: CityRoad): Generator<
   void,
-  | {
-      x: number;
-      z: number;
-    }[]
+  | CoverSequence<{ x: number; z: number }>
   | null
 > {
   const n = road.pts.length / 2;
   if (n < 2) return null;
-  const pts: {
-    x: number;
-    z: number;
-  }[] = [];
-  for (let i = 0; i < n; i++) {
-    yield;
-    pts.push({ x: dequantizeX(road.pts[i * 2]!), z: dequantizeY(road.pts[i * 2 + 1]!) });
-  }
-  return pts;
+  return sourcePointSequence(road.pts);
 }
 
 function appendRibbon(
@@ -3357,27 +3350,15 @@ function* waterChannelOnEdgeSteps(
 
 /** Insert wet markers on dry→dry edges that actually cross a channel. */
 function* polylineWithWaterBreaksSteps(
-  pts: {
-    x: number;
-    z: number;
-  }[],
+  pts: CoverSequence<{ x: number; z: number }>,
   overWater: (x: number, z: number) => Generator<void, boolean>,
-): Generator<
-  void,
-  {
-    x: number;
-    z: number;
-  }[]
-> {
-  const out: {
-    x: number;
-    z: number;
-  }[] = [];
+): Generator<void, CoverSequence<{ x: number; z: number }>> {
+  const out = new CoverPages<{ x: number; z: number }>();
   for (let i = 0; i < pts.length; i++) {
     yield;
-    const p = pts[i]!;
+    const p = pts.at(i)!;
     if (i > 0) {
-      const prev = pts[i - 1]!;
+      const prev = pts.at(i - 1)!;
       if (!(yield* overWater(prev.x, prev.z)) && !(yield* overWater(p.x, p.z))) {
         const ch = yield* waterChannelOnEdgeSteps(prev, p, overWater);
         if (ch) {
@@ -3405,66 +3386,63 @@ export function splitRoadRuns(
   }[],
   overWater: (x: number, z: number) => boolean,
 ): RoadRun[] {
-  return consumeSteps(
+  const runs = consumeSteps(
     splitRoadRunsSteps(pts, function* (x: number, z: number) {
       return overWater(x, z);
     }),
   );
+  return Array.from(runs, (run) => ({ pts: Array.from(run.pts), span: run.span }));
+}
+
+interface CoverRoadRun {
+  pts: CoverSequence<{ x: number; z: number }>;
+  span: boolean;
 }
 
 function* splitRoadRunsSteps(
-  pts: {
-    x: number;
-    z: number;
-  }[],
+  pts: CoverSequence<{ x: number; z: number }>,
   overWater: (x: number, z: number) => Generator<void, boolean>,
-): Generator<void, RoadRun[]> {
+): Generator<void, CoverSequence<CoverRoadRun>> {
   if (pts.length < 2) return [];
   const seq = yield* polylineWithWaterBreaksSteps(pts, overWater);
-  const wet: boolean[] = [];
+  const wet = new CoverPages<boolean>();
   for (const p of seq) {
     yield;
     wet.push(yield* overWater(p.x, p.z));
   }
-  const groups: {
+  const groups = new CoverPages<{
     start: number;
     end: number;
     wet: boolean;
-  }[] = [];
+  }>();
   let i = 0;
   while (i < seq.length) {
     yield;
-    const w = wet[i]!;
+    const w = wet.at(i)!;
     let j = i + 1;
-    while (j < seq.length && wet[j] === w) {
+    while (j < seq.length && wet.at(j) === w) {
       yield;
       j += 1;
     }
     groups.push({ start: i, end: j, wet: w });
     i = j;
   }
-  const out: RoadRun[] = [];
+  const out = new CoverPages<CoverRoadRun>();
   for (let g = 0; g < groups.length; g++) {
     yield;
-    const run = groups[g]!;
+    const run = groups.at(g)!;
     if (run.wet) continue;
-    const headWet = g > 0 && groups[g - 1]!.wet;
-    const tailWet = g + 1 < groups.length && groups[g + 1]!.wet;
-    const slice: {
-      x: number;
-      z: number;
-    }[] = [];
+    const headWet = g > 0 && groups.at(g - 1)!.wet;
+    const tailWet = g + 1 < groups.length && groups.at(g + 1)!.wet;
+    const slice = new CoverPages<{ x: number; z: number }>();
     for (let i = run.start; i < run.end; i++) {
       yield;
-      slice.push(seq[i]!);
+      slice.push(seq.at(i)!);
     }
-    let outPts: {
-      x: number;
-      z: number;
-    }[] = [];
+    const outPts = new CoverPages<{ x: number; z: number }>();
     if (slice.length === 1) {
-      const land = slice[0]!;
-      const wetPt = headWet ? seq[run.start - 1]! : tailWet ? seq[run.end]! : null;
+      const land = slice.at(0)!;
+      const wetPt = headWet ? seq.at(run.start - 1)! : tailWet ? seq.at(run.end)! : null;
       if (!wetPt) continue;
       const dx = land.x - wetPt.x;
       const dz = land.z - wetPt.z;
@@ -3474,10 +3452,11 @@ function* splitRoadRunsSteps(
         z: land.z + (dz / len) * 16 * METERS_TO_WORLD,
       };
       const shore = (yield* shorelinePointSteps(land, wetPt, overWater)) ?? land;
-      outPts = [inland, shore];
+      outPts.push(inland);
+      outPts.push(shore);
     } else if (slice.length >= 2) {
       if (headWet) {
-        const shore = yield* shorelinePointSteps(seq[run.start]!, seq[run.start - 1]!, overWater);
+        const shore = yield* shorelinePointSteps(seq.at(run.start)!, seq.at(run.start - 1)!, overWater);
         if (shore) outPts.push(shore);
       }
       for (const p of slice) {
@@ -3485,7 +3464,7 @@ function* splitRoadRunsSteps(
         outPts.push(p);
       }
       if (tailWet) {
-        const shore = yield* shorelinePointSteps(seq[run.end - 1]!, seq[run.end]!, overWater);
+        const shore = yield* shorelinePointSteps(seq.at(run.end - 1)!, seq.at(run.end)!, overWater);
         if (shore) outPts.push(shore);
       }
     }
@@ -4024,16 +4003,16 @@ function* collectRoadApproachesSteps(
     for (const run of runs) {
       yield;
       if (run.pts.length < 2) continue;
-      runEnds.push(run.pts[0]!, run.pts[run.pts.length - 1]!);
+      runEnds.push(run.pts.at(0)!, run.pts.at(-1)!);
       const head = yield* approachIfTowardWaterSteps(
-        run.pts[0]!,
-        run.pts[1]!,
+        run.pts.at(0)!,
+        run.pts.at(1)!,
         road.tier,
         overWater,
       );
       const tail = yield* approachIfTowardWaterSteps(
-        run.pts[run.pts.length - 1]!,
-        run.pts[run.pts.length - 2]!,
+        run.pts.at(-1)!,
+        run.pts.at(-2)!,
         road.tier,
         overWater,
       );
@@ -4051,7 +4030,7 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
 function* riverCrossingSpansSteps(cityData: CityData): Generator<void, CrossingSpan[]> {
   const cached = riverCrossingCache.get(cityData);
   if (cached) return yield* copyCrossingSpansSteps(cached);
-  const rings = yield* waterRingsSteps(cityData);
+  const rings = yield* waterSourceRingsSteps(cityData);
   const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
   const { approaches, runEnds } = yield* collectRoadApproachesSteps(cityData, overWater);
   const fromRoads = yield* buildCrossingSpansSteps(approaches, overWater);
@@ -4138,29 +4117,14 @@ function clipRibbonPts(
   x: number;
   z: number;
 }[][] {
-  return consumeSteps(clipRibbonPtsSteps(pts));
+  return Array.from(consumeSteps(clipRibbonPtsSteps(pts)), (points) => Array.from(points));
 }
 
 function* clipRibbonPtsSteps(
-  pts: {
-    x: number;
-    z: number;
-  }[],
-): Generator<
-  void,
-  {
-    x: number;
-    z: number;
-  }[][]
-> {
-  const runs: {
-    x: number;
-    z: number;
-  }[][] = [];
-  let cur: {
-    x: number;
-    z: number;
-  }[] = [];
+  pts: CoverSequence<{ x: number; z: number }>,
+): Generator<void, CoverSequence<CoverSequence<{ x: number; z: number }>>> {
+  const runs = new CoverPages<CoverSequence<{ x: number; z: number }>>();
+  let cur = new CoverPages<{ x: number; z: number }>();
   const keepSeg = (
     a: {
       x: number;
@@ -4177,12 +4141,13 @@ function* clipRibbonPtsSteps(
       if (!skipRoadVertex(p.x, p.z)) cur.push(p);
       continue;
     }
-    const prev = cur[cur.length - 1]!;
+    const prev = cur.at(cur.length - 1)!;
     if (keepSeg(prev, p)) {
       cur.push(p);
     } else {
       if (cur.length >= 2) runs.push(cur);
-      cur = skipRoadVertex(p.x, p.z) ? [] : [p];
+      cur = new CoverPages<{ x: number; z: number }>();
+      if (!skipRoadVertex(p.x, p.z)) cur.push(p);
     }
   }
   if (cur.length >= 2) runs.push(cur);
@@ -4203,7 +4168,7 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
 }
 
 function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCrosswalk[]> {
-  const rings = yield* waterRingsSteps(cityData);
+  const rings = yield* waterSourceRingsSteps(cityData);
   const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
   type End = {
     x: number;
@@ -4226,7 +4191,9 @@ function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCro
       let runLen = 0;
       for (let i = 0; i < run.pts.length - 1; i++) {
         yield;
-        runLen += Math.hypot(run.pts[i + 1]!.x - run.pts[i]!.x, run.pts[i + 1]!.z - run.pts[i]!.z);
+        const a = run.pts.at(i)!;
+        const b = run.pts.at(i + 1)!;
+        runLen += Math.hypot(b.x - a.x, b.z - a.z);
       }
       if (runLen < minRun) continue;
       const pushEnd = (
@@ -4247,8 +4214,8 @@ function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCro
         dz /= len;
         ends.push({ x: a.x, z: a.z, dx, dz, runLen });
       };
-      pushEnd(run.pts[0]!, run.pts[1]!);
-      pushEnd(run.pts[run.pts.length - 1]!, run.pts[run.pts.length - 2]!);
+      pushEnd(run.pts.at(0)!, run.pts.at(1)!);
+      pushEnd(run.pts.at(-1)!, run.pts.at(-2)!);
     }
   }
   const junctionR = 16 * METERS_TO_WORLD;
@@ -4545,14 +4512,14 @@ export function* roadCoverContextSteps(cityData: CityData): Generator<void, Road
 
 function* appendCoverRibbonSteps(
   writer: CoverPageWriter,
-  points: { x: number; z: number }[],
+  points: CoverSequence<{ x: number; z: number }>,
   halfWidth: number,
   y: number,
   bounds: BoundsXZ | null,
 ): Generator<void> {
   const normal = (i: number): { x: number; z: number } => {
-    const a = points[Math.max(0, i - 1)]!,
-      b = points[Math.min(points.length - 1, i + 1)]!;
+    const a = points.at(Math.max(0, i - 1))!,
+      b = points.at(Math.min(points.length - 1, i + 1))!;
     const dx = b.x - a.x,
       dz = b.z - a.z,
       length = Math.hypot(dx, dz) || 1;
@@ -4560,8 +4527,8 @@ function* appendCoverRibbonSteps(
   };
   for (let i = 0; i < points.length - 1; i++) {
     yield;
-    const a = points[i]!,
-      b = points[i + 1]!;
+    const a = points.at(i)!,
+      b = points.at(i + 1)!;
     if (Math.hypot(b.x - a.x, b.z - a.z) < 0.35 * METERS_TO_WORLD) continue;
     const an = normal(i),
       bn = normal(i + 1);
@@ -4590,7 +4557,7 @@ export function createRoadCoverJob(
   return createCoverJob(options, function* (context) {
     const bounds = options.bounds ?? null,
       paintMarks = options.paintMarks ?? true;
-    const rings = yield* waterRingsSteps(options.cityData);
+    const rings = yield* waterSourceRingsSteps(options.cityData);
     const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
     const roadContext = options.roadContext ?? (yield* roadCoverContextSteps(options.cityData));
     let sidewalkMaterial: THREE.MeshLambertMaterial | null = null;
@@ -4629,7 +4596,7 @@ export function createRoadCoverJob(
       },
     );
     const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
-    const marks = function* (points: { x: number; z: number }[]): Generator<void> {
+    const marks = function* (points: CoverSequence<{ x: number; z: number }>): Generator<void> {
       const pending: { a: CoverPoint; b: CoverPoint }[] = [];
       const dashes = visitPolylineDashSteps(points, (dash) => {
         pending.push(dash);

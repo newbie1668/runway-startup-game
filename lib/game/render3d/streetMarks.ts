@@ -1,3 +1,4 @@
+import type { CoverSequence } from './coverSequence';
 /**
  * Dashed centre-line math for SFSIM-style roads.
  * Pure TS (no DOM / three.js) so tests and the city builder share it.
@@ -42,14 +43,19 @@ export function* polylineDashSteps(
   gapM = DASH_GAP_M,
 ): Generator<void, DashSeg[]> {
   const out: DashSeg[] = [];
-  yield* visitPolylineDashSteps(pts, (dash) => {
-    out.push(dash);
-  }, dashM, gapM);
+  yield* visitPolylineDashSteps(
+    pts,
+    (dash) => {
+      out.push(dash);
+    },
+    dashM,
+    gapM,
+  );
   return out;
 }
 
 export function* visitPolylineDashSteps(
-  pts: readonly PolyPoint[],
+  pts: CoverSequence<PolyPoint>,
   visit: (dash: DashSeg) => void,
   dashM = DASH_LENGTH_M,
   gapM = DASH_GAP_M,
@@ -64,8 +70,8 @@ export function* visitPolylineDashSteps(
   let remain = dashW;
   for (let i = 0; i < pts.length - 1; i++) {
     yield;
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
+    const a = pts.at(i)!;
+    const b = pts.at(i + 1)!;
     const dx = b.x - a.x;
     const dz = b.z - a.z;
     const len = Math.hypot(dx, dz);
