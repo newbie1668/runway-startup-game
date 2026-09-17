@@ -3979,8 +3979,9 @@ function* buildCrossingSpansSteps(
 function* collectRoadApproachesSteps(
   cityData: CityData,
   overWater: (x: number, z: number) => Generator<void, boolean>,
-): Generator<void, RoadApproach[]> {
+): Generator<void, { approaches: RoadApproach[]; runEnds: { x: number; z: number }[] }> {
   const approaches: RoadApproach[] = [];
+  const runEnds: { x: number; z: number }[] = [];
   for (const road of cityData.roads as CityRoad[]) {
     yield;
     const pts = yield* roadPtsSteps(road);
@@ -3989,6 +3990,7 @@ function* collectRoadApproachesSteps(
     for (const run of runs) {
       yield;
       if (run.pts.length < 2) continue;
+      runEnds.push(run.pts[0]!, run.pts[run.pts.length - 1]!);
       const head = yield* approachIfTowardWaterSteps(
         run.pts[0]!,
         run.pts[1]!,
@@ -4005,34 +4007,7 @@ function* collectRoadApproachesSteps(
       if (tail) approaches.push(tail);
     }
   }
-  return approaches;
-}
-
-function* collectRunEndsSteps(
-  cityData: CityData,
-  overWater: (x: number, z: number) => Generator<void, boolean>,
-): Generator<
-  void,
-  {
-    x: number;
-    z: number;
-  }[]
-> {
-  const ends: {
-    x: number;
-    z: number;
-  }[] = [];
-  for (const road of cityData.roads as CityRoad[]) {
-    yield;
-    const pts = yield* roadPtsSteps(road);
-    if (!pts) continue;
-    for (const run of yield* splitRoadRunsSteps(pts, overWater)) {
-      yield;
-      if (run.pts.length < 2) continue;
-      ends.push(run.pts[0]!, run.pts[run.pts.length - 1]!);
-    }
-  }
-  return ends;
+  return { approaches, runEnds };
 }
 
 export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
@@ -4044,8 +4019,7 @@ function* riverCrossingSpansSteps(cityData: CityData): Generator<void, CrossingS
   if (cached) return yield* copyCrossingSpansSteps(cached);
   const rings = yield* waterRingsSteps(cityData);
   const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
-  const approaches = yield* collectRoadApproachesSteps(cityData, overWater);
-  const runEnds = yield* collectRunEndsSteps(cityData, overWater);
+  const { approaches, runEnds } = yield* collectRoadApproachesSteps(cityData, overWater);
   const fromRoads = yield* buildCrossingSpansSteps(approaches, overWater);
   const seeds = [
     ...LANDMARKS.filter(

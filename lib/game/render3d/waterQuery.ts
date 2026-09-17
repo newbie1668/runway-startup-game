@@ -1,6 +1,12 @@
 import type { CityData } from './format';
 import { dequantizeX, dequantizeY } from './format';
 import { readonlyValues } from './coverCollections';
+import {
+  buildWaterEdgeIndex,
+  indexedPointInRingSteps,
+  type WaterEdgeIndex,
+} from './waterEdgeIndex';
+import { buildWaterRingIndex, waterRingsAt, type WaterRingIndex } from './waterRingIndex';
 
 export type WaterPoint = { x: number; z: number };
 
@@ -106,15 +112,20 @@ export function* pointOverWaterSteps(
   z: number,
   rings: readonly ReadonlyWaterRing[],
 ): Generator<void, boolean> {
-  for (const ring of rings) {
+  const index = incrementalRingIndexes.get(rings);
+  for (const ring of index ? waterRingsAt(index, x, z) : rings) {
     yield;
     if (z < ring.minZ || z > ring.maxZ || x < ring.minX || x > ring.maxX) continue;
-    if (yield* pointInRingSteps(x, z, ring.points)) return true;
+    const edges = incrementalEdges.get(ring);
+    if (yield* edges ? indexedPointInRingSteps(x, z, edges) : pointInRingSteps(x, z, ring.points))
+      return true;
   }
   return false;
 }
 
 const incrementalRings = new WeakMap<CityData, readonly ReadonlyWaterRing[]>();
+const incrementalEdges = new WeakMap<ReadonlyWaterRing, WaterEdgeIndex>();
+const incrementalRingIndexes = new WeakMap<readonly ReadonlyWaterRing[], WaterRingIndex>();
 
 export function* waterRingsSteps(
   cityData: CityData,
@@ -167,10 +178,13 @@ export function* waterRingsSteps(
       minX -= tolerance;
       maxX += tolerance;
     }
-    rings.push(Object.freeze({ points: readonlyValues(points), minX, maxX, minZ, maxZ }));
+    const ring = Object.freeze({ points: readonlyValues(points), minX, maxX, minZ, maxZ });
+    incrementalEdges.set(ring, yield* buildWaterEdgeIndex(points));
+    rings.push(ring);
     yield;
   }
   const result = readonlyValues(rings);
+  incrementalRingIndexes.set(result, yield* buildWaterRingIndex(rings));
   incrementalRings.set(cityData, result);
   return result;
 }
