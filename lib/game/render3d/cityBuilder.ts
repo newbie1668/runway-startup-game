@@ -60,6 +60,7 @@ import { splitChunkCells } from './chunkCells';
 import type { BoundsXZ, CellId } from './cityIndex';
 import { coverMesh, createCoverJob, type CoverJobOptions } from './coverGeometry';
 import { appendCoverPolygon, clipCoverPolygon } from './coverClip';
+import { readonlyValues } from './coverCollections';
 import {
   aabbHitsKeep,
   CITYSTREET_AT,
@@ -2398,7 +2399,9 @@ export function createParkCoverJob(
     const base = new THREE.Color(0x6ea84c),
       dark = new THREE.Color(0x5a9340),
       lite = new THREE.Color(0x88bf5e);
+    let eligibleGrass = false;
     const emit = (vertices: { x: number; z: number }[], shade: THREE.Color): void => {
+      eligibleGrass = true;
       const clipped = clipCoverPolygon(vertices, bounds);
       for (let i = 1; i < clipped.length - 1; i++)
         emitParkVerts(
@@ -2475,6 +2478,7 @@ export function createParkCoverJob(
         }
       }
       tileCounts.set(source, tiled);
+      if (tiled > 0) eligibleGrass = true;
       const cellM = cell / METERS_TO_WORLD;
       if (tiled === 0 || tiled * cellM * cellM < info.areaM2 * 0.25) {
         for (let t = 0; t + 2 < park.indices.length; t += 3) {
@@ -2521,6 +2525,7 @@ export function createParkCoverJob(
     }
     positions.length = colors.length = indices.length = 0;
     yield;
+    if (!eligibleGrass) return;
     const halfW = 2.8 * METERS_TO_WORLD;
     for (const source of options.parkIndices) {
       const info = yield* parkInfoSteps(options.cityData.parks[source]!);
@@ -4489,8 +4494,11 @@ export function buildRoads(
 }
 
 export interface RoadCoverContext {
-  readonly crossings: readonly CrossingSpan[];
-  readonly crosswalks: readonly PlannedCrosswalk[];
+  readonly crossings: readonly {
+    readonly pts: readonly [Readonly<CrossingSpan['pts'][0]>, Readonly<CrossingSpan['pts'][1]>];
+    readonly tier: CrossingSpan['tier'];
+  }[];
+  readonly crosswalks: readonly Readonly<PlannedCrosswalk>[];
 }
 
 const roadCoverContextCache = new WeakMap<CityData, RoadCoverContext>();
@@ -4500,7 +4508,21 @@ export function* roadCoverContextSteps(cityData: CityData): Generator<void, Road
   if (cached) return cached;
   const crossings = yield* riverCrossingSpansSteps(cityData);
   const crosswalks = yield* plannedCrosswalksSteps(cityData);
-  const result = { crossings, crosswalks };
+  for (const span of crossings) {
+    Object.freeze(span.pts[0]);
+    Object.freeze(span.pts[1]);
+    Object.freeze(span.pts);
+    Object.freeze(span);
+    yield;
+  }
+  for (const zebra of crosswalks) {
+    Object.freeze(zebra);
+    yield;
+  }
+  const result = Object.freeze({
+    crossings: readonlyValues(crossings),
+    crosswalks: readonlyValues(crosswalks),
+  });
   roadCoverContextCache.set(cityData, result);
   return result;
 }
@@ -4627,16 +4649,17 @@ export function createRoadCoverJob(
       stitchIdx: number[] = [];
     for (const span of roadContext.crossings) {
       yield;
-      if (runTouchesTowerBridge(span.pts)) continue;
+      const points = [{ ...span.pts[0] }, { ...span.pts[1] }];
+      if (runTouchesTowerBridge(points)) continue;
       yield* appendCoverRibbonSteps(
         stitchPos,
         stitchIdx,
-        span.pts,
+        points,
         (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2,
         ROAD_Y,
         bounds,
       );
-      if (paintMarks) yield* marks(span.pts);
+      if (paintMarks) yield* marks(points);
     }
     if (stitchIdx.length) {
       const mesh = yield* coverMesh(context, stitchPos, stitchIdx, asphalt());

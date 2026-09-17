@@ -1,5 +1,6 @@
 import type { CityData } from './format';
 import { dequantizeX, dequantizeY } from './format';
+import { readonlyValues } from './coverCollections';
 
 export type WaterPoint = { x: number; z: number };
 
@@ -11,7 +12,11 @@ export type WaterRing = {
   maxZ: number;
 };
 
-export function pointInRing(x: number, z: number, ring: WaterPoint[]): boolean {
+export type ReadonlyWaterRing = Readonly<Omit<WaterRing, 'points'>> & {
+  readonly points: readonly Readonly<WaterPoint>[];
+};
+
+export function pointInRing(x: number, z: number, ring: readonly Readonly<WaterPoint>[]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const xi = ring[i]!.x;
@@ -71,7 +76,7 @@ export function waterRings(cityData: CityData): WaterRing[] {
   });
 }
 
-export function pointOverWater(x: number, z: number, rings: WaterRing[]): boolean {
+export function pointOverWater(x: number, z: number, rings: readonly ReadonlyWaterRing[]): boolean {
   for (const ring of rings) {
     if (z < ring.minZ || z > ring.maxZ || x < ring.minX || x > ring.maxX) continue;
     if (pointInRing(x, z, ring.points)) return true;
@@ -82,7 +87,7 @@ export function pointOverWater(x: number, z: number, rings: WaterRing[]): boolea
 export function* pointInRingSteps(
   x: number,
   z: number,
-  ring: WaterPoint[],
+  ring: readonly Readonly<WaterPoint>[],
 ): Generator<void, boolean> {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -99,7 +104,7 @@ export function* pointInRingSteps(
 export function* pointOverWaterSteps(
   x: number,
   z: number,
-  rings: WaterRing[],
+  rings: readonly ReadonlyWaterRing[],
 ): Generator<void, boolean> {
   for (const ring of rings) {
     yield;
@@ -109,12 +114,14 @@ export function* pointOverWaterSteps(
   return false;
 }
 
-const incrementalRings = new WeakMap<CityData, WaterRing[]>();
+const incrementalRings = new WeakMap<CityData, readonly ReadonlyWaterRing[]>();
 
-export function* waterRingsSteps(cityData: CityData): Generator<void, WaterRing[]> {
+export function* waterRingsSteps(
+  cityData: CityData,
+): Generator<void, readonly ReadonlyWaterRing[]> {
   const cached = incrementalRings.get(cityData);
   if (cached) return cached;
-  const rings: WaterRing[] = [];
+  const rings: ReadonlyWaterRing[] = [];
   for (const poly of cityData.water) {
     const points: WaterPoint[] = [];
     let minX = Infinity,
@@ -124,7 +131,7 @@ export function* waterRingsSteps(cityData: CityData): Generator<void, WaterRing[
     for (let i = 0; i < poly.verts.length; i += 2) {
       const x = dequantizeX(poly.verts[i]!),
         z = dequantizeY(poly.verts[i + 1]!);
-      points.push({ x, z });
+      points.push(Object.freeze({ x, z }));
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
       minZ = Math.min(minZ, z);
@@ -160,9 +167,10 @@ export function* waterRingsSteps(cityData: CityData): Generator<void, WaterRing[
       minX -= tolerance;
       maxX += tolerance;
     }
-    rings.push({ points, minX, maxX, minZ, maxZ });
+    rings.push(Object.freeze({ points: readonlyValues(points), minX, maxX, minZ, maxZ }));
     yield;
   }
-  incrementalRings.set(cityData, rings);
-  return rings;
+  const result = readonlyValues(rings);
+  incrementalRings.set(cityData, result);
+  return result;
 }
