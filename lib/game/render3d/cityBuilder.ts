@@ -40,7 +40,7 @@ import {
   type StockMassing,
 } from './buildingStyle';
 import * as pal from './palette';
-import { DASH_WIDTH_M, polylineDashes } from './streetMarks';
+import { DASH_WIDTH_M, polylineDashes, polylineDashSteps } from './streetMarks';
 import { chamferRing, insetRingTowardCentroid, scaleToward } from './footprint';
 import {
   analyzeFootprint,
@@ -57,7 +57,9 @@ import {
   type StreetEmit,
 } from './uniqueStreet';
 import { splitChunkCells } from './chunkCells';
-import type { CellId } from './cityIndex';
+import type { BoundsXZ, CellId } from './cityIndex';
+import { coverMesh, createCoverJob, type CoverJobOptions } from './coverGeometry';
+import { appendCoverPolygon, clipCoverPolygon } from './coverClip';
 import {
   aabbHitsKeep,
   CITYSTREET_AT,
@@ -66,7 +68,15 @@ import {
   ptsHitKeep,
   type KeepDisk,
 } from './lookClip';
-import { pointInRing, pointOverWater, waterRings, type WaterRing } from './waterQuery';
+import {
+  pointInRing,
+  pointOverWater,
+  waterRings,
+  type WaterRing,
+  pointInRingSteps,
+  pointOverWaterSteps,
+  waterRingsSteps,
+} from './waterQuery';
 import type { StockDetail } from './detailPolicy';
 
 export { chunkTierMeshes } from './chunkCells';
@@ -89,8 +99,13 @@ const SIDEWALK_Y = 0.09;
 const MARK_Y = 0.155;
 /** Carpet just above GROUND. Not a 12 m plate (0.11 world ≈ Hyde-as-tent). */
 export const PARK_Y = 0.028;
-const WATER_Y = 0.04;
-const WATER_BANK_Y = 0.055;
+export const WATER_Y = 0.04;
+export const WATER_BANK_Y = 0.055;
+function consumeSteps<T>(iterator: Generator<void, T>): T {
+  let result = iterator.next();
+  while (!result.done) result = iterator.next();
+  return result.value;
+}
 /** Regular lawn tiles. Smaller gardens need a tighter grid or paving GROUND shows. */
 function parkCellWorld(areaM2: number): number {
   if (areaM2 >= 15_000) return 32 * METERS_TO_WORLD;
@@ -2315,6 +2330,261 @@ export function buildParks(cityData: CityData, keep: KeepDisk | null = null): TH
   return group;
 }
 
+type ParkInfo = NonNullable<ReturnType<typeof parkCentroid>> & { bounds: BoundsXZ };
+const parkInfoCache = new WeakMap<CityPoly, ParkInfo>();
+const parkTileCounts = new WeakMap<CityData, Map<number, number>>();
+
+function* parkInfoSteps(park: CityPoly): Generator<void, ParkInfo | null> {
+  const cached = parkInfoCache.get(park);
+  if (cached) return cached;
+  const n = park.verts.length / 2;
+  if (n < 3) return null;
+  const ring: { x: number; z: number }[] = [];
+  const bounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
+  let x = 0,
+    z = 0,
+    acc = 0;
+  for (let i = 0; i < n; i++) {
+    const px = dequantizeX(park.verts[i * 2]!),
+      pz = dequantizeY(park.verts[i * 2 + 1]!);
+    ring.push({ x: px, z: pz });
+    x += px;
+    z += pz;
+    bounds.minX = Math.min(bounds.minX, px);
+    bounds.maxX = Math.max(bounds.maxX, px);
+    bounds.minZ = Math.min(bounds.minZ, pz);
+    bounds.maxZ = Math.max(bounds.maxZ, pz);
+    yield;
+  }
+  for (let i = 0; i < n; i++) {
+    const a = ring[i]!,
+      b = ring[(i + 1) % n]!;
+    acc += a.x * b.z - b.x * a.z;
+    yield;
+  }
+  const info = {
+    x: x / n,
+    z: z / n,
+    ring,
+    bounds,
+    areaM2: (Math.abs(acc) * 0.5) / (METERS_TO_WORLD * METERS_TO_WORLD),
+  };
+  parkInfoCache.set(park, info);
+  return info;
+}
+
+function coverContains(bounds: BoundsXZ | null, x: number, z: number): boolean {
+  return !bounds || (x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ);
+}
+
+export function createParkCoverJob(
+  options: CoverJobOptions & {
+    cityData: CityData;
+    parkIndices: readonly number[];
+    bounds?: BoundsXZ | null;
+  },
+) {
+  return createCoverJob(options, function* (context) {
+    const bounds = options.bounds ?? null;
+    const water = yield* waterRingsSteps(options.cityData);
+    let tileCounts = parkTileCounts.get(options.cityData);
+    if (!tileCounts) {
+      tileCounts = new Map();
+      parkTileCounts.set(options.cityData, tileCounts);
+    }
+    const positions: number[] = [],
+      colors: number[] = [],
+      indices: number[] = [];
+    const base = new THREE.Color(0x6ea84c),
+      dark = new THREE.Color(0x5a9340),
+      lite = new THREE.Color(0x88bf5e);
+    const emit = (vertices: { x: number; z: number }[], shade: THREE.Color): void => {
+      const clipped = clipCoverPolygon(vertices, bounds);
+      for (let i = 1; i < clipped.length - 1; i++)
+        emitParkVerts(
+          positions,
+          colors,
+          indices,
+          [clipped[0]!, clipped[i]!, clipped[i + 1]!],
+          PARK_Y,
+          shade,
+        );
+    };
+    for (const source of options.parkIndices) {
+      const park = options.cityData.parks[source];
+      if (!park || park.verts.length < 6 || park.verts.length % 2)
+        throw new RangeError(`invalid park record ${source}`);
+      const info = yield* parkInfoSteps(park);
+      yield;
+      if (!info) continue;
+      const { ring } = info;
+      const cell = parkCellWorld(info.areaM2);
+      const cachedTileCount = tileCounts.get(source);
+      let tiled = cachedTileCount ?? 0;
+      for (let x0 = info.bounds.minX; x0 < info.bounds.maxX; x0 += cell) {
+        yield;
+        const x1 = x0 + cell;
+        if (cachedTileCount !== undefined && bounds && (x1 < bounds.minX || x0 > bounds.maxX))
+          continue;
+        for (let z0 = info.bounds.minZ; z0 < info.bounds.maxZ; z0 += cell) {
+          yield;
+          const z1 = z0 + cell;
+          if (cachedTileCount !== undefined && bounds && (z1 < bounds.minZ || z0 > bounds.maxZ))
+            continue;
+          const cx = (x0 + x1) * 0.5,
+            cz = (z0 + z1) * 0.5;
+          const cornersIn =
+            ((yield* pointInRingSteps(x0, z0, ring)) ? 1 : 0) +
+            ((yield* pointInRingSteps(x1, z0, ring)) ? 1 : 0) +
+            ((yield* pointInRingSteps(x1, z1, ring)) ? 1 : 0) +
+            ((yield* pointInRingSteps(x0, z1, ring)) ? 1 : 0);
+          const tight = cell < 18 * METERS_TO_WORLD;
+          if (!(yield* pointInRingSteps(cx, cz, ring)) && (!tight || cornersIn < 2)) continue;
+          if (yield* pointOverWaterSteps(cx, cz, water)) continue;
+          if (
+            landmarkExclusionAt(cx, cz) !== null ||
+            landmarkExclusionAt(x0, z0) !== null ||
+            landmarkExclusionAt(x1, z0) !== null ||
+            landmarkExclusionAt(x1, z1) !== null ||
+            landmarkExclusionAt(x0, z1) !== null
+          )
+            continue;
+          if (
+            triangleHitsExclusion(x0, z0, x1, z0, x1, z1) ||
+            triangleHitsExclusion(x0, z0, x1, z1, x0, z1)
+          )
+            continue;
+          const shade = parkShadeAt(cx, cz, base, dark, lite);
+          emit(
+            [
+              { x: x0, z: z0 },
+              { x: x1, z: z0 },
+              { x: x1, z: z1 },
+            ],
+            shade,
+          );
+          emit(
+            [
+              { x: x0, z: z0 },
+              { x: x1, z: z1 },
+              { x: x0, z: z1 },
+            ],
+            shade,
+          );
+          if (cachedTileCount === undefined) tiled++;
+        }
+      }
+      tileCounts.set(source, tiled);
+      const cellM = cell / METERS_TO_WORLD;
+      if (tiled === 0 || tiled * cellM * cellM < info.areaM2 * 0.25) {
+        for (let t = 0; t + 2 < park.indices.length; t += 3) {
+          yield;
+          const a = ring[park.indices[t]!]!,
+            b = ring[park.indices[t + 1]!]!,
+            c = ring[park.indices[t + 2]!]!;
+          if (!a || !b || !c) continue;
+          const mx = (a.x + b.x + c.x) / 3,
+            mz = (a.z + b.z + c.z) / 3;
+          if (
+            Math.max(
+              Math.hypot(a.x - b.x, a.z - b.z),
+              Math.hypot(b.x - c.x, b.z - c.z),
+              Math.hypot(c.x - a.x, c.z - a.z),
+            ) >
+            50 * METERS_TO_WORLD
+          )
+            continue;
+          if (triangleHitsExclusion(a.x, a.z, b.x, b.z, c.x, c.z)) continue;
+          if (yield* pointOverWaterSteps(mx, mz, water)) continue;
+          emit([a, b, c], parkShadeAt(mx, mz, base, dark, lite));
+        }
+      }
+    }
+    if (indices.length) {
+      const grassMaterial = context.own(
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          vertexColors: true,
+          side: THREE.FrontSide,
+          fog: true,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      );
+      const grass = yield* coverMesh(context, positions, indices, grassMaterial, colors, true);
+      if (grass) {
+        grass.name = 'grass';
+        grass.receiveShadow = false;
+        context.root.add(grass);
+      }
+    }
+    positions.length = colors.length = indices.length = 0;
+    yield;
+    const halfW = 2.8 * METERS_TO_WORLD;
+    for (const source of options.parkIndices) {
+      const info = yield* parkInfoSteps(options.cityData.parks[source]!);
+      yield;
+      if (!info || info.areaM2 < 18_000) continue;
+      if (landmarkExclusionAt(info.x, info.z) !== null || nearLondonCityAirport(info.x, info.z))
+        continue;
+      let atAirport = false,
+        maxI = 0,
+        maxD = 0;
+      for (let i = 0; i < info.ring.length; i++) {
+        const p = info.ring[i]!;
+        if (nearLondonCityAirport(p.x, p.z)) atAirport = true;
+        const distance = Math.hypot(p.x - info.x, p.z - info.z);
+        if (distance > maxD) {
+          maxD = distance;
+          maxI = i;
+        }
+        yield;
+      }
+      if (atAirport) continue;
+      const { ring, x: cx, z: cz } = info;
+      const a = ring[maxI]!,
+        b = ring[(maxI + Math.floor(ring.length / 2)) % ring.length]!;
+      const path = buildRibbonGeometry(
+        [
+          { x: a.x * 0.72 + cx * 0.28, z: a.z * 0.72 + cz * 0.28 },
+          { x: cx, z: cz },
+          { x: b.x * 0.72 + cx * 0.28, z: b.z * 0.72 + cz * 0.28 },
+        ],
+        halfW,
+        PARK_Y + 0.012,
+      );
+      const offset = positions.length / 3;
+      if (!bounds) {
+        positions.push(...path.positions);
+        for (const i of path.indices) indices.push(offset + i);
+      } else {
+        for (let i = 0; i < path.indices.length; i += 3) {
+          const polygon = path.indices.slice(i, i + 3).map((v) => ({
+            x: path.positions[v * 3]!,
+            z: path.positions[v * 3 + 2]!,
+          }));
+          const clipped = clipCoverPolygon(polygon, bounds),
+            start = positions.length / 3;
+          for (const p of clipped) positions.push(p.x, PARK_Y + 0.012, p.z);
+          for (let j = 1; j < clipped.length - 1; j++)
+            indices.push(start, start + j, start + j + 1);
+        }
+      }
+    }
+    if (indices.length) {
+      const material = context.own(
+        new THREE.MeshBasicMaterial({ color: pal.PARK_PATH, side: THREE.DoubleSide, fog: true }),
+      );
+      const paths = yield* coverMesh(context, positions, indices, material);
+      if (paths) {
+        paths.receiveShadow = false;
+        context.root.add(paths);
+      }
+    }
+  });
+}
+
 function mulberry(h: number): number {
   return (Math.imul(h, 1103515245) + 12345) | 0;
 }
@@ -2498,19 +2768,243 @@ export function buildParkTrees(
   return group;
 }
 
+type TreeSpot = { x: number; z: number; scale: number; shade: number; cluster: boolean };
+const treeSpotsCache = new WeakMap<CityData, TreeSpot[]>();
+
+function* treeSpotsSteps(cityData: CityData): Generator<void, TreeSpot[]> {
+  const cached = treeSpotsCache.get(cityData);
+  if (cached) return cached;
+  const spots: TreeSpot[] = [];
+  for (const park of cityData.parks) {
+    const info = yield* parkInfoSteps(park);
+    yield;
+    if (!info || info.areaM2 < 90) continue;
+    const count = Math.min(80, Math.max(3, Math.round(info.areaM2 / 900)));
+    let h = Math.imul(info.ring.length + 1, 2654435761) ^ park.verts[0]!,
+      placed = 0;
+    for (let t = 0; t < count * 5 && spots.length < TREE_MAX && placed < count; t++) {
+      yield;
+      h = mulberry(h);
+      const ang = ((h >>> 0) / 4294967296) * Math.PI * 2;
+      const rad =
+        Math.sqrt(((h >>> 8) & 255) / 255) * Math.sqrt(info.areaM2) * METERS_TO_WORLD * 0.28;
+      const x = info.x + Math.cos(ang) * rad,
+        z = info.z + Math.sin(ang) * rad;
+      if (!(yield* pointInRingSteps(x, z, info.ring))) continue;
+      if (landmarkExclusionAt(x, z) !== null || nearLondonCityAirport(x, z)) continue;
+      spots.push({
+        x,
+        z,
+        scale: 14.5 + ((h >>> 16) & 7) * 0.9,
+        shade: (h >>> 20) % 3,
+        cluster: false,
+      });
+      placed++;
+    }
+  }
+  const streetSpacing = [20, 26, 36];
+  const rings = yield* waterRingsSteps(cityData);
+  for (const road of cityData.roads) {
+    yield;
+    if (road.tier > 2 || spots.length >= TREE_MAX || road.pts.length < 4) continue;
+    const spacing = streetSpacing[road.tier]! * METERS_TO_WORLD;
+    const offset =
+      (ROAD_WIDTHS_M[road.tier]! / 2 + SIDEWALK_M[road.tier]! * 0.72) * METERS_TO_WORLD;
+    let travelled = 0,
+      nextAt = spacing * (0.4 + (road.pts[0]! % 79) / 200);
+    let sign = road.pts[0]! % 2 === 0 ? 1 : -1,
+      h = road.pts[0]! ^ 0x9e3779b9;
+    let a = { x: dequantizeX(road.pts[0]!), z: dequantizeY(road.pts[1]!) };
+    for (let i = 2; i < road.pts.length && spots.length < TREE_MAX; i += 2) {
+      const b = { x: dequantizeX(road.pts[i]!), z: dequantizeY(road.pts[i + 1]!) };
+      const dx = b.x - a.x,
+        dz = b.z - a.z,
+        len = Math.hypot(dx, dz) || 1;
+      const px = -dz / len,
+        pz = dx / len;
+      yield;
+      while (nextAt <= travelled + len && spots.length < TREE_MAX) {
+        const t = (nextAt - travelled) / len;
+        h = mulberry(h);
+        yield;
+        if (road.tier === 2 ? ((h >>> 8) & 3) === 0 : ((h >>> 8) & 7) !== 0) {
+          const sx = a.x + dx * t + px * offset * sign,
+            sz = a.z + dz * t + pz * offset * sign;
+          if (
+            !(yield* pointOverWaterSteps(sx, sz, rings)) &&
+            !pointOnPrefabDeck(sx, sz) &&
+            !nearLondonCityAirport(sx, sz)
+          ) {
+            spots.push({
+              x: sx,
+              z: sz,
+              scale: 12.4 + ((h >>> 16) & 5) * 0.7,
+              shade: (h >>> 22) % 3,
+              cluster: true,
+            });
+          }
+        }
+        nextAt += spacing;
+        sign = -sign;
+      }
+      travelled += len;
+      a = b;
+    }
+  }
+  treeSpotsCache.set(cityData, spots);
+  return spots;
+}
+
+export function createTreeCoverJob(
+  options: CoverJobOptions & {
+    cityData: CityData;
+    bounds?: BoundsXZ | null;
+  },
+) {
+  return createCoverJob(options, function* (context) {
+    const all = yield* treeSpotsSteps(options.cityData);
+    const selected: number[] = [],
+      counts = [0, 0, 0];
+    for (let i = 0; i < all.length; i++) {
+      const spot = all[i]!;
+      if (coverContains(options.bounds ?? null, spot.x, spot.z)) {
+        selected.push(i);
+        counts[spot.shade]! += spot.cluster ? 3 : 1;
+      }
+      yield;
+    }
+    if (!selected.length) return;
+    const dummy = new THREE.Object3D();
+    const materials = counts.map((count, shade) =>
+      count
+        ? context.own(
+            new THREE.MeshLambertMaterial({
+              color: pal.TREE_CANOPY[shade],
+              flatShading: true,
+              fog: true,
+            }),
+          )
+        : null,
+    );
+    const canopyGeometry = context.own(new THREE.IcosahedronGeometry(1, 0));
+    const trunkGeometry = context.own(new THREE.CylinderGeometry(0.16, 0.22, 1, 5));
+    const trunkMaterial = context.own(
+      new THREE.MeshLambertMaterial({ color: pal.TREE_TRUNK, fog: true }),
+    );
+    const parts = [new THREE.Group(), new THREE.Group(), new THREE.Group(), new THREE.Group()];
+    context.root.add(...parts);
+    const remaining = [selected.length, ...counts],
+      cursors = [0, 0, 0, 0];
+    const pages: (THREE.InstancedMesh | null)[] = [null, null, null, null];
+    const place = (
+      part: number,
+      x: number,
+      y: number,
+      z: number,
+      sx: number,
+      sy: number,
+      sz: number,
+      rot: number,
+    ): void => {
+      let page = pages[part];
+      if (!page || cursors[part] === page.count) {
+        const count = Math.min(1024, remaining[part]!);
+        page = context.own(
+          new THREE.InstancedMesh(
+            part === 0 ? trunkGeometry : canopyGeometry,
+            part === 0 ? trunkMaterial : materials[part - 1]!,
+            count,
+          ),
+        );
+        page.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+        page.castShadow = part === 0;
+        page.frustumCulled = false;
+        pages[part] = page;
+        parts[part]!.add(page);
+        cursors[part] = 0;
+        remaining[part]! -= count;
+      }
+      dummy.position.set(x, y, z);
+      dummy.scale.set(sx, sy, sz);
+      dummy.rotation.set(0, rot, 0);
+      dummy.updateMatrix();
+      page.setMatrixAt(cursors[part]!, dummy.matrix);
+      page.instanceMatrix.needsUpdate = true;
+      cursors[part]!++;
+    };
+    for (const i of selected) {
+      const s = all[i]!,
+        r = s.scale * METERS_TO_WORLD,
+        part = s.shade + 1;
+      place(part, s.x, r * 0.95, s.z, r, r * 0.78, r, ((s.shade + i) * 0.7) % (Math.PI * 2));
+      yield;
+      if (s.cluster) {
+        const a = i * 1.7;
+        place(
+          part,
+          s.x + Math.cos(a) * r * 0.55,
+          r * 1.05,
+          s.z + Math.sin(a) * r * 0.55,
+          r * 0.62,
+          r * 0.5,
+          r * 0.62,
+          a,
+        );
+        yield;
+        place(
+          part,
+          s.x + Math.cos(a + 2.1) * r * 0.48,
+          r * 0.88,
+          s.z + Math.sin(a + 2.1) * r * 0.48,
+          r * 0.55,
+          r * 0.48,
+          r * 0.55,
+          a + 1.3,
+        );
+        yield;
+      }
+      place(0, s.x, r * 0.28, s.z, r * 0.18, r * 0.55, r * 0.18, 0);
+      yield;
+    }
+  });
+}
+
 function buildRibbonGeometry(
-  ptsWorld: { x: number; z: number }[],
+  ptsWorld: {
+    x: number;
+    z: number;
+  }[],
   halfWidthWorld: number,
   y: number,
-): { positions: number[]; indices: number[] } {
+): {
+  positions: number[];
+  indices: number[];
+} {
+  return consumeSteps(buildRibbonGeometrySteps(ptsWorld, halfWidthWorld, y));
+}
+
+function* buildRibbonGeometrySteps(
+  ptsWorld: {
+    x: number;
+    z: number;
+  }[],
+  halfWidthWorld: number,
+  y: number,
+): Generator<
+  void,
+  {
+    positions: number[];
+    indices: number[];
+  }
+> {
   const positions: number[] = [];
   const indices: number[] = [];
   const n = ptsWorld.length;
   if (n < 2) return { positions, indices };
-
   const nx: number[] = new Array(n);
   const nz: number[] = new Array(n);
   for (let i = 0; i < n; i++) {
+    yield;
     const prev = ptsWorld[Math.max(0, i - 1)]!;
     const next = ptsWorld[Math.min(n - 1, i + 1)]!;
     const dx = next.x - prev.x;
@@ -2519,8 +3013,8 @@ function buildRibbonGeometry(
     nx[i] = (-dz / len) * halfWidthWorld;
     nz[i] = (dx / len) * halfWidthWorld;
   }
-
   for (let i = 0; i < n - 1; i++) {
+    yield;
     const a = ptsWorld[i]!;
     const b = ptsWorld[i + 1]!;
     const seg = Math.hypot(b.x - a.x, b.z - a.z);
@@ -2545,26 +3039,69 @@ function buildRibbonGeometry(
   return { positions, indices };
 }
 
-function roadPts(road: CityRoad): { x: number; z: number }[] | null {
+function roadPts(road: CityRoad):
+  | {
+      x: number;
+      z: number;
+    }[]
+  | null {
+  return consumeSteps(roadPtsSteps(road));
+}
+
+function* roadPtsSteps(road: CityRoad): Generator<
+  void,
+  | {
+      x: number;
+      z: number;
+    }[]
+  | null
+> {
   const n = road.pts.length / 2;
   if (n < 2) return null;
-  const pts = new Array<{ x: number; z: number }>(n);
-  for (let i = 0; i < n; i++)
+  const pts = new Array<{
+    x: number;
+    z: number;
+  }>(n);
+  for (let i = 0; i < n; i++) {
+    yield;
     pts[i] = { x: dequantizeX(road.pts[i * 2]!), z: dequantizeY(road.pts[i * 2 + 1]!) };
+  }
   return pts;
 }
 
 function appendRibbon(
   dstPos: number[],
   dstIdx: number[],
-  pts: { x: number; z: number }[],
+  pts: {
+    x: number;
+    z: number;
+  }[],
   halfW: number,
   y: number,
 ): void {
-  const r = buildRibbonGeometry(pts, halfW, y);
+  return consumeSteps(appendRibbonSteps(dstPos, dstIdx, pts, halfW, y));
+}
+
+function* appendRibbonSteps(
+  dstPos: number[],
+  dstIdx: number[],
+  pts: {
+    x: number;
+    z: number;
+  }[],
+  halfW: number,
+  y: number,
+): Generator<void, void> {
+  const r = yield* buildRibbonGeometrySteps(pts, halfW, y);
   const base = dstPos.length / 3;
-  for (const v of r.positions) dstPos.push(v);
-  for (const i of r.indices) dstIdx.push(i + base);
+  for (const v of r.positions) {
+    yield;
+    dstPos.push(v);
+  }
+  for (const i of r.indices) {
+    yield;
+    dstIdx.push(i + base);
+  }
 }
 
 function addCrosswalk(
@@ -2636,21 +3173,34 @@ export type RoadRun = { pts: { x: number; z: number }[]; span: boolean };
  * Last dry point along land→wet. Land ribbons stop at the bank instead of
  * leaving a water gap between the OSM dashes and the stitched carriageway.
  */
-function shorelinePoint(
-  land: { x: number; z: number },
-  wet: { x: number; z: number },
-  overWater: (x: number, z: number) => boolean,
-): { x: number; z: number } | null {
-  if (overWater(land.x, land.z)) return null;
+function* shorelinePointSteps(
+  land: {
+    x: number;
+    z: number;
+  },
+  wet: {
+    x: number;
+    z: number;
+  },
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<
+  void,
+  {
+    x: number;
+    z: number;
+  } | null
+> {
+  if (yield* overWater(land.x, land.z)) return null;
   if (Math.hypot(wet.x - land.x, wet.z - land.z) < 3 * METERS_TO_WORLD) return null;
   let x0 = land.x;
   let z0 = land.z;
   let x1 = wet.x;
   let z1 = wet.z;
   for (let i = 0; i < 14; i++) {
+    yield;
     const mx = (x0 + x1) / 2;
     const mz = (z0 + z1) / 2;
-    if (overWater(mx, mz)) {
+    if (yield* overWater(mx, mz)) {
       x1 = mx;
       z1 = mz;
     } else {
@@ -2667,25 +3217,84 @@ function shorelinePoint(
  * miter spikes at the abutment). Sample the edge; a long water run is a span.
  */
 function waterChannelOnEdge(
-  a: { x: number; z: number },
-  b: { x: number; z: number },
+  a: {
+    x: number;
+    z: number;
+  },
+  b: {
+    x: number;
+    z: number;
+  },
   overWater: (x: number, z: number) => boolean,
-): { first: { x: number; z: number }; last: { x: number; z: number } } | null {
+): {
+  first: {
+    x: number;
+    z: number;
+  };
+  last: {
+    x: number;
+    z: number;
+  };
+} | null {
+  return consumeSteps(
+    waterChannelOnEdgeSteps(a, b, function* (x: number, z: number) {
+      return overWater(x, z);
+    }),
+  );
+}
+
+
+function* waterChannelOnEdgeSteps(
+  a: {
+    x: number;
+    z: number;
+  },
+  b: {
+    x: number;
+    z: number;
+  },
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<
+  void,
+  {
+    first: {
+      x: number;
+      z: number;
+    };
+    last: {
+      x: number;
+      z: number;
+    };
+  } | null
+> {
   const dist = Math.hypot(b.x - a.x, b.z - a.z);
   const minWater = BRIDGE_SPAN_MIN_M * METERS_TO_WORLD;
   if (dist < minWater) return null;
   const step = CROSSING_STEP_M * METERS_TO_WORLD;
   const ux = (b.x - a.x) / dist;
   const uz = (b.z - a.z) / dist;
-  let runFirst: { x: number; z: number } | null = null;
-  let runLast: { x: number; z: number } | null = null;
+  let runFirst: {
+    x: number;
+    z: number;
+  } | null = null;
+  let runLast: {
+    x: number;
+    z: number;
+  } | null = null;
   let run = 0;
   let bestRun = 0;
-  let bestFirst: { x: number; z: number } | null = null;
-  let bestLast: { x: number; z: number } | null = null;
+  let bestFirst: {
+    x: number;
+    z: number;
+  } | null = null;
+  let bestLast: {
+    x: number;
+    z: number;
+  } | null = null;
   for (let t = 0; t <= dist; t += step) {
+    yield;
     const p = { x: a.x + ux * t, z: a.z + uz * t };
-    if (overWater(p.x, p.z)) {
+    if (yield* overWater(p.x, p.z)) {
       run += step;
       if (!runFirst) runFirst = p;
       runLast = p;
@@ -2704,17 +3313,30 @@ function waterChannelOnEdge(
 }
 
 /** Insert wet markers on dry→dry edges that actually cross a channel. */
-function polylineWithWaterBreaks(
-  pts: { x: number; z: number }[],
-  overWater: (x: number, z: number) => boolean,
-): { x: number; z: number }[] {
-  const out: { x: number; z: number }[] = [];
+function* polylineWithWaterBreaksSteps(
+  pts: {
+    x: number;
+    z: number;
+  }[],
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<
+  void,
+  {
+    x: number;
+    z: number;
+  }[]
+> {
+  const out: {
+    x: number;
+    z: number;
+  }[] = [];
   for (let i = 0; i < pts.length; i++) {
+    yield;
     const p = pts[i]!;
     if (i > 0) {
       const prev = pts[i - 1]!;
-      if (!overWater(prev.x, prev.z) && !overWater(p.x, p.z)) {
-        const ch = waterChannelOnEdge(prev, p, overWater);
+      if (!(yield* overWater(prev.x, prev.z)) && !(yield* overWater(p.x, p.z))) {
+        const ch = yield* waterChannelOnEdgeSteps(prev, p, overWater);
         if (ch) {
           out.push(ch.first);
           if (Math.hypot(ch.last.x - ch.first.x, ch.last.z - ch.first.z) > METERS_TO_WORLD) {
@@ -2734,29 +3356,70 @@ function polylineWithWaterBreaks(
  * `riverCrossingSpans` draws one clean land-to-land asphalt ribbon instead.
  */
 export function splitRoadRuns(
-  pts: { x: number; z: number }[],
+  pts: {
+    x: number;
+    z: number;
+  }[],
   overWater: (x: number, z: number) => boolean,
 ): RoadRun[] {
+  return consumeSteps(
+    splitRoadRunsSteps(pts, function* (x: number, z: number) {
+      return overWater(x, z);
+    }),
+  );
+}
+
+
+function* splitRoadRunsSteps(
+  pts: {
+    x: number;
+    z: number;
+  }[],
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, RoadRun[]> {
   if (pts.length < 2) return [];
-  const seq = polylineWithWaterBreaks(pts, overWater);
-  const wet = seq.map((p) => overWater(p.x, p.z));
-  const groups: { start: number; end: number; wet: boolean }[] = [];
+  const seq = yield* polylineWithWaterBreaksSteps(pts, overWater);
+  const wet: boolean[] = [];
+  for (const p of seq) {
+    yield;
+    wet.push(yield* overWater(p.x, p.z));
+  }
+  const groups: {
+    start: number;
+    end: number;
+    wet: boolean;
+  }[] = [];
   let i = 0;
   while (i < seq.length) {
+    yield;
     const w = wet[i]!;
     let j = i + 1;
-    while (j < seq.length && wet[j] === w) j += 1;
+    while (j < seq.length && wet[j] === w) {
+      yield;
+      j += 1;
+    }
     groups.push({ start: i, end: j, wet: w });
     i = j;
   }
   const out: RoadRun[] = [];
   for (let g = 0; g < groups.length; g++) {
+    yield;
     const run = groups[g]!;
     if (run.wet) continue;
     const headWet = g > 0 && groups[g - 1]!.wet;
     const tailWet = g + 1 < groups.length && groups[g + 1]!.wet;
-    const slice = seq.slice(run.start, run.end);
-    let outPts: { x: number; z: number }[] = [];
+    const slice: {
+      x: number;
+      z: number;
+    }[] = [];
+    for (let i = run.start; i < run.end; i++) {
+      yield;
+      slice.push(seq[i]!);
+    }
+    let outPts: {
+      x: number;
+      z: number;
+    }[] = [];
     if (slice.length === 1) {
       const land = slice[0]!;
       const wetPt = headWet ? seq[run.start - 1]! : tailWet ? seq[run.end]! : null;
@@ -2768,17 +3431,20 @@ export function splitRoadRuns(
         x: land.x + (dx / len) * 16 * METERS_TO_WORLD,
         z: land.z + (dz / len) * 16 * METERS_TO_WORLD,
       };
-      const shore = shorelinePoint(land, wetPt, overWater) ?? land;
+      const shore = (yield* shorelinePointSteps(land, wetPt, overWater)) ?? land;
       outPts = [inland, shore];
     } else if (slice.length >= 2) {
-      outPts = slice.slice();
       if (headWet) {
-        const shore = shorelinePoint(seq[run.start]!, seq[run.start - 1]!, overWater);
-        if (shore) outPts = [shore, ...outPts];
+        const shore = yield* shorelinePointSteps(seq[run.start]!, seq[run.start - 1]!, overWater);
+        if (shore) outPts.push(shore);
+      }
+      for (const p of slice) {
+        yield;
+        outPts.push(p);
       }
       if (tailWet) {
-        const shore = shorelinePoint(seq[run.end - 1]!, seq[run.end]!, overWater);
-        if (shore) outPts = [...outPts, shore];
+        const shore = yield* shorelinePointSteps(seq[run.end - 1]!, seq[run.end]!, overWater);
+        if (shore) outPts.push(shore);
       }
     }
     if (outPts.length >= 2) out.push({ pts: outPts, span: false });
@@ -2839,12 +3505,18 @@ export type RoadApproach = {
   tier: number;
 };
 
-function approachIfTowardWater(
-  end: { x: number; z: number },
-  inward: { x: number; z: number },
+function* approachIfTowardWaterSteps(
+  end: {
+    x: number;
+    z: number;
+  },
+  inward: {
+    x: number;
+    z: number;
+  },
   tier: number,
-  overWater: (x: number, z: number) => boolean,
-): RoadApproach | null {
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, RoadApproach | null> {
   const dx = end.x - inward.x;
   const dz = end.z - inward.z;
   const len = Math.hypot(dx, dz) || 1;
@@ -2853,7 +3525,9 @@ function approachIfTowardWater(
   const probeM = [8, 18, 36];
   let hits = 0;
   for (const m of probeM) {
-    if (overWater(end.x + ux * m * METERS_TO_WORLD, end.z + uz * m * METERS_TO_WORLD)) hits += 1;
+    yield;
+    if (yield* overWater(end.x + ux * m * METERS_TO_WORLD, end.z + uz * m * METERS_TO_WORLD))
+      hits += 1;
   }
   if (hits < 2) return null;
   return { x: end.x, z: end.z, dx: ux, dz: uz, tier };
@@ -2868,21 +3542,44 @@ export type CrossingSpan = {
 // cache weak so a disposed city and its derived crossing geometry can collect.
 const riverCrossingCache = new WeakMap<CityData, CrossingSpan[]>();
 
-function copyCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
-  return spans.map((span) => ({
-    pts: [
-      { x: span.pts[0].x, z: span.pts[0].z },
-      { x: span.pts[1].x, z: span.pts[1].z },
-    ],
-    tier: span.tier,
-  }));
+function* copyCrossingSpansSteps(spans: CrossingSpan[]): Generator<void, CrossingSpan[]> {
+  const result: CrossingSpan[] = [];
+  for (const span of spans) {
+    yield;
+    result.push({
+      pts: [
+        { x: span.pts[0].x, z: span.pts[0].z },
+        { x: span.pts[1].x, z: span.pts[1].z },
+      ],
+      tier: span.tier,
+    });
+  }
+  return result;
 }
 
-function overlapEndpoints(
-  a: { x: number; z: number },
-  b: { x: number; z: number },
-  overWater: (x: number, z: number) => boolean,
-): [{ x: number; z: number }, { x: number; z: number }] {
+function* overlapEndpointsSteps(
+  a: {
+    x: number;
+    z: number;
+  },
+  b: {
+    x: number;
+    z: number;
+  },
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<
+  void,
+  [
+    {
+      x: number;
+      z: number;
+    },
+    {
+      x: number;
+      z: number;
+    },
+  ]
+> {
   const dx = b.x - a.x;
   const dz = b.z - a.z;
   const len = Math.hypot(dx, dz) || 1;
@@ -2891,7 +3588,7 @@ function overlapEndpoints(
   const extra = LAND_OVERLAP_M * METERS_TO_WORLD;
   const a0 = { x: a.x - ux * extra, z: a.z - uz * extra };
   const b0 = { x: b.x + ux * extra, z: b.z + uz * extra };
-  return [overWater(a0.x, a0.z) ? a : a0, overWater(b0.x, b0.z) ? b : b0];
+  return [(yield* overWater(a0.x, a0.z)) ? a : a0, (yield* overWater(b0.x, b0.z)) ? b : b0];
 }
 
 /** Pair land-road stubs that face each other across water into a carriageway span. */
@@ -2899,21 +3596,35 @@ export function stitchWaterSpans(
   approaches: RoadApproach[],
   overWater: (x: number, z: number) => boolean,
 ): CrossingSpan[] {
+  return consumeSteps(
+    stitchWaterSpansSteps(approaches, function* (x: number, z: number) {
+      return overWater(x, z);
+    }),
+  );
+}
+
+
+function* stitchWaterSpansSteps(
+  approaches: RoadApproach[],
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, CrossingSpan[]> {
   const used = new Set<number>();
   const spans: CrossingSpan[] = [];
   const minD = 60 * METERS_TO_WORLD;
   const maxD = 460 * METERS_TO_WORLD;
   for (let i = 0; i < approaches.length; i++) {
+    yield;
     if (used.has(i)) continue;
     const a = approaches[i]!;
     let best = -1;
     let bestD = Infinity;
     for (let j = i + 1; j < approaches.length; j++) {
+      yield;
       if (used.has(j)) continue;
       const b = approaches[j]!;
       const d = Math.hypot(b.x - a.x, b.z - a.z);
       if (d < minD || d > maxD) continue;
-      if (!overWater((a.x + b.x) / 2, (a.z + b.z) / 2)) continue;
+      if (!(yield* overWater((a.x + b.x) / 2, (a.z + b.z) / 2))) continue;
       const towardA = (b.x - a.x) * a.dx + (b.z - a.z) * a.dz;
       const towardB = (a.x - b.x) * b.dx + (a.z - b.z) * b.dz;
       if (towardA < 0 || towardB < 0) continue;
@@ -2931,7 +3642,7 @@ export function stitchWaterSpans(
     used.add(best);
     const b = approaches[best]!;
     spans.push({
-      pts: overlapEndpoints({ x: a.x, z: a.z }, { x: b.x, z: b.z }, overWater),
+      pts: yield* overlapEndpointsSteps({ x: a.x, z: a.z }, { x: b.x, z: b.z }, overWater),
       tier: Math.min(a.tier, b.tier),
     });
   }
@@ -2943,7 +3654,33 @@ export function walkAcrossWater(
   a: RoadApproach,
   overWater: (x: number, z: number) => boolean,
   minWaterM = BRIDGE_SPAN_MIN_M,
-): { x: number; z: number } | null {
+): {
+  x: number;
+  z: number;
+} | null {
+  return consumeSteps(
+    walkAcrossWaterSteps(
+      a,
+      function* (x: number, z: number) {
+        return overWater(x, z);
+      },
+      minWaterM,
+    ),
+  );
+}
+
+
+function* walkAcrossWaterSteps(
+  a: RoadApproach,
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+  minWaterM = BRIDGE_SPAN_MIN_M,
+): Generator<
+  void,
+  {
+    x: number;
+    z: number;
+  } | null
+> {
   const step = CROSSING_STEP_M * METERS_TO_WORLD;
   const max = CROSSING_MAX_M * METERS_TO_WORLD;
   const minWater = minWaterM * METERS_TO_WORLD;
@@ -2951,13 +3688,14 @@ export function walkAcrossWater(
   let x = a.x;
   let z = a.z;
   let dist = 0;
-  let seenWater = overWater(x, z);
+  let seenWater = yield* overWater(x, z);
   let waterRun = seenWater ? minWater : 0;
   while (dist < max) {
+    yield;
     x += a.dx * step;
     z += a.dz * step;
     dist += step;
-    if (overWater(x, z)) {
+    if (yield* overWater(x, z)) {
       seenWater = true;
       waterRun += step;
     } else if (seenWater) {
@@ -2987,18 +3725,34 @@ function distPointToSeg(
 }
 
 /** Snap a walked span onto the OSM stubs so the deck meets the shoreline road. */
-function snapSpanToApproaches(
+function* snapSpanToApproachesSteps(
   span: CrossingSpan,
   approaches: RoadApproach[],
-  runEnds: { x: number; z: number }[],
-  overWater: (x: number, z: number) => boolean,
-): CrossingSpan {
+  runEnds: {
+    x: number;
+    z: number;
+  }[],
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, CrossingSpan> {
   const snapR = 90 * METERS_TO_WORLD;
   const maxPerp = 40 * METERS_TO_WORLD;
-  const snapOne = (
-    pt: { x: number; z: number },
-    far: { x: number; z: number },
-  ): { x: number; z: number; tier: number } => {
+  const snapOne = function* (
+    pt: {
+      x: number;
+      z: number;
+    },
+    far: {
+      x: number;
+      z: number;
+    },
+  ): Generator<
+    void,
+    {
+      x: number;
+      z: number;
+      tier: number;
+    }
+  > {
     const dx = far.x - pt.x;
     const dz = far.z - pt.z;
     const slen = Math.hypot(dx, dz) || 1;
@@ -3009,6 +3763,7 @@ function snapSpanToApproaches(
     let bestD = snapR;
     let bestTier = span.tier;
     for (const a of approaches) {
+      yield;
       const d = Math.hypot(a.x - pt.x, a.z - pt.z);
       if (d >= bestD) continue;
       const toward = (far.x - a.x) * a.dx + (far.z - a.z) * a.dz;
@@ -3021,9 +3776,10 @@ function snapSpanToApproaches(
       bestTier = a.tier;
     }
     for (const e of runEnds) {
+      yield;
       const d = Math.hypot(e.x - pt.x, e.z - pt.z);
       if (d >= bestD) continue;
-      if (overWater(e.x, e.z)) continue;
+      if (yield* overWater(e.x, e.z)) continue;
       if (d >= Math.hypot(e.x - far.x, e.z - far.z)) continue;
       const perp = Math.abs((e.x - pt.x) * uz - (e.z - pt.z) * ux);
       if (perp > maxPerp) continue;
@@ -3033,56 +3789,72 @@ function snapSpanToApproaches(
     }
     return { x: bestX, z: bestZ, tier: bestTier };
   };
-  const a = snapOne(span.pts[0], span.pts[1]);
-  const b = snapOne(span.pts[1], span.pts[0]);
-  const pts = overlapEndpoints({ x: a.x, z: a.z }, { x: b.x, z: b.z }, overWater);
-  if (!overWater((pts[0].x + pts[1].x) / 2, (pts[0].z + pts[1].z) / 2)) return span;
+  const a = yield* snapOne(span.pts[0], span.pts[1]);
+  const b = yield* snapOne(span.pts[1], span.pts[0]);
+  const pts = yield* overlapEndpointsSteps({ x: a.x, z: a.z }, { x: b.x, z: b.z }, overWater);
+  if (!(yield* overWater((pts[0].x + pts[1].x) / 2, (pts[0].z + pts[1].z) / 2))) return span;
   return { pts, tier: Math.min(a.tier, b.tier, span.tier) };
 }
 
-function nudgeOntoWater(
+function* nudgeOntoWaterSteps(
   x: number,
   z: number,
-  overWater: (x: number, z: number) => boolean,
-): { x: number; z: number } {
-  if (overWater(x, z)) return { x, z };
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<
+  void,
+  {
+    x: number;
+    z: number;
+  }
+> {
+  if (yield* overWater(x, z)) return { x, z };
   for (const r of [12, 24, 40, 60, 90]) {
+    yield;
     const rad = r * METERS_TO_WORLD;
     for (let i = 0; i < 16; i++) {
+      yield;
       const ang = (i / 16) * Math.PI * 2;
       const px = x + Math.cos(ang) * rad;
       const pz = z + Math.sin(ang) * rad;
-      if (overWater(px, pz)) return { x: px, z: pz };
+      if (yield* overWater(px, pz)) return { x: px, z: pz };
     }
   }
   return { x, z };
 }
 
-function walkFromSeed(
-  at: { x: number; y: number },
+function* walkFromSeedSteps(
+  at: {
+    x: number;
+    y: number;
+  },
   lnglat: readonly [number, number],
-  overWater: (x: number, z: number) => boolean,
-): CrossingSpan | null {
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, CrossingSpan | null> {
   const t = thamesTangent(lnglat);
   const prefX = -t.y;
   const prefZ = t.x;
-  const origin = nudgeOntoWater(at.x, at.y, overWater);
-  const dirs: { dx: number; dz: number }[] = [{ dx: prefX, dz: prefZ }];
+  const origin = yield* nudgeOntoWaterSteps(at.x, at.y, overWater);
+  const dirs: {
+    dx: number;
+    dz: number;
+  }[] = [{ dx: prefX, dz: prefZ }];
   for (let i = 0; i < 16; i++) {
+    yield;
     const ang = (i / 16) * Math.PI;
     dirs.push({ dx: Math.cos(ang), dz: Math.sin(ang) });
   }
   let best: CrossingSpan | null = null;
   let bestScore = -Infinity;
   for (const dir of dirs) {
+    yield;
     const align = Math.abs(dir.dx * prefX + dir.dz * prefZ);
     if (align < 0.5) continue;
-    const fwd = walkAcrossWater(
+    const fwd = yield* walkAcrossWaterSteps(
       { x: origin.x, z: origin.z, dx: dir.dx, dz: dir.dz, tier: 0 },
       overWater,
       40,
     );
-    const back = walkAcrossWater(
+    const back = yield* walkAcrossWaterSteps(
       { x: origin.x, z: origin.z, dx: -dir.dx, dz: -dir.dz, tier: 0 },
       overWater,
       40,
@@ -3092,7 +3864,7 @@ function walkFromSeed(
     if (meters < BRIDGE_SPAN_MIN_M || meters > CROSSING_MAX_M) continue;
     const midX = (fwd.x + back.x) / 2;
     const midZ = (fwd.z + back.z) / 2;
-    if (!overWater(midX, midZ)) continue;
+    if (!(yield* overWater(midX, midZ))) continue;
     const abx = fwd.x - back.x;
     const abz = fwd.z - back.z;
     const len2 = abx * abx + abz * abz || 1;
@@ -3104,7 +3876,11 @@ function walkFromSeed(
     if (score > bestScore) {
       bestScore = score;
       best = {
-        pts: overlapEndpoints({ x: back.x, z: back.z }, { x: fwd.x, z: fwd.z }, overWater),
+        pts: yield* overlapEndpointsSteps(
+          { x: back.x, z: back.z },
+          { x: fwd.x, z: fwd.z },
+          overWater,
+        ),
         tier: 0,
       };
     }
@@ -3112,16 +3888,18 @@ function walkFromSeed(
   return best;
 }
 
-function dedupeCrossingSpans(spans: CrossingSpan[]): CrossingSpan[] {
+function* dedupeCrossingSpansSteps(spans: CrossingSpan[]): Generator<void, CrossingSpan[]> {
   const out: CrossingSpan[] = [];
   const used = new Set<number>();
   const near = 90 * METERS_TO_WORLD;
   for (let i = 0; i < spans.length; i++) {
+    yield;
     if (used.has(i)) continue;
     const keep = spans[i]!;
     const mix = (keep.pts[0].x + keep.pts[1].x) / 2;
     const miz = (keep.pts[0].z + keep.pts[1].z) / 2;
     for (let j = i + 1; j < spans.length; j++) {
+      yield;
       if (used.has(j)) continue;
       const s = spans[j]!;
       const mjx = (s.pts[0].x + s.pts[1].x) / 2;
@@ -3139,17 +3917,31 @@ export function buildCrossingSpans(
   approaches: RoadApproach[],
   overWater: (x: number, z: number) => boolean,
 ): CrossingSpan[] {
+  return consumeSteps(
+    buildCrossingSpansSteps(approaches, function* (x: number, z: number) {
+      return overWater(x, z);
+    }),
+  );
+}
+
+
+function* buildCrossingSpansSteps(
+  approaches: RoadApproach[],
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, CrossingSpan[]> {
   const used = new Set<number>();
   const raw: CrossingSpan[] = [];
   const snapR = CROSSING_SNAP_M * METERS_TO_WORLD;
   for (let i = 0; i < approaches.length; i++) {
+    yield;
     if (used.has(i)) continue;
     const a = approaches[i]!;
-    const far = walkAcrossWater(a, overWater);
+    const far = yield* walkAcrossWaterSteps(a, overWater);
     if (!far) continue;
     let best = -1;
     let bestD = snapR;
     for (let j = 0; j < approaches.length; j++) {
+      yield;
       if (j === i || used.has(j)) continue;
       const b = approaches[j]!;
       const d = Math.hypot(b.x - far.x, b.z - far.z);
@@ -3163,28 +3955,42 @@ export function buildCrossingSpans(
     used.add(best);
     used.add(i);
     const end = approaches[best]!;
-    const pts = overlapEndpoints({ x: a.x, z: a.z }, { x: end.x, z: end.z }, overWater);
-    if (!overWater((pts[0].x + pts[1].x) / 2, (pts[0].z + pts[1].z) / 2)) continue;
+    const pts = yield* overlapEndpointsSteps({ x: a.x, z: a.z }, { x: end.x, z: end.z }, overWater);
+    if (!(yield* overWater((pts[0].x + pts[1].x) / 2, (pts[0].z + pts[1].z) / 2))) continue;
     raw.push({ pts, tier: Math.min(a.tier, end.tier) });
   }
-  const leftover = approaches.filter((_, idx) => !used.has(idx));
-  raw.push(...stitchWaterSpans(leftover, overWater));
-  return dedupeCrossingSpans(raw);
+  const leftover: RoadApproach[] = [];
+  for (let i = 0; i < approaches.length; i++) {
+    yield;
+    if (!used.has(i)) leftover.push(approaches[i]!);
+  }
+  for (const span of yield* stitchWaterSpansSteps(leftover, overWater)) {
+    yield;
+    raw.push(span);
+  }
+  return yield* dedupeCrossingSpansSteps(raw);
 }
 
-function collectRoadApproaches(
+function* collectRoadApproachesSteps(
   cityData: CityData,
-  overWater: (x: number, z: number) => boolean,
-): RoadApproach[] {
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, RoadApproach[]> {
   const approaches: RoadApproach[] = [];
   for (const road of cityData.roads as CityRoad[]) {
-    const pts = roadPts(road);
+    yield;
+    const pts = yield* roadPtsSteps(road);
     if (!pts) continue;
-    const runs = splitRoadRuns(pts, overWater);
+    const runs = yield* splitRoadRunsSteps(pts, overWater);
     for (const run of runs) {
+      yield;
       if (run.pts.length < 2) continue;
-      const head = approachIfTowardWater(run.pts[0]!, run.pts[1]!, road.tier, overWater);
-      const tail = approachIfTowardWater(
+      const head = yield* approachIfTowardWaterSteps(
+        run.pts[0]!,
+        run.pts[1]!,
+        road.tier,
+        overWater,
+      );
+      const tail = yield* approachIfTowardWaterSteps(
         run.pts[run.pts.length - 1]!,
         run.pts[run.pts.length - 2]!,
         road.tier,
@@ -3197,15 +4003,26 @@ function collectRoadApproaches(
   return approaches;
 }
 
-function collectRunEnds(
+function* collectRunEndsSteps(
   cityData: CityData,
-  overWater: (x: number, z: number) => boolean,
-): { x: number; z: number }[] {
-  const ends: { x: number; z: number }[] = [];
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<
+  void,
+  {
+    x: number;
+    z: number;
+  }[]
+> {
+  const ends: {
+    x: number;
+    z: number;
+  }[] = [];
   for (const road of cityData.roads as CityRoad[]) {
-    const pts = roadPts(road);
+    yield;
+    const pts = yield* roadPtsSteps(road);
     if (!pts) continue;
-    for (const run of splitRoadRuns(pts, overWater)) {
+    for (const run of yield* splitRoadRunsSteps(pts, overWater)) {
+      yield;
       if (run.pts.length < 2) continue;
       ends.push(run.pts[0]!, run.pts[run.pts.length - 1]!);
     }
@@ -3214,13 +4031,17 @@ function collectRunEnds(
 }
 
 export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
+  return consumeSteps(riverCrossingSpansSteps(cityData));
+}
+
+function* riverCrossingSpansSteps(cityData: CityData): Generator<void, CrossingSpan[]> {
   const cached = riverCrossingCache.get(cityData);
-  if (cached) return copyCrossingSpans(cached);
-  const rings = waterRings(cityData);
-  const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
-  const approaches = collectRoadApproaches(cityData, overWater);
-  const runEnds = collectRunEnds(cityData, overWater);
-  const fromRoads = buildCrossingSpans(approaches, overWater);
+  if (cached) return yield* copyCrossingSpansSteps(cached);
+  const rings = yield* waterRingsSteps(cityData);
+  const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
+  const approaches = yield* collectRoadApproachesSteps(cityData, overWater);
+  const runEnds = yield* collectRunEndsSteps(cityData, overWater);
+  const fromRoads = yield* buildCrossingSpansSteps(approaches, overWater);
   const seeds = [
     ...LANDMARKS.filter(
       (lm) => isDeckLandmark(lm.kind) && lm.kind !== 'oldstreet' && lm.kind !== 'towerbridge',
@@ -3230,6 +4051,7 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
   const seeded: CrossingSpan[] = [];
   const matchR = SEED_MATCH_M * METERS_TO_WORLD;
   for (const seed of seeds) {
+    yield;
     const at = project(seed.at);
     const t = thamesTangent(seed.at);
     const cx = -t.y;
@@ -3237,6 +4059,7 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
     let picked: CrossingSpan | null = null;
     let pickedScore = -Infinity;
     for (const s of fromRoads) {
+      yield;
       const d = distPointToSeg(at.x, at.y, s.pts[0], s.pts[1]);
       if (d > matchR) continue;
       const dx = s.pts[1].x - s.pts[0].x;
@@ -3250,15 +4073,15 @@ export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
         picked = s;
       }
     }
-    if (!picked) picked = walkFromSeed(at, seed.at, overWater);
+    if (!picked) picked = yield* walkFromSeedSteps(at, seed.at, overWater);
     if (!picked) continue;
-    seeded.push(snapSpanToApproaches(picked, approaches, runEnds, overWater));
+    seeded.push(yield* snapSpanToApproachesSteps(picked, approaches, runEnds, overWater));
   }
   // Named seeds only. Unseeded OSM stitches were Rotherhithe / Blackwall
   // tunnels, rail decks, and dock leftovers — leftover slabs on the river.
-  const result = dedupeCrossingSpans(seeded);
+  const result = yield* dedupeCrossingSpansSteps(seeded);
   riverCrossingCache.set(cityData, result);
-  return copyCrossingSpans(result);
+  return yield* copyCrossingSpansSteps(result);
 }
 
 /** Y rotation for a +X-modelled pier group so +X follows the nearest carriageway span. */
@@ -3284,12 +4107,50 @@ function skipRoadVertex(x: number, z: number): boolean {
   return inTowerBridgeCorridor(x, z) || nearTowerBridgePrefab(x, z) || onLcyRunway(x, z);
 }
 
-function clipRibbonPts(pts: { x: number; z: number }[]): { x: number; z: number }[][] {
-  const runs: { x: number; z: number }[][] = [];
-  let cur: { x: number; z: number }[] = [];
-  const keepSeg = (a: { x: number; z: number }, b: { x: number; z: number }) =>
-    !segmentHitsTowerBridge(a, b) && !onLcyRunway(a.x, a.z) && !onLcyRunway(b.x, b.z);
+function clipRibbonPts(
+  pts: {
+    x: number;
+    z: number;
+  }[],
+): {
+  x: number;
+  z: number;
+}[][] {
+  return consumeSteps(clipRibbonPtsSteps(pts));
+}
+
+function* clipRibbonPtsSteps(
+  pts: {
+    x: number;
+    z: number;
+  }[],
+): Generator<
+  void,
+  {
+    x: number;
+    z: number;
+  }[][]
+> {
+  const runs: {
+    x: number;
+    z: number;
+  }[][] = [];
+  let cur: {
+    x: number;
+    z: number;
+  }[] = [];
+  const keepSeg = (
+    a: {
+      x: number;
+      z: number;
+    },
+    b: {
+      x: number;
+      z: number;
+    },
+  ) => !segmentHitsTowerBridge(a, b) && !onLcyRunway(a.x, a.z) && !onLcyRunway(b.x, b.z);
   for (const p of pts) {
+    yield;
     if (cur.length === 0) {
       if (!skipRoadVertex(p.x, p.z)) cur.push(p);
       continue;
@@ -3316,24 +4177,47 @@ export type PlannedCrosswalk = {
 
 /** One zebra per junction cluster — not one per approach, which stacks at 4-ways. */
 export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
-  const rings = waterRings(cityData);
-  const overWater = (x: number, z: number) => pointOverWater(x, z, rings);
-  type End = { x: number; z: number; dx: number; dz: number; runLen: number };
+  return consumeSteps(plannedCrosswalksSteps(cityData));
+}
+
+
+function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCrosswalk[]> {
+  const rings = yield* waterRingsSteps(cityData);
+  const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
+  type End = {
+    x: number;
+    z: number;
+    dx: number;
+    dz: number;
+    runLen: number;
+  };
   const ends: End[] = [];
   const half0 = (ROAD_WIDTHS_M[0]! * METERS_TO_WORLD) / 2;
   const minRun = 28 * METERS_TO_WORLD;
   for (const road of cityData.roads as CityRoad[]) {
+    yield;
     if (road.tier !== 0) continue;
-    const pts = roadPts(road);
+    const pts = yield* roadPtsSteps(road);
     if (!pts) continue;
-    for (const run of splitRoadRuns(pts, overWater)) {
+    for (const run of yield* splitRoadRunsSteps(pts, overWater)) {
+      yield;
       if (run.pts.length < 2) continue;
       let runLen = 0;
       for (let i = 0; i < run.pts.length - 1; i++) {
+        yield;
         runLen += Math.hypot(run.pts[i + 1]!.x - run.pts[i]!.x, run.pts[i + 1]!.z - run.pts[i]!.z);
       }
       if (runLen < minRun) continue;
-      const pushEnd = (a: { x: number; z: number }, b: { x: number; z: number }) => {
+      const pushEnd = (
+        a: {
+          x: number;
+          z: number;
+        },
+        b: {
+          x: number;
+          z: number;
+        },
+      ) => {
         if (skipRoadVertex(a.x, a.z)) return;
         let dx = b.x - a.x;
         let dz = b.z - a.z;
@@ -3346,29 +4230,31 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
       pushEnd(run.pts[run.pts.length - 1]!, run.pts[run.pts.length - 2]!);
     }
   }
-
   const junctionR = 16 * METERS_TO_WORLD;
   const hashCell = 16 * METERS_TO_WORLD;
   const grid = new Map<string, number[]>();
   const cellKey = (x: number, z: number): string =>
     `${Math.round(x / hashCell)}:${Math.round(z / hashCell)}`;
   for (let i = 0; i < ends.length; i++) {
+    yield;
     const k = cellKey(ends[i]!.x, ends[i]!.z);
     const bucket = grid.get(k);
     if (bucket) bucket.push(i);
     else grid.set(k, [i]);
   }
-
-  const nearby = (i: number): number[] => {
+  const nearby = function* (i: number): Generator<void, number[]> {
     const e = ends[i]!;
     const cx = Math.round(e.x / hashCell);
     const cz = Math.round(e.z / hashCell);
     const hit: number[] = [];
     for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      yield;
       for (let gz = cz - 1; gz <= cz + 1; gz++) {
+        yield;
         const bucket = grid.get(`${gx}:${gz}`);
         if (!bucket) continue;
         for (const j of bucket) {
+          yield;
           if (j === i) continue;
           if (Math.hypot(ends[j]!.x - e.x, ends[j]!.z - e.z) < junctionR) hit.push(j);
         }
@@ -3376,13 +4262,20 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
     }
     return hit;
   };
-
-  const parent = ends.map((_, i) => i);
-  const find = (i: number): number => {
+  const parent: number[] = [];
+  for (let i = 0; i < ends.length; i++) {
+    yield;
+    parent.push(i);
+  }
+  const find = function* (i: number): Generator<void, number> {
     let p = i;
-    while (parent[p] !== p) p = parent[p]!;
+    while (parent[p] !== p) {
+      yield;
+      p = parent[p]!;
+    }
     let x = i;
     while (x !== p) {
+      yield;
       const n = parent[x]!;
       parent[x] = p;
       x = n;
@@ -3390,29 +4283,33 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
     return p;
   };
   for (let i = 0; i < ends.length; i++) {
-    for (const j of nearby(i)) {
-      const pa = find(i);
-      const pb = find(j);
+    yield;
+    for (const j of yield* nearby(i)) {
+      yield;
+      const pa = yield* find(i);
+      const pb = yield* find(j);
       if (pa !== pb) parent[pa] = pb;
     }
   }
-
   const clusters = new Map<number, number[]>();
   for (let i = 0; i < ends.length; i++) {
-    const root = find(i);
+    yield;
+    const root = yield* find(i);
     const bucket = clusters.get(root);
     if (bucket) bucket.push(i);
     else clusters.set(root, [i]);
   }
-
   const setback = 14 * METERS_TO_WORLD;
   const candidates: PlannedCrosswalk[] = [];
   for (const idxs of clusters.values()) {
+    yield;
     if (idxs.length < 2) continue;
     let crossing = false;
     for (let a = 0; a < idxs.length && !crossing; a++) {
+      yield;
       const ea = ends[idxs[a]!]!;
       for (let b = a + 1; b < idxs.length; b++) {
+        yield;
         const eb = ends[idxs[b]!]!;
         const dot = ea.dx * eb.dx + ea.dz * eb.dz;
         if (Math.abs(dot) < 0.55) {
@@ -3422,22 +4319,32 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
       }
     }
     if (!crossing) continue;
-    const ranked = idxs
-      .map((i) => ends[i]!)
-      .filter((e) => e.runLen >= setback + 8 * METERS_TO_WORLD)
-      .sort((a, b) => b.runLen - a.runLen);
-    const best = ranked[0];
+    let best: End | null = null;
+    for (const i of idxs) {
+      yield;
+      const end = ends[i]!;
+      if (end.runLen >= setback + 8 * METERS_TO_WORLD && (!best || end.runLen > best.runLen))
+        best = end;
+    }
     if (!best) continue;
     const x = best.x + best.dx * setback;
     const z = best.z + best.dz * setback;
     if (skipRoadVertex(x, z)) continue;
     candidates.push({ x, z, dx: best.dx, dz: best.dz, half: half0 });
   }
-
   const minSep = 28 * METERS_TO_WORLD;
   const kept: PlannedCrosswalk[] = [];
   for (const e of candidates) {
-    if (kept.some((k) => Math.hypot(k.x - e.x, k.z - e.z) < minSep)) continue;
+    yield;
+    let tooClose = false;
+    for (const k of kept) {
+      yield;
+      if (Math.hypot(k.x - e.x, k.z - e.z) < minSep) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (tooClose) continue;
     kept.push(e);
   }
   return kept;
@@ -3579,6 +4486,199 @@ export function buildRoads(
     group.add(mesh);
   }
   return group.children.length > 0 ? group : null;
+}
+
+export interface RoadCoverContext {
+  readonly crossings: readonly CrossingSpan[];
+  readonly crosswalks: readonly PlannedCrosswalk[];
+}
+
+const roadCoverContextCache = new WeakMap<CityData, RoadCoverContext>();
+
+export function* roadCoverContextSteps(cityData: CityData): Generator<void, RoadCoverContext> {
+  const cached = roadCoverContextCache.get(cityData);
+  if (cached) return cached;
+  const crossings = yield* riverCrossingSpansSteps(cityData);
+  const crosswalks = yield* plannedCrosswalksSteps(cityData);
+  const result = { crossings, crosswalks };
+  roadCoverContextCache.set(cityData, result);
+  return result;
+}
+
+function* appendCoverRibbonSteps(
+  positions: number[],
+  indices: number[],
+  points: { x: number; z: number }[],
+  halfWidth: number,
+  y: number,
+  bounds: BoundsXZ | null,
+): Generator<void> {
+  const normal = (i: number): { x: number; z: number } => {
+    const a = points[Math.max(0, i - 1)]!,
+      b = points[Math.min(points.length - 1, i + 1)]!;
+    const dx = b.x - a.x,
+      dz = b.z - a.z,
+      length = Math.hypot(dx, dz) || 1;
+    return { x: (-dz / length) * halfWidth, z: (dx / length) * halfWidth };
+  };
+  for (let i = 0; i < points.length - 1; i++) {
+    yield;
+    const a = points[i]!,
+      b = points[i + 1]!;
+    if (Math.hypot(b.x - a.x, b.z - a.z) < 0.35 * METERS_TO_WORLD) continue;
+    const an = normal(i),
+      bn = normal(i + 1);
+    appendCoverPolygon(
+      positions,
+      indices,
+      [
+        { x: a.x + an.x, z: a.z + an.z },
+        { x: a.x - an.x, z: a.z - an.z },
+        { x: b.x - bn.x, z: b.z - bn.z },
+        { x: b.x + bn.x, z: b.z + bn.z },
+      ],
+      y,
+      bounds,
+    );
+  }
+}
+
+export function createRoadCoverJob(
+  options: CoverJobOptions & {
+    cityData: CityData;
+    roadIndices: readonly number[];
+    bounds?: BoundsXZ | null;
+    paintMarks?: boolean;
+    roadContext?: RoadCoverContext;
+  },
+) {
+  return createCoverJob(options, function* (context) {
+    const bounds = options.bounds ?? null,
+      paintMarks = options.paintMarks ?? true;
+    const rings = yield* waterRingsSteps(options.cityData);
+    const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
+    const roadContext = options.roadContext ?? (yield* roadCoverContextSteps(options.cityData));
+    let sidewalkMaterial: THREE.MeshLambertMaterial | null = null;
+    let asphaltMaterial: THREE.MeshLambertMaterial | null = null;
+    const asphalt = (): THREE.MeshLambertMaterial => {
+      asphaltMaterial ??= context.own(
+        new THREE.MeshLambertMaterial({
+          color: pal.ASPHALT,
+          side: THREE.DoubleSide,
+          fog: true,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        }),
+      );
+      return asphaltMaterial;
+    };
+    const markPos: number[] = [],
+      markIdx: number[] = [];
+    const halfDash = (DASH_WIDTH_M * METERS_TO_WORLD) / 2;
+    const marks = function* (points: { x: number; z: number }[]): Generator<void> {
+      for (const dash of yield* polylineDashSteps(points))
+        yield* appendCoverRibbonSteps(markPos, markIdx, [dash.a, dash.b], halfDash, MARK_Y, bounds);
+    };
+    for (let tier = 0; tier <= 2; tier++) {
+      const walkPos: number[] = [],
+        walkIdx: number[] = [],
+        roadPos: number[] = [],
+        roadIdx: number[] = [];
+      const halfCarriage = (ROAD_WIDTHS_M[tier]! * METERS_TO_WORLD) / 2;
+      const halfWalk = halfCarriage + SIDEWALK_M[tier]! * METERS_TO_WORLD;
+      for (const index of options.roadIndices) {
+        yield;
+        const road = options.cityData.roads[index];
+        if (!road || road.pts.length < 4 || road.pts.length % 2)
+          throw new RangeError(`invalid road record ${index}`);
+        if (road.tier !== tier) continue;
+        const points = yield* roadPtsSteps(road);
+        if (!points) continue;
+        for (const run of yield* splitRoadRunsSteps(points, overWater)) {
+          for (const piece of yield* clipRibbonPtsSteps(run.pts)) {
+            yield* appendCoverRibbonSteps(walkPos, walkIdx, piece, halfWalk, SIDEWALK_Y, bounds);
+            yield* appendCoverRibbonSteps(roadPos, roadIdx, piece, halfCarriage, ROAD_Y, bounds);
+            if (paintMarks && tier <= 1) yield* marks(piece);
+          }
+        }
+      }
+      if (!walkIdx.length && !roadIdx.length) continue;
+      const tierGroup = new THREE.Group();
+      tierGroup.userData.roadTier = tier;
+      if (walkIdx.length) {
+        sidewalkMaterial ??= context.own(
+          new THREE.MeshLambertMaterial({
+            color: pal.PAVEMENT,
+            side: THREE.DoubleSide,
+            fog: true,
+          }),
+        );
+        const mesh = yield* coverMesh(context, walkPos, walkIdx, sidewalkMaterial);
+        if (mesh) tierGroup.add(mesh);
+      }
+      if (roadIdx.length) {
+        const mesh = yield* coverMesh(context, roadPos, roadIdx, asphalt());
+        if (mesh) tierGroup.add(mesh);
+      }
+      context.root.add(tierGroup);
+    }
+    const stitchPos: number[] = [],
+      stitchIdx: number[] = [];
+    for (const span of roadContext.crossings) {
+      yield;
+      if (runTouchesTowerBridge(span.pts)) continue;
+      yield* appendCoverRibbonSteps(
+        stitchPos,
+        stitchIdx,
+        span.pts,
+        (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2,
+        ROAD_Y,
+        bounds,
+      );
+      if (paintMarks) yield* marks(span.pts);
+    }
+    if (stitchIdx.length) {
+      const mesh = yield* coverMesh(context, stitchPos, stitchIdx, asphalt());
+      if (mesh) context.root.add(mesh);
+    }
+    if (paintMarks) {
+      for (const zebra of roadContext.crosswalks) {
+        yield;
+        if (!bounds)
+          addCrosswalk(markPos, markIdx, zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half);
+        else {
+          const positions: number[] = [],
+            indices: number[] = [];
+          addCrosswalk(positions, indices, zebra.x, zebra.z, zebra.dx, zebra.dz, zebra.half);
+          for (let i = 0; i < positions.length; i += 12) {
+            const points = [];
+            for (let j = i; j < i + 12; j += 3)
+              points.push({ x: positions[j]!, z: positions[j + 2]! });
+            appendCoverPolygon(markPos, markIdx, points, MARK_Y + 0.002, bounds);
+          }
+        }
+      }
+    }
+    if (markIdx.length) {
+      const material = context.own(
+        new THREE.MeshLambertMaterial({
+          color: pal.MARKING,
+          side: THREE.DoubleSide,
+          fog: true,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      );
+      const mesh = yield* coverMesh(context, markPos, markIdx, material);
+      if (mesh) {
+        mesh.renderOrder = 1;
+        mesh.userData.roadMarks = true;
+        context.root.add(mesh);
+      }
+    }
+  });
 }
 
 const LAMP_MAX = 12000;
