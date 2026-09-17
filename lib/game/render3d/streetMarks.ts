@@ -30,6 +30,17 @@ export function polylineDashes(
   dashM = DASH_LENGTH_M,
   gapM = DASH_GAP_M,
 ): DashSeg[] {
+  const iterator = polylineDashSteps(pts, dashM, gapM);
+  let result = iterator.next();
+  while (!result.done) result = iterator.next();
+  return result.value;
+}
+
+export function* polylineDashSteps(
+  pts: readonly PolyPoint[],
+  dashM = DASH_LENGTH_M,
+  gapM = DASH_GAP_M,
+): Generator<void, DashSeg[]> {
   if (pts.length < 2) return [];
   const dashW = dashM * METERS_TO_WORLD;
   const gapW = gapM * METERS_TO_WORLD;
@@ -40,6 +51,7 @@ export function polylineDashes(
   let inDash = true;
   let remain = dashW;
   for (let i = 0; i < pts.length - 1; i++) {
+    yield;
     const a = pts[i]!;
     const b = pts[i + 1]!;
     const dx = b.x - a.x;
@@ -50,6 +62,7 @@ export function polylineDashes(
     const uz = dz / len;
     let local = 0;
     while (local < len) {
+      yield;
       if (remain <= 1e-9) {
         inDash = !inDash;
         remain = inDash ? dashW : gapW;
