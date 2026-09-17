@@ -199,8 +199,8 @@ function city(roads: { tier: number; pts: Uint16Array }[], water: CityPoly[] = [
     );
     assert.equal(peak.typed, first.typed, 'typed allocation peak is independent of source size');
     assert(
-      peak.push <= peak.points * 2 + 64,
-      `JS array growth bounded by the record being decoded (${peak.push} at ${peak.points} points)`,
+      peak.push <= 256,
+      `JS array growth stays within a fixed page (${peak.push} at ${peak.points} points)`,
     );
   }
   assert(peaks[2]!.pages > peaks[0]!.pages && peaks[2]!.pages > 4, 'large selections span pages');
