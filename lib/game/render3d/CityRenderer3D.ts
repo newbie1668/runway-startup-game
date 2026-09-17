@@ -36,7 +36,6 @@ import {
   crossingYawAt,
   HUB_GLOW_PLAYER_COLOR,
   nearestPick,
-  riverCrossingSpans,
   type BuildingPick,
   type CityScratch,
 } from './cityBuilder';
@@ -535,7 +534,13 @@ export class CityRenderer3D implements IMapRenderer {
     const heroJobs: BuildJob[] = [];
     const replacementJobs: BuildJob[] = [];
     const restJobs: BuildJob[] = [];
-    const crossings = riverCrossingSpans(data);
+    const crossingDecks: Array<{
+      group: THREE.Group;
+      baseYaw: number;
+      x: number;
+      z: number;
+      fallbackYaw: number;
+    }> = [];
     const enqueue = (
       into: BuildJob[],
       id: string,
@@ -578,8 +583,10 @@ export class CityRenderer3D implements IMapRenderer {
         group.position.set(p.x, 0, p.y);
         const riverDeck = isDeckLandmark(landmark.kind) && landmark.kind !== 'oldstreet';
         if (riverDeck && landmark.kind !== 'towerbridge') {
-          const yaw = crossingYawAt(p.x, p.y, crossings) ?? landmark.yaw ?? 0;
-          group.rotation.y += yaw;
+          const baseYaw = group.rotation.y;
+          const fallbackYaw = landmark.yaw ?? 0;
+          group.rotation.y = baseYaw + fallbackYaw;
+          crossingDecks.push({ group, baseYaw, x: p.x, z: p.y, fallbackYaw });
         } else if (landmark.yaw) {
           group.rotation.y += landmark.yaw;
         }
@@ -637,6 +644,13 @@ export class CityRenderer3D implements IMapRenderer {
             tracker: this.geometryTracker,
             diagnostics: this.diagnostics,
             now: () => performance.now(),
+            onRoadContextReady: (context) => {
+              for (const deck of crossingDecks) {
+                deck.group.rotation.y =
+                  deck.baseYaw +
+                  (crossingYawAt(deck.x, deck.z, context.crossings) ?? deck.fallbackYaw);
+              }
+            },
             onStockDrawn: () => {
               this.stockDrawnThisFrame = true;
             },

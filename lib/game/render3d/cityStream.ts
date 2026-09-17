@@ -53,6 +53,7 @@ export interface CityStreamOptions {
   readonly tracker: ReturnType<typeof createGeometryTracker>;
   readonly diagnostics: MapDiagnosticsReporter;
   now(): number;
+  onRoadContextReady?(context: RoadCoverContext): void;
   onStockDrawn(): void;
   onStockEvicted(picks: readonly BuildingPick[]): void;
   onFatal(reason: string): void;
@@ -99,6 +100,7 @@ export class CityStream {
         now: options.now,
         onReady: () => {
           this.roadContext = result.value;
+          if (result.value) options.onRoadContextReady?.(result.value);
         },
       },
       function* () {

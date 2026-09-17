@@ -4098,8 +4098,17 @@ function* riverCrossingSpansSteps(cityData: CityData): Generator<void, CrossingS
 }
 
 /** Y rotation for a +X-modelled pier group so +X follows the nearest carriageway span. */
-export function crossingYawAt(x: number, z: number, spans: CrossingSpan[]): number | null {
-  let best: CrossingSpan | null = null;
+export function crossingYawAt(
+  x: number,
+  z: number,
+  spans: readonly {
+    readonly pts: readonly [
+      Readonly<{ x: number; z: number }>,
+      Readonly<{ x: number; z: number }>,
+    ];
+  }[],
+): number | null {
+  let best: (typeof spans)[number] | null = null;
   let bestD = 80 * METERS_TO_WORLD;
   for (const s of spans) {
     const mx = (s.pts[0].x + s.pts[1].x) / 2;
