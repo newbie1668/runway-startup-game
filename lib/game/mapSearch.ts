@@ -78,6 +78,7 @@ export function placeCatalog(): readonly PlaceHit[] {
     });
   }
   for (const area of AREA_LABELS) {
+    if (area.text === 'FITZROVIA') continue;
     const p = project(area.at);
     hits.push({
       id: `area:${area.text}`,

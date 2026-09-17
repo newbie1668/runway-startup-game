@@ -115,6 +115,9 @@ while (!stream.idle) {
 }
 assert.deepEqual(failures, []);
 assert(stream.stockBuildings >= 1);
+const firstStock = root.children.find((child) => child.userData.cellId === firstId);
+assert.ok(firstStock);
+assert(firstStock.children.length > 1, 'detailed stock receives its decor before idle');
 assert(
   !stream.buildingMeshes().some((mesh) => mesh.userData.cellId === secondId),
   'idle background work never builds stock beyond the prefetch ring',
@@ -146,6 +149,10 @@ assert(
   !stream.buildingMeshes().some((mesh) => mesh.userData.cellId === secondId),
   'overview residents outside hysteresis are evicted after moving close',
 );
+while (!stream.idle) stream.drain();
+const replacement = root.children.find((child) => child.userData.cellId === firstId);
+assert.ok(replacement);
+assert(replacement.children.length > 1, 'replacement detailed stock receives its decor');
 stream.update(first);
 stream.drain();
 stream.update(second);

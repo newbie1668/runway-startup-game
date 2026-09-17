@@ -215,7 +215,7 @@ export class CityStream {
   private resident(request: Request): boolean {
     if (request.kind === 'decor') {
       const stock = this.stocks.get(request.id);
-      return !stock || stock.hasDecor();
+      return stock !== undefined && stock.detail === request.detail && stock.hasDecor();
     }
     const store =
       request.kind === 'stock' ? this.stocks : request.kind === 'cover' ? this.covers : this.trees;
@@ -338,6 +338,8 @@ export class CityStream {
       });
     if (request.kind === 'decor') {
       const stock = this.stocks.get(request.id)!;
+      if (stock.detail !== request.detail)
+        throw new Error(`decor stock detail mismatch: ${stock.detail} != ${request.detail}`);
       return createStockDecorJob({
         ...common,
         scratch: stock.scratch,
@@ -433,6 +435,10 @@ export class CityStream {
       while (this.pending.size < MAX_PENDING && this.cursor < this.requests.length) {
         const request = this.requests[this.cursor]!;
         if (request.kind === 'cover' && !this.roadContext) break;
+        if (request.kind === 'decor') {
+          const stock = this.stocks.get(request.id);
+          if (!stock || stock.detail !== request.detail) break;
+        }
         this.cursor++;
         if (this.resident(request)) continue;
         if (!request.essential && this.options.tracker.bytes() >= BACKGROUND_RESIDENT_BYTES)

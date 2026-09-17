@@ -186,7 +186,7 @@ function* waterSteps(
         const base = surface.vertexCount;
         for (const p of piece) {
           const index = surface.vertex(p.x, WATER_Y, p.z);
-          const k = points.findIndex((q) => q.x === p.x && q.z === p.z);
+          const k = points.indexOf(p);
           if (k >= 0) normals.at(corners[k]!, normal);
           else {
             face ??= normals.face(corners[0], corners[1], corners[2]).normalize();

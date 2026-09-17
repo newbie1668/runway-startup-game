@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as THREE from 'three';
-import { londonClimate, londonClock, searchPlaces } from '../lib/game/mapSearch';
+import { londonClimate, londonClock, placeCatalog, searchPlaces } from '../lib/game/mapSearch';
 import {
   STYLE_HOUSE,
   STYLE_OFFICE,
@@ -138,6 +138,8 @@ check('offline search finds Shard, Shoreditch, Hyde Park', () => {
   assert.ok(park.some((h) => h.label === 'Hyde Park' && h.kind === 'park'));
   const chelsea = searchPlaces('chelsea');
   assert.ok(chelsea.some((h) => h.label === 'Chelsea Bridge'));
+  const ids = placeCatalog().map((hit) => hit.id);
+  assert.equal(new Set(ids).size, ids.length, 'place catalog ids are unique');
 });
 
 check('West End 4–6 storey terraces keep bays (not restyled to office)', () => {

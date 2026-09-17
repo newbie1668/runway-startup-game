@@ -435,6 +435,43 @@ for (const [label, record] of [
   for (const [key, stream] of want) assert.deepEqual(got.get(key), stream, `${label} ${key}`);
   disposeAll(legacy, output);
 }
+{
+  const record: CityPoly = {
+    verts: q([
+      { x: 10, z: 10 },
+      { x: 10, z: 10 },
+      { x: 11, z: 10 },
+      { x: 10, z: 11 },
+      { x: 10, z: 9 },
+    ]),
+    indices: new Uint16Array([0, 1, 2, 0, 2, 3, 1, 2, 4]),
+  };
+  const data = city([], [record]);
+  const legacy = buildWater(data);
+  const { output } = waterJob('water-clipped-coincident-source', data, {
+    minX: 9,
+    maxX: 12,
+    minZ: 8,
+    maxZ: 12,
+  });
+  const expectedSurface = meshes(legacy)[0]!,
+    actualSurface = meshes(output)[0]!,
+    expectedIndex = expectedSurface.geometry.getIndex()!,
+    actualIndex = actualSurface.geometry.getIndex()!,
+    expectedNormal = expectedSurface.geometry.getAttribute('normal'),
+    actualNormal = actualSurface.geometry.getAttribute('normal');
+  assert.equal(actualIndex.count, expectedIndex.count);
+  for (let i = 0; i < expectedIndex.count; i++) {
+    const expected = expectedIndex.getX(i),
+      actual = actualIndex.getX(i);
+    assert.deepEqual(
+      [actualNormal.getX(actual), actualNormal.getY(actual), actualNormal.getZ(actual)],
+      [expectedNormal.getX(expected), expectedNormal.getY(expected), expectedNormal.getZ(expected)],
+      'clipping preserves normals for distinct source indices at one position',
+    );
+  }
+  disposeAll(legacy, output);
+}
 // Clipped water: every emitted vertex that coincides with a source vertex
 // keeps the legacy accumulated normal of that vertex; vertices introduced on
 // the clip boundary take the face normal of their source triangle.
@@ -638,8 +675,10 @@ for (const mode of ['cancel', 'throw'] as const) {
 for (const pageCount of [100, 1000, 5000]) {
   for (const streamed of [true, false]) {
     let clock = 0;
-    let root: THREE.Group | null = null;
-    let published: unknown = 'unset';
+    const captured: { root: THREE.Group | null; published: unknown } = {
+      root: null,
+      published: 'unset',
+    };
     let maxAddsPerStep = 0,
       finishSteps = 0,
       childrenBeforeFinish = -1;
@@ -648,10 +687,10 @@ for (const pageCount of [100, 1000, 5000]) {
         ...jobOptions,
         id: `attach-${pageCount}-${streamed}`,
         now: () => (clock += 4),
-        onReady: (g) => (published = g),
+        onReady: (g) => (captured.published = g),
       },
       function* (context) {
-        root = context.root;
+        captured.root = context.root;
         const material = context.own(new THREE.MeshBasicMaterial());
         const writer = createCoverPageWriter(
           context,
@@ -679,8 +718,8 @@ for (const pageCount of [100, 1000, 5000]) {
       },
     );
     run(job);
-    const scene = published as THREE.Group;
-    assert.equal(scene, root, 'root published once');
+    const scene = captured.published as THREE.Group;
+    assert.equal(scene, captured.root, 'root published once');
     assert.equal(scene.children.length, pageCount, 'every page attached in order');
     for (let i = 0; i < pageCount; i++)
       assert.equal((scene.children[i] as THREE.Mesh).geometry.getAttribute('position').getX(0), i);
