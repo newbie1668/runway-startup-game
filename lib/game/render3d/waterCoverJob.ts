@@ -3,12 +3,14 @@ import { METERS_TO_WORLD } from '../geo';
 import type { BoundsXZ } from './cityIndex';
 import { WATER_BANK_Y, WATER_Y } from './cityBuilder';
 import {
-  coverMesh,
+  COVER_PAGE_INDICES,
+  COVER_PAGE_VERTICES,
   createCoverJob,
+  createCoverPageWriter,
   type CoverBuildContext,
   type CoverJobOptions,
 } from './coverGeometry';
-import { appendCoverPolygon, type CoverPoint as Point } from './coverClip';
+import type { CoverPoint as Point } from './coverClip';
 import { dequantizeX, dequantizeY, type CityData, type CityPoly } from './format';
 import * as pal from './palette';
 
@@ -31,21 +33,34 @@ function* waterSteps(
   selection: readonly number[],
   bounds: BoundsXZ | null,
 ): Generator<void> {
-  const positions: number[] = [],
-    indices: number[] = [];
+  const surface = createCoverPageWriter(context, () =>
+    context.own(
+      new THREE.MeshLambertMaterial({
+        color: pal.WATER,
+        side: THREE.DoubleSide,
+        fog: true,
+      }),
+    ),
+  );
   for (const source of selection) {
     const poly = cityData.water[source];
     if (!poly || poly.verts.length < 6 || poly.verts.length % 2)
       throw new RangeError(`invalid water record ${source}`);
     yield;
-    if (!bounds) {
-      const base = positions.length / 3;
+    const vertexCount = poly.verts.length / 2;
+    if (
+      !bounds &&
+      vertexCount <= COVER_PAGE_VERTICES &&
+      poly.indices.length <= COVER_PAGE_INDICES
+    ) {
+      yield* surface.reserve(vertexCount, poly.indices.length);
+      const base = surface.vertexCount;
       for (let i = 0; i < poly.verts.length; i += 2) {
-        positions.push(dequantizeX(poly.verts[i]!), WATER_Y, dequantizeY(poly.verts[i + 1]!));
+        surface.vertex(dequantizeX(poly.verts[i]!), WATER_Y, dequantizeY(poly.verts[i + 1]!));
         yield;
       }
       for (let i = 0; i < poly.indices.length; i += 3) {
-        indices.push(
+        surface.triangle(
           base + poly.indices[i]!,
           base + poly.indices[i + 1]!,
           base + poly.indices[i + 2]!,
@@ -54,9 +69,7 @@ function* waterSteps(
       }
     } else {
       for (let i = 0; i < poly.indices.length; i += 3) {
-        appendCoverPolygon(
-          positions,
-          indices,
+        yield* surface.polygon(
           [
             point(poly, poly.indices[i]!),
             point(poly, poly.indices[i + 1]!),
@@ -69,20 +82,18 @@ function* waterSteps(
       }
     }
   }
-  if (indices.length) {
-    const material = context.own(
+  yield* surface.finish(context.root);
+  yield;
+  const halfWidth = 3.4 * METERS_TO_WORLD;
+  const banks = createCoverPageWriter(context, () =>
+    context.own(
       new THREE.MeshLambertMaterial({
-        color: pal.WATER,
+        color: pal.WATER_BANK,
         side: THREE.DoubleSide,
         fog: true,
       }),
-    );
-    const mesh = yield* coverMesh(context, positions, indices, material);
-    if (mesh) context.root.add(mesh);
-  }
-  positions.length = indices.length = 0;
-  yield;
-  const halfWidth = 3.4 * METERS_TO_WORLD;
+    ),
+  );
   for (const source of selection) {
     const poly = cityData.water[source]!;
     const n = poly.verts.length / 2;
@@ -92,9 +103,7 @@ function* waterSteps(
       if (Math.hypot(b.x - a.x, b.z - a.z) >= 0.35 * METERS_TO_WORLD) {
         const an = bankNormal(poly, i, n, halfWidth),
           bn = bankNormal(poly, i + 1, n, halfWidth);
-        appendCoverPolygon(
-          positions,
-          indices,
+        yield* banks.polygon(
           [
             { x: a.x + an.x, z: a.z + an.z },
             { x: a.x - an.x, z: a.z - an.z },
@@ -108,17 +117,7 @@ function* waterSteps(
       yield;
     }
   }
-  if (indices.length) {
-    const material = context.own(
-      new THREE.MeshLambertMaterial({
-        color: pal.WATER_BANK,
-        side: THREE.DoubleSide,
-        fog: true,
-      }),
-    );
-    const mesh = yield* coverMesh(context, positions, indices, material);
-    if (mesh) context.root.add(mesh);
-  }
+  yield* banks.finish(context.root);
 }
 
 export function createWaterCoverJob(
