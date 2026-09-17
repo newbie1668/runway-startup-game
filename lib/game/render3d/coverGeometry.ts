@@ -24,17 +24,32 @@ export function createCoverJob(
     throw new RangeError('sliceMs must be positive and no greater than 4');
   let context: CoverBuildContext | null = null;
   let iterator: Generator<void> | null = null;
-  let resources = new Set<{ dispose(): void }>();
+  const resources = new Set<{ dispose(): void }>();
+  const disposed = new WeakSet<{ dispose(): void }>();
   let terminal = false;
   let stepping = false;
+  let advancing = false;
+  let finalizing = false;
+  let now: CoverJobOptions['now'] | null = options.now;
+  let publish: CoverJobOptions['onReady'] | null = options.onReady;
+  let producer: typeof produce | null = produce;
+  const detach = (): void => {
+    iterator = null;
+    context = null;
+    now = null;
+    publish = null;
+    producer = null;
+  };
+  const dispose = (resource: { dispose(): void }): void => {
+    if (disposed.has(resource)) return;
+    disposed.add(resource);
+    resource.dispose();
+  };
   const cleanup = (): unknown[] => {
-    terminal = true;
-    const owned = resources;
-    resources = new Set();
+    if (advancing || finalizing) return [];
+    finalizing = true;
     const pending = iterator;
     iterator = null;
-    const root = context?.root;
-    context = null;
     const errors: unknown[] = [];
     try {
       pending?.return(undefined);
@@ -42,21 +57,24 @@ export function createCoverJob(
       errors.push(error);
     }
     try {
-      root?.removeFromParent();
+      context?.root.removeFromParent();
     } catch (error) {
       errors.push(error);
     }
-    for (const resource of owned) {
+    for (const resource of resources) {
+      resources.delete(resource);
       try {
-        resource.dispose();
+        dispose(resource);
       } catch (error) {
         errors.push(error);
       }
     }
+    detach();
+    finalizing = false;
     return errors;
   };
   const clock = (): number => {
-    const time = options.now();
+    const time = now!();
     if (!Number.isFinite(time)) throw new RangeError('clock must be finite');
     return time;
   };
@@ -66,11 +84,13 @@ export function createCoverJob(
     essential: options.essential,
     cancel() {
       if (terminal) return;
+      terminal = true;
       const errors = cleanup();
       if (errors.length) throw new AggregateError(errors, 'Cover cancellation failed');
     },
     step() {
-      if (terminal || stepping) return terminal;
+      if (terminal) return true;
+      if (stepping) throw new Error('Reentrant cover job step is unsupported');
       stepping = true;
       try {
         const started = clock();
@@ -79,36 +99,57 @@ export function createCoverJob(
           context = {
             root: new THREE.Group(),
             own(resource) {
-              resources.add(resource);
+              if (terminal && !advancing && !finalizing) dispose(resource);
+              else resources.add(resource);
               return resource;
             },
           };
-          iterator = produce(context);
+          advancing = true;
+          try {
+            iterator = producer!(context);
+          } finally {
+            advancing = false;
+          }
         }
         for (let units = 0; units < 64; units++) {
-          if (units > 0 && clock() - started >= sliceMs) return false;
-          const result = iterator!.next();
-          if (terminal) return true;
+          const elapsed = units > 0 && !terminal ? clock() - started : 0;
+          if (terminal) {
+            const errors = cleanup();
+            if (errors.length) throw new AggregateError(errors, 'Cover cancellation failed');
+            return true;
+          }
+          if (elapsed >= sliceMs) return false;
+          let result: IteratorResult<void>;
+          advancing = true;
+          try {
+            result = iterator!.next();
+          } finally {
+            advancing = false;
+          }
+          if (terminal) {
+            const errors = cleanup();
+            if (errors.length) throw new AggregateError(errors, 'Cover cancellation failed');
+            return true;
+          }
           if (result.done) {
-            if (!context.root.children.length) {
+            const onReady = publish!;
+            const root = context!.root.children.length ? context!.root : null;
+            if (!root) {
               const errors = cleanup();
               if (errors.length) throw new AggregateError(errors, 'Empty cover cleanup failed');
-              options.onReady(null);
-              return true;
             }
-            options.onReady(context.root.children.length ? context.root : null);
+            onReady(root);
             if (!terminal) {
               terminal = true;
-              iterator = null;
-              context = null;
-              resources = new Set();
+              resources.clear();
+              detach();
             }
             return true;
           }
-          if (terminal) return true;
         }
         return false;
       } catch (error) {
+        terminal = true;
         const errors = cleanup();
         if (errors.length)
           throw new AggregateError([error, ...errors], 'Cover build and cleanup failed');
