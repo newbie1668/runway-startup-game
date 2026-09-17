@@ -60,6 +60,7 @@ export interface CityStreamOptions {
 }
 
 const MAX_PENDING = 4;
+const MAX_REQUESTS_PER_DRAIN = 64;
 const MAX_RESIDENT_BYTES = 128 * 1024 * 1024;
 const BACKGROUND_RESIDENT_BYTES = 96 * 1024 * 1024;
 
@@ -80,6 +81,7 @@ export class CityStream {
   private readonly pending = new Map<string, Request>();
   private requests: Request[] = [];
   private cursor = 0;
+  private essentialEnd = 0;
   private generation = 0;
   private plan: StreamCoveragePlan | null = null;
   private signature = '';
@@ -204,6 +206,7 @@ export class CityStream {
       });
     }
     append('cover', plan.visibleCover, plan.detail, true);
+    this.essentialEnd = requests.length;
     append('stock', plan.prefetchStock, 'overview', false);
     append('cover', plan.prefetchCover, 'overview', false);
     if (plan.detail !== 'overview') append('trees', plan.visibleCover, plan.detail, false);
@@ -234,6 +237,7 @@ export class CityStream {
       this.coverageJob = null;
       this.requests = [];
       this.cursor = 0;
+      this.essentialEnd = 0;
     }
   }
 
@@ -415,6 +419,8 @@ export class CityStream {
 
   private settleCoverage(): void {
     if (!this.plan || !this.coverageJob) return;
+    if (this.cursor < this.essentialEnd) return;
+    for (const request of this.pending.values()) if (request.essential) return;
     const detail = this.plan.detail;
     const detailed = new Set(this.plan.detailedStock);
     const stocksReady = this.plan.visibleStock.every(
@@ -431,59 +437,83 @@ export class CityStream {
     if (this.closed || !this.plan) return;
     const started = this.options.now();
     try {
-      this.settleCoverage();
-      while (this.pending.size < MAX_PENDING && this.cursor < this.requests.length) {
-        const request = this.requests[this.cursor]!;
-        if (request.kind === 'cover' && !this.roadContext) break;
-        if (request.kind === 'decor') {
-          const stock = this.stocks.get(request.id);
-          if (!stock || stock.detail !== request.detail) break;
+      let requests = 0;
+      let completed = 0;
+      for (;;) {
+        while (
+          this.pending.size < MAX_PENDING &&
+          this.cursor < this.requests.length &&
+          requests < MAX_REQUESTS_PER_DRAIN &&
+          this.options.now() - started < 4
+        ) {
+          const request = this.requests[this.cursor]!;
+          if (request.kind === 'cover' && !this.roadContext) break;
+          if (request.kind === 'decor') {
+            const stock = this.stocks.get(request.id);
+            if (!stock || stock.detail !== request.detail) break;
+          }
+          this.cursor++;
+          requests++;
+          if (this.resident(request)) continue;
+          if (!request.essential && this.options.tracker.bytes() >= BACKGROUND_RESIDENT_BYTES)
+            continue;
+          const id = `stream:${this.generation}:${request.kind}:${request.id}:${request.detail}`;
+          const job = this.build(request, id);
+          this.options.diagnostics.registerJob(id, request.essential);
+          this.pending.set(id, request);
+          let started = false;
+          this.scheduler.enqueue({
+            ...job,
+            step: () => {
+              if (!started) {
+                started = true;
+                this.options.diagnostics.startJob(id);
+              }
+              return job.step();
+            },
+          });
         }
-        this.cursor++;
-        if (this.resident(request)) continue;
-        if (!request.essential && this.options.tracker.bytes() >= BACKGROUND_RESIDENT_BYTES)
-          continue;
-        const id = `stream:${this.generation}:${request.kind}:${request.id}:${request.detail}`;
-        const job = this.build(request, id);
-        this.options.diagnostics.registerJob(id, request.essential);
-        this.pending.set(id, request);
-        let started = false;
-        this.scheduler.enqueue({
-          ...job,
-          step: () => {
-            if (!started) {
-              started = true;
-              this.options.diagnostics.startJob(id);
-            }
-            return job.step();
-          },
-        });
-      }
-      const result = this.scheduler.drain(4, this.options.now);
-      for (const id of result.completed) {
-        this.pending.delete(id);
-        this.options.diagnostics.completeJob(id);
-      }
-      for (const failure of result.failed) {
-        this.pending.delete(failure.id);
-        this.options.diagnostics.failJob(failure.id, failure.error);
-        if (failure.essential) {
-          this.options.onFatal(failure.id);
-          return;
+        let remaining = 4 - (this.options.now() - started);
+        if (remaining <= 0) break;
+        const result = this.scheduler.drain(remaining, this.options.now);
+        completed += result.completed.length;
+        for (const id of result.completed) {
+          this.pending.delete(id);
+          this.options.diagnostics.completeJob(id);
         }
-      }
-      const remaining = 4 - (this.options.now() - started);
-      if (!this.roadContext && remaining > 0) {
-        const context = this.contextScheduler.drain(remaining, this.options.now);
-        for (const id of context.completed) this.options.diagnostics.completeJob(id);
-        for (const failure of context.failed) {
+        for (const failure of result.failed) {
+          this.pending.delete(failure.id);
           this.options.diagnostics.failJob(failure.id, failure.error);
-          this.options.onFatal(failure.id);
-          return;
+          if (failure.essential) {
+            this.options.onFatal(failure.id);
+            return;
+          }
+        }
+        remaining = 4 - (this.options.now() - started);
+        if (!this.roadContext && remaining > 0) {
+          const context = this.contextScheduler.drain(remaining, this.options.now);
+          for (const id of context.completed) this.options.diagnostics.completeJob(id);
+          for (const failure of context.failed) {
+            this.options.diagnostics.failJob(failure.id, failure.error);
+            this.options.onFatal(failure.id);
+            return;
+          }
+        }
+        if (
+          this.pending.size > 0 ||
+          requests >= MAX_REQUESTS_PER_DRAIN ||
+          this.cursor >= this.requests.length
+        )
+          break;
+        const next = this.requests[this.cursor]!;
+        if (next.kind === 'cover' && !this.roadContext) break;
+        if (next.kind === 'decor') {
+          const stock = this.stocks.get(next.id);
+          if (!stock || stock.detail !== next.detail) break;
         }
       }
       this.settleCoverage();
-      if (!this.coverageJob && result.completed.length > 0) this.trimResidents();
+      if (!this.coverageJob && completed > 0) this.trimResidents();
     } catch (error) {
       this.fatal('stream:drain', error);
     }

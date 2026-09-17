@@ -167,4 +167,77 @@ assert.equal(diagnostics.snapshot().queuedJobs, 0, 'cancellation removes pending
 assert.equal(materialDisposals, 0);
 resources.dispose();
 assert.equal(materialDisposals, 1);
+
+for (const clockStep of [0, 0.01]) {
+  let clock = 0;
+  const now = (): number => {
+    clock += clockStep;
+    return clock;
+  };
+  const many: CityData = {
+    buildings: Array.from({ length: 96 }, (_, i) =>
+      building(10 + (i % 12) * 5, 10 + Math.floor(i / 12) * 5),
+    ),
+    roads: [],
+    parks: [],
+    water: [],
+  };
+  const emptyCover: { value: CoverIndex | null } = { value: null };
+  const emptyIndexJob = createCoverIndexJob({
+    id: 'admission-index',
+    generation: 0,
+    essential: true,
+    cityData: many,
+    now: () => 0,
+    onReady: (value) => {
+      emptyCover.value = value;
+    },
+  });
+  while (!emptyIndexJob.step()) {}
+  assert.ok(emptyCover.value);
+  const root = new THREE.Group();
+  const tracker = createGeometryTracker();
+  const resources = createResourcePool();
+  const material = createBuildingMaterial();
+  resources.retain(material);
+  const diagnostics = createMapDiagnostics(1, now);
+  diagnostics.selectMode('3d');
+  const stream = new CityStream({
+    data: many,
+    cityIndex: indexCity(many, 400),
+    coverIndex: emptyCover.value,
+    exclusions: new Set(),
+    material,
+    root,
+    resources,
+    tracker,
+    diagnostics,
+    now,
+    onStockDrawn: () => undefined,
+    onStockEvicted: () => undefined,
+    onFatal: (reason) => assert.fail(reason),
+  });
+  stream.update({ minX: 9, minZ: 9, maxX: 67, maxZ: 47 });
+  const start = clock;
+  stream.drain();
+  assert(clock - start < 9, 'admission and generation share the elapsed budget');
+  if (clockStep === 0) {
+    assert(stream.stockBuildings > 4, 'completed batches refill within the same drain');
+    assert(stream.stockBuildings <= 64, 'a constant clock still caps admissions');
+  }
+  assert(stream.stockBuildings < many.buildings.length);
+  assert(diagnostics.snapshot().pendingEssentialJobs > 0, 'partial batches cannot settle coverage');
+  let frames = 0;
+  while (!stream.idle) {
+    stream.drain();
+    assert(++frames < 500);
+  }
+  assert.equal(stream.stockBuildings, many.buildings.length);
+  assert.equal(diagnostics.snapshot().pendingEssentialJobs, 0);
+  stream.dispose();
+  resources.dispose();
+  assert.equal(root.children.length, 0);
+  assert.equal(tracker.bytes(), 0);
+  assert.equal(diagnostics.snapshot().queuedJobs, 0);
+}
 console.log('Camera streaming, replacement, queue bounds, overview and eviction passed');
