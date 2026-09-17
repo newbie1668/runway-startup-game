@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createCoverCellJob, type CoverCellReady } from '../lib/game/render3d/coverCellJob';
+import { METERS_TO_WORLD } from '../lib/game/geo';
 import { quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
 
 const data: CityData = {
@@ -85,4 +86,133 @@ try {
 } finally {
   THREE.BufferGeometry.prototype.dispose = original;
 }
+
+function coverSignature(root: THREE.Group): string {
+  const streams: unknown[] = [];
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    assert(!Array.isArray(object.material));
+    const material = object.material as THREE.MeshBasicMaterial;
+    const index = object.geometry.getIndex();
+    assert(index);
+    const attributes = Object.keys(object.geometry.attributes).sort();
+    const tuples: number[] = [];
+    for (let i = 0; i < index.count; i++) {
+      const vertex = index.getX(i);
+      for (const name of attributes) {
+        const attribute = object.geometry.getAttribute(name);
+        for (let c = 0; c < attribute.itemSize; c++)
+          tuples.push(attribute.getComponent(vertex, c));
+      }
+    }
+    streams.push({
+      name: object.name,
+      material: {
+        type: material.type,
+        color: material.color.getHex(),
+        vertexColors: material.vertexColors,
+        side: material.side,
+        renderOrder: object.renderOrder,
+      },
+      tuples,
+    });
+  });
+  return JSON.stringify(streams);
+}
+
+const boundaryWorld = 1600 * METERS_TO_WORLD;
+const boundaryData: CityData = {
+  buildings: [],
+  roads: [
+    {
+      tier: 1,
+      pts: new Uint16Array([
+        quantizeX(boundaryWorld - 2),
+        quantizeY(1),
+        quantizeX(boundaryWorld + 2),
+        quantizeY(1),
+      ]),
+    },
+    {
+      tier: 1,
+      pts: new Uint16Array([quantizeX(100), quantizeY(50), quantizeX(102), quantizeY(50)]),
+    },
+  ],
+  parks: [
+    {
+      verts: new Uint16Array([
+        quantizeX(boundaryWorld - 2),
+        quantizeY(-1),
+        quantizeX(boundaryWorld + 2),
+        quantizeY(-1),
+        quantizeX(boundaryWorld + 2),
+        quantizeY(3),
+        quantizeX(boundaryWorld - 2),
+        quantizeY(3),
+      ]),
+      indices: new Uint16Array([0, 1, 2, 0, 2, 3]),
+    },
+    {
+      verts: new Uint16Array([
+        quantizeX(100),
+        quantizeY(50),
+        quantizeX(102),
+        quantizeY(50),
+        quantizeX(102),
+        quantizeY(52),
+        quantizeX(100),
+        quantizeY(52),
+      ]),
+      indices: new Uint16Array([0, 1, 2, 0, 2, 3]),
+    },
+  ],
+  water: [],
+};
+const boundaryBounds = {
+  minX: boundaryWorld - 1,
+  minZ: 0,
+  maxX: boundaryWorld + 1,
+  maxZ: 2,
+};
+
+function buildBoundary(selection: { roads: number[]; parks: number[] }): CoverCellReady {
+  let ready: CoverCellReady | null = null;
+  const job = createCoverCellJob({
+    id: 'boundary',
+    generation: 1,
+    essential: true,
+    now: () => 0,
+    cityData: boundaryData,
+    bounds: boundaryBounds,
+    selection: { roads: selection.roads, parks: selection.parks, water: [] },
+    paintMarks: false,
+    onReady: (value) => {
+      ready = value;
+    },
+  });
+  while (!job.step()) {}
+  assert(ready);
+  return ready;
+}
+
+const indexedBoundary = buildBoundary({ roads: [0], parks: [0] });
+const fullBoundary = buildBoundary({ roads: [0, 1], parks: [0, 1] });
+assert.deepEqual(
+  coverSignature(indexedBoundary.group),
+  coverSignature(fullBoundary.group),
+  '1600 m indexed selection preserves ordered material/triangle tuples',
+);
+const indexedGeometries: THREE.BufferGeometry[] = [];
+indexedBoundary.group.traverse((object) => {
+  if (object instanceof THREE.Mesh) indexedGeometries.push(object.geometry);
+});
+let indexedDisposals = 0;
+for (const geometry of indexedGeometries)
+  geometry.addEventListener('dispose', () => {
+    indexedDisposals++;
+  });
+indexedBoundary.dispose();
+assert.equal(indexedDisposals, indexedGeometries.length, 'indexed cover owns its geometry');
+fullBoundary.dispose();
+
 console.log('Cover cell publication, ownership transfer and cancellation passed');

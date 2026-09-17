@@ -11,8 +11,13 @@ import {
   quantizeY,
   type CityBuilding,
   type CityData,
+  type CityPoly,
 } from '../lib/game/render3d/format';
+import { METERS_TO_WORLD } from '../lib/game/geo';
 import { createResourcePool } from '../lib/game/render3d/sceneResources';
+
+const coverCellM = Number(process.argv[2] ?? 1600);
+assert(Number.isFinite(coverCellM) && coverCellM > 0);
 
 function building(x: number, z: number): CityBuilding {
   return {
@@ -37,13 +42,29 @@ function building(x: number, z: number): CityBuilding {
   };
 }
 
+function park(x: number, z: number): CityPoly {
+  return {
+    verts: new Uint16Array([
+      quantizeX(x - 2),
+      quantizeY(z - 2),
+      quantizeX(x + 2),
+      quantizeY(z - 2),
+      quantizeX(x + 2),
+      quantizeY(z + 2),
+      quantizeX(x - 2),
+      quantizeY(z + 2),
+    ]),
+    indices: new Uint16Array([0, 1, 2, 0, 2, 3]),
+  };
+}
+
 const data: CityData = {
   buildings: [building(10, 10), building(60, 10)],
   roads: [
     { tier: 2, pts: new Uint16Array([quantizeX(9), quantizeY(9), quantizeX(11), quantizeY(9)]) },
     { tier: 2, pts: new Uint16Array([quantizeX(59), quantizeY(9), quantizeX(61), quantizeY(9)]) },
   ],
-  parks: [],
+  parks: [park(10, 10), park(60, 10)],
   water: [],
 };
 const indexed: { value: CoverIndex | null } = { value: null };
@@ -53,7 +74,7 @@ const indexJob = createCoverIndexJob({
   essential: true,
   cityData: data,
   now: () => 0,
-  cellSizeM: 1600,
+  cellSizeM: coverCellM,
   onReady: (value) => {
     indexed.value = value;
   },
@@ -82,8 +103,11 @@ const firstCoverId = [...indexed.value!.cells.entries()].find(([, selection]) =>
 const secondCoverId = [...indexed.value!.cells.entries()].find(([, selection]) =>
   selection.roads.includes(1),
 )![0];
-assert.notEqual(firstId, firstCoverId, 'stock and cover grids use distinct cell IDs');
-assert.notEqual(secondId, secondCoverId, 'stock and cover grids use distinct cell IDs');
+if (coverCellM === 1600) {
+  assert.notEqual(firstId, firstCoverId, 'stock and cover grids use distinct cell IDs');
+  assert.notEqual(secondId, secondCoverId, 'stock and cover grids use distinct cell IDs');
+}
+const coverWorld = coverCellM * METERS_TO_WORLD;
 const stream = new CityStream({
   data,
   cityIndex,
@@ -124,6 +148,30 @@ while (!stream.idle) {
 }
 assert.deepEqual(failures, []);
 assert(stream.stockBuildings >= 1);
+const firstTreeMeshes: THREE.InstancedMesh[] = [];
+root.traverse((object) => {
+  if (object instanceof THREE.InstancedMesh) firstTreeMeshes.push(object);
+});
+assert(firstTreeMeshes.length > 0, 'first cover cell publishes tree instances');
+const firstTreeBounds = {
+  minX: Math.floor(first.minX / coverWorld) * coverWorld,
+  minZ: Math.floor(first.minZ / coverWorld) * coverWorld,
+  maxX: (Math.floor(first.maxX / coverWorld) + 1) * coverWorld,
+  maxZ: (Math.floor(first.maxZ / coverWorld) + 1) * coverWorld,
+};
+for (const mesh of firstTreeMeshes) {
+  const matrix = new THREE.Matrix4();
+  for (let i = 0; i < mesh.count; i++) {
+    matrix.fromArray(mesh.instanceMatrix.array, i * 16);
+    assert(
+      matrix.elements[12]! >= firstTreeBounds.minX &&
+        matrix.elements[12]! <= firstTreeBounds.maxX &&
+        matrix.elements[14]! >= firstTreeBounds.minZ &&
+        matrix.elements[14]! <= firstTreeBounds.maxZ,
+      'tree instances stay within the requested cover cell',
+    );
+  }
+}
 const firstStock = root.children.find((child) => child.userData.cellId === firstId);
 assert.ok(firstStock);
 assert(firstStock.children.length > 1, 'detailed stock receives its decor before idle');
@@ -173,6 +221,7 @@ assert.equal(root.children.length, 0);
 assert.equal(tracker.bytes(), 0);
 assert.equal(stream.stockBuildings, 0);
 assert.equal(diagnostics.snapshot().queuedJobs, 0, 'cancellation removes pending diagnostics');
+assert.equal(stream.residentCells, 0, 'cancellation removes cover and tree residents');
 assert.equal(materialDisposals, 0);
 resources.dispose();
 assert.equal(materialDisposals, 1);
