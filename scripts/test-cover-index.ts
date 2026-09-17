@@ -511,7 +511,7 @@ check('publication happens once; later step/cancel and reentrant calls are inert
   const data = city([road(0, 0, 100, 0)], [poly(0, 0, 60, 0, 30, 60)]);
   let ready = 0;
   let reentrantStep: boolean | null = null;
-  let published: CoverIndex | null = null;
+  const holder: { published: CoverIndex | null } = { published: null };
   const job = createCoverIndexJob({
     id: 'p',
     generation: 3,
@@ -520,7 +520,7 @@ check('publication happens once; later step/cancel and reentrant calls are inert
     now: constantClock,
     onReady: (index) => {
       ready += 1;
-      published = index;
+      holder.published = index;
       reentrantStep = job.step();
       job.cancel();
       job.cancel();
@@ -529,6 +529,7 @@ check('publication happens once; later step/cancel and reentrant calls are inert
   assert.equal(job.step(), true);
   assert.equal(ready, 1);
   assert.equal(reentrantStep, true);
+  const published = holder.published;
   assert.ok(published);
   const snap = cellsToObject(published);
   const fbSnap = JSON.stringify(published.featureBounds);
