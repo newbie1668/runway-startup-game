@@ -53,11 +53,18 @@ assert(before.length > 0);
 assert.equal(before.length, after.length);
 const resources = new Set<THREE.BufferGeometry | THREE.Material>();
 for (let i = 0; i < before.length; i++) {
-  for (const name of ['position', 'normal', 'color']) {
-    assert.deepEqual(
-      after[i]!.geometry.getAttribute(name)?.array,
-      before[i]!.geometry.getAttribute(name)?.array,
-    );
+  assert.deepEqual(
+    after[i]!.geometry.getAttribute('position')?.array,
+    before[i]!.geometry.getAttribute('position')?.array,
+  );
+  for (const name of ['normal', 'color']) {
+    const actual = after[i]!.geometry.getAttribute(name),
+      expected = before[i]!.geometry.getAttribute(name);
+    assert.equal(actual?.count, expected?.count);
+    assert.equal(actual?.itemSize, expected?.itemSize);
+    for (let j = 0; actual && expected && j < actual.count; j++)
+      for (let component = 0; component < actual.itemSize; component++)
+        assert.equal(actual.getComponent(j, component), expected.getComponent(j, component));
   }
   assert.deepEqual(after[i]!.geometry.getIndex()!.array, before[i]!.geometry.getIndex()!.array);
   for (const mesh of [before[i]!, after[i]!]) {
