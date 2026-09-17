@@ -39,6 +39,28 @@ function job(
   };
 }
 console.log('Build scheduler');
+check('rounded browser clocks do not starve short steps', () => {
+  for (const resolution of [0.1, 1]) {
+    let elapsed = 0;
+    let calls = 0;
+    const s = createBuildScheduler();
+    s.enqueue({
+      id: 'short-steps',
+      generation: 1,
+      essential: true,
+      step() {
+        elapsed += 0.001;
+        return ++calls === 2000;
+      },
+      cancel() {},
+    });
+    const result = s.drain(4, () => Math.floor(elapsed / resolution) * resolution);
+    assert.deepEqual(result.completed, ['short-steps']);
+    assert.equal(result.pending, 0);
+    assert.equal(calls, 2000);
+    assert(elapsed < 4);
+  }
+});
 check('FIFO priority and budget', () => {
   const c = clock();
   const log: string[] = [];
@@ -70,7 +92,28 @@ check('multistep and constant clock bounded', () => {
     cancel() {},
   });
   assert.equal(stuck.drain(4, () => 0).pending, 1);
-  assert.equal(calls, 1);
+  assert.equal(calls, 4096);
+  assert.equal(stuck.drain(4, () => 0).pending, 1);
+  assert.equal(calls, 8192);
+});
+check('rounded clocks still enforce elapsed budget before another step', () => {
+  let elapsed = 0;
+  let calls = 0;
+  const s = createBuildScheduler();
+  s.enqueue({
+    id: 'remaining',
+    generation: 1,
+    essential: true,
+    step() {
+      elapsed += 0.25;
+      calls++;
+      return false;
+    },
+    cancel() {},
+  });
+  assert.equal(s.drain(4, () => Math.floor(elapsed)).pending, 1);
+  assert.equal(calls, 16);
+  assert.equal(elapsed, 4);
 });
 check('keeps an incomplete head ahead of later jobs across drains', () => {
   const c = clock();

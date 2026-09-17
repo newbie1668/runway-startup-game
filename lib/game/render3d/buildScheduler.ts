@@ -18,6 +18,8 @@ export interface BuildScheduler {
   drain(budgetMs: number, now: () => number): DrainResult;
 }
 
+const MAX_STEPS_PER_DRAIN = 4096;
+
 function aggregateErrors(errors: unknown[], message: string): AggregateError {
   return new AggregateError(errors, message);
 }
@@ -77,9 +79,11 @@ export function createBuildScheduler(): BuildScheduler {
         if (budgetMs === 0 || queue.length === 0)
           return { completed, failed, pending: pending.size };
         const startedAt = now();
-        while (queue.length > 0) {
+        let steps = 0;
+        while (queue.length > 0 && steps < MAX_STEPS_PER_DRAIN) {
           const beforeStart = now();
           if (beforeStart - startedAt >= budgetMs) break;
+          steps++;
           const job = queue.shift()!;
           let isComplete = false;
           let didThrow = false;
@@ -107,8 +111,6 @@ export function createBuildScheduler(): BuildScheduler {
               completed.push(job.id);
             } else queue.unshift(job);
           }
-          const afterStep = now();
-          if (!isComplete && pending.get(job.id) === job && afterStep <= beforeStart) break;
         }
         return { completed, failed, pending: pending.size };
       } finally {

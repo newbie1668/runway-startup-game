@@ -735,7 +735,7 @@ check('coverForBounds validates bounds, padding and overflow', () => {
   assert.deepEqual(coverForBounds(index, ok, 0).roads, [0]);
 });
 
-check('works as a scheduler BuildJob', () => {
+check('large index remains resumable under a constant scheduler clock', () => {
   const s = createBuildScheduler();
   let index: CoverIndex | null = null;
   s.enqueue(
@@ -743,7 +743,7 @@ check('works as a scheduler BuildJob', () => {
       id: 'sched',
       generation: 1,
       essential: true,
-      cityData: city([road(...longRoad(300))]),
+      cityData: city([{ tier: 2, pts: new Uint16Array(600_000) }]),
       now: constantClock,
       onReady: (i) => (index = i),
     }),
