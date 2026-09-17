@@ -50,6 +50,11 @@ const REJECTED_COMMONS_FILES: Record<string, string> = {
     'linked Historic England entry 1379038 is 30 Tottenham Street; two-bay brick building conflicts with the 28 Charlotte Street photo (feasibility.md, frontage-source-cards.md)',
 };
 
+const KARTAVIEW_TERMS_URL = 'https://kartaview.org/terms';
+/** Terms of Use §4 "Open Source License" as rendered in a browser on 2026-09-17 (the HTTP body is an SPA shell). */
+const KARTAVIEW_LICENCE_CLAUSE =
+  '"… by licensing the street images made available on KartaView and 3D spatial data under Creative Commons Attribution-ShareAlike 4.0 International (" CC-By-SA License"), with the license terms available at https://creativecommons.org/licenses/by-sa/4.0/legalcode. … You are free to copy, distribute, transmit and adapt data on KartaView, as long as you comply with the applicable open source license and credit Grab and the KartaView contributors. We require that you use the credit "© Grab and KartaView Contributors"."';
+
 interface CuratedCommonsObservation {
   osmWays: string[];
   identityBasis: string;
@@ -1383,8 +1388,16 @@ async function main(): Promise<void> {
     const imageUrl = parsed.result?.data?.imageProcUrl;
     if (!imageUrl) throw new Error(`KartaView ${id} has no processed-image URL`);
     const image = await cachedFetchBinary(`kartaview-frame-${id}`, imageUrl, 'jpg');
-    kartaFrames.push({ id, meta, image: image.envelope });
+    const sequenceId = (parsed.result?.data as { sequenceId?: string } | undefined)?.sequenceId;
+    if (!sequenceId) throw new Error(`KartaView ${id} has no sequenceId`);
+    const sequence = await cachedFetch(
+      `kartaview-sequence-${sequenceId}`,
+      `https://api.openstreetcam.org/2.0/sequence/${sequenceId}`,
+    );
+    kartaFrames.push({ id, meta, image: image.envelope, sequence });
   }
+  const kartaTermsShell = await cachedFetch('kartaview-terms-shell', KARTAVIEW_TERMS_URL);
+  const kartaFaqShell = await cachedFetch('kartaview-faq-shell', 'https://kartaview.org/faq');
   const probes: ProbeResult[] = [
     await probe(
       'mapillary-no-token',
@@ -1519,11 +1532,12 @@ async function main(): Promise<void> {
       if (Number.isFinite(ad) !== Number.isFinite(bd)) return Number.isFinite(bd) ? 1 : -1;
       return tierRank[a.tier] - tierRank[b.tier];
     });
-    const addressed = fr.photoMatches.filter(
+    const positive = fr.photoMatches.filter((m) => m.evidence !== 'rejected');
+    const addressed = positive.filter(
       (m) => m.tier === 'title-address' || m.tier === 'description-address',
     );
-    const named = fr.photoMatches.filter((m) => m.tier === 'name-match');
-    const verified = fr.photoMatches.filter((m) => m.evidence === 'identity-verified');
+    const named = positive.filter((m) => m.tier === 'name-match');
+    const verified = positive.filter((m) => m.evidence === 'identity-verified');
     const newest = (matches: PhotoMatch[]) =>
       [...matches]
         .filter((m) => m.captureDate)
@@ -1552,25 +1566,20 @@ async function main(): Promise<void> {
               sources: named.map((m) => m.pageUrl),
               note: 'occupier names move; verify the building, not the sign',
             }
-          : fr.photoMatches.length
+          : positive.length
             ? {
                 state: 'inferred',
-                value: `${fr.photoMatches.length} geotagged file(s) with camera within 30 m of frontage; none labelled with this address`,
-                sources: fr.photoMatches.slice(0, 5).map((m) => m.pageUrl),
+                value: `${positive.length} geotagged file(s) with camera within 30 m of frontage; none labelled with this address`,
+                sources: positive.slice(0, 5).map((m) => m.pageUrl),
                 note: 'may or may not depict this building',
               }
             : {
                 state: 'unknown',
                 value: null,
                 sources: [],
-                note: 'no geotagged or address-labelled Commons file found',
+                note: `no positive Commons candidate found in this audit (${fr.photoMatches.length} rejected label(s) excluded); not a claim that no photograph exists anywhere`,
               };
-    const newestYear = Math.max(
-      0,
-      ...fr.photoMatches
-        .filter((m) => m.tier !== 'rejected-by-review')
-        .map((m) => captureYear(m.captureDate) ?? 0),
-    );
+    const newestYear = Math.max(0, ...positive.map((m) => captureYear(m.captureDate) ?? 0));
     const verifiedText = verified.map((m) => `${m.visible} ${m.limits}`).join(' ');
     fr.missingViews = [
       ...(verified.length ? [] : ['identity-verified street-level frontage view']),
@@ -1871,7 +1880,14 @@ async function main(): Promise<void> {
     '1289673597':
       'rejected for route-frontage identity: shot 2018-12-30 from Windmill Street looking northwest away from Charlotte Street; street façades and a hanging sign are visible but no Charlotte Street entity is identified',
   };
-  const kartaview = kartaFrames.map(({ id, meta, image }) => {
+  const kartaview = kartaFrames.map(({ id, meta, image, sequence }) => {
+    const seq = (
+      JSON.parse(sequence.body) as {
+        result: {
+          data: { userId: string | null; orgCode: string | null; deviceName: string | null };
+        };
+      }
+    ).result.data;
     const d = (
       JSON.parse(meta.body) as {
         result: {
@@ -1900,33 +1916,43 @@ async function main(): Promise<void> {
       uploadDate: d.dateAdded,
       assessment: kartaAssessments[id],
       image,
-      rights:
-        'KartaView image reuse terms were not established from a provider licence statement in this audit; originals are cached for internal evidence inspection only and are not attached or proposed as shipped assets',
+      contributor: {
+        sequenceUrl: sequence.url,
+        userId: seq.userId,
+        orgCode: seq.orgCode,
+        deviceName: seq.deviceName,
+        note: 'the public API exposes a numeric contributor userId only; the user endpoint refuses numeric ids (HTTP 400 apiCode 418), so no display name is retained',
+      },
+      attribution: `© Grab and KartaView Contributors (frame ${id}, sequence ${d.sequenceId}, contributor userId ${seq.userId ?? 'unknown'}), CC BY-SA 4.0`,
     };
   });
+  const kartaviewRights = {
+    termsUrl: KARTAVIEW_TERMS_URL,
+    termsShellFetch: {
+      status: kartaTermsShell.status,
+      bytes: kartaTermsShell.body.length,
+      sha256: kartaTermsShell.sha256,
+      note: 'the terms page is a client-rendered SPA; the raw HTTP body is an application shell, so the licence clause below was captured from the rendered page (screenshot kartaview-terms-open-source-license.jpg, 2026-09-17)',
+    },
+    faqUrl: 'https://kartaview.org/faq',
+    faqStatus: `HTTP ${kartaFaqShell.status} shell; rendered page shows "Cannot find requested page" (no FAQ licence statement is published at this route on 2026-09-17)`,
+    licenceStatementRendered: KARTAVIEW_LICENCE_CLAUSE,
+    requiredCredit: '© Grab and KartaView Contributors',
+    licence: 'CC BY-SA 4.0 (per Terms of Use §4 as rendered on 2026-09-17)',
+    licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/legalcode',
+    retainedResearchCopies:
+      'three processed-image originals are cached under source-audit/cache with URL, retrieval time and SHA-256 as attributed research/evidence copies under CC BY-SA 4.0 with the required credit; this is a documentation use, not an approval to derive game textures or shipped assets (ShareAlike consequences for derived assets are not assessed here)',
+  };
 
   // 10. Summary.
   const west = frontages.filter((f) => f.side === 'west');
   const east = frontages.filter((f) => f.side === 'east');
-  const summarize = (fs: FrontageEntity[]) => ({
-    frontageGeometryRecords: fs.length,
-    buildingRecords: fs.filter((f) => f.entityRole === 'building').length,
-    buildingPartRecords: fs.filter((f) => f.entityRole === 'building-part').length,
-    identityVerifiedPhoto: fs.filter((f) => f.fields.frontageImage.state === 'observed').length,
-    candidatePhotoOnly: fs.filter((f) => f.fields.frontageImage.state === 'inferred').length,
-    noPhoto: fs.filter((f) => f.fields.frontageImage.state === 'unknown').length,
-    photoDated2025Plus: fs.filter((f) =>
-      f.photoMatches.some((m) => (captureYear(m.captureDate) ?? 0) >= 2025),
-    ).length,
-    levelsTagged: fs.filter((f) => f.fields.levels.state !== 'unknown').length,
-    heightTagged: fs.filter((f) => f.fields.heightM.state !== 'unknown').length,
-    roofShapeTagged: fs.filter((f) => f.fields.roofShape.state !== 'unknown').length,
-    materialTagged: fs.filter((f) => f.fields.wallMaterial.state !== 'unknown').length,
-    nhleAddressVerified: fs.filter((f) => f.listedBuilding?.nameMatchesAddress).length,
-    nhlePositionalCandidate: fs.filter(
-      (f) => f.listedBuilding && !f.listedBuilding.nameMatchesAddress,
-    ).length,
-  });
+  const summarize = summarizeFrontages;
+  const summary: Summary = {
+    west: summarize(west),
+    east: summarize(east),
+    total: summarize(frontages),
+  };
   const output = {
     schema: 'runway-f1-street-source-audit/v1',
     recordedAt: new Date().toISOString(),
@@ -1978,9 +2004,7 @@ async function main(): Promise<void> {
       ],
     },
     summary: {
-      west: summarize(west),
-      east: summarize(east),
-      total: summarize(frontages),
+      ...summary,
       objects: Object.fromEntries(
         [...new Set(objects.map((o) => o.kind))].map((k) => [
           k,
@@ -2070,7 +2094,7 @@ async function main(): Promise<void> {
             2,
           ),
           residualMaxM: round(Math.max(...bngResiduals), 2),
-          note: 'residual checks the approximate WGS84→BNG transform against rounded Camden coordinates; it is not a building accuracy estimate',
+          note: 'residual measures only the approximate WGS84→BNG coordinate transform against rounded Camden tree coordinates; it is not an OSM-footprint-to-EA-raster registration figure and not a height/roof error bound',
         },
         surveyIndex: {
           dsm: {
@@ -2087,7 +2111,7 @@ async function main(): Promise<void> {
         },
         samples: rasterSamples,
         limits:
-          '1 m is grid spacing, not universal ±1 m accuracy. EA survey vertical RMSE does not propagate unchanged to roof/eaves/building height. OSM alignment, composite survey selection, DTM interpolation, vegetation, chimneys and roof outliers remain material.',
+          '1 m is grid spacing, not universal ±1 m accuracy. EA survey vertical RMSE does not propagate unchanged to roof/eaves/building height. OSM-footprint-to-raster registration is unmeasured; composite survey selection, DTM interpolation, vegetation, chimneys and roof outliers remain material. Derived dimensions stay inferred even after a survey date is attributed, until field-specific uncertainty is validated against an independent measurement.',
       },
       kartaview: {
         nearby: {
@@ -2095,6 +2119,7 @@ async function main(): Promise<void> {
           retrievedAt: kartaNearby.retrievedAt,
           sha256: kartaNearby.sha256,
         },
+        rights: kartaviewRights,
         frames: kartaview,
       },
       probes,
@@ -2116,12 +2141,118 @@ async function main(): Promise<void> {
     })),
     nhleEntries: nhle.entries,
   };
+  assertRegressions(output);
   writeFileSync(path.join(OUT_DIR, 'source-audit.json'), JSON.stringify(output, null, 1));
   writeFileSync(path.join(OUT_DIR, 'source-coverage.md'), renderMarkdown(output));
   console.log(JSON.stringify(output.summary, null, 1));
   console.log(
     `frontages: west ${west.length}, east ${east.length}; objects ${objects.length}; control tree pairs ${controlPoints.length}; listed pairs ${listedControl.length}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Regression assertions (rejected-photo aggregation, count reconciliation)
+// ---------------------------------------------------------------------------
+
+function summarizeFrontages(fs: FrontageEntity[]) {
+  return {
+    frontageGeometryRecords: fs.length,
+    buildingRecords: fs.filter((f) => f.entityRole === 'building').length,
+    buildingPartRecords: fs.filter((f) => f.entityRole === 'building-part').length,
+    identityVerifiedPhoto: fs.filter((f) => f.fields.frontageImage.state === 'observed').length,
+    candidatePhotoOnly: fs.filter((f) => f.fields.frontageImage.state === 'inferred').length,
+    noPhoto: fs.filter((f) => f.fields.frontageImage.state === 'unknown').length,
+    photoDated2025Plus: fs.filter((f) =>
+      f.photoMatches.some(
+        (m) => m.evidence !== 'rejected' && (captureYear(m.captureDate) ?? 0) >= 2025,
+      ),
+    ).length,
+    identityVerifiedPhoto2025Plus: fs.filter((f) =>
+      f.photoMatches.some(
+        (m) => m.evidence === 'identity-verified' && (captureYear(m.captureDate) ?? 0) >= 2025,
+      ),
+    ).length,
+    buildingsIdentityVerifiedPhoto: fs.filter(
+      (f) => f.entityRole === 'building' && f.fields.frontageImage.state === 'observed',
+    ).length,
+    buildingPartsIdentityVerifiedPhoto: fs.filter(
+      (f) => f.entityRole === 'building-part' && f.fields.frontageImage.state === 'observed',
+    ).length,
+    rejectedPhotoLabels: fs.reduce(
+      (n, f) => n + f.photoMatches.filter((m) => m.evidence === 'rejected').length,
+      0,
+    ),
+    levelsTagged: fs.filter((f) => f.fields.levels.state !== 'unknown').length,
+    heightTagged: fs.filter((f) => f.fields.heightM.state !== 'unknown').length,
+    roofShapeTagged: fs.filter((f) => f.fields.roofShape.state !== 'unknown').length,
+    materialTagged: fs.filter((f) => f.fields.wallMaterial.state !== 'unknown').length,
+    nhleAddressVerified: fs.filter((f) => f.listedBuilding?.nameMatchesAddress).length,
+    nhlePositionalCandidate: fs.filter(
+      (f) => f.listedBuilding && !f.listedBuilding.nameMatchesAddress,
+    ).length,
+  };
+}
+
+type SideSummary = ReturnType<typeof summarizeFrontages>;
+interface Summary {
+  west: SideSummary;
+  east: SideSummary;
+  total: SideSummary;
+}
+
+function assertRegressions(o: { frontages: FrontageEntity[]; summary: Summary }): void {
+  const fail = (msg: string) => {
+    throw new Error(`regression: ${msg}`);
+  };
+  const rejectedTitle = Object.keys(REJECTED_COMMONS_FILES)[0];
+  const rejectedFixtures = o.frontages.flatMap((f) =>
+    f.photoMatches.filter((m) => m.title === rejectedTitle),
+  );
+  if (!rejectedFixtures.length) fail(`rejected fixture ${rejectedTitle} is no longer retained`);
+  if (rejectedFixtures.some((m) => m.evidence !== 'rejected' || m.tier !== 'rejected-by-review'))
+    fail(`${rejectedTitle} must stay evidence=rejected/tier=rejected-by-review`);
+  for (const f of o.frontages) {
+    const rejected = f.photoMatches.filter((m) => m.evidence === 'rejected');
+    const positive = f.photoMatches.filter((m) => m.evidence !== 'rejected');
+    const img = f.fields.frontageImage;
+    for (const m of rejected)
+      if (img.sources.includes(m.pageUrl))
+        fail(`${f.sourceId} frontageImage cites rejected file ${m.title}`);
+    if (img.state !== 'unknown' && positive.length === 0)
+      fail(`${f.sourceId} frontageImage is ${img.state} with only rejected matches`);
+    if (img.state === 'observed' && !positive.some((m) => m.evidence === 'identity-verified'))
+      fail(`${f.sourceId} observed frontageImage without an identity-verified match`);
+    const counted = typeof img.value === 'string' ? img.value.match(/^(\d+) /) : null;
+    if (counted && Number(counted[1]) > positive.length)
+      fail(
+        `${f.sourceId} frontageImage counts ${counted[1]} > ${positive.length} positive matches`,
+      );
+  }
+  const t = o.summary.total;
+  if (t.identityVerifiedPhoto + t.candidatePhotoOnly + t.noPhoto !== t.frontageGeometryRecords)
+    fail('photo-state counts do not partition geometry records');
+  if (
+    t.buildingsIdentityVerifiedPhoto + t.buildingPartsIdentityVerifiedPhoto !==
+    t.identityVerifiedPhoto
+  )
+    fail('building/part split does not sum to identity-verified total');
+  if (t.buildingRecords + t.buildingPartRecords !== t.frontageGeometryRecords)
+    fail('building/part records do not sum to geometry records');
+  if (t.identityVerifiedPhoto2025Plus > t.identityVerifiedPhoto)
+    fail('recent verified exceeds verified');
+  if (t.rejectedPhotoLabels < 1) fail('rejected fixture not counted');
+  // The hand-written report must quote the regenerated totals.
+  const report = readFileSync(path.join(OUT_DIR, '..', 'full-route-feasibility.md'), 'utf8');
+  const expected = [
+    `${t.identityVerifiedPhoto} geometry records`,
+    `${t.buildingsIdentityVerifiedPhoto} buildings + ${t.buildingPartsIdentityVerifiedPhoto} parts`,
+    `${t.candidatePhotoOnly} candidate-only`,
+    `${t.noPhoto} without any positive`,
+    `${t.frontageGeometryRecords - t.identityVerifiedPhoto2025Plus}/${t.frontageGeometryRecords} lack`,
+    `${t.buildingRecords} buildings + ${t.buildingPartRecords}`,
+  ];
+  for (const s of expected)
+    if (!report.includes(s)) fail(`full-route-feasibility.md does not state "${s}"`);
 }
 
 // ---------------------------------------------------------------------------
