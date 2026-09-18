@@ -3360,27 +3360,35 @@ function* waterChannelOnEdgeSteps(
 function* polylineWithWaterBreaksSteps(
   pts: CoverSequence<{ x: number; z: number }>,
   overWater: (x: number, z: number) => Generator<void, boolean>,
-): Generator<void, CoverSequence<{ x: number; z: number }>> {
+): Generator<
+  void,
+  { points: CoverSequence<{ x: number; z: number }>; wet: CoverSequence<boolean> }
+> {
   const out = new CoverPages<{ x: number; z: number }>();
+  const wet = new CoverPages<boolean>();
   let prev: { x: number; z: number } | null = null;
+  let prevWet = false;
   for (let i = 0; i < pts.length; i++) {
     yield;
     const p = pts.at(i)!;
-    if (prev) {
-      if (!(yield* overWater(prev.x, prev.z)) && !(yield* overWater(p.x, p.z))) {
-        const ch = yield* waterChannelOnEdgeSteps(prev, p, overWater);
-        if (ch) {
-          out.push(ch.first);
-          if (Math.hypot(ch.last.x - ch.first.x, ch.last.z - ch.first.z) > METERS_TO_WORLD) {
-            out.push(ch.last);
-          }
+    const isWet = yield* overWater(p.x, p.z);
+    if (prev && !prevWet && !isWet) {
+      const ch = yield* waterChannelOnEdgeSteps(prev, p, overWater);
+      if (ch) {
+        out.push(ch.first);
+        wet.push(true);
+        if (Math.hypot(ch.last.x - ch.first.x, ch.last.z - ch.first.z) > METERS_TO_WORLD) {
+          out.push(ch.last);
+          wet.push(true);
         }
       }
     }
     out.push(p);
+    wet.push(isWet);
     prev = p;
+    prevWet = isWet;
   }
-  return out;
+  return { points: out, wet };
 }
 
 /**
@@ -3413,12 +3421,7 @@ function* splitRoadRunsSteps(
   overWater: (x: number, z: number) => Generator<void, boolean>,
 ): Generator<void, CoverSequence<CoverRoadRun>> {
   if (pts.length < 2) return [];
-  const seq = yield* polylineWithWaterBreaksSteps(pts, overWater);
-  const wet = new CoverPages<boolean>();
-  for (const p of seq) {
-    yield;
-    wet.push(yield* overWater(p.x, p.z));
-  }
+  const { points: seq, wet } = yield* polylineWithWaterBreaksSteps(pts, overWater);
   const groups = new CoverPages<{
     start: number;
     end: number;

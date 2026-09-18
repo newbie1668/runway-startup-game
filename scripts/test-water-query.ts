@@ -103,6 +103,17 @@ const edgeRuns = splitRoadRuns(
 assert.equal(edgeRuns.length, 2);
 assert.ok(edgeRuns.every((run) => run.pts.every((p) => !edgeWater(p.x))));
 
+const shortEdges = Array.from({ length: 1024 }, (_, i) => ({ x: i * 1e-5, z: 1 }));
+for (const wet of [false, true]) {
+  let queries = 0;
+  const runs = splitRoadRuns(shortEdges, () => {
+    queries++;
+    return wet;
+  });
+  assert.equal(queries, shortEdges.length, 'classify each source vertex once');
+  assert.deepEqual(runs, wet ? [] : [{ pts: shortEdges, span: false }]);
+}
+
 // Returned spans are defensive copies, and a second decoded instance has its own cache entry.
 const firstPoint = spans[0]!.pts[0];
 spans[0]!.pts[0] = { x: -1, z: -1 };
