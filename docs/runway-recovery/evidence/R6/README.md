@@ -4,6 +4,60 @@ Candidate source: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
 
+## Production findings and subsequent runtime corrections
+
+The [native production run on `e153df9`](browser-e153df9.md) restored 3D
+navigation and game/save continuity. It still fails 5-second startup
+(13.35 s cold / 12.62 s reload), wide-view readiness (>30 s) and three hub
+draw-call budgets. Later source has not yet had a production browser run.
+
+Independent review accepted [stream admission `9573562`](admission-review.md)
+and [park containment `51c1b4b`](park-index-review.md), integrated as `56bde73`.
+The first correction refills completed batches within the elapsed budget;
+the second reuses the bounded edge index for exact park/tree predicates.
+The lead reran park/tree eligibility and geometry parity, water/context,
+road-cover, cover-cell/pages/lifecycle, stream/coverage, scheduler and index
+checks plus project TypeScript, scoped ESLint and whitespace checks; all pass.
+Full app gates await the combined candidate with the remaining isolated work.
+
+Water leaf cache `044ee1d`, integrated as `a22118e`, also passed
+[independent review](water-leaf-review.md). Exact edge coordinates are frozen
+inside existing four-edge leaves; traversal, predicates, bounds and source
+identities remain intact. Parent water-edge/query/context/sequence/water-cover/
+park-cover/park-eligibility checks passed after integration, followed by the
+`2a61884` test-only capacity/context regressions, scoped lint and project
+TypeScript. The measured frozen-array cost is ~2.7 MiB of JavaScript heap;
+the optional mutable typed-array experiment is not integrated.
+
+Sequential CPU-only overview profiles (`pnpm tsx scripts/profile-city-stream.ts --overview`):
+
+| Source | Elapsed | Synthetic drains | Max drain | Unique geometry |
+| --- | ---: | ---: | ---: | ---: |
+| `ed2203f` | 15.56 s | 3,590 | 9.30 ms | 127.544649 MiB |
+| `9573562` | 14.37 s | 3,520 | 5.41 ms | 127.544649 MiB |
+| `56bde73` | 7.75 s | 1,850 | 8.28 ms | 127.544649 MiB |
+| `a22118e` (tests at `2a61884`) | 6.20 s | 1,490 | 5.80 ms | 127.544649 MiB |
+
+All retain 113,563 buildings and 3,233 residents. On `56bde73`, the default
+Fitzrovia CPU profile took 2.23 s / 515 drains, first essential coverage at
+drain 460, maximum drain 8.96 ms and 31.723177 MiB. These are CPU observations,
+not native first-frame timings; they exclude heroes, GPU work and frame waits.
+The CPU draw estimate still exposes high overview counts (1,609 stock and
+9,650 cover calls), so lower generation time does not imply a draw-call pass.
+
+After the leaf cache, the same default Fitzrovia CPU profile measured 1.78 s,
+410 drains (first essential coverage at 363), maximum drain 7.56 ms, the same
+5,983 buildings and 31.723177 MiB. Both new profiles used the unchanged 400m
+cover grid, ran sequentially with no build/browser workload, and retain the
+exclusions above. Cover-grid `eed997d`, static batching `8cb94bf` and idle
+generation `6309990` are under independent review and are not in these results.
+
+A conservative road/water bounds bypass was rejected: isolated cold runs
+slowed from 1.398/1.429/1.432 s to 1.539/1.529/1.525 s despite 13% fewer
+resumptions. The experiment's production changes were removed. Only its
+independently measured full road-context parity digest remains as a stronger
+regression assertion.
+
 ## Scheduler correction after the first browser run
 
 Production checkpoint `7a72081` failed startup in Chrome 153.0.8010.48 at

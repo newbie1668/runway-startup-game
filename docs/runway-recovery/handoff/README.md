@@ -10,7 +10,15 @@ The parent owns integration in `devin/1789676440-camera-stream` and publishes
 reviewed checkpoints to this PR's `build/runway-recovery` branch. Production
 `7a72081` then failed startup (index at 60.4 seconds; no useful frame by 74.3
 seconds). Scheduler correction `e153df9` independently passes review and all
-repository gates; fresh production browser acceptance is next.
+repository gates. Its [native browser run](../evidence/R6/browser-e153df9.md)
+restored 3D navigation and game/save continuity, but still fails startup
+(13.35 s cold), wide-view readiness (>30 s) and three hub draw-call budgets.
+Stream admission `9573562`, park containment `56bde73` and water leaf cache
+`a22118e` are independently reviewed integration changes, awaiting combined
+gates and a new browser run. `2a61884` strengthens leaf-capacity and full-road
+context parity regressions. Cover-grid `eed997d`, static batching `8cb94bf` and
+idle-generation `6309990` remain isolated candidates under independent review.
+See status for pending isolated worker branches; do not count them as accepted.
 The 127.54 MiB CPU-only overview excludes landmarks/GPU/browser work.
 Source audit `1aa3fef` is accepted as an honest modelling NO-GO packet.
 See [current status](../status.md) before using the historical notes below.
@@ -47,10 +55,10 @@ Two unrelated untracked files remain in the user's original primary checkout (`w
 ## Remaining sequence
 
 1. R5b-4a is complete; use the accepted production API and tests rather than restoring the historical draft.
-2. Implement bounded cover emission for water, parks, roads and trees. Preserve crossing/water context, deterministic retained-record behavior, coverage across boundaries and shared material ownership. Wrapping current whole-city functions in a scheduler does not satisfy C4. Follow the source inventory before decomposition.
-3. Complete R5b profiling, including remaining atomic-building limits, then R6: connect index/scheduler/detail/cell jobs, camera coverage, readiness, resource budgets, prefetch/hysteresis and eviction. Cover must follow all camera paths. Fix the missing Fitzrovia search entry; earlier R2 used Farringdon and did not close that defect.
-4. Run actual browser navigation/tours, reload, failure and context-loss cases with diagnostics. Measure visible draw calls, geometry/process memory and timing. Default full-city B1 remains red on the earlier renderer at about 1.6 GiB. The 93 MiB figure excludes cover/heroes/detail/overhead and does not certify the 128 MiB budget or G1. 1,609 overview cells also require visible draw-call measurement.
-5. Continue the separate fidelity track: Charlotte Street source completeness, grounded modelling, in-game real-place comparison and mobile acceptance. Source cards for 26/28/30 are evidence, not F1 GO. Most street-fidelity work remains.
+2. Bounded cover and R6 renderer integration are reviewed and connected. Preserve their geometry, identity, clipping, ownership, cancellation, cleanup and camera coverage guarantees while reducing measured runtime costs.
+3. Finish and independently review the bounded runtime corrections listed in status. The lead alone integrates; workers have disjoint file ownership and separate branches. Run full gates once on the accepted combined candidate.
+4. Rerun native production-browser timing and draw-call checks, then the incomplete failure/mobile/reload matrix. Distinguish native Chrome, headless SwiftShader and mobile emulation. Keep PR #30 draft while acceptance fails. The 127.54 MiB CPU-only stock/cover result omits heroes and other costs; it does not certify the running map's budget.
+5. Keep Charlotte Street as the fidelity candidate with modelling NO-GO. Follow the accepted finite [reference acquisition recommendation](../evidence/F1/acquisition-recommendation.md) before modelling. Generic facades cannot fill evidence gaps; runtime recovery does not satisfy faithful-London acceptance.
 
 Keep gameplay/save/audio/UI semantics, the automatic 2D fallback, dynamic Three import boundary, current bbox/binary/GLBs and main London Startup Map separation intact. Do not deploy to londonstartupmap.com. Never overlap build/browser timing workloads or rerun completed baselines merely because the agent changed.
 

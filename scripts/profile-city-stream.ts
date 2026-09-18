@@ -72,10 +72,16 @@ const stream = new CityStream({
 const rig = new CameraRig();
 rig.setViewport(1440, 900);
 const overview = process.argv.includes('--overview');
+const cameraArg = process.argv.find((arg) => arg.startsWith('--camera='));
+const camera = cameraArg?.slice('--camera='.length).split(',').map(Number);
+if (camera && (camera.length !== 4 || !camera.every(Number.isFinite) || camera[2]! <= 0))
+  throw new RangeError('--camera requires finite x,y,positive zoom,azimuth');
 const center = overview ? { x: WORLD.width / 2, y: WORLD.height / 2 } : project([-0.1358, 51.5196]);
 rig.update(
-  { ...center, zoom: overview ? 1440 / (WORLD.width * 1.1) : 900 / 1.92 },
-  overview ? 0 : 0.6,
+  camera
+    ? { x: camera[0]!, y: camera[1]!, zoom: camera[2]! }
+    : { ...center, zoom: overview ? 1440 / (WORLD.width * 1.1) : 900 / 1.92 },
+  camera ? camera[3]! : overview ? 0 : 0.6,
 );
 stream.update(cameraGroundBounds(rig, 1440, 900));
 let frames = 0;
@@ -113,10 +119,35 @@ while (!stream.idle) {
   }
   if (frames > frameLimit) break;
 }
+const elapsedMs = performance.now() - started;
+root.updateMatrixWorld(true);
+const frustum = new THREE.Frustum().setFromProjectionMatrix(
+  new THREE.Matrix4().multiplyMatrices(rig.camera.projectionMatrix, rig.camera.matrixWorldInverse),
+);
+const cpuDrawEstimate = {
+  stock: { calls: 0, triangles: 0 },
+  cover: { calls: 0, triangles: 0 },
+  trees: { calls: 0, triangles: 0 },
+};
+for (const group of root.children) {
+  group.traverseVisible((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    if (object.frustumCulled && !frustum.intersectsObject(object)) return;
+    const layer = group.userData.cellId
+      ? cpuDrawEstimate.stock
+      : object instanceof THREE.InstancedMesh
+        ? cpuDrawEstimate.trees
+        : cpuDrawEstimate.cover;
+    layer.calls += Array.isArray(object.material) ? object.geometry.groups.length : 1;
+    layer.triangles +=
+      ((object.geometry.index?.count ?? object.geometry.getAttribute('position').count) / 3) *
+      (object instanceof THREE.InstancedMesh ? object.count : 1);
+  });
+}
 console.log(
   JSON.stringify(
     {
-      mode: overview ? 'overview' : 'Fitzrovia',
+      mode: camera ? 'custom' : overview ? 'overview' : 'Fitzrovia',
       decodedMs,
       stockIndexMs,
       indexFrames,
@@ -124,11 +155,12 @@ console.log(
       frames,
       firstCoverageFrame,
       maxSliceMs,
-      elapsedMs: performance.now() - started,
+      elapsedMs,
       geometryMiB: tracker.bytes() / 1024 / 1024,
       peakGeometryMiB: peakBytes / 1024 / 1024,
       buildings: stream.stockBuildings,
       residentCells: stream.residentCells,
+      cpuDrawEstimate,
       note: 'CPU-only, excludes landmarks, GPU upload/rendering, frame waits and browser readiness',
     },
     null,
