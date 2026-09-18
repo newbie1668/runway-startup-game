@@ -25,7 +25,10 @@ function consume<T>(steps: Generator<void, T>): { value: T; units: number } {
 }
 
 function cachedEdgeCount(index: WaterEdgeIndex): number {
-  if (index.kind === 'leaf') return index.edges.length / 4;
+  if (index.kind === 'leaf') {
+    assert(index.edges.length <= 16, 'each leaf retains at most four cached edges');
+    return index.edges.length / 4;
+  }
   return cachedEdgeCount(index.left) + cachedEdgeCount(index.right);
 }
 
@@ -90,7 +93,11 @@ for (const length of [0, 1, 31, 32, 33, 1025, 65535]) {
   assert(built.units <= length * 2 + 1);
   assert.equal(reads, length * 4, 'construction decodes each edge endpoint once');
   assert.equal(cachedEdgeCount(built.value), length, 'leaves retain one cached tuple per edge');
-  assert.equal(cachedCoordinateCount(built.value), length * 4, 'leaves retain four coordinates per edge');
+  assert.equal(
+    cachedCoordinateCount(built.value),
+    length * 4,
+    'leaves retain four coordinates per edge',
+  );
   for (const z of [-10, -10 + 1e-12, 0, 10 - 1e-12, 10]) {
     const query = indexedPointInRingSteps(2.5, z, built.value);
     let units = 0;

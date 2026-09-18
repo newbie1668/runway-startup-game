@@ -3,8 +3,19 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeCity, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
-import { riverCrossingSpans, splitRoadRuns } from '../lib/game/render3d/cityBuilder';
+import {
+  riverCrossingSpans,
+  roadCoverContextSteps,
+  splitRoadRuns,
+} from '../lib/game/render3d/cityBuilder';
 import { pointOverWater, waterRings, type WaterPoint } from '../lib/game/render3d/waterQuery';
+
+function finish<T>(steps: Generator<void, T>): T {
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
 
 const raw = readFileSync(join(process.cwd(), 'public/map/london-city.bin'));
 const city = decodeCity(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
@@ -15,6 +26,11 @@ const digest = (value: unknown): string =>
 const spans = riverCrossingSpans(city);
 assert.equal(spans.length, 15);
 assert.equal(digest(spans), '449a9b5a9274067f4dfe75f93598a000557c6abbb30c2c777d00d07019abf6a1');
+assert.equal(
+  digest(finish(roadCoverContextSteps(city))),
+  '2fe9c9ece69868c64047030ba99480b2e5a754c84c4b8de6998a6376c874b7ba',
+  'full-city crossings and crosswalks preserve the accepted context',
+);
 
 const baselinePointInRing = (x: number, z: number, ring: WaterPoint[]): boolean => {
   let inside = false;
