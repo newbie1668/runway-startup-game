@@ -369,7 +369,17 @@ check('matches the original predicate for malformed and zero-area footprints', (
     buildings: [
       buildingWithVerts(new Uint16Array()),
       buildingWithVerts(new Uint16Array([quantizeX(1), quantizeY(1)])),
-      buildingWithVerts(new Uint16Array([quantizeX(2), quantizeY(2), quantizeX(3)])),
+      buildingWithVerts(
+        new Uint16Array([
+          quantizeX(2),
+          quantizeY(2),
+          quantizeX(3),
+          quantizeY(3),
+          quantizeX(4),
+          quantizeY(4),
+          quantizeX(5),
+        ]),
+      ),
       buildingWithVerts(
         new Uint16Array([
           quantizeX(60),
