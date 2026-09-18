@@ -1,0 +1,3 @@
+# R1d lead independent review — PASS after 7285518 + f5d8f8f
+
+The three reported groups were corrected: invalid/incomplete cases fail, finite measurements exclude null, screenshots retain paths/failure state, all runtime errors are assessed with cleanup events retained, and fixture console failures require the city endpoint. Installed Playwright version is recorded. The lead added a one-line exit guard to guarantee the five-second capture before ending an early-ready case. Node syntax, script ESLint and diff checks passed; an invalid case selection returned exit1 with a preserved result. The worker saved its correction before a usage-limit interruption; no replacement worker repeated the task. Real browser execution remains the next verification.

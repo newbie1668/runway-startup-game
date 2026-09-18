@@ -1,0 +1,11 @@
+Build scheduler
+  ✓ FIFO priority and budget
+  ✓ multistep and constant clock bounded
+  ✓ keeps an incomplete head ahead of later jobs across drains
+  ✓ constant clocks still drain multiple completed jobs
+  ✓ reports failures and cleanup errors while continuing
+  ✓ obsolete cancellation and late jobs
+  ✓ duplicate, reuse, and zero budget
+  ✓ reentrant drain and cancellation from step
+  ✓ slow overrun prevents next start
+Passed 9 scheduler checks.

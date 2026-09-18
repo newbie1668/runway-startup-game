@@ -1,0 +1,133 @@
+
+> runway-startup-game@0.1.0 test:game /Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration
+> tsx scripts/test-game.ts && tsx scripts/test-osm-colour.ts && tsx scripts/test-noticed.ts && tsx scripts/test-landmarks.ts && tsx scripts/test-city-read.ts
+
+RUNWAY engine tests
+  ✓ determinism: same seed + same script ⇒ identical state
+  ✓ doing nothing ⇒ bankrupt, and quickly
+  ✓ product cap never destroys progress already earned
+  ✓ an accelerator card cannot make an inactive company immortal
+  ✓ matching a sector to its neighbourhood gives a real scene bonus
+  ✓ event-scene neighbourhoods create more weekly opportunities
+  ✓ events labelled double value really double every reward
+  ✓ action feedback reports the gain that was actually applied
+  ✓ a dilemma only accepts one of the choices currently on screen
+  ✓ weekly event ids match the week shown to the player
+  ✓ dilemma copy describes the mechanic the player will actually receive
+    bot: 197/240 unicorns (avg week 56), 43 bankruptcies, 0 timeouts
+    sectors: AI 85% · Fintech 85% · Climate 95% · HealthTech 57% · DevTools 88% · Consumer 83%
+    hubs: Shoreditch 87% · King's Cross 80% · Soho 63% · Farringdon 93% · Canary Wharf 70% · London Bridge 100% · Camden 83% · Battersea 80%
+  ✓ greedy bot: winnable, fair, and never insane
+  ✓ rivals live their own lives
+
+All 13 checks passed.
+OSM colour packing
+  ✓ parses hex and named CSS colours
+  ✓ prefers explicit colour over material
+  ✓ rgb565 round-trips close enough for façade paints
+  ✓ window UVs cover a full storey row, not a stretched sliver
+  ✓ muted London palette has no confetti hues
+  ✓ generic OSM material / pale greys are not treated as unique paints
+  ✓ tall residential OSM tags become towers, not brick apartments
+  ✓ district boxes match the labelled neighbourhoods
+  ✓ Canary Wharf restyles mid-rises to glass, Shoreditch to warehouses
+  ✓ street-front windows skip terrace party walls and tiny edges
+  ✓ pitched and terrace roofs stay muted brown/slate, not confetti
+  ✓ Canary glass is muted but not near-black
+  ✓ Canary towers ignore black OSM paints
+  ✓ City towers use readable glass, not charcoal silhouettes
+  ✓ West End terrace street mixes cream, brick, and grey families
+  ✓ street-scale offices mix stone and brick, not one grey plate
+  ✓ generic OSM brick is a family hint, not one cloned hex
+  ✓ neighbouring terraces keep different sash pitches
+  ✓ stock massing is a silhouette family, not a City slab costume
+  ✓ towers extrude taller than houses
+
+All 20 OSM colour / façade UV checks passed.
+Noticed tower factory
+  ✓ slugify strips punctuation
+  ✓ rejects generic names
+  ✓ reads English wikipedia titles only
+  ✓ height prefers metres over levels
+  ✓ uniqueSlug disambiguates
+  ✓ named London silhouettes match the skyline
+  ✓ wiki intro text can fill in unknown towers
+  ✓ OSM civic tags pick church/station/theatre/civic, not navy glass
+  ✓ named silhouettes win over a misleading extract
+  ✓ twist bands yaw further up the shaft
+  ✓ liftRgb raises crushed photo samples
+  ✓ shape tints and roofs stay distinct from the wall
+  ✓ makeMatteLambert keeps noticed albedo maps
+  ✓ makeMatteLambert still drops maps on landmarks
+  ✓ unique-tower unlit pass keeps pale stone as MeshBasicMaterial
+  ✓ church baker adds a tower and spire, not another glass taper
+  ✓ station baker adds a clock drum instead of navy glass bands only
+  ✓ taper baker shrinks the crown relative to the podium
+  ✓ named Canary towers get photo-true unique meshes, not baker costumes
+  ✓ runtime instantiate uses the unique mesh, not the stepped GLB costume
+  ✓ Poultry is a committed photo GLB on the noticed tray, not a uniqueNoticed hull
+  ✓ Poultry GLB parses in GLTFLoader
+
+All 22 noticed-factory checks passed.
+Landmark geometry
+  ✓ Thames crossings are deck landmarks; the Eye is not
+  ✓ bridge decks sit above OSM carriageways
+  ✓ London Eye A-frame meets the hub
+  ✓ Tower Bridge carries a designed asphalt deck through the Gothic towers
+  ✓ Hungerford keeps river piers, not a leftover deck box
+  ✓ Shard keeps glowing ridge lines
+  ✓ Gherkin keeps a diagrid plus window panes
+  ✓ St Paul's nave has a window grid and dome ridges
+  ✓ civic landmarks are unique meshes with their own colours, not type paints
+  ✓ river prefabs do not carry a competing carriageway slab
+  ✓ beam-bridge piers sit under the asphalt, not over it
+  ✓ Tower of London is a concentric fortress, not a courtyard slab
+  ✓ Buckingham Palace carries MeshBasic garden lawns, not a dirt moat
+  ✓ Buckingham east front is a 21-bay Portland palace, not a barn
+  ✓ One Canada Square playtime mesh keeps the pyramid, not a crushed GLB box
+  ✓ London City Airport is a runway in the docks, not a grey rectangle
+
+All 16 landmark geometry checks passed.
+Street-camera city read
+  ✓ dashed centre lines leave gaps
+  ✓ terrace and street-scale office fronts get bay windows; towers do not
+  ✓ offline search finds Shard, Shoreditch, Hyde Park
+  ✓ West End 4–6 storey terraces keep bays (not restyled to office)
+  ✓ chamfer turns a rectangle into eight vertices
+  ✓ centroid inset shrinks a footprint without flipping it
+  ✓ road edge offsets sit on both kerbs
+  ✓ isometric zoom scales the frustum and does not tilt pitch
+  ✓ London clock and climate stay offline
+  ✓ river crossings drop wet OSM and stitch a land-to-land span
+  ✓ neighbouring terraces do not share one cloned wall paint
+  ✓ search finds British Museum and Goodge Street among landmarks
+  ✓ land stubs facing across water stitch into an asphalt span
+  ✓ named Thames crossings have a land-to-land span in the London bake
+  ✓ park grass is matte mottled green, not a lit plastic lawn
+  ✓ open ground is urban paving, not a citywide lawn
+  ✓ view=mid does not paint kerb ribbons across the city
+  ✓ OSM asphalt does not replace the Tower Bridge prefab
+  ✓ Tower Hill park does not remain as a green hedge around the fortress
+  ✓ Buckingham gardens keep a lawn; Hyde is not a crumpled fan
+  ✓ zebra crossings sit one per junction, not stacked on every arm
+  ✓ City offices mass as setbacks or mansards, not forced slabs
+  ✓ citystreet stock has no HVAC red/blue rooftop confetti
+  ✓ City skyline punch leaves neighbouring streets
+  ✓ look=citystreet sits on stock, not inside a landmark punch-hole
+  ✓ look=citystreet sits on the carriageway, not a courtyard pancake
+  ✓ look=citystreet keep-disk still extrudes Cheapside stock
+  ✓ Cheapside stock is unique meshes from each footprint, not one office costume
+  ✓ acute and courtyard plans get stand-out massing, not a shared setback box
+  ✓ No 1 Poultry is locked off uniqueStockRecipe (wedge-step, ribbon, bays)
+  ✓ Cheapside unique pins stay; Poultry hull is off the chunk mesh
+  ✓ City street offices are not a shared punched-window recess costume
+  ✓ Cheapside unnamed stock has in-plane window glass, not blank walls
+  ✓ wide-view mesh budget clips the city; close looks stay full
+  ✓ keep-disk drain finishes; cover never packs with chunks
+  ✓ No 1 Poultry is outside the view=mid keep-disk
+  ✓ view=mid culls keep-disk cells; stock inside the disk stays
+  ✓ view=mid keep-disk does not tessellate the whole 23 km map
+  ✓ LCY spit is not OSM boxes or park mounds on the peninsula
+  ✓ park trees stand on the lawn, not as dirt mounds
+
+All 40 street-camera checks passed.

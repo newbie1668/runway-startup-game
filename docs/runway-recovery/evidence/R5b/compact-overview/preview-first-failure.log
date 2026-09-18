@@ -1,0 +1,5 @@
+page.waitForFunction: Timeout 10000ms exceeded.
+    at main (/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/scripts/render-stock-tiers.ts:67:91) {
+  log: [],
+  name: 'TimeoutError'
+}

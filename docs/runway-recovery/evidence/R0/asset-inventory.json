@@ -1,0 +1,305 @@
+{
+  "appBaseline": "4f76b634c2ae1201d939fa3ccff12f4724624b94",
+  "executionBase": "8408a8b6bc6d2ee048c6a6f45bdb823254b43fae",
+  "fileCount": 73,
+  "totalCommittedMapBytes": 18561132,
+  "note": "Committed file inventory; not initial network payload or GPU memory.",
+  "files": [
+    {
+      "path": "public/map/landmarks/abbey.glb",
+      "bytes": 27492
+    },
+    {
+      "path": "public/map/landmarks/albertbr.glb",
+      "bytes": 755504
+    },
+    {
+      "path": "public/map/landmarks/alberthall.glb",
+      "bytes": 46364
+    },
+    {
+      "path": "public/map/landmarks/allsouls.glb",
+      "bytes": 56664
+    },
+    {
+      "path": "public/map/landmarks/battersea.glb",
+      "bytes": 125928
+    },
+    {
+      "path": "public/map/landmarks/bigben.glb",
+      "bytes": 98504
+    },
+    {
+      "path": "public/map/landmarks/bishop.glb",
+      "bytes": 23204
+    },
+    {
+      "path": "public/map/landmarks/blackfriarsbr.glb",
+      "bytes": 580456
+    },
+    {
+      "path": "public/map/landmarks/britishmuseum.glb",
+      "bytes": 151392
+    },
+    {
+      "path": "public/map/landmarks/bttower.glb",
+      "bytes": 58624
+    },
+    {
+      "path": "public/map/landmarks/buckingham.glb",
+      "bytes": 76596
+    },
+    {
+      "path": "public/map/landmarks/canadasq.glb",
+      "bytes": 138304
+    },
+    {
+      "path": "public/map/landmarks/eye.glb",
+      "bytes": 381484
+    },
+    {
+      "path": "public/map/landmarks/gherkin.glb",
+      "bytes": 345940
+    },
+    {
+      "path": "public/map/landmarks/goodgest.glb",
+      "bytes": 28404
+    },
+    {
+      "path": "public/map/landmarks/grater.glb",
+      "bytes": 56148
+    },
+    {
+      "path": "public/map/landmarks/heron.glb",
+      "bytes": 6992
+    },
+    {
+      "path": "public/map/landmarks/hungerford.glb",
+      "bytes": 747192
+    },
+    {
+      "path": "public/map/landmarks/lambethbr.glb",
+      "bytes": 480428
+    },
+    {
+      "path": "public/map/landmarks/londonbr.glb",
+      "bytes": 553064
+    },
+    {
+      "path": "public/map/landmarks/manifest.json",
+      "bytes": 3349,
+      "sha256": "6c7f93112e9168632455f386a1a8492e96e9465c0557e3d67fb4e90bc9b9900e"
+    },
+    {
+      "path": "public/map/landmarks/millennium.glb",
+      "bytes": 58332
+    },
+    {
+      "path": "public/map/landmarks/monument.glb",
+      "bytes": 14260
+    },
+    {
+      "path": "public/map/landmarks/nationaltheatre.glb",
+      "bytes": 43440
+    },
+    {
+      "path": "public/map/landmarks/o2.glb",
+      "bytes": 82936
+    },
+    {
+      "path": "public/map/landmarks/oldstreet.glb",
+      "bytes": 85844
+    },
+    {
+      "path": "public/map/landmarks/shard.glb",
+      "bytes": 234612
+    },
+    {
+      "path": "public/map/landmarks/stcharles.glb",
+      "bytes": 28368
+    },
+    {
+      "path": "public/map/landmarks/stpancras.glb",
+      "bytes": 88664
+    },
+    {
+      "path": "public/map/landmarks/stpauls.glb",
+      "bytes": 242452
+    },
+    {
+      "path": "public/map/landmarks/tatemodern.glb",
+      "bytes": 158392
+    },
+    {
+      "path": "public/map/landmarks/tower42.glb",
+      "bytes": 10764
+    },
+    {
+      "path": "public/map/landmarks/towerbridge.glb",
+      "bytes": 1058904
+    },
+    {
+      "path": "public/map/landmarks/towerlondon.glb",
+      "bytes": 295068
+    },
+    {
+      "path": "public/map/landmarks/walkie.glb",
+      "bytes": 30392
+    },
+    {
+      "path": "public/map/landmarks/waterloobr.glb",
+      "bytes": 769012
+    },
+    {
+      "path": "public/map/landmarks/westminsterbr.glb",
+      "bytes": 1650188
+    },
+    {
+      "path": "public/map/london-city.bin",
+      "bytes": 6698590,
+      "sha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0"
+    },
+    {
+      "path": "public/map/london-city.stats.json",
+      "bytes": 791,
+      "sha256": "280121d83ba58c9ca7e33182691427992759d03c60720a7d2f8938da9996f4e6"
+    },
+    {
+      "path": "public/map/noticed/40-bank-street.glb",
+      "bytes": 8636
+    },
+    {
+      "path": "public/map/noticed/40-charter-street.glb",
+      "bytes": 96684
+    },
+    {
+      "path": "public/map/noticed/8-bishopsgate.glb",
+      "bytes": 23808
+    },
+    {
+      "path": "public/map/noticed/atlas-building.glb",
+      "bytes": 25712
+    },
+    {
+      "path": "public/map/noticed/bagshaw-building-wardian-east.glb",
+      "bytes": 8576
+    },
+    {
+      "path": "public/map/noticed/barclays.glb",
+      "bytes": 17740
+    },
+    {
+      "path": "public/map/noticed/carrara-tower.glb",
+      "bytes": 12916
+    },
+    {
+      "path": "public/map/noticed/charrington-tower.glb",
+      "bytes": 248676
+    },
+    {
+      "path": "public/map/noticed/chelsea-waterfront-tower-west.glb",
+      "bytes": 14276
+    },
+    {
+      "path": "public/map/noticed/citi.glb",
+      "bytes": 29724
+    },
+    {
+      "path": "public/map/noticed/cromwell-tower.glb",
+      "bytes": 10252
+    },
+    {
+      "path": "public/map/noticed/gladwin-tower.glb",
+      "bytes": 10768
+    },
+    {
+      "path": "public/map/noticed/halo.glb",
+      "bytes": 31884
+    },
+    {
+      "path": "public/map/noticed/hampton-tower.glb",
+      "bytes": 9180
+    },
+    {
+      "path": "public/map/noticed/harcourt-tower.glb",
+      "bytes": 8112
+    },
+    {
+      "path": "public/map/noticed/hobart-building-wardian-west.glb",
+      "bytes": 9996
+    },
+    {
+      "path": "public/map/noticed/hsbc-uk.glb",
+      "bytes": 92020
+    },
+    {
+      "path": "public/map/noticed/jp-morgan.glb",
+      "bytes": 9156
+    },
+    {
+      "path": "public/map/noticed/lauderdale-tower.glb",
+      "bytes": 12928
+    },
+    {
+      "path": "public/map/noticed/maine-tower.glb",
+      "bytes": 7572
+    },
+    {
+      "path": "public/map/noticed/manifest.json",
+      "bytes": 9674,
+      "sha256": "0c83ce701c14b3b02aab19459550223ddc6694a5ceb477cda36d7d2767942cf1"
+    },
+    {
+      "path": "public/map/noticed/newfoundland-quay.glb",
+      "bytes": 110456
+    },
+    {
+      "path": "public/map/noticed/no-1-poultry.glb",
+      "bytes": 1192792
+    },
+    {
+      "path": "public/map/noticed/novotel-london-canary-wharf.glb",
+      "bytes": 11376
+    },
+    {
+      "path": "public/map/noticed/one-park-drive.glb",
+      "bytes": 88108
+    },
+    {
+      "path": "public/map/noticed/one-thames-quay.glb",
+      "bytes": 9932
+    },
+    {
+      "path": "public/map/noticed/one-the-elephant.glb",
+      "bytes": 11372
+    },
+    {
+      "path": "public/map/noticed/south-bank-tower.glb",
+      "bytes": 31948
+    },
+    {
+      "path": "public/map/noticed/stratosphere-tower.glb",
+      "bytes": 11376
+    },
+    {
+      "path": "public/map/noticed/the-stratford.glb",
+      "bytes": 17620
+    },
+    {
+      "path": "public/map/noticed/uncle-elephant-and-castle.glb",
+      "bytes": 12832
+    },
+    {
+      "path": "public/map/noticed/valencia-tower.glb",
+      "bytes": 15620
+    },
+    {
+      "path": "public/map/noticed/vertus-10-george-street.glb",
+      "bytes": 14576
+    },
+    {
+      "path": "public/map/noticed/willis-towers-watson.glb",
+      "bytes": 41792
+    }
+  ]
+}

@@ -8,11 +8,11 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { LANDMARKS, isDeckLandmark, type LandmarkKind } from '../geo';
 import { build as buildLandmark } from './landmarks';
-import { makeMatteLambert } from './matteGltf';
 import { meshBudget } from './lookClip';
+import { loadPrefabScene, type PrefabLoadOptions } from './prefabLoad';
+import { batchStaticMeshes } from './staticMeshBatch';
 
 export const LANDMARK_GLB_DIR = '/map/landmarks';
 
@@ -36,25 +36,26 @@ export function isPlaytimeProceduralKind(kind: LandmarkKind): boolean {
   return PLAYTIME_PROCEDURAL.has(kind) || (isDeckLandmark(kind) && kind !== 'oldstreet');
 }
 
-export async function loadLandmarkPrefabs(): Promise<Map<LandmarkKind, THREE.Object3D>> {
+export async function loadLandmarkPrefabs(options: PrefabLoadOptions): Promise<Map<LandmarkKind, THREE.Object3D>> {
   if (typeof window !== 'undefined' && meshBudget().skipGlb) return new Map();
-  const loader = new GLTFLoader();
   const kinds = [...new Set(LANDMARKS.map((l) => l.kind))].filter(
     (kind) => !isPlaytimeProceduralKind(kind),
   );
   const prefabs = new Map<LandmarkKind, THREE.Object3D>();
   await Promise.all(
     kinds.map(async (kind) => {
-      try {
-        const gltf = await loader.loadAsync(`${LANDMARK_GLB_DIR}/${kind}.glb`);
-        makeMatteLambert(gltf.scene);
-        prefabs.set(kind, gltf.scene);
-      } catch {
-        // Procedural builder is the fallback at instantiate time.
-      }
+      const scene = await loadPrefabScene(`asset:landmark:${kind}`, `${LANDMARK_GLB_DIR}/${kind}.glb`, options);
+      if (scene && options.isCurrent() && !options.signal.aborted) prefabs.set(kind, scene);
     }),
   );
   return prefabs;
+}
+
+/** Procedural builders emit one mesh per box; batch siblings before the scene retains them. */
+function buildBatchedLandmark(kind: LandmarkKind): THREE.Group {
+  const group = buildLandmark(kind);
+  batchStaticMeshes(group, { keepUniquelyNamed: true });
+  return group;
 }
 
 export function instantiateLandmark(
@@ -64,10 +65,10 @@ export function instantiateLandmark(
   // River decks and unique skyline meshes stay procedural so asphalt / pale
   // steel are not stuck in a stale GLB or crushed by makeMatteLambert.
   if (isPlaytimeProceduralKind(kind)) {
-    return buildLandmark(kind);
+    return buildBatchedLandmark(kind);
   }
   const prefab = prefabs.get(kind);
-  if (!prefab) return buildLandmark(kind);
+  if (!prefab) return buildBatchedLandmark(kind);
   const clone = prefab.clone(true);
   if (clone instanceof THREE.Group) return clone;
   const group = new THREE.Group();

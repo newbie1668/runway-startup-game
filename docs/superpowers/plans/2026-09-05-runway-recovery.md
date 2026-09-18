@@ -88,11 +88,11 @@ if (errors.length) throw new Error(errors.join('\n'));
 
 ## R1 — Expose actual renderer state and costs
 
-**Owner:** runtime worker. **Depends:** R0. **Allowed files:** new `lib/game/mapDiagnostics.ts`, new `lib/game/render3d/diagnostics.ts`, `lib/game/render3d/CityRenderer3D.ts`, `components/game/MapCanvas.tsx`, new `scripts/test-map-diagnostics.ts`, browser runner. **Interfaces:** consume existing `IMapRenderer` and queue state; produce C1 `MapDiagnostics` and read-only `MapQaBridge`.
+**Owner:** runtime worker. **Depends:** R0. **Allowed files:** new `lib/game/mapDiagnostics.ts`, new `lib/game/render3d/diagnostics.ts`, `lib/game/render3d/CityRenderer3D.ts`, `components/game/MapCanvas.tsx`, new `scripts/test-map-diagnostics.ts`, focused geometry/host tests, `lib/game/render3d/factory.ts`, browser runner. **Interfaces:** consume existing `IMapRenderer` and queue state; produce C1 `MapDiagnostics` and read-only `MapQaBridge`.
 
-- [ ] Add C1's exact types. Implement the debug reporter and an optional callback from 3D/2D lifecycle to `MapCanvas`; do not expose Three.js objects through the bridge.
-- [ ] Count job completion/failure, active mode, geometry bytes, render counters and first useful frame. Bounded error history keeps the latest 20 errors plus a total count. Do not perform a scene traversal every frame.
-- [ ] Add focused tests for state transitions and unique-buffer accounting; then assert in browser QA that forced 3D actually reports `mode: '3d'` and essential failures never report ready.
+- [x] Add C1's exact types. Implement the debug reporter and an optional callback from 3D/2D lifecycle to `MapCanvas`; do not expose Three.js objects through the bridge.
+- [x] Count job completion/failure, active mode, geometry bytes, render counters and first useful frame. Bounded error history keeps the latest 20 errors plus a total count. Do not perform a scene traversal every frame.
+- [x] Add focused tests for state transitions and unique-buffer accounting; then assert in browser QA that forced 3D actually reports `mode: '3d'` and essential failures never report ready.
 
 ```ts
 // Required observable cases in test-map-diagnostics.ts:
@@ -103,19 +103,21 @@ if (errors.length) throw new Error(errors.join('\n'));
 // generation disposed -> no later callback can change its state
 ```
 
-- [ ] Record B1–B3 diagnostic snapshots before/after. Run required gates. Commit and submit the packet; geometry and asset shapes must be unchanged.
+- [x] Record B1–B3 diagnostic snapshots before/after. Run required gates. Commit and submit the packet; geometry and asset shapes must be unchanged.
 
 **Acceptance:** readiness/mode are distinguishable, errors have stable job IDs, metrics have documented meaning, and the debug bridge is absent without `qa=1`.
+
+R1 observability accepted on 6 September 2026; [results and remaining 3D failures](../../runway-recovery/evidence/R1/README.md). This does not approve G1. The next bounded optimization is [R5a-0](../../runway-recovery/evidence/R1/next-task.md).
 
 ## R2 — Fix the independently observed hydration error
 
 **Owner:** compact UI worker. **Depends:** R0. **Allowed files:** `components/game/CityHud.tsx`, `scripts/test-ui.tsx`, browser runner/fixtures. **Interfaces:** preserve `CityHud` props, `londonClock(Date)`, `londonClimate(Date)` and search callbacks.
 
-- [ ] Reproduce React #418 with the production build, a fixed server render and a different client clock. Confirm the differing element before editing; `new Date()` in the HUD is a hypothesis with direct source evidence.
-- [ ] Make the server and initial client snapshot identical. The existing `useSyncExternalStore` pattern in `GameApp` is the model: subscribe to a 30-second clock update; use an initially empty/neutral server clock and render real time only after hydration. Keep hooks unconditional even when `hide` is true.
-- [ ] Keep the city search and game flow unchanged. If keeping the monthly climate display, label it as typical monthly conditions so it is not mistaken for live weather/AQI; no new data calls.
-- [ ] Add a real hydration regression to the browser runner (including `chrome=0`, visible chrome, a reload and a clock rollover). The existing SSR markup check alone cannot prove this fix.
-- [ ] Run focused and required checks; submit matching screenshots and empty hydration-error logs.
+- [x] Reproduce React #418 with the production build, a fixed server render and a different client clock. Confirm the differing element before editing; `new Date()` in the HUD is a hypothesis with direct source evidence.
+- [x] Make the server and initial client snapshot identical. The existing `useSyncExternalStore` pattern in `GameApp` is the model: subscribe to a 30-second clock update; use an initially empty/neutral server clock and render real time only after hydration. Keep hooks unconditional even when `hide` is true.
+- [x] Keep the city search and game flow unchanged. If keeping the monthly climate display, label it as typical monthly conditions so it is not mistaken for live weather/AQI; no new data calls.
+- [x] Add a real hydration regression to the browser runner (including `chrome=0`, visible chrome, a reload and a clock rollover). The existing SSR markup check alone cannot prove this fix.
+- [x] Run focused and required checks; submit matching screenshots and empty hydration-error logs.
 
 **Acceptance:** no #418 across the test cases; clock updates after mount; HUD search and server rendering work.
 
@@ -125,7 +127,7 @@ if (errors.length) throw new Error(errors.join('\n'));
 
 **Interface:** `createResourcePool()` produces `{ retain(resource: { dispose(): void }): () => void; dispose(): void }`; each returned release is idempotent, shared resources are disposed once after final release, and pool disposal disposes all remaining resources once. The renderer owns generation IDs, pending jobs and loader cancellation.
 
-- [ ] Write the ownership example below, implement the pool and confirm it passes.
+- [x] Write the ownership example below, implement the pool and confirm it passes. Pure primitive only: [R3a-1 evidence](../../runway-recovery/evidence/R3a/README.md).
 
 ```ts
 let disposed = 0;
@@ -145,9 +147,10 @@ pool.dispose();
 assert.equal(disposed, 1);
 ```
 
-- [ ] Integrate ownership for geometry, material textures, prefab sources and clones. Mark the generation disposed before aborting/clearing work; a late resolved GLB must be released without attaching or firing ready.
+- [x] Integrate ownership for geometry, material textures, prefab sources and clones. Mark the generation disposed before aborting/clearing work; a late resolved GLB must be released without attaching or firing ready.
 - [ ] Test rapid mount/unmount, context loss during loading, and delayed asset completion. Check handlers/queues/pick references as well as GPU objects. Do not rebake or change asset appearance.
-- [ ] Run required gates and the repeated-tour resource check; submit exact counts and any unmeasured browser overhead.
+- [x] Run required app gates and actual late-load/context-loss/constructor-failure browser checks. [R3a evidence](../../runway-recovery/evidence/R3a/README.md).
+- [ ] Complete the repeated-tour resource check with R6 navigation/eviction; submit counts and any unmeasured browser overhead. R3a ownership implementation may feed R3b before this dependent integration check; G1 remains open.
 
 **Acceptance:** no obsolete generation mutates the scene; shared assets survive another clone's removal; renderer teardown releases its owned resources once.
 
@@ -166,8 +169,8 @@ assert.equal(disposed, 1);
 
 **Owner:** compact pure-helper worker. **Depends:** R0. **Allowed files:** new `lib/game/render3d/cityIndex.ts`, new `lib/game/render3d/coverage.ts`, new `scripts/test-city-coverage.ts`. **Interfaces:** C3 exact `indexCity`, `cellsForBounds`, `coverageDelta`, `CityCell`, `BoundsXZ` and `CellId`.
 
-- [ ] Implement the index from the existing `CityData` type. Group each building once by centroid at 400 m, extend owner-cell bounds to its footprint, sort output. Never mutate decoded data.
-- [ ] Add boundary, negative-coordinate, empty-scene and deterministic-output fixtures. Use this delta behavior as a minimum example:
+- [x] Implement the index from the existing `CityData` type. Group each building once by centroid at 400 m, extend owner-cell bounds to its footprint, sort output. Never mutate decoded data.
+- [x] Add boundary, negative-coordinate, empty-scene and deterministic-output fixtures. Use this delta behavior as a minimum example:
 
 ```ts
 assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']), {
@@ -177,19 +180,23 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 });
 ```
 
-- [ ] Decode the committed binary and assert each original building index appears in exactly one owner cell; selection includes a cell whose footprint bounds overlap even when its centroid lies outside the view.
-- [ ] Run `pnpm tsx scripts/test-city-coverage.ts` and required gates. Include index construction time and counts; do not claim this proves rendered performance.
+- [x] Decode the committed binary and assert each original building index appears in exactly one owner cell; selection includes a cell whose footprint bounds overlap even when its centroid lies outside the view.
+- [x] Run `pnpm tsx scripts/test-city-coverage.ts` and required gates. Include index construction time and counts; do not claim this proves rendered performance.
 
 **Acceptance:** stable, no-duplicate selection that the runtime can consume. No Three.js or DOM dependency in these helpers.
+
+## R5a-0 — Remove the measured river-query bottleneck
+
+- [x] Optimize water lookup and reuse identical crossing spans without changing output. [Accepted evidence](../../runway-recovery/evidence/R5a-0/README.md): cold calculation 15.6× faster; B2/B3 now ready under five seconds; default B1 remains red.
 
 ## R5a — Introduce a bounded, measurable scheduler
 
 **Owner:** pure-helper worker. **Depends:** R1. **Allowed files:** new `lib/game/render3d/buildScheduler.ts`, new `scripts/test-build-scheduler.ts`. **Interfaces:** C4 `BuildJob`, `BuildScheduler`, `DrainResult`, `createBuildScheduler`.
 
-- [ ] Use a queue preserving essential-visible priority supplied by the caller. Drain until the injected clock reaches `budgetMs`; retain incomplete jobs for the next frame and record failures by ID/essential flag.
-- [ ] With a fake clock, test that three jobs each consuming 3 ms cannot all run inside a 4 ms drain; preserve remaining work for the next drain. Test multi-step jobs, a throw, cancellation, and obsolete generations.
-- [ ] Ensure `cancelGeneration` invokes each cancelled job's cleanup once and removes it; optional failures cannot block unrelated jobs or vanish from results.
-- [ ] Run focused and required gates; no renderer integration in this packet.
+- [x] Use a queue preserving essential-visible priority supplied by the caller. Drain until the injected clock reaches `budgetMs`; retain incomplete jobs for the next frame and record failures by ID/essential flag.
+- [x] With a fake clock, test that three jobs each consuming 3 ms cannot all run inside a 4 ms drain; preserve remaining work for the next drain. Test multi-step jobs, a throw, cancellation, and obsolete generations.
+- [x] Ensure `cancelGeneration` invokes each cancelled job's cleanup once and removes it; optional failures cannot block unrelated jobs or vanish from results.
+- [x] Run focused and required gates; no renderer integration in this packet. [R5a evidence](../../runway-recovery/evidence/R5a/README.md).
 
 **Acceptance:** tests show bounded scheduling and observable failure/cancellation. A single oversized job remains a measured overrun for R5b to split, not an excuse to exceed the budget.
 
@@ -197,12 +204,16 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 
 **Owner:** capable geometry worker with tech-lead review. **Depends:** R4, R5a; serialize after R3b. **Allowed files:** `lib/game/render3d/cityBuilder.ts`, `lib/game/render3d/chunkCells.ts`, new `lib/game/render3d/detailPolicy.ts`, new `scripts/test-cell-build.ts`, focused existing geometry tests. **Interfaces:** consume C3 owner cells and C4 jobs; produce cell-owned stock/cover meshes with `overview | neighbourhood | street` detail and measured buffer costs.
 
-- [ ] Extract the existing per-building emission from `buildChunkTier` behind a cell batch entry point. Process at most 16 building indices per step initially; stop earlier when measured work reaches the generation slice. Preserve the existing detailed output on the accepted fixture before changing detail.
-- [ ] Add an overview path that emits footprint walls and caps only; neighbourhood adds readable facades; street adds bounded fine detail. All tiers keep each eligible building's massing. Select before emission, not after building full-detail arrays.
+- [x] Extract the existing per-building emission from `buildChunkTier` behind a cell batch entry point. Process at most 16 building indices per step initially; stop earlier when measured work reaches the generation slice. Preserve the existing detailed output on the accepted fixture before changing detail.
+- [x] Add an overview path that emits footprint walls and caps only; neighbourhood adds readable facades; street adds bounded fine detail. All tiers keep each eligible building's massing. Select before emission, not after building full-detail arrays.
 - [ ] Build cover only for needed bounds and preserve roads/parks/water continuity. Keep one authoritative shared material owner; avoid copying full chunk buffers solely to repartition them.
-- [ ] Test equal eligible-building coverage across detail tiers, fewer vertices/bytes at overview, no duplicate owner-cell buildings, finite normals/positions and unchanged footprint bounds. Compare raw geometry totals plus rendered reference images.
+- [x] Test equal eligible-building coverage across detail tiers, fewer vertices/bytes at overview, no duplicate owner-cell buildings, finite normals/positions and unchanged footprint bounds. Compare raw geometry totals plus rendered reference images.
 - [ ] Profile the largest cell. If one building remains an unbounded step, split that building's facade emission or assign it a pre-approved cheaper representation. Do not add new data pipelines to this packet.
 - [ ] Run required gates and submit geometry/time measurements. Any visible regression returns to this worker before R6.
+
+Bounded cover decomposition: R5b-4a adds the pure incremental cover index (`coverIndex.ts`, `test-cover-index.ts`) under C3; subsequent water/park/road emission packets consume its original indices. This is a lead-approved two-file scope addition, with no renderer hookup or geometry pipeline changes.
+
+Stock helper acceptance: [R5b-1](../../runway-recovery/evidence/R5b/stock-batches/README.md), [R5b-2](../../runway-recovery/evidence/R5b/detail-tiers/README.md), [R5b-3](../../runway-recovery/evidence/R5b/cell-jobs/README.md), [R5b-3a](../../runway-recovery/evidence/R5b/compact-overview/README.md). Full R5b remains open for cover and measured emission limits before R6.
 
 **Acceptance:** peak generation cost is bounded at the source, coarse views retain stock, and the largest cell can be processed without a long whole-city operation. This is a high-risk packet; split by stock/cover if either exceeds one independently reviewable change.
 
@@ -217,6 +228,8 @@ assert.deepEqual(coverageDelta(new Set<CellId>(['0,0', '1,0']), ['1,0', '2,0']),
 - [ ] Run full G1 verification on default `/game` as well as debug views. Tech lead and independent reviewer compare performance to the G0 limits and confirm no art/hero drift.
 
 **Acceptance:** G1 meets the city-navigation portion of P4, game/fallback requirements P5–P9 and the reliability/performance criteria. Close street exploration and real-place fidelity remain for F2–F5/G2. Offline source/asset preparation may proceed in parallel; no enriched runtime integration until this gate passes.
+
+- [ ] Normalize/clamp the camera when close 3D falls back to 2D; the R3a L2 screenshot shows over-zoomed framing despite successful lifecycle recovery. Verify a readable fallback image.
 
 ## R7 — Review faithful street reconstruction (G2)
 

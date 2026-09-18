@@ -1,3 +1,4 @@
+import type { CoverSequence } from './coverSequence';
 /**
  * Dashed centre-line math for SFSIM-style roads.
  * Pure TS (no DOM / three.js) so tests and the city builder share it.
@@ -30,18 +31,47 @@ export function polylineDashes(
   dashM = DASH_LENGTH_M,
   gapM = DASH_GAP_M,
 ): DashSeg[] {
-  if (pts.length < 2) return [];
+  const iterator = polylineDashSteps(pts, dashM, gapM);
+  let result = iterator.next();
+  while (!result.done) result = iterator.next();
+  return result.value;
+}
+
+export function* polylineDashSteps(
+  pts: readonly PolyPoint[],
+  dashM = DASH_LENGTH_M,
+  gapM = DASH_GAP_M,
+): Generator<void, DashSeg[]> {
+  const out: DashSeg[] = [];
+  yield* visitPolylineDashSteps(
+    pts,
+    (dash) => {
+      out.push(dash);
+    },
+    dashM,
+    gapM,
+  );
+  return out;
+}
+
+export function* visitPolylineDashSteps(
+  pts: CoverSequence<PolyPoint>,
+  visit: (dash: DashSeg) => void,
+  dashM = DASH_LENGTH_M,
+  gapM = DASH_GAP_M,
+): Generator<void> {
+  if (pts.length < 2) return;
   const dashW = dashM * METERS_TO_WORLD;
   const gapW = gapM * METERS_TO_WORLD;
   const period = dashW + gapW;
-  if (period <= 1e-6) return [];
+  if (period <= 1e-6) return;
   const minLen = 0.4 * METERS_TO_WORLD;
-  const out: DashSeg[] = [];
   let inDash = true;
   let remain = dashW;
   for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
+    yield;
+    const a = pts.at(i)!;
+    const b = pts.at(i + 1)!;
     const dx = b.x - a.x;
     const dz = b.z - a.z;
     const len = Math.hypot(dx, dz);
@@ -50,6 +80,7 @@ export function polylineDashes(
     const uz = dz / len;
     let local = 0;
     while (local < len) {
+      yield;
       if (remain <= 1e-9) {
         inDash = !inDash;
         remain = inDash ? dashW : gapW;
@@ -57,16 +88,16 @@ export function polylineDashes(
       }
       const take = Math.min(remain, len - local);
       if (inDash && take >= minLen) {
-        out.push({
+        visit({
           a: { x: a.x + ux * local, z: a.z + uz * local },
           b: { x: a.x + ux * (local + take), z: a.z + uz * (local + take) },
         });
+        yield;
       }
       local += take;
       remain -= take;
     }
   }
-  return out;
 }
 
 /**

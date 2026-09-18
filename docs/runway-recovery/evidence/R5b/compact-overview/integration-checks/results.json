@@ -1,0 +1,111 @@
+[
+  {
+    "command": [
+      "pnpm",
+      "test:game"
+    ],
+    "start": "2026-09-10T06:32:35.033078+00:00",
+    "end": "2026-09-10T06:33:45.691118+00:00",
+    "elapsed_seconds": 70.66,
+    "exit": 0,
+    "log": "01.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "test:ui"
+    ],
+    "start": "2026-09-10T06:33:45.693226+00:00",
+    "end": "2026-09-10T06:33:46.394916+00:00",
+    "elapsed_seconds": 0.702,
+    "exit": 0,
+    "log": "02.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "lint"
+    ],
+    "start": "2026-09-10T06:33:46.395365+00:00",
+    "end": "2026-09-10T06:33:50.889074+00:00",
+    "elapsed_seconds": 4.494,
+    "exit": 0,
+    "log": "03.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "build"
+    ],
+    "start": "2026-09-10T06:33:50.889806+00:00",
+    "end": "2026-09-10T06:34:04.312730+00:00",
+    "elapsed_seconds": 13.424,
+    "exit": 0,
+    "log": "04.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/test-cell-build.ts"
+    ],
+    "start": "2026-09-10T06:34:04.316260+00:00",
+    "end": "2026-09-10T06:34:04.978905+00:00",
+    "elapsed_seconds": 0.663,
+    "exit": 0,
+    "log": "05.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/test-cell-stock-job.ts"
+    ],
+    "start": "2026-09-10T06:34:04.979332+00:00",
+    "end": "2026-09-10T06:34:05.814946+00:00",
+    "elapsed_seconds": 0.836,
+    "exit": 0,
+    "log": "06.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/test-build-scheduler.ts"
+    ],
+    "start": "2026-09-10T06:34:05.815519+00:00",
+    "end": "2026-09-10T06:34:06.261641+00:00",
+    "elapsed_seconds": 0.446,
+    "exit": 0,
+    "log": "07.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/fetch-geodata.ts",
+      "--verify"
+    ],
+    "start": "2026-09-10T06:34:06.262654+00:00",
+    "end": "2026-09-10T06:34:06.878093+00:00",
+    "elapsed_seconds": 0.615,
+    "exit": 0,
+    "log": "08.log",
+    "initial_sha": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+    "initial_dirty": false
+  }
+]

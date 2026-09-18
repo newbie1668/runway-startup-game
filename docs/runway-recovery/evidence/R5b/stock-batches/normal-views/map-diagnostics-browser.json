@@ -1,0 +1,1031 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-08T11:45:54.351Z",
+  "finishedAt": "2026-09-08T11:46:10.002Z",
+  "baseUrl": "http://127.0.0.1:4318",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1
+  },
+  "routes": [
+    {
+      "id": "B2-3d-citystreet",
+      "path": "/game?map=3d&look=citystreet&chrome=0&qa=1"
+    },
+    {
+      "id": "B3-3d-mid",
+      "path": "/game?map=3d&view=mid&chrome=0&qa=1"
+    }
+  ],
+  "provenance": {
+    "gitSha": "a0a03d1c01ecfb3de67e306889335ed15b885ca2",
+    "dirty": false
+  },
+  "environment": {
+    "node": "v26.5.0",
+    "pnpm": "10.33.0",
+    "playwright": "1.63.0",
+    "os": {
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M1"
+    },
+    "browser": "153.0.8010.12"
+  },
+  "cases": [
+    {
+      "id": "B2-3d-citystreet",
+      "path": "/game?map=3d&look=citystreet&chrome=0&qa=1",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0&qa=1",
+      "startedAt": "2026-09-08T11:45:54.651Z",
+      "assertions": [
+        {
+          "label": "actual mode is 3D",
+          "pass": true,
+          "detail": {
+            "atMs": 5504,
+            "snapshot": {
+              "mode": "3d",
+              "state": "ready",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 35,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "cover:roads",
+                "ms": 156
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1469.2999999970198
+              },
+              "residentCells": null,
+              "stockBuildings": 5685,
+              "stockDrawn": true,
+              "drawCalls": 25,
+              "triangles": 477345,
+              "geometryBytes": 205648046,
+              "textures": 0,
+              "firstUsefulFrameMs": 4234,
+              "frameP95Ms": 373.40000000596046,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "ready",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "state is ready or degraded",
+          "pass": true,
+          "detail": {
+            "atMs": 5504,
+            "snapshot": {
+              "mode": "3d",
+              "state": "ready",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 35,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "cover:roads",
+                "ms": 156
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1469.2999999970198
+              },
+              "residentCells": null,
+              "stockBuildings": 5685,
+              "stockDrawn": true,
+              "drawCalls": 25,
+              "triangles": 477345,
+              "geometryBytes": 205648046,
+              "textures": 0,
+              "firstUsefulFrameMs": 4234,
+              "frameP95Ms": 373.40000000596046,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "ready",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "map ready marker",
+          "pass": true,
+          "detail": {
+            "atMs": 5504,
+            "snapshot": {
+              "mode": "3d",
+              "state": "ready",
+              "generation": 1,
+              "camera": {
+                "x": 108.61635380053188,
+                "y": 38.460000000000605,
+                "zoom": 468.75
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 35,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "cover:roads",
+                "ms": 156
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1469.2999999970198
+              },
+              "residentCells": null,
+              "stockBuildings": 5685,
+              "stockDrawn": true,
+              "drawCalls": 25,
+              "triangles": 477345,
+              "geometryBytes": 205648046,
+              "textures": 0,
+              "firstUsefulFrameMs": 4234,
+              "frameP95Ms": 373.40000000596046,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "ready",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "actual first useful frame",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 35,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 156
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1469.2999999970198
+            },
+            "residentCells": null,
+            "stockBuildings": 5685,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 477345,
+            "geometryBytes": 205648046,
+            "textures": 0,
+            "firstUsefulFrameMs": 4234,
+            "frameP95Ms": 373.40000000596046,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "positive stock draw metrics",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 35,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 156
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1469.2999999970198
+            },
+            "residentCells": null,
+            "stockBuildings": 5685,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 477345,
+            "geometryBytes": 205648046,
+            "textures": 0,
+            "firstUsefulFrameMs": 4234,
+            "frameP95Ms": 373.40000000596046,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "no unexpected browser errors",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "snapshots": [
+        {
+          "atMs": 0,
+          "snapshot": null,
+          "mapMode": null,
+          "mapState": null,
+          "mapReady": "0",
+          "bridge": false
+        },
+        {
+          "atMs": 790,
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 27,
+            "pendingEssentialJobs": 15,
+            "completedJobs": 8,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "landmark:hero:tower42:15",
+              "ms": 0.20000000298023224
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1469.2999999970198
+            },
+            "residentCells": null,
+            "stockBuildings": 0,
+            "stockDrawn": false,
+            "drawCalls": 1,
+            "triangles": 2,
+            "geometryBytes": 232848,
+            "textures": 0,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 40.8999999910593,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 2661,
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 9,
+            "pendingEssentialJobs": 9,
+            "completedJobs": 26,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "chunk:19:minor",
+              "ms": 115.40000000596046
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1469.2999999970198
+            },
+            "residentCells": null,
+            "stockBuildings": 4607,
+            "stockDrawn": true,
+            "drawCalls": 14,
+            "triangles": 432371,
+            "geometryBytes": 163869812,
+            "textures": 0,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 1338.5,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 4188,
+          "snapshot": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 35,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 156
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1469.2999999970198
+            },
+            "residentCells": null,
+            "stockBuildings": 5685,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 477345,
+            "geometryBytes": 205648046,
+            "textures": 0,
+            "firstUsefulFrameMs": 4234,
+            "frameP95Ms": 1338.5,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "ready",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 5504,
+          "snapshot": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 108.61635380053188,
+              "y": 38.460000000000605,
+              "zoom": 468.75
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 35,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 156
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1469.2999999970198
+            },
+            "residentCells": null,
+            "stockBuildings": 5685,
+            "stockDrawn": true,
+            "drawCalls": 25,
+            "triangles": 477345,
+            "geometryBytes": 205648046,
+            "textures": 0,
+            "firstUsefulFrameMs": 4234,
+            "frameP95Ms": 373.40000000596046,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "ready",
+          "mapReady": "1",
+          "bridge": true
+        }
+      ],
+      "errors": [],
+      "screenshots": [
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R5b/stock-batches/normal-views/screenshots/b2-3d-citystreet-5s.png",
+          "ok": true,
+          "capturedAt": "2026-09-08T11:46:00.795Z"
+        },
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R5b/stock-batches/normal-views/screenshots/b2-3d-citystreet-final.png",
+          "ok": true,
+          "capturedAt": "2026-09-08T11:46:01.185Z"
+        }
+      ],
+      "failed": false,
+      "events": [],
+      "snapshotSummary": {
+        "last": {
+          "mode": "3d",
+          "state": "ready",
+          "generation": 1,
+          "camera": {
+            "x": 108.61635380053188,
+            "y": 38.460000000000605,
+            "zoom": 468.75
+          },
+          "queuedJobs": 0,
+          "pendingEssentialJobs": 0,
+          "completedJobs": 35,
+          "failedJobs": 0,
+          "errorCount": 0,
+          "errors": [],
+          "activeJobId": null,
+          "lastJob": {
+            "id": "cover:roads",
+            "ms": 156
+          },
+          "slowestJob": {
+            "id": "plan:city",
+            "ms": 1469.2999999970198
+          },
+          "residentCells": null,
+          "stockBuildings": 5685,
+          "stockDrawn": true,
+          "drawCalls": 25,
+          "triangles": 477345,
+          "geometryBytes": 205648046,
+          "textures": 0,
+          "firstUsefulFrameMs": 4234,
+          "frameP95Ms": 373.40000000596046,
+          "fallbackReason": null
+        },
+        "slowestJob": {
+          "id": "plan:city",
+          "ms": 1469.2999999970198
+        },
+        "activeJobIds": [],
+        "maxQueuedJobs": 27,
+        "maxPendingEssentialJobs": 15,
+        "maxCompletedJobs": 35
+      },
+      "finishedAt": "2026-09-08T11:46:01.283Z",
+      "expectedFixtureEvents": [],
+      "cleanupEvents": [],
+      "unexpectedEvents": []
+    },
+    {
+      "id": "B3-3d-mid",
+      "path": "/game?map=3d&view=mid&chrome=0&qa=1",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=mid&chrome=0&qa=1",
+      "startedAt": "2026-09-08T11:46:01.283Z",
+      "assertions": [
+        {
+          "label": "actual mode is 3D",
+          "pass": true,
+          "detail": {
+            "atMs": 6839,
+            "snapshot": {
+              "mode": "3d",
+              "state": "ready",
+              "generation": 1,
+              "camera": {
+                "x": 80.42889105358047,
+                "y": 32.40000000000265,
+                "zoom": 105.88235294117646
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 21,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "cover:roads",
+                "ms": 52.20000000298023
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1447.800000011921
+              },
+              "residentCells": null,
+              "stockBuildings": 7930,
+              "stockDrawn": true,
+              "drawCalls": 222,
+              "triangles": 1873103,
+              "geometryBytes": 283261360,
+              "textures": 1,
+              "firstUsefulFrameMs": 5547.4000000059605,
+              "frameP95Ms": 923.0999999940395,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "ready",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "state is ready or degraded",
+          "pass": true,
+          "detail": {
+            "atMs": 6839,
+            "snapshot": {
+              "mode": "3d",
+              "state": "ready",
+              "generation": 1,
+              "camera": {
+                "x": 80.42889105358047,
+                "y": 32.40000000000265,
+                "zoom": 105.88235294117646
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 21,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "cover:roads",
+                "ms": 52.20000000298023
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1447.800000011921
+              },
+              "residentCells": null,
+              "stockBuildings": 7930,
+              "stockDrawn": true,
+              "drawCalls": 222,
+              "triangles": 1873103,
+              "geometryBytes": 283261360,
+              "textures": 1,
+              "firstUsefulFrameMs": 5547.4000000059605,
+              "frameP95Ms": 923.0999999940395,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "ready",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "map ready marker",
+          "pass": true,
+          "detail": {
+            "atMs": 6839,
+            "snapshot": {
+              "mode": "3d",
+              "state": "ready",
+              "generation": 1,
+              "camera": {
+                "x": 80.42889105358047,
+                "y": 32.40000000000265,
+                "zoom": 105.88235294117646
+              },
+              "queuedJobs": 0,
+              "pendingEssentialJobs": 0,
+              "completedJobs": 21,
+              "failedJobs": 0,
+              "errorCount": 0,
+              "errors": [],
+              "activeJobId": null,
+              "lastJob": {
+                "id": "cover:roads",
+                "ms": 52.20000000298023
+              },
+              "slowestJob": {
+                "id": "plan:city",
+                "ms": 1447.800000011921
+              },
+              "residentCells": null,
+              "stockBuildings": 7930,
+              "stockDrawn": true,
+              "drawCalls": 222,
+              "triangles": 1873103,
+              "geometryBytes": 283261360,
+              "textures": 1,
+              "firstUsefulFrameMs": 5547.4000000059605,
+              "frameP95Ms": 923.0999999940395,
+              "fallbackReason": null
+            },
+            "mapMode": "3d",
+            "mapState": "ready",
+            "mapReady": "1",
+            "bridge": true
+          }
+        },
+        {
+          "label": "actual first useful frame",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 21,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 52.20000000298023
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 7930,
+            "stockDrawn": true,
+            "drawCalls": 222,
+            "triangles": 1873103,
+            "geometryBytes": 283261360,
+            "textures": 1,
+            "firstUsefulFrameMs": 5547.4000000059605,
+            "frameP95Ms": 923.0999999940395,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "positive stock draw metrics",
+          "pass": true,
+          "detail": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 21,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 52.20000000298023
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 7930,
+            "stockDrawn": true,
+            "drawCalls": 222,
+            "triangles": 1873103,
+            "geometryBytes": 283261360,
+            "textures": 1,
+            "firstUsefulFrameMs": 5547.4000000059605,
+            "frameP95Ms": 923.0999999940395,
+            "fallbackReason": null
+          }
+        },
+        {
+          "label": "no unexpected browser errors",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "snapshots": [
+        {
+          "atMs": 0,
+          "snapshot": null,
+          "mapMode": null,
+          "mapState": null,
+          "mapReady": "0",
+          "bridge": false
+        },
+        {
+          "atMs": 787,
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 14,
+            "pendingEssentialJobs": 11,
+            "completedJobs": 7,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "landmark:rest:allsouls:30",
+              "ms": 0.3999999910593033
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 0,
+            "stockDrawn": false,
+            "drawCalls": 113,
+            "triangles": 2450,
+            "geometryBytes": 154204,
+            "textures": 1,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 25,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 2724,
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 8,
+            "pendingEssentialJobs": 8,
+            "completedJobs": 13,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "chunk:19:major",
+              "ms": 304.80000001192093
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 2609,
+            "stockDrawn": true,
+            "drawCalls": 179,
+            "triangles": 754359,
+            "geometryBytes": 105487558,
+            "textures": 1,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 910.7000000029802,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 3881,
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 5,
+            "pendingEssentialJobs": 5,
+            "completedJobs": 16,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "chunk:10:minor",
+              "ms": 243.20000000298023
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 5878,
+            "stockDrawn": true,
+            "drawCalls": 203,
+            "triangles": 1535267,
+            "geometryBytes": 211816708,
+            "textures": 1,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 923.0999999940395,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 4977,
+          "snapshot": {
+            "mode": "3d",
+            "state": "loading",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 3,
+            "pendingEssentialJobs": 3,
+            "completedJobs": 18,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "chunk:18:minor",
+              "ms": 471.29999999701977
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 7930,
+            "stockDrawn": true,
+            "drawCalls": 213,
+            "triangles": 1846983,
+            "geometryBytes": 281633476,
+            "textures": 1,
+            "firstUsefulFrameMs": null,
+            "frameP95Ms": 923.0999999940395,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "loading",
+          "mapReady": "0",
+          "bridge": true
+        },
+        {
+          "atMs": 6839,
+          "snapshot": {
+            "mode": "3d",
+            "state": "ready",
+            "generation": 1,
+            "camera": {
+              "x": 80.42889105358047,
+              "y": 32.40000000000265,
+              "zoom": 105.88235294117646
+            },
+            "queuedJobs": 0,
+            "pendingEssentialJobs": 0,
+            "completedJobs": 21,
+            "failedJobs": 0,
+            "errorCount": 0,
+            "errors": [],
+            "activeJobId": null,
+            "lastJob": {
+              "id": "cover:roads",
+              "ms": 52.20000000298023
+            },
+            "slowestJob": {
+              "id": "plan:city",
+              "ms": 1447.800000011921
+            },
+            "residentCells": null,
+            "stockBuildings": 7930,
+            "stockDrawn": true,
+            "drawCalls": 222,
+            "triangles": 1873103,
+            "geometryBytes": 283261360,
+            "textures": 1,
+            "firstUsefulFrameMs": 5547.4000000059605,
+            "frameP95Ms": 923.0999999940395,
+            "fallbackReason": null
+          },
+          "mapMode": "3d",
+          "mapState": "ready",
+          "mapReady": "1",
+          "bridge": true
+        }
+      ],
+      "errors": [],
+      "screenshots": [
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R5b/stock-batches/normal-views/screenshots/b3-3d-mid-5s.png",
+          "ok": true,
+          "capturedAt": "2026-09-08T11:46:08.827Z"
+        },
+        {
+          "path": "/Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration/docs/runway-recovery/evidence/R5b/stock-batches/normal-views/screenshots/b3-3d-mid-final.png",
+          "ok": true,
+          "capturedAt": "2026-09-08T11:46:09.927Z"
+        }
+      ],
+      "failed": false,
+      "events": [],
+      "snapshotSummary": {
+        "last": {
+          "mode": "3d",
+          "state": "ready",
+          "generation": 1,
+          "camera": {
+            "x": 80.42889105358047,
+            "y": 32.40000000000265,
+            "zoom": 105.88235294117646
+          },
+          "queuedJobs": 0,
+          "pendingEssentialJobs": 0,
+          "completedJobs": 21,
+          "failedJobs": 0,
+          "errorCount": 0,
+          "errors": [],
+          "activeJobId": null,
+          "lastJob": {
+            "id": "cover:roads",
+            "ms": 52.20000000298023
+          },
+          "slowestJob": {
+            "id": "plan:city",
+            "ms": 1447.800000011921
+          },
+          "residentCells": null,
+          "stockBuildings": 7930,
+          "stockDrawn": true,
+          "drawCalls": 222,
+          "triangles": 1873103,
+          "geometryBytes": 283261360,
+          "textures": 1,
+          "firstUsefulFrameMs": 5547.4000000059605,
+          "frameP95Ms": 923.0999999940395,
+          "fallbackReason": null
+        },
+        "slowestJob": {
+          "id": "plan:city",
+          "ms": 1447.800000011921
+        },
+        "activeJobIds": [],
+        "maxQueuedJobs": 14,
+        "maxPendingEssentialJobs": 11,
+        "maxCompletedJobs": 21
+      },
+      "finishedAt": "2026-09-08T11:46:10.002Z",
+      "expectedFixtureEvents": [],
+      "cleanupEvents": [],
+      "unexpectedEvents": []
+    }
+  ],
+  "failures": [],
+  "summary": {
+    "cases": 2,
+    "expectedCases": 2,
+    "failed": 0,
+    "incomplete": 0
+  },
+  "exitStatus": 0
+}

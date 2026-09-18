@@ -1,0 +1,38 @@
+{
+  "testedHead": "fe64aa0493f7a337b0a5224d94073d4b5fc897a3",
+  "results": [
+    {
+      "command": "pnpm test:game",
+      "start": "2026-09-06T15:16:28Z",
+      "end": "2026-09-06T15:19:28Z",
+      "elapsedMs": 180000,
+      "exitCode": 0,
+      "log": "test-game.log"
+    },
+    {
+      "command": "pnpm test:ui",
+      "start": "2026-09-06T15:19:34Z",
+      "end": "2026-09-06T15:19:35Z",
+      "elapsedMs": 1000,
+      "exitCode": 0,
+      "log": "test-ui.log"
+    },
+    {
+      "command": "pnpm lint",
+      "start": "2026-09-06T15:19:48Z",
+      "end": "2026-09-06T15:19:55Z",
+      "elapsedMs": 7000,
+      "exitCode": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": "pnpm build",
+      "start": "2026-09-06T15:20:00Z",
+      "end": "2026-09-06T15:20:14Z",
+      "elapsedMs": 14000,
+      "exitCode": 0,
+      "log": "build.log"
+    }
+  ],
+  "recoveredFrom": "Luna completed all commands and saved timestamped logs before its usage-limit interruption; lead assembled this index without rerunning commands."
+}

@@ -1,0 +1,111 @@
+[
+  {
+    "command": [
+      "pnpm",
+      "test:game"
+    ],
+    "start": "2026-09-09T15:18:31.109720+00:00",
+    "end": "2026-09-09T15:19:50.867544+00:00",
+    "elapsed_seconds": 79.762,
+    "exit": 0,
+    "log": "01.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "test:ui"
+    ],
+    "start": "2026-09-09T15:19:50.874246+00:00",
+    "end": "2026-09-09T15:19:51.635708+00:00",
+    "elapsed_seconds": 0.762,
+    "exit": 0,
+    "log": "02.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "lint"
+    ],
+    "start": "2026-09-09T15:19:51.636156+00:00",
+    "end": "2026-09-09T15:19:55.696512+00:00",
+    "elapsed_seconds": 4.061,
+    "exit": 0,
+    "log": "03.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "build"
+    ],
+    "start": "2026-09-09T15:19:55.697322+00:00",
+    "end": "2026-09-09T15:20:09.401841+00:00",
+    "elapsed_seconds": 13.705,
+    "exit": 0,
+    "log": "04.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/test-cell-build.ts"
+    ],
+    "start": "2026-09-09T15:20:09.402857+00:00",
+    "end": "2026-09-09T15:20:10.058590+00:00",
+    "elapsed_seconds": 0.656,
+    "exit": 0,
+    "log": "05.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/test-cell-stock-job.ts"
+    ],
+    "start": "2026-09-09T15:20:10.059460+00:00",
+    "end": "2026-09-09T15:20:10.740783+00:00",
+    "elapsed_seconds": 0.681,
+    "exit": 0,
+    "log": "06.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/test-build-scheduler.ts"
+    ],
+    "start": "2026-09-09T15:20:10.741227+00:00",
+    "end": "2026-09-09T15:20:11.094577+00:00",
+    "elapsed_seconds": 0.353,
+    "exit": 0,
+    "log": "07.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  },
+  {
+    "command": [
+      "pnpm",
+      "tsx",
+      "scripts/fetch-geodata.ts",
+      "--verify"
+    ],
+    "start": "2026-09-09T15:20:11.095026+00:00",
+    "end": "2026-09-09T15:20:11.521523+00:00",
+    "elapsed_seconds": 0.427,
+    "exit": 0,
+    "log": "08.log",
+    "initial_sha": "0aa752edee6daa95212ac962b289feb45f894b06",
+    "initial_dirty": false
+  }
+]

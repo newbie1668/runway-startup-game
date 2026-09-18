@@ -1,0 +1,7 @@
+{
+ "url": "https://graph.mapillary.com/images?fields=id,captured_at,geometry&bbox=-0.1366,51.5178,-0.1340,51.5203&limit=1",
+ "retrievedAt": "2026-09-17T19:21:05.318Z",
+ "status": 500,
+ "sha256": "27d995c90c964749346515c903dc8b26733574cf8b0df65aa5acbdfbec4715b1",
+ "body": "{\"error\":{\"message\":\"Invalid OAuth 2.0 Access Token\",\"type\":\"MLYApiException\",\"code\":190,\"error_data\":{},\"fbtrace_id\":\"AFeViqX2etfd5G7zee0Lv9E\"}}"
+}

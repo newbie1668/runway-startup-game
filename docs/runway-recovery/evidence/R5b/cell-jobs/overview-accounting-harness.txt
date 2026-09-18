@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import type * as Three from 'three';
+import { createCellStockJob } from '../../../lib/game/render3d/cellStockJob';
+import { indexCity } from '../../../lib/game/render3d/cityIndex';
+import { decodeCity } from '../../../lib/game/render3d/format';
+
+async function main() {
+  const require = createRequire(import.meta.url);
+  const THREE = require('../../../node_modules/three/build/three.cjs') as typeof import('three');
+  const binaryURL = new URL('../../../public/map/london-city.bin', import.meta.url);
+  const binary = await readFile(binaryURL);
+  const binarySHA256 = createHash('sha256').update(binary).digest('hex');
+  const expectedBinarySHA256 = '6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0';
+  assert.equal(binarySHA256, expectedBinarySHA256);
+  const sourceSHA = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim() || false;
+  const measuredAt = new Date().toISOString();
+  const city = decodeCity(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength));
+  const cells = [...indexCity(city, 400).cells.values()];
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const emitted = new Set<number>();
+  const inputOriginalIndices = cells.flatMap((cell) => [...cell.buildingIndices]);
+  let totalGeometryBytes = 0;
+  let nonEmptyCells = 0;
+  let maxCellBytes = 0;
+  let maxCellId: string | null = null;
+  let maxScratchPicks = 0;
+  const MAX_STEPS = 10_000;
+
+  function disposeGroup(group: Three.Group | null): void {
+    group?.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
+  }
+  try {
+    for (const cell of cells) {
+      const selected = [...cell.buildingIndices];
+      if (selected.length === 0) continue;
+      let published: Three.Group | null = null;
+      let ready: { group: Three.Group | null; geometryBytes: number; sourceBuildingIndices: readonly number[]; scratch: { picks: unknown[] } } | null = null;
+      let job: ReturnType<typeof createCellStockJob> | undefined;
+      try {
+        job = createCellStockJob({ id: `overview:${cell.id}`, generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', sliceMs: 4, now: () => performance.now(), onReady: (value) => { ready = value as typeof ready; published = value.group; } });
+        let done = false;
+        let steps = 0;
+        while (!done && steps < MAX_STEPS) { done = job.step(); steps += 1; }
+        assert.equal(done, true, `cell ${cell.id} exceeded ${MAX_STEPS} step guard`);
+        assert.ok(ready);
+        const value = ready;
+        const meshCount = value.group ? value.group.children.filter((child) => child instanceof THREE.Mesh).length : 0;
+        assert.ok(meshCount <= 1, `cell ${cell.id} published more than one final mesh`);
+        for (const sourceIndex of value.sourceBuildingIndices) { assert.ok(selected.includes(sourceIndex), `cell ${cell.id} emitted source outside input`); assert.ok(!emitted.has(sourceIndex), `duplicate emitted source index ${sourceIndex}`); emitted.add(sourceIndex); }
+        if (meshCount > 0) nonEmptyCells += 1;
+        if (value.group) value.group.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.computeBoundingBox(); const box = object.geometry.boundingBox; assert.ok(box && [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite), `cell ${cell.id} has non-finite bounds`); } });
+        totalGeometryBytes += value.geometryBytes;
+        if (value.geometryBytes > maxCellBytes) { maxCellBytes = value.geometryBytes; maxCellId = cell.id; }
+        maxScratchPicks = Math.max(maxScratchPicks, value.scratch.picks.length);
+      } finally {
+        try { job?.cancel(); } catch {}
+        try { disposeGroup(published); } catch {}
+      }
+    }
+  } finally {
+    try { material.dispose(); } catch {}
+  }
+  const omittedOriginalIndices = inputOriginalIndices.filter((sourceIndex) => !emitted.has(sourceIndex));
+  const output = { schema: 1, sourceSHA, dirty, measuredAt, runtimeCapture: 'overview resident-buffer accounting estimate, not performance or GPU-memory measurement', binarySHA256, three: THREE.REVISION, cellSizeM: 400, cells: cells.length, nonEmptyCells, inputOriginalIndices: inputOriginalIndices.length, emittedOriginalIndices: emitted.size, omittedOriginalIndices, omittedOriginalIndicesCount: omittedOriginalIndices.length, totalGeometryBytes, maxCellBytes, maxCellId, maxScratchPicks, maxIterationGuard: MAX_STEPS, detail: 'overview', limits: ['Cells are processed sequentially and published geometry is disposed before the next cell; no whole-city mesh set is retained.', 'Aggregate bytes estimate possible cell resident buffers only; Three object/material overhead, prefabs, cover, scene retention, and GPU allocations are excluded.', 'This is evidence for a proposed 128 MiB budget decision, not all-city rendered/resident memory or device performance certification.'] };
+  const outputDir = process.env.RUNWAY_EVIDENCE_DIR ?? '.superpowers/sdd/2026-09-05-runway-recovery';
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(join(outputDir, 'measure-overview-budget.json'), `${JSON.stringify(output, null, 2)}\n`);
+  console.log(JSON.stringify(output));
+}
+
+main().catch((error) => { console.error(error); process.exitCode = 1; });

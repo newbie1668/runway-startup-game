@@ -1,0 +1,11 @@
+command: pnpm tsx scripts/test-scene-resources.ts
+started: 2026-09-06T20:34:50.880Z
+ended: 2026-09-06T20:34:51.249Z
+elapsed_ms: 369.3
+exit_code: 0
+signal: 
+
+--- stdout ---
+scene resource tests passed
+
+--- stderr ---

@@ -1,0 +1,6 @@
+  ✓ legal zoom round-trips unchanged
+  ✓ oversized fallback zoom caps at the renderer maximum
+  ✓ zoom below the resized minimum clamps to the fit-derived minimum
+  ✓ nonfinite zoom retains the current valid zoom
+  ✓ world position remains clamped
+Fallback camera checks passed.

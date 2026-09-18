@@ -1,0 +1,300 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { performance } from 'node:perf_hooks';
+import * as THREE from 'three';
+import {
+  buildCellStockBatch,
+  buildChunkTier,
+  chunkTierMeshes,
+  createScratch,
+} from '../lib/game/render3d/cityBuilder';
+import { indexCity } from '../lib/game/render3d/cityIndex';
+import { decodeCity, dequantizeX, dequantizeY, quantizeX, quantizeY, type CityData } from '../lib/game/render3d/format';
+import { stockDetailForGroundWidth } from '../lib/game/render3d/detailPolicy';
+
+const ORACLE_INDICES = [45401, 71493, 71693, 72128] as const;
+const ORACLE_BINARY_SHA256 = '6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0';
+const ORACLE_GEOMETRY_SHA256 = '34976db63c5adda68b52faaf40c35069edae9ce6cb594a99f88252de692a0a61';
+const ORACLE_SCRATCH_SHA256 = '1b577019bb8844db1ba8736b2d92852a837eccd23b9dc1b7cb966f48f4b5525b';
+
+function city(): CityData {
+  const file = readFileSync('public/map/london-city.bin');
+  return decodeCity(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength));
+}
+
+function sparseOracle(full: CityData): CityData {
+  const filler = { ...full.buildings[0]!, chunkId: -1, major: false };
+  const buildings = Array.from({ length: full.buildings.length }, () => filler);
+  for (const index of ORACLE_INDICES) buildings[index] = full.buildings[index]!;
+  return { ...full, buildings };
+}
+
+function canonicalGeometryDigest(group: THREE.Object3D | null): string {
+  const triangles: Buffer[] = [];
+  for (const mesh of chunkTierMeshes(group)) {
+    const index = mesh.geometry.getIndex();
+    assert.ok(index, 'canonical oracle requires indexed geometry');
+    const attrs = ['position', 'normal', 'color'].map((name) => {
+      const attribute = mesh.geometry.getAttribute(name);
+      assert.ok(attribute?.array instanceof Float32Array, `${name} must be Float32`);
+      return attribute.array as Float32Array;
+    });
+    const indices = index.array;
+    for (let t = 0; t + 2 < indices.length; t += 3) {
+      const vertices = [indices[t]!, indices[t + 1]!, indices[t + 2]!].map((vertex) => {
+        const bytes = Buffer.alloc(36);
+        let offset = 0;
+        for (const attribute of attrs) {
+          for (let axis = 0; axis < 3; axis++) {
+            bytes.writeFloatLE(attribute[vertex * 3 + axis]!, offset);
+            offset += 4;
+          }
+        }
+        return bytes;
+      });
+      const rotations = [vertices, [vertices[1]!, vertices[2]!, vertices[0]!], [vertices[2]!, vertices[0]!, vertices[1]!]];
+      rotations.sort((a, b) => {
+        for (let i = 0; i < 3; i++) {
+          const order = Buffer.compare(a[i]!, b[i]!);
+          if (order !== 0) return order;
+        }
+        return 0;
+      });
+      triangles.push(Buffer.concat(rotations[0]!));
+    }
+  }
+  triangles.sort(Buffer.compare);
+  return createHash('sha256').update(Buffer.concat(triangles)).digest('hex');
+}
+
+function sha(value: unknown): string {
+  return createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
+}
+
+function scratchDigest(scratch: ReturnType<typeof createScratch>): string {
+  return sha({ p: scratch.picks, w: scratch.windows, r: scratch.rooftops, s: scratch.signs });
+}
+
+function building(x0: number, z0: number, x1: number, z1: number) {
+  return {
+    major: false,
+    heightM: 15,
+    chunkId: 0,
+    style: 4,
+    roof: 0,
+    wall565: 0,
+    roof565: 0,
+    verts: new Uint16Array([
+      quantizeX(x0), quantizeY(z0), quantizeX(x1), quantizeY(z0),
+      quantizeX(x1), quantizeY(z1), quantizeX(x0), quantizeY(z1),
+    ]),
+    indices: new Uint8Array([0, 1, 2, 0, 2, 3]),
+  };
+}
+
+function test(): void {
+  assert.equal(stockDetailForGroundWidth(2400), 'neighbourhood');
+  assert.equal(stockDetailForGroundWidth(2400.01), 'overview');
+  assert.equal(stockDetailForGroundWidth(600), 'street');
+  assert.equal(stockDetailForGroundWidth(600.01), 'neighbourhood');
+  assert.throws(() => stockDetailForGroundWidth(0));
+  assert.throws(() => stockDetailForGroundWidth(Number.NaN));
+  const full = city();
+  assert.equal(createHash('sha256').update(readFileSync('public/map/london-city.bin')).digest('hex'), ORACLE_BINARY_SHA256);
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const legacyScratch = createScratch();
+  const legacy = buildChunkTier(sparseOracle(full), 20, true, new Set(), legacyScratch);
+  const batchScratch = createScratch();
+  const batch = buildCellStockBatch({
+    cityData: full,
+    cellId: '0,0',
+    buildingIndices: ORACLE_INDICES,
+    excludedBuildingIndices: new Set(),
+    material,
+    scratch: batchScratch,
+  });
+  assert.equal(canonicalGeometryDigest(legacy), ORACLE_GEOMETRY_SHA256);
+  assert.equal(canonicalGeometryDigest(batch), ORACLE_GEOMETRY_SHA256);
+  assert.equal(scratchDigest(legacyScratch), ORACLE_SCRATCH_SHA256);
+  assert.equal(scratchDigest(batchScratch), ORACLE_SCRATCH_SHA256);
+  assert.deepEqual(batchScratch.picks.map((pick) => pick.sourceIndex), ORACLE_INDICES);
+  const mesh = chunkTierMeshes(batch)[0]!;
+  assert.equal(mesh.material, material);
+  assert.deepEqual(batch!.userData.sourceBuildingIndices, ORACLE_INDICES);
+  for (const mesh of chunkTierMeshes(batch)) {
+    for (const name of ['position', 'normal', 'color'] as const) {
+      const values = mesh.geometry.getAttribute(name).array as Float32Array;
+      assert.ok(Array.from(values).every(Number.isFinite));
+    }
+  }
+
+  const topology = new THREE.BufferGeometry();
+  topology.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+  topology.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+  topology.setAttribute('color', new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1], 3));
+  topology.setIndex([0, 1, 2]);
+  const topologyGroup = new THREE.Group(); topologyGroup.add(new THREE.Mesh(topology));
+  const originalTopologyDigest = canonicalGeometryDigest(topologyGroup);
+  topology.setIndex([0, 2, 1]);
+  assert.notEqual(canonicalGeometryDigest(topologyGroup), originalTopologyDigest, 'winding/connectivity must affect canonical output');
+
+  const excludedScratch = createScratch();
+  const excluded = buildCellStockBatch({
+    cityData: full,
+    cellId: '0,0',
+    buildingIndices: [72128],
+    excludedBuildingIndices: new Set([72128]),
+    material,
+    scratch: excludedScratch,
+  });
+  assert.equal(excluded, null);
+  assert.deepEqual(excludedScratch, createScratch());
+
+  const errorScratch = createScratch();
+  const original = JSON.stringify(errorScratch);
+  for (const invalid of [[45401, 45401], [-1], [NaN], [1.5], [full.buildings.length], Array.from({ length: 17 }, (_, i) => i)]) {
+    assert.throws(() =>
+      buildCellStockBatch({
+        cityData: full, cellId: '0,0', buildingIndices: invalid,
+        excludedBuildingIndices: new Set(), material, scratch: errorScratch,
+      }),
+    );
+    assert.equal(JSON.stringify(errorScratch), original);
+  }
+
+  const crossing: CityData = {
+    buildings: [building(3.55, 10, 3.65, 20), building(10, 10, 10.1, 20)], roads: [], parks: [], water: [],
+  };
+  const ownership = indexCity(crossing, 400);
+  const owner = [...ownership.cells.values()].find((cell) => cell.buildingIndices.includes(0))!;
+  assert.equal([...ownership.cells.values()].filter((cell) => cell.buildingIndices.includes(0)).length, 1);
+  assert.deepEqual(owner.buildingIndices, [0]);
+  const crossingBatch = buildCellStockBatch({
+    cityData: crossing, cellId: owner.id, buildingIndices: owner.buildingIndices,
+    excludedBuildingIndices: new Set(), material,
+  });
+  assert.deepEqual(crossingBatch!.userData.sourceBuildingIndices, [0]);
+  assert.ok(canonicalGeometryDigest(crossingBatch).length > 0);
+
+  const mixed = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [45401, 21216],
+    excludedBuildingIndices: new Set(), material,
+  });
+  assert.ok(mixed);
+  const majorOnly = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [21216],
+    excludedBuildingIndices: new Set(), material,
+  });
+  const minorCity = { ...full, buildings: full.buildings.slice() };
+  minorCity.buildings[21216] = { ...minorCity.buildings[21216]!, major: false };
+  const minorOnly = buildCellStockBatch({
+    cityData: minorCity, cellId: '0,0', buildingIndices: [21216],
+    excludedBuildingIndices: new Set(), material,
+  });
+  assert.ok(majorOnly && minorOnly);
+  assert.ok(canonicalGeometryDigest(majorOnly) !== canonicalGeometryDigest(minorOnly), 'major small building retains parapet geometry');
+  assert.deepEqual(mixed!.userData.sourceBuildingIndices, [45401, 21216]);
+
+  const overviewScratch = createScratch();
+  const neighbourhoodScratch = createScratch();
+  const overview = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [45401],
+    excludedBuildingIndices: new Set(), material, scratch: overviewScratch, detail: 'overview',
+  });
+  const neighbourhood = buildCellStockBatch({
+    cityData: full, cellId: '0,0', buildingIndices: [45401],
+    excludedBuildingIndices: new Set(), material, scratch: neighbourhoodScratch, detail: 'neighbourhood',
+  });
+  assert.ok(overview && neighbourhood);
+  assert.ok(rawGeometryBytes(overview) < rawGeometryBytes(majorOnly!), 'overview must be cheaper than street');
+  assert.ok(rawGeometryBytes(neighbourhood) < rawGeometryBytes(majorOnly!), 'neighbourhood must be cheaper than street');
+  assert.deepEqual(overviewScratch.windows, []);
+  assert.deepEqual(overviewScratch.rooftops, []);
+  assert.deepEqual(overviewScratch.signs, []);
+  assert.deepEqual(neighbourhoodScratch.windows, []);
+  assert.deepEqual(neighbourhoodScratch.rooftops, []);
+  assert.deepEqual(neighbourhoodScratch.signs, []);
+  assert.deepEqual(overview!.userData.sourceBuildingIndices, [45401]);
+  assert.deepEqual(neighbourhood!.userData.sourceBuildingIndices, [45401]);
+
+  const parity: Record<string, unknown> = {};
+  for (const detail of ['street', 'overview', 'neighbourhood'] as const) {
+    const s = createScratch();
+    buildCellStockBatch({ cityData: full, cellId: '0,0', buildingIndices: [...ORACLE_INDICES], excludedBuildingIndices: new Set(), material, scratch: s, detail });
+    parity[detail] = s.picks;
+  }
+  assert.deepEqual(parity.overview, parity.street);
+  assert.deepEqual(parity.neighbourhood, parity.street);
+  const bounds = (g: THREE.Group) => {
+    const p = chunkTierMeshes(g)[0]!.geometry.getAttribute('position');
+    const xs = Array.from({ length: p.count }, (_, i) => p.getX(i));
+    const zs = Array.from({ length: p.count }, (_, i) => p.getZ(i));
+    return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+  };
+  const triangleChecks = (g: THREE.Group) => {
+    const geo = chunkTierMeshes(g)[0]!.geometry;
+    const p = geo.getAttribute('position'); const nrm = geo.getAttribute('normal'); const ix = geo.getIndex()!.array;
+    assert.ok(Array.from(p.array as Float32Array).every(Number.isFinite));
+    assert.ok(Array.from(nrm.array as Float32Array).every(Number.isFinite));
+    for (let t = 0; t < ix.length; t += 3) {
+      const ai = Number(ix[t]) * 3, bi = Number(ix[t + 1]) * 3, ci = Number(ix[t + 2]) * 3;
+      const ux = p.array[bi]! - p.array[ai]!, uy = p.array[bi + 1]! - p.array[ai + 1]!, uz = p.array[bi + 2]! - p.array[ai + 2]!;
+      const vx = p.array[ci]! - p.array[ai]!, vy = p.array[ci + 1]! - p.array[ai + 1]!, vz = p.array[ci + 2]! - p.array[ai + 2]!;
+      assert.ok((uy * vz - uz * vy) * nrm.array[ai]! + (uz * vx - ux * vz) * nrm.array[ai + 1]! + (ux * vy - uy * vx) * nrm.array[ai + 2]! > 1e-10);
+    }
+  };
+  for (const i of [0, 1, 2, 3]) {
+    const s = createScratch();
+    const g = buildCellStockBatch({ cityData: full, cellId: '0,0', buildingIndices: [ORACLE_INDICES[i]!], excludedBuildingIndices: new Set(), material, scratch: s, detail: 'overview' })!;
+    triangleChecks(g); assert.equal(s.picks.length, 1);
+  }
+  const fixture = building(10, 10, 30, 20);
+  const footprintBounds = (b: typeof fixture) => {
+    const ring = Array.from({ length: b.verts.length / 2 }, (_, i) => [dequantizeX(b.verts[i * 2]!), dequantizeY(b.verts[i * 2 + 1]!)]);
+    return [Math.min(...ring.map((p) => p[0])), Math.max(...ring.map((p) => p[0])), Math.min(...ring.map((p) => p[1])), Math.max(...ring.map((p) => p[1]))];
+  };
+  const assertBounds = (actual: number[], expected: number[]) => actual.forEach((value, i) => assert.ok(Math.abs(value - expected[i]!) < 1e-4));
+  const fwd = buildCellStockBatch({ cityData: { buildings: [fixture], roads: [], parks: [], water: [] }, cellId: '0,0', buildingIndices: [0], excludedBuildingIndices: new Set(), material, detail: 'overview' })!;
+  assertBounds(bounds(fwd), footprintBounds(fixture));
+  const reverseRing = new Uint16Array([quantizeX(10), quantizeY(10), quantizeX(10), quantizeY(20), quantizeX(30), quantizeY(20), quantizeX(30), quantizeY(10)]);
+  const reversed = { ...fixture, verts: reverseRing };
+  const reversedGroup = buildCellStockBatch({ cityData: { buildings: [reversed], roads: [], parks: [], water: [] }, cellId: '0,0', buildingIndices: [0], excludedBuildingIndices: new Set(), material, detail: 'overview' })!;
+  triangleChecks(reversedGroup); assertBounds(bounds(reversedGroup), footprintBounds(reversed));
+  const concave = { ...fixture, verts: new Uint16Array([quantizeX(10), quantizeY(10), quantizeX(30), quantizeY(10), quantizeX(30), quantizeY(20), quantizeX(20), quantizeY(15), quantizeX(10), quantizeY(20)]), indices: new Uint8Array([0, 1, 3, 0, 3, 4, 1, 2, 3]) };
+  const concaveGroup = buildCellStockBatch({ cityData: { buildings: [concave], roads: [], parks: [], water: [] }, cellId: '0,0', buildingIndices: [0], excludedBuildingIndices: new Set(), material, detail: 'overview' })!;
+  triangleChecks(concaveGroup); assertBounds(bounds(concaveGroup), footprintBounds(concave));
+  assert.ok(rawGeometryBytes(overview) < 110000);
+  assert.ok(chunkTierMeshes(neighbourhood)[0]!.geometry.getAttribute('position').count <= 1100);
+  console.log('cell stock batch: 10 checks passed');
+}
+
+
+function rawGeometryBytes(group: THREE.Group | null): number {
+  return chunkTierMeshes(group).reduce((total, mesh) => {
+    const index = mesh.geometry.getIndex();
+    return total + ['position', 'normal', 'color'].reduce(
+      (sum, name) => sum + mesh.geometry.getAttribute(name)!.array.byteLength, 0,
+    ) + (index?.array.byteLength ?? 0);
+  }, 0);
+}
+
+function measure(): void {
+  const full = city();
+  const largest = [...indexCity(full, 400).cells.values()].sort(
+    (a, b) => b.buildingIndices.length - a.buildingIndices.length,
+  )[0]!;
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const batches = Array.from({ length: Math.ceil(largest.buildingIndices.length / 16) }, (_, i) =>
+    largest.buildingIndices.slice(i * 16, i * 16 + 16),
+  );
+  const timings = batches.map((buildingIndices) => {
+    const start = performance.now();
+    const group = buildCellStockBatch({ cityData: full, cellId: largest.id, buildingIndices, excludedBuildingIndices: new Set(), material });
+    return { count: buildingIndices.length, ms: performance.now() - start, rawGeometryBytes: rawGeometryBytes(group), sourceBuildingIndices: group?.userData.sourceBuildingIndices ?? [] };
+  });
+  console.log(JSON.stringify({ cellId: largest.id, owners: largest.buildingIndices.length, timings }, null, 2));
+}
+
+if (process.argv.includes('--measure')) measure();
+else test();

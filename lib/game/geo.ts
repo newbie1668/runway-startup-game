@@ -303,6 +303,7 @@ export interface AreaLabel {
 export const AREA_LABELS: readonly AreaLabel[] = [
   { text: 'WESTMINSTER', at: [-0.133, 51.4985] },
   { text: 'MAYFAIR', at: [-0.148, 51.5098] },
+  { text: 'FITZROVIA', at: [-0.1358, 51.5196] },
   { text: 'THE CITY', at: [-0.0925, 51.5158] },
   { text: 'GREENWICH', at: [-0.006, 51.4785] },
   { text: 'BRIXTON', at: [-0.115, 51.4605] },

@@ -1,0 +1,7 @@
+{
+  "command": "env RUNWAY_BASE_URL=http://127.0.0.1:4318 RUNWAY_EVIDENCE_DIR=docs/runway-recovery/evidence/R2/browser node scripts/test-map-hydration.mjs",
+  "exitCode": 1,
+  "startedAt": "2026-09-06T02:49:49.393Z",
+  "endedAt": "2026-09-06T02:50:54.197Z",
+  "captureSha": "2ed2d1ad881c17dd77c6a3218f7ae58186bfba8b"
+}

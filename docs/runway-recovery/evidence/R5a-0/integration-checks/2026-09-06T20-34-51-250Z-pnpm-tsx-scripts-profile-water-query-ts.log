@@ -1,0 +1,33 @@
+command: pnpm tsx scripts/profile-water-query.ts
+started: 2026-09-06T20:34:51.250Z
+ended: 2026-09-06T20:34:52.966Z
+elapsed_ms: 1716.4
+exit_code: 0
+signal: 
+
+--- stdout ---
+{
+  "node": "v26.5.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cityBytes": 6698590,
+  "r1ColdBaselineMs": 17915.150917,
+  "r1BaselineHardware": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "cpu": "Apple M1"
+  },
+  "currentCpu": "Apple M1",
+  "cpuCount": 8,
+  "hardwareMatch": true,
+  "baselineNode": "v26.5.0",
+  "citySha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0",
+  "coldMs": 1146.105459,
+  "warmMs": 0.016708,
+  "coldSpeedupRatio": 15.631328492782266,
+  "spanCount": 15,
+  "outputSha256": "449a9b5a9274067f4dfe75f93598a000557c6abbb30c2c777d00d07019abf6a1"
+}
+
+--- stderr ---

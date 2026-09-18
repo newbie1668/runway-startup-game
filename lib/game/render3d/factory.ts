@@ -11,21 +11,28 @@
 
 import { MapRenderer } from '../render';
 import type { IMapRenderer } from '../scene';
+import type { MapDiagnosticsReporter } from '../mapDiagnostics';
 
 export type RendererMode = '2d' | '3d';
 
-function make2d(overlayCanvas: HTMLCanvasElement): { renderer: IMapRenderer; mode: RendererMode } {
-  return { renderer: new MapRenderer(overlayCanvas), mode: '2d' };
+function make2d(
+  overlayCanvas: HTMLCanvasElement,
+  diagnostics: MapDiagnosticsReporter,
+  reason: string,
+): { renderer: IMapRenderer; mode: RendererMode } {
+  const renderer = new MapRenderer(overlayCanvas);
+  diagnostics.selectMode('2d', reason);
+  return { renderer, mode: '2d' };
 }
 
 export async function createMapRenderer(
   cityCanvas: HTMLCanvasElement,
   overlayCanvas: HTMLCanvasElement,
-  opts: { onFatal: () => void; onReady?: () => void },
+  opts: { onFatal: (reason?: string) => void; onReady?: () => void; diagnostics: MapDiagnosticsReporter },
 ): Promise<{ renderer: IMapRenderer; mode: RendererMode }> {
   const mapParam = new URLSearchParams(window.location.search).get('map');
 
-  if (mapParam === '2d') return make2d(overlayCanvas);
+  if (mapParam === '2d') return make2d(overlayCanvas, opts.diagnostics, 'explicit map=2d');
 
   let forced2d = false;
   try {
@@ -33,21 +40,24 @@ export async function createMapRenderer(
   } catch {
     forced2d = false;
   }
-  if (forced2d && mapParam !== '3d') return make2d(overlayCanvas);
+  if (forced2d && mapParam !== '3d') return make2d(overlayCanvas, opts.diagnostics, 'previous context loss');
 
   const probe = document.createElement('canvas');
-  if (!probe.getContext('webgl2')) return make2d(overlayCanvas);
+  if (!probe.getContext('webgl2')) return make2d(overlayCanvas, opts.diagnostics, 'WebGL2 unavailable');
 
   const nav = navigator as Navigator & { deviceMemory?: number };
   if (mapParam !== '3d' && typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 2) {
-    return make2d(overlayCanvas);
+    return make2d(overlayCanvas, opts.diagnostics, 'low device memory');
   }
 
   try {
     const { CityRenderer3D } = await import('./CityRenderer3D');
     const renderer = new CityRenderer3D(cityCanvas, overlayCanvas, opts);
+    opts.diagnostics.selectMode('3d');
     return { renderer, mode: '3d' };
-  } catch {
-    return make2d(overlayCanvas);
+  } catch (error) {
+    opts.diagnostics.recordError('init:3d', true, error);
+    const message = error instanceof Error ? error.message : String(error);
+    return make2d(overlayCanvas, opts.diagnostics, `3D initialization failed: ${message}`);
   }
 }

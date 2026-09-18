@@ -1,0 +1,11 @@
+command: pnpm tsx scripts/test-water-query.ts
+started: 2026-09-06T20:34:47.467Z
+ended: 2026-09-06T20:34:50.375Z
+elapsed_ms: 2907.8
+exit_code: 0
+signal: 
+
+--- stdout ---
+water-query semantics: 15 spans, source 6698590 bytes
+
+--- stderr ---

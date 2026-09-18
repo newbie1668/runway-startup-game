@@ -1,0 +1,14 @@
+command: pnpm lint
+started: 2026-09-06T20:34:31.711Z
+ended: 2026-09-06T20:34:35.713Z
+elapsed_ms: 4002.6
+exit_code: 0
+signal: 
+
+--- stdout ---
+
+> runway-startup-game@0.1.0 lint /Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration
+> eslint
+
+
+--- stderr ---

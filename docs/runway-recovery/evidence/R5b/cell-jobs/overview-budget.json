@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "sourceSHA": "0aa752edee6daa95212ac962b289feb45f894b06",
+  "dirty": "?? docs/runway-recovery/evidence/R5b/cell-jobs/",
+  "measuredAt": "2026-09-09T15:22:00.613Z",
+  "runtimeCapture": "overview resident-buffer accounting estimate, not performance or GPU-memory measurement",
+  "binarySHA256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0",
+  "three": "185",
+  "cellSizeM": 400,
+  "cells": 1609,
+  "nonEmptyCells": 1609,
+  "inputOriginalIndices": 113569,
+  "emittedOriginalIndices": 113563,
+  "omittedOriginalIndices": [
+    81516,
+    81523,
+    81529,
+    81536,
+    81556,
+    82574
+  ],
+  "omittedOriginalIndicesCount": 6,
+  "totalGeometryBytes": 195161688,
+  "maxCellBytes": 522960,
+  "maxCellId": "5,15",
+  "maxScratchPicks": 320,
+  "maxIterationGuard": 10000,
+  "detail": "overview",
+  "limits": [
+    "Cells are processed sequentially and published geometry is disposed before the next cell; no whole-city mesh set is retained.",
+    "Aggregate bytes estimate possible cell resident buffers only; Three object/material overhead, prefabs, cover, scene retention, and GPU allocations are excluded.",
+    "This is evidence for a proposed 128 MiB budget decision, not all-city rendered/resident memory or device performance certification."
+  ]
+}

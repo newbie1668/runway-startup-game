@@ -1,0 +1,9 @@
+{
+ "url": "https://environment.data.gov.uk/geoservices/datasets/13787b9a-26a4-4775-8523-806d13af58fc/wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&subset=E(529000,530000)&subset=N(181000,182000)&format=image/tiff",
+ "retrievedAt": "2026-09-17T20:20:40.901Z",
+ "status": 200,
+ "contentType": "image/tiff",
+ "bytes": 4194755,
+ "sha256": "bf5c40d571bf314f1628f7e3f846c48da7ded0d0183f64a7cbd3c011359bdca7",
+ "file": "ea-lidar-dtm-tq2981.tif"
+}

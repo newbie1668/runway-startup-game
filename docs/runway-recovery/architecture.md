@@ -42,23 +42,31 @@ Do not extract all 3,588 lines of `cityBuilder.ts` in one refactor. First introd
 
 Create the following browser-independent types in `lib/game/mapDiagnostics.ts`. They must not import `three`, a renderer or a browser global. Diagnostic callers use type-only imports as appropriate.
 
+R1 now defines these fields in `MapDiagnostics`:
+
 ```ts
-export type MapLoadState = 'loading' | 'ready' | 'degraded' | 'fallback' | 'disposed';
+export type MapLoadState = 'loading' | 'ready' | 'degraded' | 'failed' | 'fallback' | 'disposed';
 export interface MapDiagnostics {
-  mode: '2d' | '3d';
+  mode: '2d' | '3d' | null;
   state: MapLoadState;
   generation: number;
-  camera: { x: number; y: number; zoom: number };
+  camera: { x: number; y: number; zoom: number } | null;
   queuedJobs: number;
+  pendingEssentialJobs: number;
   completedJobs: number;
   failedJobs: number;
+  errorCount: number;
   errors: { jobId: string; essential: boolean; message: string }[];
-  residentCells: number;
-  stockBuildings: number;
-  drawCalls: number;
-  triangles: number;
-  geometryBytes: number;
-  textures: number;
+  activeJobId: string | null;
+  lastJob: { id: string; ms: number } | null;
+  slowestJob: { id: string; ms: number } | null;
+  residentCells: number | null;
+  stockBuildings: number | null;
+  stockDrawn: boolean | null;
+  drawCalls: number | null;
+  triangles: number | null;
+  geometryBytes: number | null;
+  textures: number | null;
   firstUsefulFrameMs: number | null;
   frameP95Ms: number | null;
   fallbackReason: string | null;
@@ -68,9 +76,19 @@ export interface MapQaBridge {
 }
 ```
 
-Expose `window.__runwayQA` only with `?qa=1`; keep `?map=debug` context-loss control. Update numeric counters without traversing the whole scene every frame. Report renderer draw/triangle counters after rendering; count geometry buffer bytes by unique buffer identity at resource creation/disposal. These bytes exclude textures, browser overhead and temporary CPU arrays: **not total GPU memory**. Estimate JS heap/process memory separately during profiling where supported.
+These corrections to the earlier proposed types are intentional: initial actual mode/camera and unavailable measurements are null; `residentCells` stays unknown until R4; `failed` records essential failure before the host has actually selected 2D. `fallback` means 2D is selected, with first useful frame still null until it renders. Readiness never treats missing measurements as measured zero. The generation identifies the current canvas-host lifetime; R3/R6 extend replacement/cell ownership separately.
 
-`ready` means essential layers for the current view have built and a nonempty 3D frame has rendered. `degraded` means optional work failed while essential content is useful. `fallback` means the 2D renderer is active. Empty stock or failed essential cover must never report a successful 3D-ready state. The visible loading status and diagnostics must agree. Screenshots still verify the pixels; counters are not an art-quality score.
+`createMapDiagnostics(generation, now)` is a pure reporter with an injected monotonic clock. It owns pending jobs and bounded histories, with register/start/complete/fail methods, explicit mode/camera/frame updates, terminal disposal and detached frozen snapshots. A 2D fallback ignores old 3D callbacks. Frame updates explicitly identify their renderer mode; mismatched/obsolete mode updates do nothing. All metrics for an accepted 3D frame are supplied together, so stale stock visibility cannot certify a new frame. `createBufferLedger()` accounts for shared ArrayBuffer identity across resource owners and supports replacement, idempotent release and clear.
+
+`ready` requires completed essential jobs plus a frame that actually drew ordinary stock geometry, with positive stock/draw/triangle counts. Ground or a landmark alone is insufficient. `degraded` means that useful essential content exists but optional work failed. An essential failure cannot return to ready in the same generation. New essential work invalidates a previous ready state until a qualifying frame. Camera-driven coverage validation is still R4/R6; this gate alone does not prove geographic completeness.
+
+Expose `window.__runwayQA` only with `?qa=1`; retain `?map=debug` context-loss control. Snapshots never expose Three.js objects or mutable internal maps. Publish actual mode/state attributes and fire the existing ready callback only after a useful 3D frame or an actual 2D frame, keeping the visible loading status aligned.
+
+Measure active/last/slowest jobs with stable IDs. `activeJobId` is the most recently started unfinished job (parallel initial loaders may have other pending work); job counts and timings remain separate from frame costs. Keep latest 20 errors plus total `errorCount`. `frameP95Ms` is nearest-rank p95 over the latest 120 adapter-frame durations, including synchronous generation/render work; calculate it only on snapshot requests. It is not GPU timing or the browser RAF interval.
+
+Read draw/triangle/texture counters after rendering, using [Three.js renderer information](https://threejs.org/docs/pages/WebGLRenderer.html). Track geometry buffers at attachment/load/disposal, never by traversing the whole scene every frame. Count unique backing buffers for indices, attributes, morph attributes, interleaved attributes and instanced transforms/colours. These are retained geometry-array bytes, including loaded prefab geometry; they exclude texture images, browser overhead and temporary CPU arrays, and are **not total GPU memory**. R3 owns comprehensive disposal of existing resources. Internal per-asset loader failures currently swallowed by prefab loaders remain R3 work; R1 reports the observable aggregate load and mesh-job failures without claiming a complete asset-error inventory.
+
+R1 additionally owns the factory's typed reporter option so the callback can cross the existing dynamic boundary without widening `IMapRenderer` or importing Three.js into SSR.
 
 ## C2: asset replacement and lifecycle (R3)
 
@@ -123,6 +141,14 @@ For the current orthographic camera, derive ground bounds from `CameraRig.ground
 
 Cover geometry (roads/parks/water) must cover the same visible bounds. Cache or spatially restrict existing cover generation; do not leave cover in the old initial disk after buildings move. A 400 m grid is an initial engineering choice, not a reason to alter geography.
 
+### R5b-4a cover selection seam
+
+Use a separate world-origin 400 m cover grid, including cells with no building owner. Index original roads, parks and water by every cell intersecting each dequantized feature AABB. A long road or enclosing polygon must be selected even when none of its vertices lie inside the view. Keep the original CityData for water/crossing/RNG context; the index returns original numeric record indices, never a subset wrapper.
+
+`createCoverIndexJob` implements C4 with at most 64 units per step and a default 4 ms target. Each record transition, vertex-pair AABB update and bucket insertion is a separate unit. Publication avoids whole-index copying or sorting. `coverForBounds` gathers intersecting buckets, filters feature AABBs, deduplicates and returns ascending original indices; query padding uses metres. Query loops are not an emission timing guarantee and must be measured in R6. No geometry or renderer hookup belongs to this helper acceptance.
+
+This pure CPU index has no GPU resource ownership. It marks terminal and detaches private references before its one publication callback; cancellation or callback errors never mutate an already published index. Unpublished cancellation drops private state. The geometry-job disposal contract remains separate.
+
 ## C4: bounded generation and detail (R5)
 
 Use one scheduler seam; measure time as well as queue length.
@@ -155,6 +181,12 @@ Use three detail states: **overview massing**, **neighbourhood facades**, **near
 The overview can show simplified city-wide massing from the committed data; close views replace nearby coarse cells with detailed ones, removing duplicates. If measurements show even coarse runtime generation is too expensive, the tech lead may approve a deterministic bake-time coarse asset in a new task. Workers must not quietly add a Worker, binary-format revision, Draco/Meshopt pipeline or a new rendering framework.
 
 Preserve existing landmark geometry while testing scheduling/coverage. Keep shared materials reused. Prefetch and eviction need a bounded hysteresis ring to avoid rebuild thrash near cell borders.
+
+### 9 September storage ruling: overview packing
+
+[Actual cell-buffer accounting](evidence/R5b/cell-jobs/overview-budget.json) totals 186.12 MiB for the overview alone, so full Float32 normal/colour and Uint32 index storage cannot meet the 128 MiB initial ceiling. The next bounded packet may pack overview normals as normalized Int8, linear vertex colours as normalized Uint8, and indices as Uint16 when the vertex count permits (otherwise Uint32). Positions remain Float32 without modification; neighbourhood/street keep existing precision. Coverage, heights, footprint bounds and winding must remain unchanged. Normal/colour round-to-nearest errors are bounded by 0.5/127 and 0.5/255 per component, respectively.
+
+This is an explicit storage contract revision for the API-only cell job, replacing exact overview normal/colour tuple equality with those bounded errors. Street tuple equality stays exact. Preserve incremental allocation/copy units and all accepted ownership/error semantics. Validate actual packed buffers and rendered output, then repeat aggregate accounting. The [verified compact overview accounting](evidence/R5b/compact-overview/README.md) is 93.06 MiB, exactly half the prior buffers with unchanged emitted coverage. This cost still excludes cover, heroes, detailed cells and overhead; it does not approve G1 or a higher resident budget. No new binary, bake, dependency or shader pipeline is authorized.
 
 ## C5: renderer integration (R6)
 

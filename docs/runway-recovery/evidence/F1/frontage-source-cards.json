@@ -1,0 +1,78 @@
+{
+  "schema": "runway-f1-frontage-source-card/v1",
+  "recordedAt": "2026-09-07T07:48:38Z",
+  "baseSha": "e44b1d8ee82ff262dde1e3eaa74f627a9b7837c8",
+  "scope": "26, 28 and 30 Charlotte Street, Fitzrovia",
+  "cards": [
+    {
+      "address": "26 Charlotte Street, London",
+      "map": {
+        "sourceId": "osm:way:138339533",
+        "version": 8,
+        "sourceTimestamp": "2026-01-10T19:05:59Z",
+        "url": "https://www.openstreetmap.org/way/138339533",
+        "geometry": "provider-reported footprint retained in map-inventory.json; imagery alignment and Charlotte-facing edge not surveyed",
+        "tags": {"addr:housenumber":"26","addr:street":"Charlotte Street","building:levels":"4","roof:levels":"1","roof:shape":"double_saltbox","building:material":"plaster","building:colour":"white"}
+      },
+      "identity": [
+        {"source":"OSM way 138339533","url":"https://www.openstreetmap.org/way/138339533","finding":"Address tags identify 26 Charlotte Street; provider identity is a map join, not photographic proof."},
+        {"source":"London Picture Archive record 110408","url":"https://www.londonpicturearchive.org.uk/view-item?i=112682","finding":"Archive description identifies the pictured terrace as 20-28 even Charlotte Street and describes number 26's two entrance doors, central window and classical entablature; image location is marked exact."}
+      ],
+      "images": [
+        {"role":"primary frontage","sourceUrl":"https://commons.wikimedia.org/wiki/File:26_Charlotte_Street,_Fitzrovia,_May_2022.jpg","captureDate":"2022-05-28","provider":"Wikimedia Commons","photographer":"No Swan So Fine","license":"CC BY-SA 4.0","localFile":"candidate-26.jpg","inspect":"visually inspected existing evidence","observations":"Pale plaster frontage with three upper window bays, decorative surrounds, three ground-floor arched openings, dark green doors, railings and planters; visible door number 26.","limitations":"Single oblique street view; perspective does not provide metric dimensions, rear/side geometry or current 2026 condition; roof is only partly visible."},
+        {"role":"historical context angle","sourceUrl":"https://www.londonpicturearchive.org.uk/view-item?i=112682","captureDate":"1970","provider":"London Picture Archive / The London Archives, LCC Photograph Library","photographer":"Not stated on record","license":"Commercial archive; permission/licence required for reuse","localFile":"frontage-references/20-28-charlotte-1970.jpg","sha256":"2d83f9744411a228a2acd2eafef7a22564119bdbc6d98e21c3c8a6cd3d758b3e","downloadUrl":"https://media.londonpicturearchive.org.uk/media.php?d=1&dg=d8e8a2511335cdf0ada9e6727b7a78c5627e3628&i=112682&p=11&t=2","retrievedAt":"2026-09-07T07:48:38Z","inspect":"visually inspected downloaded 290x400 preview","observations":"Wider oblique view shows 26 within the continuous 20-28 terrace, pale multi-storey elevation, roofline/chimneys and street relationship.","limitations":"Historical low-resolution preview; no current condition, hidden roof/rear detail or reliable dimensions."}
+      ],
+      "roofHeight": {"map":"OSM reports four building levels plus one roof level and double_saltbox roof; tags are map attributes, not measured height.","observed":"2022 image shows parapet/cornice, dormer windows and chimneys at the visible roof edge.","unknown":"Roof depth, ridge geometry and metric height."},
+      "readiness":"candidate; frontage feature evidence is usable for a reviewed recipe, but metric geometry, full roof and currentness remain unresolved",
+      "nextAcquisition":"Current second oblique street-level view or measured survey covering the full roof and Charlotte-facing footprint."
+    },
+    {
+      "address": "28 Charlotte Street, London",
+      "map": {
+        "sourceId": "osm:way:138339551",
+        "version": 8,
+        "sourceTimestamp": "2024-10-10T09:17:33Z",
+        "url": "https://www.openstreetmap.org/way/138339551",
+        "geometry": "provider-reported footprint retained in map-inventory.json; imagery alignment and Charlotte-facing edge not surveyed",
+        "tags": {"addr:housenumber":"28","addr:street":"Charlotte Street","building:levels":"4","building:material":"brick","building:colour":"brown"}
+      },
+      "identity": [
+        {"source":"OSM way 138339551","url":"https://www.openstreetmap.org/way/138339551","finding":"Address tags identify 28 Charlotte Street; provider identity is a map join, not photographic proof."},
+        {"source":"London Picture Archive record 110408","url":"https://www.londonpicturearchive.org.uk/view-item?i=112682","finding":"Archive description identifies the pictured terrace as 20-28 even Charlotte Street and explicitly places number 28 at the far left as Charlotte Laundry; image location is marked exact."},
+        {"source":"Wikidata Q66478891","url":"https://www.wikidata.org/wiki/Q66478891","finding":"Item is labelled 28 Charlotte Street, Camden, London W1T and links the May 2022 Commons image; coordinate is independently recorded there."}
+      ],
+      "images": [
+        {"role":"primary frontage","sourceUrl":"https://commons.wikimedia.org/wiki/File:28_Charlotte_Street,_Fitzrovia,_May_2022.jpg","captureDate":"2022-05-28","provider":"Wikimedia Commons","photographer":"No Swan So Fine","license":"CC BY-SA 4.0","localFile":"candidate-28.jpg","inspect":"visually inspected existing evidence","observations":"Brown brick three-bay frontage with three upper window rows, pale window surrounds/brick heads, dark teal shopfront, separate dark door and railings; adjacent to pale 26 frontage.","limitations":"Single oblique street view; perspective does not provide metric dimensions, rear/side geometry or current 2026 condition; upper roof is cropped/partly visible."},
+        {"role":"historical context angle","sourceUrl":"https://www.londonpicturearchive.org.uk/view-item?i=112682","captureDate":"1970","provider":"London Picture Archive / The London Archives, LCC Photograph Library","photographer":"Not stated on record","license":"Commercial archive; permission/licence required for reuse","localFile":"frontage-references/20-28-charlotte-1970.jpg","sha256":"2d83f9744411a228a2acd2eafef7a22564119bdbc6d98e21c3c8a6cd3d758b3e","downloadUrl":"https://media.londonpicturearchive.org.uk/media.php?d=1&dg=d8e8a2511335cdf0ada9e6727b7a78c5627e3628&i=112682&p=11&t=2","retrievedAt":"2026-09-07T07:48:38Z","inspect":"visually inspected downloaded 290x400 preview","observations":"Wider oblique view shows 28 at the left end of the identified 20-28 terrace, its multi-storey elevation, shopfront context and roofline/chimneys.","limitations":"Historical low-resolution preview; no current condition, hidden roof/rear detail or reliable dimensions."}
+      ],
+      "roofHeight": {"map":"OSM reports four building levels; no roof shape or measured height tag.","observed":"1970 context view shows a roofline and chimney arrangement; 2022 view shows only the upper facade/roof edge.","unknown":"Roof depth/profile, metric height and rear geometry."},
+      "readiness":"candidate; frontage feature evidence is usable for a reviewed recipe, but metric geometry, full roof and currentness remain unresolved",
+      "nextAcquisition":"Current second oblique street-level view or measured survey covering roof and Charlotte-facing footprint."
+    },
+    {
+      "address": "30 Charlotte Street, London W1T 2NG",
+      "map": {
+        "sourceId": "osm:way:138339531",
+        "version": 7,
+        "sourceTimestamp": "2026-03-09T07:49:23Z",
+        "url": "https://www.openstreetmap.org/way/138339531",
+        "geometry": "provider-reported footprint retained in map-inventory.json; imagery alignment and Charlotte-facing edge not surveyed",
+        "tags": {"addr:housenumber":"30","addr:street":"Charlotte Street","building:levels":"5","building:material":"plaster","building:colour":"white"}
+      },
+      "identity": [
+        {"source":"OSM way 138339531","url":"https://www.openstreetmap.org/way/138339531","finding":"Address tags identify 30 Charlotte Street; provider identity is a map join, not photographic proof."},
+        {"source":"Camden planning record surfaced in official Camden open-data document","url":"https://opendata.camden.gov.uk/views/2thj-2p9i/files/d2698c34-12df-49d8-a8d4-667764020704?filename=CAM2208%20Response.pdf","finding":"Official council record names 30 Charlotte Street, London W1T 2NG and describes alterations to its second, third and fourth floors."},
+        {"source":"Fitzrovia News licensing report","url":"https://fitzrovianews.com/2022/02/15/licensing-application-lisboeta-30-charlotte-street/","finding":"Independent local report identifies the pictured ground-floor frontage as Lisboeta at 30 Charlotte Street, Fitzrovia and gives postcode W1T 2NG."}
+      ],
+      "images": [
+        {"role":"correct-address frontage/context","sourceUrl":"https://fitzrovianews.com/2022/02/15/licensing-application-lisboeta-30-charlotte-street/","captureDate":"2022-02 (article date; image capture date not stated)","provider":"Fitzrovia News / WordPress image CDN","photographer":"Fitzrovia News (byline/photo credit on article)","license":"Copyright status not stated; reference-only, do not redistribute without permission","localFile":"frontage-references/30-charlotte-2022.jpg","sha256":"ad8c9c1ae3d719f40840134d6533e5bb23da841d3f24e8dc538984dbd70e2acc","downloadUrl":"https://i0.wp.com/fitzrovianews.com/wp-content/uploads/2022/02/lisboeta-30-charlotte-street-2000px.jpg?resize=780%2C521&ssl=1","retrievedAt":"2026-09-07T07:48:38Z","inspect":"visually inspected downloaded 780x521 preview","observations":"Correct-address context image shows dark blue/black ground-floor frontage with three tall openings, central door signage, railings/basement area and visible neighbouring blue shopfront.","limitations":"Article does not state exact capture day; crop excludes upper floors and roof; image is historical and rights are unresolved."},
+        {"role":"rejected address fixture","sourceUrl":"https://commons.wikimedia.org/wiki/File:30_Charlotte_Street,_Fitzrovia,_May_2023.jpg","captureDate":"2023-05-26","provider":"Wikimedia Commons","photographer":"No Swan So Fine","license":"CC BY-SA 4.0","localFile":"candidate-30.jpg","inspect":"visually inspected existing evidence","observations":"Shows a numbered 30 frontage, but Commons metadata links listed building 1379038 and Historic England identifies that record as 30 Tottenham Street.","limitations":"Explicitly rejected for Charlotte Street identity; never use as positive match."}
+      ],
+      "roofHeight": {"map":"OSM reports five building levels; no roof shape or measured height tag.","observed":"No upper-floor or roof evidence in the correct-address 2022 image.","unknown":"Upper facade, roof profile/depth, metric height and rear geometry."},
+      "readiness":"address identity and ground-floor frontage are supported, but upper facade/roof evidence is missing; modelling packet remains incomplete",
+      "nextAcquisition":"Current or dated street-level view from farther back showing all floors and roof, with explicit 30 Charlotte Street linkage; retain the rejected Commons image only as a negative test."
+    }
+  ],
+  "downloadSummary": {"count":2,"limit":4,"retrievalTime":"2026-09-07T07:48:38Z"},
+  "coverageCaveat":"These three cards do not establish route-wide source coverage or F1 GO; geometry remains the pinned OSM candidate inventory and historical photographs do not establish 2026 condition."
+}
