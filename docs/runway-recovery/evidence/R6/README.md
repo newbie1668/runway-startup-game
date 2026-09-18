@@ -1,17 +1,21 @@
 # R6 integration candidate
 
 Latest accepted integration source: `70b4cc2d656df636c2045038708cc2665d4d337b`.
+Published evidence source: `03e5f02b20b9b23c7f250891c7f665257c264517`.
 Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
 
-## Current startup diagnosis
+## Current native production result
 
-The accepted combined source was published at `ce8716a`. Its [native production
-startup and diagnostic trace](browser-ce8716a.md) show actual city pixels, but
-7.23s cold / 5.43s reload and a separately traced 6.27s useful frame remain above
-the five-second target. Wide view, hub budgets and the rest of the matrix remain
-open on the combined source.
+The accepted runtime source was published at `03e5f02`. Its [complete native
+production procedure](browser-03e5f02.md) shows actual streamed city pixels,
+gameplay/save continuity, all eight hubs plus Fitzrovia, responsive desktop and
+touch-emulated interaction, typical hub budgets and failure fallback.
+Performance is not accepted: useful 3D measured 5.069s cold / 4.580s reload;
+wide measured 14.951s / 13.529s, 2,817 calls and 2.659M triangles. Geometry
+stayed below 128 MiB and completed-tour endpoints repeated exactly, but strict
+first-arrival retention and full JS/GPU disposal remain unresolved.
 
 The lead's `9c7e187` [road-classification candidate](road-classification-cpu.md)
 and disjoint [replacement-anchor candidate](anchor-bounds-cpu.md), `b77f6ae`,
@@ -30,8 +34,11 @@ ownership, cover sequence, cover lifecycle, project TypeScript and scoped ESLint
 Protected committed assets and game rules still have no diff against the PR base.
 No build overlaps browser measurement.
 
-The exact source is ready for native startup/wide/hub checks and the remaining
-production-browser matrix. CPU-only improvements are not browser acceptance.
+The exact source has completed the bounded production-browser matrix. Physical
+iPhone Safari, exact all-slice timing, forced-GC/GPU disposal, duplicate-loop
+counting, separate non-touch mobile sizing, current SwiftShader and formal
+fidelity acceptance remain open. CPU-only improvements are not browser
+acceptance.
 
 ## Accepted combined runtime candidate
 

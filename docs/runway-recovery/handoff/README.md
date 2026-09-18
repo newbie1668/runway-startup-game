@@ -30,8 +30,12 @@ replacement-anchor candidate `b77f6ae` (runtime `227b85e`, then test-only
 corrections) also passes [independent review](../evidence/R6/anchor-bounds-cpu.md).
 Both are integrated through `70b4cc2`, with byte-identical reviewed file sets.
 All six combined gates, affected focused tests, scoped lint and TypeScript
-pass on that exact source. Next: native startup/wide/hub checks and the
-remaining production-browser matrix, with no overlapping build.
+pass on that exact source. The [native production matrix](../evidence/R6/browser-03e5f02.md)
+is now complete on published source `03e5f02`. Actual city streaming,
+typical hub budgets, interaction, gameplay/save continuity and fallback pass.
+Desktop cold startup, wide startup/triangles, strict first-arrival retention
+and complete disposal do not pass or remain unresolved. Scope a measured
+correction before another browser run; do not restart accepted integration.
 See status before counting any browser acceptance as complete.
 The newer 122.62 MiB CPU-only overview also excludes landmarks/GPU/browser
 work. Its long CPU drain outliers and slower street sample remain caveats.
