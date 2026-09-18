@@ -17,8 +17,15 @@ import {
 } from '../lib/game/render3d/staticMeshBatch';
 
 let passed = 0;
+let failed = 0;
 function check(name: string, fn: () => void): void {
-  fn();
+  try {
+    fn();
+  } catch (error) {
+    failed += 1;
+    console.log(`  ✗ ${name}\n    ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+    return;
+  }
   passed += 1;
   console.log(`  ✓ ${name}`);
 }
@@ -115,6 +122,8 @@ function assertParity(root: THREE.Object3D, before: ReturnType<typeof snapshot>,
         assert.ok(b, `${label}: attribute ${name} dropped`);
         assert.equal(b.itemSize, a.itemSize);
         assert.equal(b.normalized, a.normalized);
+        assert.equal(b.gpuType, a.gpuType, `${label}: ${name} gpuType changed`);
+        assert.equal(b.array.constructor, a.array.constructor, `${label}: ${name} array type changed`);
         for (let i = 0; i < a.array.length; i++) {
           assert.equal(b.array[source.vertexStart * a.itemSize + i], a.array[i], `${label}: ${name}[${i}] differs`);
         }
@@ -217,6 +226,69 @@ check('different material objects or render flags stay separate; equal-valued ma
   assert.deepEqual(names, ['p1+1', 'q1+1', 's1+1'], 'batches keep first-member ordering');
   assert.equal((root.children[2] as THREE.Mesh).castShadow, true);
   assertParity(root, before, 'flags');
+});
+
+check('distinct material objects sharing a uuid never merge', () => {
+  const m1 = lambert(0x222222);
+  const m2 = lambert(0x222222);
+  m2.uuid = m1.uuid;
+  const root = new THREE.Group();
+  root.add(box(m1, 0, 0, 0, 'a1'), box(m2, 1, 0, 0, 'b1'), box(m1, 2, 0, 0, 'a2'), box(m2, 3, 0, 0, 'b2'));
+  const before = snapshot(root);
+  const report = batchStaticMeshes(root);
+  assert.equal(report.batches, 2, 'one batch per material object');
+  const materials = root.children.map((c) => (c as THREE.Mesh).material);
+  assert.ok(materials.includes(m1) && materials.includes(m2));
+  assertParity(root, before, 'same-uuid');
+});
+
+check('integer GPU attributes keep their gpuType, array type and raw values', () => {
+  const m = lambert(0x444444);
+  const root = new THREE.Group();
+  const withIds = (name: string, x: number): THREE.Mesh => {
+    const mesh = box(m, x, 0, 0, name);
+    const count = mesh.geometry.getAttribute('position').count;
+    const ids = new THREE.BufferAttribute(new Uint16Array(count).map((_, i) => (i * 7 + x) & 0xffff), 1);
+    ids.gpuType = THREE.IntType;
+    mesh.geometry.setAttribute('id', ids);
+    const color = new THREE.BufferAttribute(new Uint8Array(count * 3).map((_, i) => (i * 13 + x) & 0xff), 3, true);
+    mesh.geometry.setAttribute('color', color);
+    return mesh;
+  };
+  root.add(withIds('i1', 0), withIds('i2', 1), withIds('i3', 2));
+  const before = snapshot(root);
+  const report = batchStaticMeshes(root);
+  assert.equal(report.batches, 1);
+  const batch = root.children[0] as THREE.Mesh;
+  const id = batch.geometry.getAttribute('id');
+  assert.equal(id.gpuType, THREE.IntType);
+  assert.ok(id.array instanceof Uint16Array);
+  const color = batch.geometry.getAttribute('color');
+  assert.equal(color.gpuType, THREE.FloatType);
+  assert.equal(color.normalized, true);
+  assert.ok(color.array instanceof Uint8Array);
+  assertParity(root, before, 'int-attrs');
+});
+
+check('custom Mesh subclasses and instance raycast overrides stay untouched', () => {
+  class Marker extends THREE.Mesh {}
+  const m = lambert(0x888888);
+  const root = new THREE.Group();
+  const sub1 = new Marker(new THREE.BoxGeometry(1, 1, 1), m);
+  const sub2 = new Marker(new THREE.BoxGeometry(1, 1, 1), m);
+  sub2.position.x = 2;
+  const picked = box(m, 4, 0, 0, 'picked');
+  picked.raycast = () => undefined;
+  const picked2 = box(m, 5, 0, 0, 'picked2');
+  picked2.raycast = () => undefined;
+  const plain1 = box(m, 6, 0, 0, 'plain');
+  const plain2 = box(m, 7, 0, 0, 'plain');
+  root.add(sub1, sub2, picked, picked2, plain1, plain2);
+  const before = snapshot(root);
+  const report = batchStaticMeshes(root);
+  assert.deepEqual(report, { candidates: 6, skipped: 4, merged: 2, batches: 1, disposedGeometries: 2 });
+  for (const kept of [sub1, sub2, picked, picked2]) assert.equal(kept.parent, root);
+  assertParity(root, before, 'subclass');
 });
 
 check('nested animated group keeps its transform and batches only inside itself', () => {
@@ -461,4 +533,8 @@ const totalBefore = rows.reduce((n, r) => n + r.before.meshes, 0);
 const totalAfter = rows.reduce((n, r) => n + r.after.meshes, 0);
 const totalMs = rows.reduce((n, r) => n + r.ms, 0);
 console.log(`total procedural meshes ${totalBefore} -> ${totalAfter}; batching time ${totalMs.toFixed(1)} ms; max per asset ${Math.max(...rows.map((r) => r.ms)).toFixed(2)} ms`);
+if (failed > 0) {
+  console.log(`\n${failed} of ${passed + failed} static-mesh-batch checks failed.`);
+  process.exit(1);
+}
 console.log(`\nAll ${passed} static-mesh-batch checks passed.`);
