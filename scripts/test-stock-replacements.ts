@@ -64,6 +64,10 @@ function fixture(): CityData {
 
 function polygonBuilding(points: readonly [number, number][]) {
   const verts = new Uint16Array(points.flatMap(([x, z]) => [quantizeX(x), quantizeY(z)]));
+  return buildingWithVerts(verts);
+}
+
+function buildingWithVerts(verts: Uint16Array) {
   const indices = new Uint8Array();
   return {
     major: false,
@@ -357,6 +361,50 @@ check(
     );
   },
 );
+
+check('matches the original predicate for malformed and zero-area footprints', () => {
+  const zeroX = dequantizeX(quantizeX(60));
+  const zeroZ = dequantizeY(quantizeY(60));
+  const city: CityData = {
+    buildings: [
+      buildingWithVerts(new Uint16Array()),
+      buildingWithVerts(new Uint16Array([quantizeX(1), quantizeY(1)])),
+      buildingWithVerts(new Uint16Array([quantizeX(2), quantizeY(2), quantizeX(3)])),
+      buildingWithVerts(
+        new Uint16Array([
+          quantizeX(60),
+          quantizeY(60),
+          quantizeX(60),
+          quantizeY(60),
+          quantizeX(60),
+          quantizeY(60),
+        ]),
+      ),
+    ],
+    roads: [],
+    parks: [],
+    water: [],
+  };
+  const anchors = [
+    { id: 'empty', x: 0, z: 0 },
+    { id: 'short', x: 1, z: 1 },
+    { id: 'odd', x: 2, z: 2 },
+    { id: 'zero-area', x: zeroX, z: zeroZ },
+  ];
+  const actual = mapReplacementAnchors(city, anchors);
+  const expected = referenceMap(city, anchors);
+  assert.deepEqual(mappingShape(actual), mappingShape(expected));
+  assert.deepEqual(mappingShape(actual), {
+    buildingIndexById: [['zero-area', 3]],
+    unmatchedIds: ['empty', 'short', 'odd'],
+    ambiguousIds: [],
+  });
+  assert.deepEqual(mappingShape(mapReplacementAnchors(city, [])), {
+    buildingIndexById: [],
+    unmatchedIds: [],
+    ambiguousIds: [],
+  });
+});
 
 check('Poultry retains ordinary massing and picking while its GLB remains unfetched', () => {
   assert.equal(shouldLoadNoticedGlb('no-1-poultry', false), false);
