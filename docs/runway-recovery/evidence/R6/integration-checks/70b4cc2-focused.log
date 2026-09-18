@@ -1,0 +1,52 @@
+Source: 70b4cc2d656df636c2045038708cc2665d4d337b
+
+COMMAND: pnpm exec tsx scripts/test-stock-replacements.ts
+✓ Lockfile passes supply-chain policies (verified 6h ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+.../node_modules/unrs-resolver postinstall$ node postinstall.js
+.../sharp@0.34.5/node_modules/sharp install$ node install/check.js || npm run build
+.../node_modules/unrs-resolver postinstall: Done
+.../sharp@0.34.5/node_modules/sharp install: Done
+Done in 386ms using pnpm v12.4.1
+Stock replacement coverage
+  ✓ active IDs are deterministic and duplicates are malformed
+  ✓ only visible nonempty roots activate replacements
+  ✓ throwing partial attachment cannot activate a replacement
+  ✓ only an active, uniquely-contained anchor suppresses its own source footprint
+  ✓ disabled, failed, unmapped, and ambiguous replacements leave stock eligible
+  ✓ a former broad radius cannot remove a neighbouring footprint
+  ✓ matches the original predicate for concave, boundary, overlap, duplicate, and nonfinite cases
+  ✓ matches the original predicate for malformed and zero-area footprints
+  ✓ Poultry retains ordinary massing and picking while its GLB remains unfetched
+
+Committed mapping summary: mapped=53 unmatched=16 ambiguous=1
+CPU-only equivalent mapping timing: original=1854.1ms optimized=96.4ms (3 identical calls; committed binary + renderer anchors)
+All 9 stock-replacement checks passed.
+EXIT: 0
+
+COMMAND: pnpm exec tsx scripts/test-water-query.ts
+water-query semantics: 15 spans, source 6698590 bytes
+EXIT: 0
+
+COMMAND: pnpm exec tsx scripts/test-road-cover-job.ts
+Road cover jobs: full binary parity, cold context, bounded reads, crossing selection and cancellation passed
+EXIT: 0
+
+COMMAND: pnpm exec tsx scripts/test-cover-context-ownership.ts
+Road and water cache ownership, nested mutation and readonly contracts passed
+EXIT: 0
+
+COMMAND: pnpm exec tsx scripts/test-cover-sequence.ts
+Cover sequences: radix boundaries, lazy source reads, water parity and accepted road context (864 ms CPU only)
+EXIT: 0
+
+COMMAND: pnpm exec tsx scripts/test-cover-job-lifecycle.ts
+6 adversarial cover lifecycle checks passed
+EXIT: 0
+
+COMMAND: pnpm exec tsc --noEmit
+EXIT: 0
+
+COMMAND: scoped ESLint
+EXIT: 0

@@ -3,7 +3,8 @@
 Base: `ce8716a72d1e5631b49ffac6c479d5ec4e9cea89`.
 Runtime candidate: `227b85e6520d736abd61d8391348afc891bcadc8`.
 Final test revision: `b77f6aea851af84bcfeec61bb77b72d5c0175240`.
-Status: pending independent review, not browser acceptance.
+Status: independently accepted; integrated through
+`70b4cc2d656df636c2045038708cc2665d4d337b`. This is not browser acceptance.
 
 The [worker report](https://app.devin.ai/attachments/602407ac-ead4-4aad-963f-b8b4a89bbb1e/report.md)
 records per-call decoded footprint bounds before the unchanged exact
@@ -37,4 +38,15 @@ short-ring guard. The
 [final report](https://app.devin.ai/attachments/67c55b5b-accf-4b9e-af49-55e5809b237d/report.md)
 records nine passing checks and scoped lint at the final test revision.
 
-Independent review and final combined repository/browser gates remain pending.
+The [independent review](https://app.devin.ai/attachments/1188e03e-012a-464d-a19b-9d89beabb2c2/anchor-bounds-review.md)
+accepts the exact final candidate with no material findings. It verified the
+oracle against the old implementation, byte-identical exact predicate,
+inclusive decoded bounds, malformed/degenerate behavior, original ordering,
+committed renderer anchors and absence of persistent caches. All nine focused
+checks, scoped lint and project TypeScript exited 0 in the reviewer checkout.
+
+Parent integration preserves both reviewed files byte for byte. All six combined
+repository gates and affected focused checks passed on `70b4cc2`; see the
+[integration output](integration-checks/70b4cc2.log) and
+[focused output](integration-checks/70b4cc2-focused.log).
+Production-browser acceptance remains pending.

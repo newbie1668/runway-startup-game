@@ -27,9 +27,11 @@ See [native diagnostic evidence](../evidence/R6/browser-ce8716a.md).
 Lead candidate `9c7e187` reuses exact road-water classifications and passes
 [independent review](../evidence/R6/road-classification-cpu.md). The separate
 replacement-anchor candidate `b77f6ae` (runtime `227b85e`, then test-only
-corrections) awaits review. Next: accept the anchor packet if justified,
-integrate, run combined gates, then native startup/wide/hub checks and the
-remaining matrix.
+corrections) also passes [independent review](../evidence/R6/anchor-bounds-cpu.md).
+Both are integrated through `70b4cc2`, with byte-identical reviewed file sets.
+All six combined gates, affected focused tests, scoped lint and TypeScript
+pass on that exact source. Next: native startup/wide/hub checks and the
+remaining production-browser matrix, with no overlapping build.
 See status before counting any browser acceptance as complete.
 The newer 122.62 MiB CPU-only overview also excludes landmarks/GPU/browser
 work. Its long CPU drain outliers and slower street sample remain caveats.

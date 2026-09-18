@@ -1,6 +1,6 @@
 # R6 integration candidate
 
-Latest accepted integration source: `2ce587cf2d7d8bfe80775f1c8e770cd5d8ed666d`.
+Latest accepted integration source: `70b4cc2d656df636c2045038708cc2665d4d337b`.
 Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
@@ -14,11 +14,24 @@ the five-second target. Wide view, hub budgets and the rest of the matrix remain
 open on the combined source.
 
 The lead's `9c7e187` [road-classification candidate](road-classification-cpu.md)
-passes independent review, preserving exact context output and removing repeated
-source-vertex predicates. The disjoint
-[replacement-anchor candidate](anchor-bounds-cpu.md), `b77f6ae`, awaits review.
-Combined gates and the next browser run follow integration; CPU-only improvements
-are not browser acceptance.
+and disjoint [replacement-anchor candidate](anchor-bounds-cpu.md), `b77f6ae`,
+both pass independent review with no material findings. They are integrated
+through `70b4cc2`, preserving both reviewed file sets byte for byte. Road
+classifications are reused without changing exact context output; anchor
+footprints use exact decoded bounds before the unchanged containment predicate.
+
+All six repository gates ran sequentially and exited 0 on `70b4cc2`:
+`pnpm test:game` (111 checks), `pnpm test:ui` (9), `pnpm lint`, `pnpm build`,
+`pnpm tsx scripts/fetch-geodata.ts --verify` and `git diff --check`.
+[Full gate output](integration-checks/70b4cc2.log).
+The [focused run](integration-checks/70b4cc2-focused.log) passed stock replacements
+(9 checks and committed anchor parity), water query, road cover, context
+ownership, cover sequence, cover lifecycle, project TypeScript and scoped ESLint.
+Protected committed assets and game rules still have no diff against the PR base.
+No build overlaps browser measurement.
+
+The exact source is ready for native startup/wide/hub checks and the remaining
+production-browser matrix. CPU-only improvements are not browser acceptance.
 
 ## Accepted combined runtime candidate
 
