@@ -49,8 +49,47 @@ After the leaf cache, the same default Fitzrovia CPU profile measured 1.78 s,
 410 drains (first essential coverage at 363), maximum drain 7.56 ms, the same
 5,983 buildings and 31.723177 MiB. Both new profiles used the unchanged 400m
 cover grid, ran sequentially with no build/browser workload, and retain the
-exclusions above. Cover-grid `eed997d`, static batching `8cb94bf` and idle
-generation `6309990` are under independent review and are not in these results.
+exclusions above. The later grid, batching and idle candidates are not in
+these historical results.
+
+## Accepted cover-grid integration
+
+[Independent review](cover-grid-review.md) accepted `eed997d`, integrated
+through `7e12480`. Stock remains on the 400m grid; the renderer requests
+1600m cover cells. Default cover-index callers still use 400m. Parent reran
+both explicit 400/1600 stream fixtures, cover index, stream coverage, cover
+cell and tree jobs, project TypeScript, scoped ESLint and whitespace checks;
+all passed. The review covers actual tree positions, boundary-crossing
+geometry parity, eviction and zero-byte disposal.
+
+The profiler now accepts `--cover-cell=1600` and reports that size explicitly;
+omitting it still measures 400m and cannot represent the new renderer.
+Sequential CPU-only commands on source `7e12480` plus that profiler option:
+
+```sh
+pnpm exec tsx scripts/profile-city-stream.ts --cover-cell=1600
+pnpm exec tsx scripts/profile-city-stream.ts --cover-cell=1600 --overview
+```
+
+| Metric | Fitzrovia | Overview |
+| --- | ---: | ---: |
+| CPU elapsed | 2.39 s | 5.88 s |
+| Synthetic drains / first essential coverage | 516 / 458 | 1365 / 1365 |
+| Maximum drain | 58.73 ms | 29.18 ms |
+| Geometry / peak | 32.309748 MiB | 122.623495 MiB |
+| Buildings | 5,983 | 113,563 |
+| Residents | 42 | 1,714 |
+| CPU stock / cover / tree call estimate | 7 / 17 / 4 | 1,609 / 957 / 0 |
+| CPU stock / cover / tree triangles | 346,693 / 23,158 / 640 | 2,089,716 / 530,850 / 0 |
+
+These single runs preserve the visible geometry/call tradeoff, but their
+longest drains exceed the slice target and the street profile is slower
+than the earlier 400m sample. They do not establish a timing improvement.
+No browser or build ran alongside them. They still exclude heroes, GPU
+upload/rendering, browser frame waits and process overhead. Actual startup,
+frame intervals, complete resident geometry and drawn primitives require
+the combined production-browser run. Static batching `3e5bc0f` and idle
+generation `6309990` remain unintegrated pending independent review.
 
 A conservative road/water bounds bypass was rejected: isolated cold runs
 slowed from 1.398/1.429/1.432 s to 1.539/1.529/1.525 s despite 13% fewer

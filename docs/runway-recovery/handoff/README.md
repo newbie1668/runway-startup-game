@@ -16,10 +16,13 @@ restored 3D navigation and game/save continuity, but still fails startup
 Stream admission `9573562`, park containment `56bde73` and water leaf cache
 `a22118e` are independently reviewed integration changes, awaiting combined
 gates and a new browser run. `2a61884` strengthens leaf-capacity and full-road
-context parity regressions. Cover-grid `eed997d`, static batching `8cb94bf` and
-idle-generation `6309990` remain isolated candidates under independent review.
+context parity regressions. Cover-grid `eed997d` is independently accepted
+and integrated through `7e12480`; stock stays 400m and cover becomes 1600m.
+Static batching `3e5bc0f` and idle-generation `6309990` remain isolated
+candidates under independent review.
 See status for pending isolated worker branches; do not count them as accepted.
-The 127.54 MiB CPU-only overview excludes landmarks/GPU/browser work.
+The newer 122.62 MiB CPU-only overview also excludes landmarks/GPU/browser
+work. Its long CPU drain outliers and slower street sample remain caveats.
 Source audit `1aa3fef` is accepted as an honest modelling NO-GO packet.
 See [current status](../status.md) before using the historical notes below.
 

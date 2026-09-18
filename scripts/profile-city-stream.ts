@@ -22,6 +22,8 @@ const decodedMs = performance.now() - started;
 const stockStarted = performance.now();
 const cityIndex = indexCity(data, 400);
 const stockIndexMs = performance.now() - stockStarted;
+const coverCellArg = process.argv.find((arg) => arg.startsWith('--cover-cell='));
+const coverCellSizeM = coverCellArg ? Number(coverCellArg.slice('--cover-cell='.length)) : 400;
 const indexed: { value: CoverIndex | null } = { value: null };
 const indexScheduler = createBuildScheduler();
 indexScheduler.enqueue(
@@ -30,6 +32,7 @@ indexScheduler.enqueue(
     generation: 0,
     essential: true,
     cityData: data,
+    cellSizeM: coverCellSizeM,
     now: () => performance.now(),
     onReady: (value) => {
       indexed.value = value;
@@ -148,6 +151,7 @@ console.log(
   JSON.stringify(
     {
       mode: camera ? 'custom' : overview ? 'overview' : 'Fitzrovia',
+      coverCellSizeM,
       decodedMs,
       stockIndexMs,
       indexFrames,
