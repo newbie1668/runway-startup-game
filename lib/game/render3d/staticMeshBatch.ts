@@ -84,23 +84,35 @@ interface PlannedBatch {
 
 const MIN_DETERMINANT = 1e-12;
 
+const INSTANCE_OVERRIDES = ['onBeforeRender', 'onAfterRender', 'raycast'] as const;
+
 /**
- * True when a render callback is the inherited Object3D no-op rather than an
- * instance or subclass override. Resolved by prototype walk, not by identity
- * with this module's `THREE`, so scenes parsed by another three instance
- * (e.g. ESM addons under a CJS test runner) are judged the same way.
+ * True only for a plain `Mesh` instance: prototype chain is exactly
+ * Mesh → Object3D → EventDispatcher → Object.prototype, with no instance-level
+ * override of render callbacks or raycast. Custom subclasses are rejected.
+ * Judged by prototype shape rather than identity with this module's `THREE`,
+ * so scenes parsed by another three instance (ESM addons under a CJS test
+ * runner) are treated the same as the bundled app.
  */
-function hasDefaultRenderCallback(mesh: THREE.Mesh, name: 'onBeforeRender' | 'onAfterRender'): boolean {
+function isPlainMesh(mesh: THREE.Mesh): boolean {
   const has = Object.prototype.hasOwnProperty;
-  if (has.call(mesh, name)) return false;
-  let proto = Object.getPrototypeOf(mesh) as object | null;
-  while (proto !== null && proto !== Object.prototype) {
-    if (has.call(proto, name)) {
-      return has.call(proto, 'traverse') && has.call(proto, 'updateMatrixWorld') && has.call(proto, 'onAfterRender');
-    }
-    proto = Object.getPrototypeOf(proto) as object | null;
+  if (mesh.type !== 'Mesh') return false;
+  for (const name of INSTANCE_OVERRIDES) if (has.call(mesh, name)) return false;
+  const meshProto = Object.getPrototypeOf(mesh) as object | null;
+  if (meshProto === null || !has.call(meshProto, 'raycast') || !has.call(meshProto, 'getVertexPosition')) return false;
+  const object3dProto = Object.getPrototypeOf(meshProto) as object | null;
+  if (
+    object3dProto === null ||
+    !has.call(object3dProto, 'onBeforeRender') ||
+    !has.call(object3dProto, 'onAfterRender') ||
+    !has.call(object3dProto, 'traverse') ||
+    !has.call(object3dProto, 'updateMatrixWorld')
+  ) {
+    return false;
   }
-  return false;
+  const dispatcherProto = Object.getPrototypeOf(object3dProto) as object | null;
+  if (dispatcherProto === null || !has.call(dispatcherProto, 'dispatchEvent')) return false;
+  return Object.getPrototypeOf(dispatcherProto) === Object.prototype;
 }
 
 function typedArrayName(array: ArrayLike<number>): string {
@@ -133,7 +145,7 @@ function candidateOf(mesh: THREE.Mesh, maxVertices: number, maxBytes: number): C
   };
   if (flagged.isSkinnedMesh || flagged.isInstancedMesh || flagged.isBatchedMesh) return null;
   if (mesh.children.length > 0) return null;
-  if (!hasDefaultRenderCallback(mesh, 'onBeforeRender') || !hasDefaultRenderCallback(mesh, 'onAfterRender')) return null;
+  if (!isPlainMesh(mesh)) return null;
   if (flagged.customDepthMaterial || flagged.customDistanceMaterial) return null;
   if (mesh.morphTargetInfluences && mesh.morphTargetInfluences.length > 0) return null;
   if (Array.isArray(mesh.material)) return null;
@@ -172,7 +184,6 @@ function candidateOf(mesh: THREE.Mesh, maxVertices: number, maxBytes: number): C
   for (const value of matrix.elements) if (!Number.isFinite(value)) return null;
 
   const key = [
-    material.uuid,
     mesh.visible ? 1 : 0,
     mesh.castShadow ? 1 : 0,
     mesh.receiveShadow ? 1 : 0,
@@ -203,7 +214,7 @@ function planPages(
   const pages: Page[] = [];
   const nameCounts = keepUniquelyNamed ? meshNameCounts(root) : null;
   root.traverse((node) => {
-    const byKey = new Map<string, Candidate[]>();
+    const byMaterial = new Map<THREE.Material, Map<string, Candidate[]>>();
     for (const child of node.children) {
       if (!(child as { isMesh?: boolean }).isMesh) continue;
       report.candidates += 1;
@@ -213,11 +224,16 @@ function planPages(
         report.skipped += 1;
         continue;
       }
+      let byKey = byMaterial.get(candidate.material);
+      if (!byKey) {
+        byKey = new Map();
+        byMaterial.set(candidate.material, byKey);
+      }
       const list = byKey.get(candidate.key);
       if (list) list.push(candidate);
       else byKey.set(candidate.key, [candidate]);
     }
-    for (const list of byKey.values()) {
+    for (const byKey of byMaterial.values()) for (const list of byKey.values()) {
       let current: Candidate[] = [];
       let vertices = 0;
       let bytes = 0;
@@ -262,13 +278,14 @@ function buildPageGeometry(page: Page): THREE.BufferGeometry {
 
   const merged = new THREE.BufferGeometry();
   try {
-    const outputs = new Map<string, { array: TypedArray; itemSize: number; normalized: boolean }>();
+    const outputs = new Map<string, { array: TypedArray; itemSize: number; normalized: boolean; gpuType: THREE.AttributeGPUType }>();
     for (const name of attributeNames) {
       const template = first.geometry.getAttribute(name) as THREE.BufferAttribute;
       outputs.set(name, {
         array: allocateLike(template.array as TypedArray, totalVertices * template.itemSize),
         itemSize: template.itemSize,
         normalized: template.normalized,
+        gpuType: template.gpuType,
       });
     }
     const IndexCtor = totalVertices > 65535 ? Uint32Array : Uint16Array;
@@ -315,7 +332,9 @@ function buildPageGeometry(page: Page): THREE.BufferGeometry {
     }
 
     for (const [name, output] of outputs) {
-      merged.setAttribute(name, new THREE.BufferAttribute(output.array, output.itemSize, output.normalized));
+      const attribute = new THREE.BufferAttribute(output.array, output.itemSize, output.normalized);
+      attribute.gpuType = output.gpuType;
+      merged.setAttribute(name, attribute);
     }
     if (indexArray) merged.setIndex(new THREE.BufferAttribute(indexArray, 1));
     merged.computeBoundingBox();
