@@ -49,6 +49,32 @@ function pointOnSegment(
   return (x - ax) * (x - bx) + (z - az) * (z - bz) <= 0;
 }
 
+type BoundsXZ = {
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+};
+
+function decodeBounds(verts: Uint16Array): BoundsXZ | null {
+  const n = verts.length / 2;
+  if (n < 3) return null;
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const x = dequantizeX(verts[i * 2]!);
+    const z = dequantizeY(verts[i * 2 + 1]!);
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+    minX = Math.min(minX, x);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxZ = Math.max(maxZ, z);
+  }
+  return { minX, minZ, maxX, maxZ };
+}
+
 /** Boundary-inclusive point-in-ring without the biased water-query epsilon. */
 function containsPoint(verts: Uint16Array, x: number, z: number): boolean {
   const n = verts.length / 2;
@@ -91,6 +117,7 @@ export function mapReplacementAnchors(
   const unmatchedIds: string[] = [];
   const ambiguousIds: string[] = [];
   const seen = new Set<string>();
+  const boundsByBuilding = cityData.buildings.map(({ verts }) => decodeBounds(verts));
   for (const anchor of anchors) {
     if (seen.has(anchor.id)) throw new Error(`duplicate replacement anchor id: ${anchor.id}`);
     seen.add(anchor.id);
@@ -100,7 +127,18 @@ export function mapReplacementAnchors(
     }
     const matches: number[] = [];
     for (let i = 0; i < cityData.buildings.length; i++) {
-      if (containsPoint(cityData.buildings[i]!.verts, anchor.x, anchor.z)) matches.push(i);
+      const verts = cityData.buildings[i]!.verts;
+      const bounds = boundsByBuilding[i]!;
+      if (
+        bounds &&
+        anchor.x >= bounds.minX &&
+        anchor.x <= bounds.maxX &&
+        anchor.z >= bounds.minZ &&
+        anchor.z <= bounds.maxZ &&
+        containsPoint(verts, anchor.x, anchor.z)
+      ) {
+        matches.push(i);
+      }
     }
     if (matches.length === 1) buildingIndexById.set(anchor.id, matches[0]!);
     else if (matches.length === 0) unmatchedIds.push(anchor.id);
