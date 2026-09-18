@@ -466,6 +466,109 @@ check('uses Uint32 indices only when a page exceeds 65535 vertices', () => {
   assertParity(root, before, 'large-page');
 });
 
+function geometryBytesOf(g: THREE.BufferGeometry): number {
+  let bytes = g.index ? g.index.array.byteLength : 0;
+  for (const a of Object.values(g.attributes)) bytes += (a as THREE.BufferAttribute).array.byteLength;
+  return bytes;
+}
+
+function assertPagesWithin(root: THREE.Object3D, maxBytes: number, label: string): void {
+  for (const mesh of meshes(root)) {
+    if (!staticBatchMetadata(mesh)) continue;
+    assert.ok(geometryBytesOf(mesh.geometry) <= maxBytes, `${label}: page is ${geometryBytesOf(mesh.geometry)} bytes > maxBytes ${maxBytes}`);
+  }
+}
+
+function triangle(material: THREE.Material, x: number, indexed: boolean): THREE.Mesh {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3));
+  if (indexed) g.setIndex(new THREE.BufferAttribute(new Uint8Array([0, 1, 2]), 1));
+  const mesh = new THREE.Mesh(g, material);
+  mesh.position.x = x;
+  return mesh;
+}
+
+/** Bytes a page would occupy with its members' source geometries summed (the old, wrong admission metric). */
+function sourceBytesSum(root: THREE.Object3D): number {
+  return meshes(root).reduce((n, m) => n + geometryBytesOf(m.geometry), 0);
+}
+
+check('byte cap counts Uint8 indices promoted to Uint16 in the output page', () => {
+  const m = new THREE.MeshBasicMaterial();
+  const root = new THREE.Group();
+  root.add(triangle(m, 0, true), triangle(m, 2, true));
+  const sourceSum = sourceBytesSum(root);
+  assert.equal(sourceSum, 78);
+  const before = snapshot(root);
+  const report = batchStaticMeshes(root, { maxBytes: sourceSum });
+  assert.equal(report.batches, 0, 'promoted page (84 bytes) must not be admitted under maxBytes 78');
+  assert.equal(report.skipped, 2);
+  assertParity(root, before, 'uint8-cap');
+  assertPagesWithin(root, sourceSum, 'uint8-cap');
+
+  const report2 = batchStaticMeshes(root, { maxBytes: 84 });
+  assert.equal(report2.batches, 1);
+  const page = root.children[0] as THREE.Mesh;
+  assert.equal(geometryBytesOf(page.geometry), 84);
+  assert.ok(page.geometry.index!.array instanceof Uint16Array);
+  assertPagesWithin(root, 84, 'uint8-fit');
+  assertParity(root, before, 'uint8-fit');
+});
+
+check('byte cap counts indices generated for non-indexed members of a mixed page', () => {
+  const m = new THREE.MeshBasicMaterial();
+  const root = new THREE.Group();
+  root.add(triangle(m, 0, true), triangle(m, 2, false));
+  const sourceSum = sourceBytesSum(root);
+  assert.equal(sourceSum, 75);
+  const before = snapshot(root);
+  const report = batchStaticMeshes(root, { maxBytes: sourceSum });
+  assert.equal(report.batches, 0, 'mixed page (84 bytes) must not be admitted under maxBytes 75');
+  assertParity(root, before, 'mixed-cap');
+
+  const report2 = batchStaticMeshes(root, { maxBytes: 84 });
+  assert.equal(report2.batches, 1);
+  const page = root.children[0] as THREE.Mesh;
+  assert.equal(geometryBytesOf(page.geometry), 84);
+  assert.equal(page.geometry.index!.count, 6);
+  assertPagesWithin(root, 84, 'mixed-fit');
+  assertParity(root, before, 'mixed-fit');
+
+  const root3 = new THREE.Group();
+  root3.add(triangle(m, 0, false), triangle(m, 2, false));
+  const report3 = batchStaticMeshes(root3, { maxBytes: 72 });
+  assert.equal(report3.batches, 1, 'all-non-indexed page stays non-indexed and fits exactly');
+  assert.equal((root3.children[0] as THREE.Mesh).geometry.index, null);
+  assertPagesWithin(root3, 72, 'nonindexed-fit');
+});
+
+check('byte cap counts Uint16 to Uint32 index promotion when a page exceeds 65535 vertices', () => {
+  const m = new THREE.MeshBasicMaterial();
+  const root = new THREE.Group();
+  const a = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 200, 200), m);
+  const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 200, 200), m);
+  b.position.x = 3;
+  root.add(a, b);
+  assert.ok(a.geometry.index!.array instanceof Uint16Array);
+  const verts = a.geometry.getAttribute('position').count;
+  assert.ok(verts * 2 > 65535 && verts <= 65535);
+  const sourceSum = sourceBytesSum(root);
+  const indexCount = a.geometry.index!.count + b.geometry.index!.count;
+  const promoted = sourceSum + indexCount * 2;
+  const before = snapshot(root);
+  const report = batchStaticMeshes(root, { maxVertices: 200000, maxBytes: sourceSum });
+  assert.equal(report.batches, 0, 'Uint32-promoted page must not be admitted when only source bytes fit');
+  assertParity(root, before, 'uint32-cap');
+
+  const report2 = batchStaticMeshes(root, { maxVertices: 200000, maxBytes: promoted });
+  assert.equal(report2.batches, 1);
+  const page = root.children[0] as THREE.Mesh;
+  assert.ok(page.geometry.index!.array instanceof Uint32Array);
+  assert.equal(geometryBytesOf(page.geometry), promoted);
+  assertPagesWithin(root, promoted, 'uint32-fit');
+  assertParity(root, before, 'uint32-fit');
+});
+
 // Per-asset parity on committed procedural assets.
 type AssetRow = { asset: string; before: MeshStats; after: MeshStats; report: StaticBatchReport; ms: number };
 const rows: AssetRow[] = [];
