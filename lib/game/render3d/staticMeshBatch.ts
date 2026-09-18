@@ -69,7 +69,19 @@ interface Candidate {
   vertexCount: number;
   indexCount: number;
   bytes: number;
+  attributeBytes: number;
   key: string;
+}
+
+const UINT16_MAX_VERTICES = 65535;
+
+function indexArrayCtor(totalVertices: number): Uint16ArrayConstructor | Uint32ArrayConstructor {
+  return totalVertices > UINT16_MAX_VERTICES ? Uint32Array : Uint16Array;
+}
+
+/** Exact byte size of the geometry a page with these totals would produce. */
+function plannedOutputBytes(attributeBytes: number, totalVertices: number, totalIndices: number, indexed: boolean): number {
+  return attributeBytes + (indexed ? totalIndices * indexArrayCtor(totalVertices).BYTES_PER_ELEMENT : 0);
 }
 
 interface Page {
@@ -176,6 +188,7 @@ function candidateOf(mesh: THREE.Mesh, maxVertices: number, maxBytes: number): C
   if (indexCount % 3 !== 0) return null;
   const bytes = geometryBytes(geometry);
   if (bytes > maxBytes) return null;
+  const ownAttributeBytes = bytes - (index ? index.array.byteLength : 0);
 
   if (mesh.matrixAutoUpdate) mesh.updateMatrix();
   const matrix = mesh.matrix.clone();
@@ -192,7 +205,7 @@ function candidateOf(mesh: THREE.Mesh, maxVertices: number, maxBytes: number): C
     mesh.layers.mask,
     signatures.join('|'),
   ].join('/');
-  return { mesh, geometry, material, matrix, vertexCount, indexCount, bytes, key };
+  return { mesh, geometry, material, matrix, vertexCount, indexCount, bytes, attributeBytes: ownAttributeBytes, key };
 }
 
 function meshNameCounts(root: THREE.Object3D): Map<string, number> {
@@ -236,19 +249,32 @@ function planPages(
     for (const byKey of byMaterial.values()) for (const list of byKey.values()) {
       let current: Candidate[] = [];
       let vertices = 0;
-      let bytes = 0;
+      let indices = 0;
+      let attributeBytes = 0;
+      let indexed = false;
       const flush = (): void => {
         if (current.length >= 2) pages.push({ parent: node, members: current });
         else report.skipped += current.length;
         current = [];
         vertices = 0;
-        bytes = 0;
+        indices = 0;
+        attributeBytes = 0;
+        indexed = false;
       };
       for (const candidate of list) {
-        if (current.length > 0 && (vertices + candidate.vertexCount > maxVertices || bytes + candidate.bytes > maxBytes)) flush();
+        const nextVertices = vertices + candidate.vertexCount;
+        const nextBytes = plannedOutputBytes(
+          attributeBytes + candidate.attributeBytes,
+          nextVertices,
+          indices + candidate.indexCount,
+          indexed || candidate.geometry.index !== null,
+        );
+        if (current.length > 0 && (nextVertices > maxVertices || nextBytes > maxBytes)) flush();
         current.push(candidate);
         vertices += candidate.vertexCount;
-        bytes += candidate.bytes;
+        indices += candidate.indexCount;
+        attributeBytes += candidate.attributeBytes;
+        if (candidate.geometry.index) indexed = true;
       }
       flush();
     }
@@ -288,7 +314,7 @@ function buildPageGeometry(page: Page): THREE.BufferGeometry {
         gpuType: template.gpuType,
       });
     }
-    const IndexCtor = totalVertices > 65535 ? Uint32Array : Uint16Array;
+    const IndexCtor = indexArrayCtor(totalVertices);
     const indexArray = indexed ? new IndexCtor(totalIndices) : null;
 
     let vertexOffset = 0;
