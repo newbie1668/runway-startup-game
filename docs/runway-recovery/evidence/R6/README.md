@@ -1,8 +1,49 @@
 # R6 integration candidate
 
-Candidate source: `8393133b3b39ff266247348a564e74a475005df3`.
+Latest accepted integration source: `2ce587cf2d7d8bfe80775f1c8e770cd5d8ed666d`.
+Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
+
+## Accepted combined runtime candidate
+
+Static batching worker `95041a9` passed [independent review](static-mesh-batch-review.md)
+and is integrated through `171419d`. The review and narrow corrections cover
+material-object identity, GPU attribute types, custom meshes, output byte caps,
+transforms, animated groups, metadata, rollback and shared material ownership.
+Parent checks passed all 17 batch cases plus prefab lifecycle and resource-tree
+ownership. Procedural assets retained exact triangle/vertex counts while their
+CPU mesh count fell from 1356 to 158 (8.7ms total batching, 1.87ms maximum asset
+in the integration run). These are CPU measurements, not browser submissions.
+
+The byte-cap defect also reproduced with only six vertices and a custom 78-byte
+cap; only the review's separate Uint32 promotion example required a raised
+vertex cap. Output planning now includes generated indices and index promotion.
+The reviewed shadow-callback/cross-root sharing limitations do not occur at the
+current fresh-prefab call sites; the renderer disables shadow maps.
+
+Idle candidate `6309990` passed [independent review](idle-generation-review.md)
+and is integrated as `2ce587c`. The parent reran idle deadlines, single drains,
+cancellation, disposal, all 11 scheduler checks and project TypeScript; all pass.
+The review's optional outer idle-callback catch and package-script additions
+are not included. Stream failures retain their internal fatal/fallback handling.
+
+The six required combined repository gates passed once, sequentially, on
+`2ce587c`: `pnpm test:game` (111 checks), `pnpm test:ui` (9), `pnpm lint`,
+`pnpm build`, `pnpm tsx scripts/fetch-geodata.ts --verify`, `git diff --check`.
+[Full command output](integration-checks/2ce587c.log). Protected game rules,
+audio and committed assets have no diff against the PR merge base.
+
+The final focused run passed cover index/pages/cell/lifecycle/clipping/sequence/
+context ownership, road/water/park/tree jobs, water edge/query, park eligibility,
+stream coverage/residency, stock cells/replacements, scene resources, diagnostics,
+fallback camera and street marks. Both `test-city-stream.ts 400` and `1600`
+passed. The fixture takes positional sizes: a mistaken `--cover-cell=400`
+invocation was rejected before its checks, then rerun with the documented
+positional arguments; no source changed.
+
+A fresh native production game and the remaining browser matrix must establish
+timing, rendered coverage, memory, draw calls, failures and gameplay acceptance.
 
 ## Production findings and subsequent runtime corrections
 
@@ -18,7 +59,7 @@ the second reuses the bounded edge index for exact park/tree predicates.
 The lead reran park/tree eligibility and geometry parity, water/context,
 road-cover, cover-cell/pages/lifecycle, stream/coverage, scheduler and index
 checks plus project TypeScript, scoped ESLint and whitespace checks; all pass.
-Full app gates await the combined candidate with the remaining isolated work.
+Full app gates subsequently passed on the combined candidate above.
 
 Water leaf cache `044ee1d`, integrated as `a22118e`, also passed
 [independent review](water-leaf-review.md). Exact edge coordinates are frozen
@@ -88,8 +129,8 @@ than the earlier 400m sample. They do not establish a timing improvement.
 No browser or build ran alongside them. They still exclude heroes, GPU
 upload/rendering, browser frame waits and process overhead. Actual startup,
 frame intervals, complete resident geometry and drawn primitives require
-the combined production-browser run. Static batching `3e5bc0f` and idle
-generation `6309990` remain unintegrated pending independent review.
+the combined production-browser run. Static batching `95041a9` and idle
+generation `6309990` were subsequently accepted and integrated as recorded above.
 
 A conservative road/water bounds bypass was rejected: isolated cold runs
 slowed from 1.398/1.429/1.432 s to 1.539/1.529/1.525 s despite 13% fewer

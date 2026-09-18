@@ -18,9 +18,11 @@ Stream admission `9573562`, park containment `56bde73` and water leaf cache
 gates and a new browser run. `2a61884` strengthens leaf-capacity and full-road
 context parity regressions. Cover-grid `eed997d` is independently accepted
 and integrated through `7e12480`; stock stays 400m and cover becomes 1600m.
-Static batching `3e5bc0f` and idle-generation `6309990` remain isolated
-candidates under independent review.
-See status for pending isolated worker branches; do not count them as accepted.
+Static batching `95041a9` is independently accepted and integrated through
+`171419d`; idle-generation `6309990` is independently accepted and integrated
+as `2ce587c`. All six combined repository gates and affected focused checks
+passed on that source; the fresh production-browser matrix follows. See status
+before counting any browser acceptance as complete.
 The newer 122.62 MiB CPU-only overview also excludes landmarks/GPU/browser
 work. Its long CPU drain outliers and slower street sample remain caveats.
 Source audit `1aa3fef` is accepted as an honest modelling NO-GO packet.
