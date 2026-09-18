@@ -14,15 +14,21 @@ repository gates. Its [native browser run](../evidence/R6/browser-e153df9.md)
 restored 3D navigation and game/save continuity, but still fails startup
 (13.35 s cold), wide-view readiness (>30 s) and three hub draw-call budgets.
 Stream admission `9573562`, park containment `56bde73` and water leaf cache
-`a22118e` are independently reviewed integration changes, awaiting combined
-gates and a new browser run. `2a61884` strengthens leaf-capacity and full-road
+`a22118e` are independently reviewed integration changes. `2a61884` strengthens leaf-capacity and full-road
 context parity regressions. Cover-grid `eed997d` is independently accepted
 and integrated through `7e12480`; stock stays 400m and cover becomes 1600m.
 Static batching `95041a9` is independently accepted and integrated through
 `171419d`; idle-generation `6309990` is independently accepted and integrated
 as `2ce587c`. All six combined repository gates and affected focused checks
-passed on that source; the fresh production-browser matrix follows. See status
-before counting any browser acceptance as complete.
+passed on that source, published at `ce8716a`. Native production startup
+subsequently measured 7.23s cold / 5.43s reload; a bounded trace measured
+6.27s and identified repeated replacement-anchor and road/water queries.
+See [native diagnostic evidence](../evidence/R6/browser-ce8716a.md).
+Lead candidate `9c7e187` reuses exact road-water classifications and awaits
+independent review; a separate worker owns the replacement-anchor broad phase.
+These are pending packets, not accepted runtime work. Next: review, integrate,
+combined gates, then native startup/wide/hub checks and the remaining matrix.
+See status before counting any browser acceptance as complete.
 The newer 122.62 MiB CPU-only overview also excludes landmarks/GPU/browser
 work. Its long CPU drain outliers and slower street sample remain caveats.
 Source audit `1aa3fef` is accepted as an honest modelling NO-GO packet.

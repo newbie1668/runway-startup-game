@@ -5,6 +5,20 @@ Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
 
+## Current startup diagnosis
+
+The accepted combined source was published at `ce8716a`. Its [native production
+startup and diagnostic trace](browser-ce8716a.md) show actual city pixels, but
+7.23s cold / 5.43s reload and a separately traced 6.27s useful frame remain above
+the five-second target. Wide view, hub budgets and the rest of the matrix remain
+open on the combined source.
+
+The lead's pending `9c7e187` [road-classification candidate](road-classification-cpu.md)
+preserves exact context output and removes repeated source-vertex predicates.
+A disjoint worker owns replacement-anchor bounds. Neither packet is accepted
+until independent review. Combined gates and the next browser run follow
+integration; CPU-only improvements are not browser acceptance.
+
 ## Accepted combined runtime candidate
 
 Static batching worker `95041a9` passed [independent review](static-mesh-batch-review.md)
@@ -42,15 +56,16 @@ passed. The fixture takes positional sizes: a mistaken `--cover-cell=400`
 invocation was rejected before its checks, then rerun with the documented
 positional arguments; no source changed.
 
-A fresh native production game and the remaining browser matrix must establish
-timing, rendered coverage, memory, draw calls, failures and gameplay acceptance.
+The remaining native production matrix must establish startup compliance,
+rendered coverage, memory, draw calls, failures and gameplay acceptance.
 
 ## Production findings and subsequent runtime corrections
 
 The [native production run on `e153df9`](browser-e153df9.md) restored 3D
 navigation and game/save continuity. It still fails 5-second startup
 (13.35 s cold / 12.62 s reload), wide-view readiness (>30 s) and three hub
-draw-call budgets. Later source has not yet had a production browser run.
+draw-call budgets. The later bounded native startup diagnosis is linked above;
+it does not supersede this historical tour/failure evidence.
 
 Independent review accepted [stream admission `9573562`](admission-review.md)
 and [park containment `51c1b4b`](park-index-review.md), integrated as `56bde73`.
