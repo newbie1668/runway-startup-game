@@ -13,11 +13,12 @@ startup and diagnostic trace](browser-ce8716a.md) show actual city pixels, but
 the five-second target. Wide view, hub budgets and the rest of the matrix remain
 open on the combined source.
 
-The lead's pending `9c7e187` [road-classification candidate](road-classification-cpu.md)
-preserves exact context output and removes repeated source-vertex predicates.
-A disjoint worker owns replacement-anchor bounds. Neither packet is accepted
-until independent review. Combined gates and the next browser run follow
-integration; CPU-only improvements are not browser acceptance.
+The lead's `9c7e187` [road-classification candidate](road-classification-cpu.md)
+passes independent review, preserving exact context output and removing repeated
+source-vertex predicates. The disjoint
+[replacement-anchor candidate](anchor-bounds-cpu.md), `b77f6ae`, awaits review.
+Combined gates and the next browser run follow integration; CPU-only improvements
+are not browser acceptance.
 
 ## Accepted combined runtime candidate
 

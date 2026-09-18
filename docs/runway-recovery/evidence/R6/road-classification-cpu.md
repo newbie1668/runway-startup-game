@@ -1,7 +1,8 @@
 # Road-classification candidate: CPU evidence
 
 Candidate `9c7e1879f6c3b6c3a8b3d1b21e502bb3ae0b98b8`, base
-`ce8716a72d1e5631b49ffac6c479d5ec4e9cea89`. Independent review is pending.
+`ce8716a72d1e5631b49ffac6c479d5ec4e9cea89`. Independent review accepted
+the exact candidate with no material findings.
 This does not establish browser timing, slice compliance or acceptance.
 
 The private road split now carries each source vertex's exact water result
@@ -55,6 +56,14 @@ repeated classification. Copying the test onto the isolated base reproduces
 the intended failure: 3070 dry queries instead of 1024 (exit 1).
 Full-city crossings and road-context hashes, geometry parity, boundary
 crossings, defensive copies, cache ownership and cancellation still pass.
+
+The [independent review report](https://app.devin.ai/attachments/8e843f05-3976-427e-80e1-2bae58378e54/report.md)
+compared base and candidate on every one of the 56,793 committed roads and
+4,004 synthetic dry/wet/mixed/boundary cases, preserving exact output.
+Production callbacks are deterministic geometry predicates. Existing loop
+yield boundaries remain bounded; no lifecycle or publication change was found.
+Single-step timing outliers occurred on both revisions, so slice compliance
+remains open for browser tracing.
 
 [Focused output](https://app.devin.ai/attachments/972cf066-6a91-449c-9d91-5cda2a7590a0/runway-road-classification-checks.log)
 also preserves a mistaken invocation of nonexistent `test-cover-lifecycle.ts`

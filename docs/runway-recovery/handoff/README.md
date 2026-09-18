@@ -24,10 +24,12 @@ passed on that source, published at `ce8716a`. Native production startup
 subsequently measured 7.23s cold / 5.43s reload; a bounded trace measured
 6.27s and identified repeated replacement-anchor and road/water queries.
 See [native diagnostic evidence](../evidence/R6/browser-ce8716a.md).
-Lead candidate `9c7e187` reuses exact road-water classifications and awaits
-independent review; a separate worker owns the replacement-anchor broad phase.
-These are pending packets, not accepted runtime work. Next: review, integrate,
-combined gates, then native startup/wide/hub checks and the remaining matrix.
+Lead candidate `9c7e187` reuses exact road-water classifications and passes
+[independent review](../evidence/R6/road-classification-cpu.md). The separate
+replacement-anchor candidate `b77f6ae` (runtime `227b85e`, then test-only
+corrections) awaits review. Next: accept the anchor packet if justified,
+integrate, run combined gates, then native startup/wide/hub checks and the
+remaining matrix.
 See status before counting any browser acceptance as complete.
 The newer 122.62 MiB CPU-only overview also excludes landmarks/GPU/browser
 work. Its long CPU drain outliers and slower street sample remain caveats.
