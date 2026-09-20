@@ -198,10 +198,20 @@ assert(stream.buildingMeshes().some((mesh) => mesh.userData.cellId === secondId)
 assert(evictions > 0);
 assert.equal(materialDisposals, 0, 'shared building material survives cell eviction');
 
+const overviewCamera = new THREE.OrthographicCamera();
+overviewCamera.position.set(0, 100, 100);
+overviewCamera.lookAt(0, 0, 0);
+overviewCamera.updateMatrixWorld(true);
+stream.prepareDrawRanges(overviewCamera, false);
 ready({ minX: 0, minZ: 0, maxX: 80, maxZ: 20 });
 assert.equal(stream.stockBuildings, 2, 'overview retains both ordinary buildings');
 assert.equal(stream.buildingMeshes().length, 2, 'each owner cell publishes once');
+for (const mesh of stream.buildingMeshes())
+  assert(mesh.geometry.drawRange.count < mesh.geometry.index!.count,
+    'visible overview coverage waits for the stock partition');
 ready(first);
+for (const mesh of stream.buildingMeshes())
+  assert.equal(mesh.geometry.drawRange.count, Infinity, 'detailed replacement restores full geometry');
 assert(
   !stream.buildingMeshes().some((mesh) => mesh.userData.cellId === secondId),
   'overview residents outside hysteresis are evicted after moving close',

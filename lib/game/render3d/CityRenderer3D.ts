@@ -710,6 +710,7 @@ export class CityRenderer3D implements IMapRenderer {
     }
     if (!this.cityStream || this.cssW <= 0 || this.cssH <= 0) return;
     try {
+      this.cityStream.prepareDrawRanges(this.rig.camera, this.renderer.shadowMap.enabled);
       const key = [
         this.cam.x,
         this.cam.y,

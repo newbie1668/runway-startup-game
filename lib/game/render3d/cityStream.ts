@@ -22,6 +22,7 @@ import { planStreamCoverage, type StreamCoveragePlan } from './streamCoverage';
 import { createStreamResidentStore, type StreamResident } from './streamResidentStore';
 import { createStockDecorJob } from './stockDecorJob';
 import { createCoverJob } from './coverGeometry';
+import { StockDrawRanges } from './stockDrawRanges';
 
 interface StockResident extends StreamResident {
   readonly detail: StockDetail;
@@ -89,8 +90,13 @@ export class CityStream {
   private closed = false;
   private buildings = 0;
   private failure: { id: string; error: unknown } | null = null;
+  private readonly drawRanges: StockDrawRanges;
 
   constructor(private readonly options: CityStreamOptions) {
+    this.drawRanges = new StockDrawRanges(
+      options.now,
+      (error) => options.diagnostics.recordError('stock:draw-range', false, error),
+    );
     const result: { value: RoadCoverContext | null } = { value: null };
     const contextId = 'stream:road-context';
     let started = false;
@@ -128,7 +134,8 @@ export class CityStream {
 
   get idle(): boolean {
     return (
-      this.roadContext !== null && this.pending.size === 0 && this.cursor >= this.requests.length
+      this.roadContext !== null && this.pending.size === 0 &&
+      this.cursor >= this.requests.length && this.drawRanges.idle
     );
   }
 
@@ -138,6 +145,10 @@ export class CityStream {
 
   buildingMeshes(): THREE.Mesh[] {
     return this.stocks.ids().flatMap((id) => [...this.stocks.get(id)!.meshes]);
+  }
+
+  prepareDrawRanges(camera: THREE.Camera, shadows: boolean): void {
+    this.drawRanges.prepare(camera, shadows);
   }
 
   *picks(): Generator<BuildingPick> {
@@ -239,6 +250,7 @@ export class CityStream {
 
   private cancelPending(): void {
     try {
+      this.drawRanges.beginGeneration();
       this.scheduler.cancelGeneration(this.generation);
     } finally {
       this.scheduler = createBuildScheduler();
@@ -285,6 +297,8 @@ export class CityStream {
           root.add(ready.group);
           tracker.trackTree(ready.group);
         }
+        if (request.detail === 'overview')
+          for (const mesh of meshes) this.drawRanges.add(mesh);
         attached = true;
         this.buildings += ready.sourceBuildingIndices.length;
       },
@@ -292,6 +306,7 @@ export class CityStream {
         if (disposed) return;
         disposed = true;
         try {
+          for (const mesh of meshes) this.drawRanges.remove(mesh);
           if (attached) this.buildings -= ready.sourceBuildingIndices.length;
           onStockEvicted(ready.scratch.picks);
           ready.group?.removeFromParent();
@@ -440,6 +455,8 @@ export class CityStream {
     );
     const coverReady = this.plan.visibleCover.every((id) => this.covers.get(id)?.detail === detail);
     if (!stocksReady || !coverReady) return;
+    for (const id of this.plan.visibleStock)
+      if (!this.stocks.get(id)!.meshes.every((mesh) => this.drawRanges.settled(mesh))) return;
     this.options.diagnostics.completeJob(this.coverageJob);
     this.coverageJob = null;
     this.trimResidents();
@@ -449,6 +466,7 @@ export class CityStream {
     if (this.closed || !this.plan) return;
     const started = this.options.now();
     try {
+      this.drawRanges.drain(2);
       let requests = 0;
       let completed = 0;
       for (;;) {
@@ -542,6 +560,7 @@ export class CityStream {
     this.closed = true;
     const errors: unknown[] = [];
     for (const action of [
+      () => this.drawRanges.dispose(),
       () => this.cancelPending(),
       () => {
         try {

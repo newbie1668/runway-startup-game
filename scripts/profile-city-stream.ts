@@ -75,6 +75,7 @@ const stream = new CityStream({
 const rig = new CameraRig();
 rig.setViewport(1440, 900);
 const overview = process.argv.includes('--overview');
+const drawRanges = process.argv.includes('--draw-ranges');
 const cameraArg = process.argv.find((arg) => arg.startsWith('--camera='));
 const camera = cameraArg?.slice('--camera='.length).split(',').map(Number);
 if (camera && (camera.length !== 4 || !camera.every(Number.isFinite) || camera[2]! <= 0))
@@ -96,6 +97,7 @@ const frameLimit = process.argv.includes('--sample') ? 2500 : 100_000;
 const streamStarted = performance.now();
 while (!stream.idle) {
   const before = performance.now();
+  if (drawRanges) stream.prepareDrawRanges(rig.camera, false);
   stream.drain();
   maxSliceMs = Math.max(maxSliceMs, performance.now() - before);
   peakBytes = Math.max(peakBytes, tracker.bytes());
@@ -136,6 +138,12 @@ for (const group of root.children) {
   group.traverseVisible((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     if (object.frustumCulled && !frustum.intersectsObject(object)) return;
+    const available = object.geometry.index?.count ?? object.geometry.getAttribute('position').count;
+    const count = Math.max(0, Math.min(
+      available - object.geometry.drawRange.start,
+      object.geometry.drawRange.count,
+    ));
+    if (count === 0) return;
     const layer = group.userData.cellId
       ? cpuDrawEstimate.stock
       : object instanceof THREE.InstancedMesh
@@ -143,15 +151,23 @@ for (const group of root.children) {
         : cpuDrawEstimate.cover;
     layer.calls += Array.isArray(object.material) ? object.geometry.groups.length : 1;
     layer.triangles +=
-      ((object.geometry.index?.count ?? object.geometry.getAttribute('position').count) / 3) *
+      (count / 3) *
       (object instanceof THREE.InstancedMesh ? object.count : 1);
   });
+}
+let stockGuardMeanMs: number | null = null;
+if (drawRanges) {
+  const guardStarted = performance.now();
+  for (let i = 0; i < 120; i++) stream.prepareDrawRanges(rig.camera, false);
+  stockGuardMeanMs = (performance.now() - guardStarted) / 120;
 }
 console.log(
   JSON.stringify(
     {
       mode: camera ? 'custom' : overview ? 'overview' : 'Fitzrovia',
       coverCellSizeM,
+      drawRanges,
+      stockGuardMeanMs,
       decodedMs,
       stockIndexMs,
       indexFrames,
