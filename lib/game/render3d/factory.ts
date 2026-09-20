@@ -53,13 +53,18 @@ export async function createMapRenderer(
   let context: WebGL2RenderingContext | null = null;
   try {
     context = cityCanvas.getContext('webgl2', {
-      alpha: false,
+      alpha: true,
+      depth: true,
+      stencil: false,
       antialias: !coarsePointer && !budget.skipAntialias,
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: false,
       powerPreference: 'high-performance',
+      failIfMajorPerformanceCaveat: false,
     });
     if (!context) return make2d(overlayCanvas, opts.diagnostics, 'WebGL2 unavailable');
     const { CityRenderer3D } = await import('./CityRenderer3D');
-    const renderer = new CityRenderer3D(cityCanvas, overlayCanvas, { ...opts, context });
+    const renderer = new CityRenderer3D(cityCanvas, overlayCanvas, opts);
     opts.diagnostics.selectMode('3d');
     return { renderer, mode: '3d' };
   } catch (error) {
