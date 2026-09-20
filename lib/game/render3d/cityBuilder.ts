@@ -4657,9 +4657,6 @@ export function createRoadCoverJob(
         yield;
       }
     };
-    // One page stream per material for the whole cell: every tier and the
-    // crossing stitches share the same pavement/asphalt identity and height,
-    // so only the last page of each stream is a partial page.
     const walkWriter = createCoverPageWriter(context, () => {
       sidewalkMaterial ??= context.own(
         new THREE.MeshLambertMaterial({

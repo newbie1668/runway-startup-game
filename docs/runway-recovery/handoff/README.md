@@ -31,10 +31,20 @@ readiness, physical Safari and faithful-London reconstruction are unaccepted.
 The parent owns the next diagnosis. Accepted source `294d3bf` (`30fde9f` locally)
 combines duplicate road/water scans. Independent review passes with no material
 defects, including base-versus-candidate cold/warm/interleaved/cancelled parity.
-Committed-data parity and all combined repository gates pass; native browser
-A/B against `bff439c` is next, delegated after publication. See the
+Committed-data parity and all combined repository gates pass. The completed
+[native A/B of `6e1fcb1` against `bff439c`](../evidence/R6/browser-road-context-6e1fcb1.md)
+still fails desktop startup and wide calls: default cold median 5.145s,
+wide cold median 16.209s and 2,817 wide calls. Lower default medians do not
+establish dependable causal improvement. See the
 [source evidence and review](../evidence/R6/road-context-cpu.md).
-A read-only feasibility worker is assessing overview draw-call reduction.
+The smaller shared-road-page proposal `fa951d0` is independently reviewed
+and integrated as `104147c`, after the preceding browser run completed.
+All parent repository gates and affected focused checks pass.
+[Source evidence](../evidence/R6/road-pages-shared-writers.md) reproduces
+957→530 CPU cover calls with identical cover triangles and geometry bytes.
+Its native matched-camera browser verification is next; browser totals,
+startup and frustum effects cannot be inferred from source parity alone.
+Stock tile cutovers remain unaccepted, and the 300 total-call target is unchanged.
 Read current status before using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover
