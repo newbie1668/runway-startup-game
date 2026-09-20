@@ -87,7 +87,7 @@ export function createStockDrawRangeJob<T extends IndexArray>(args: StockDrawRan
         const deadline = args.now() + sliceMs;
         let units = 0;
         while (!terminal && units < MAX_UNITS_PER_STEP) {
-          if (args.now() >= deadline) return false;
+          if (units > 0 && args.now() >= deadline) return false;
           if (phase === 'reject') {
             args.onReady(null);
             if (terminal) return true;

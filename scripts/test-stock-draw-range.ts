@@ -108,8 +108,7 @@ function run<T extends IndexArray>(index: T, direction: { x: number; y: number; 
   assert.deepEqual(Array.from(bigIndex), Array.from(bigBefore), 'source unchanged after completion');
   assert.deepEqual(sortedTriples(bigIndex), sortedTriples(bigBefore));
 
-  // A clock advancing past the deadline on every call yields zero units per
-  // step: bounded, never stuck, no callback, source untouched.
+  // Coarse clocks still make bounded progress without changing the source.
   let tickCalls = 0, ticks = 0;
   const starved = createStockDrawRangeJob({
     id: 'starved', generation: 1, essential: true, positions: big, index: bigIndex,
@@ -119,6 +118,9 @@ function run<T extends IndexArray>(index: T, direction: { x: number; y: number; 
   for (let i = 0; i < 8; i++) assert.equal(starved.step(), false, 'starved step returns without completing');
   assert.equal(tickCalls, 0);
   assert.deepEqual(Array.from(bigIndex), Array.from(bigBefore), 'source unchanged under starved clock');
+  drain(starved);
+  assert.equal(tickCalls, 1, 'coarse clock completes exactly once');
+  assert.deepEqual(Array.from(bigIndex), Array.from(bigBefore), 'source unchanged after coarse-clock completion');
 
   // A clock that jumps per step but holds inside a step completes through the
   // finite unit cap in a bounded number of steps.
@@ -146,13 +148,19 @@ function run<T extends IndexArray>(index: T, direction: { x: number; y: number; 
   never.cancel();
   assert.equal(calls, 0);
 
+  const midIndex = Uint16Array.from({ length: 60_000 }, (_, i) => i % 200);
+  const midBefore = midIndex.slice();
   const mid = createStockDrawRangeJob({
-    id: 'mid', generation: 1, essential: true, positions: new Float32Array(600), index: new Uint16Array(600),
+    id: 'mid', generation: 1, essential: true, positions: new Float32Array(600), index: midIndex,
+    maxIndexBytes: 1 << 20,
     direction: { x: 0, y: 0, z: 1 }, now: () => 0, onReady: () => { calls++; },
   });
+  assert.equal(mid.step(), false, 'work started but has not published');
+  assert.deepEqual(midIndex, midBefore, 'partial work leaves source unchanged');
   mid.cancel();
   assert.equal(mid.step(), true);
   assert.equal(calls, 0);
+  assert.deepEqual(midIndex, midBefore, 'cancellation leaves source unchanged');
 }
 
 // Validation and error cleanup.
