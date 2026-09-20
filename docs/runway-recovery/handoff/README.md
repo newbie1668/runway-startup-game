@@ -9,9 +9,20 @@ exactly; application cleanup and loop cessation are measured, with physical
 reclamation and ordinary React routed unmount still unproven. The
 [supplemental report](../evidence/R6/browser-cleanup-layout.md) preserves the
 old first-arrival observation, 404 attribution limits, HQ overlap and all
-performance failures. The parent awaits a read-only overview feasibility
-review; no new rendering algorithm is accepted. Read current status before
-using the historical continuation below.
+performance failures. The corrected overview feasibility review supports a
+capped staging-index hypothesis. Helper `8b6561b` and isolated controller
+`2d3ecd0` pass independent source reviews and combined repository gates.
+Follow-up `758bfe4` fixes coarse-clock progress and passes scoped review and
+all combined gates. Bounded production overview validation is running.
+Its CPU probe confirms the triangle bound
+without reducing resident bytes, but is slower than the unfiltered CPU run.
+The parent
+also has source-reviewed context candidate `e1aa660` on a separate branch.
+Its [native five-pair A/B](../evidence/R6/browser-context-ab.md) fails every
+cold start, with baseline/candidate medians 6.015s/5.887s and no reliable
+improvement. Native context, game/save and fallback checks pass; separate
+SwiftShader readiness fails at 45s. Neither candidate is published to PR #30
+or runtime-accepted. Read current status before using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover
 and renderer/stream review; [repository gates and reports](../evidence/R6/README.md)
