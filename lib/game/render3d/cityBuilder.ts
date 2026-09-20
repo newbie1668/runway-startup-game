@@ -4003,38 +4003,93 @@ function* buildCrossingSpansSteps(
   return yield* dedupeCrossingSpansSteps(raw);
 }
 
-function* collectRoadApproachesSteps(
+type CrosswalkEnd = {
+  x: number;
+  z: number;
+  dx: number;
+  dz: number;
+  runLen: number;
+};
+
+interface RoadWaterScan {
+  approaches: RoadApproach[];
+  runEnds: { x: number; z: number }[];
+  crosswalkEnds: CrosswalkEnd[];
+}
+
+/**
+ * One decode-and-split pass over the roads. Crossing approaches and tier-0
+ * crosswalk ends come from the same runs so the whole-city water scan that
+ * dominates the road cover context runs once instead of twice.
+ */
+function* scanRoadsAgainstWaterSteps(
   cityData: CityData,
   overWater: (x: number, z: number) => Generator<void, boolean>,
-): Generator<void, { approaches: RoadApproach[]; runEnds: { x: number; z: number }[] }> {
+  want: { approaches: boolean; crosswalkEnds: boolean },
+): Generator<void, RoadWaterScan> {
   const approaches: RoadApproach[] = [];
   const runEnds: { x: number; z: number }[] = [];
+  const crosswalkEnds: CrosswalkEnd[] = [];
+  const minRun = 28 * METERS_TO_WORLD;
   for (const road of cityData.roads as CityRoad[]) {
     yield;
+    const tier0 = road.tier === 0;
+    if (!want.approaches && !tier0) continue;
     const pts = yield* roadPtsSteps(road);
     if (!pts) continue;
     const runs = yield* splitRoadRunsSteps(pts, overWater);
     for (const run of runs) {
       yield;
       if (run.pts.length < 2) continue;
-      runEnds.push(run.pts.at(0)!, run.pts.at(-1)!);
-      const head = yield* approachIfTowardWaterSteps(
-        run.pts.at(0)!,
-        run.pts.at(1)!,
-        road.tier,
-        overWater,
-      );
-      const tail = yield* approachIfTowardWaterSteps(
-        run.pts.at(-1)!,
-        run.pts.at(-2)!,
-        road.tier,
-        overWater,
-      );
-      if (head) approaches.push(head);
-      if (tail) approaches.push(tail);
+      if (want.approaches) {
+        runEnds.push(run.pts.at(0)!, run.pts.at(-1)!);
+        const head = yield* approachIfTowardWaterSteps(
+          run.pts.at(0)!,
+          run.pts.at(1)!,
+          road.tier,
+          overWater,
+        );
+        const tail = yield* approachIfTowardWaterSteps(
+          run.pts.at(-1)!,
+          run.pts.at(-2)!,
+          road.tier,
+          overWater,
+        );
+        if (head) approaches.push(head);
+        if (tail) approaches.push(tail);
+      }
+      if (!want.crosswalkEnds || !tier0) continue;
+      let runLen = 0;
+      for (let i = 0; i < run.pts.length - 1; i++) {
+        yield;
+        const a = run.pts.at(i)!;
+        const b = run.pts.at(i + 1)!;
+        runLen += Math.hypot(b.x - a.x, b.z - a.z);
+      }
+      if (runLen < minRun) continue;
+      const pushEnd = (
+        a: {
+          x: number;
+          z: number;
+        },
+        b: {
+          x: number;
+          z: number;
+        },
+      ) => {
+        if (skipRoadVertex(a.x, a.z)) return;
+        let dx = b.x - a.x;
+        let dz = b.z - a.z;
+        const len = Math.hypot(dx, dz) || 1;
+        dx /= len;
+        dz /= len;
+        crosswalkEnds.push({ x: a.x, z: a.z, dx, dz, runLen });
+      };
+      pushEnd(run.pts.at(0)!, run.pts.at(1)!);
+      pushEnd(run.pts.at(-1)!, run.pts.at(-2)!);
     }
   }
-  return { approaches, runEnds };
+  return { approaches, runEnds, crosswalkEnds };
 }
 
 export function riverCrossingSpans(cityData: CityData): CrossingSpan[] {
@@ -4046,7 +4101,19 @@ function* riverCrossingSpansSteps(cityData: CityData): Generator<void, CrossingS
   if (cached) return yield* copyCrossingSpansSteps(cached);
   const rings = yield* waterSourceRingsSteps(cityData);
   const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
-  const { approaches, runEnds } = yield* collectRoadApproachesSteps(cityData, overWater);
+  const scan = yield* scanRoadsAgainstWaterSteps(cityData, overWater, {
+    approaches: true,
+    crosswalkEnds: false,
+  });
+  return yield* crossingSpansFromScanSteps(cityData, scan, overWater);
+}
+
+function* crossingSpansFromScanSteps(
+  cityData: CityData,
+  scan: RoadWaterScan,
+  overWater: (x: number, z: number) => Generator<void, boolean>,
+): Generator<void, CrossingSpan[]> {
+  const { approaches, runEnds } = scan;
   const fromRoads = yield* buildCrossingSpansSteps(approaches, overWater);
   const seeds = [
     ...LANDMARKS.filter(
@@ -4184,54 +4251,15 @@ export function plannedCrosswalks(cityData: CityData): PlannedCrosswalk[] {
 function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCrosswalk[]> {
   const rings = yield* waterSourceRingsSteps(cityData);
   const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
-  type End = {
-    x: number;
-    z: number;
-    dx: number;
-    dz: number;
-    runLen: number;
-  };
-  const ends: End[] = [];
+  const scan = yield* scanRoadsAgainstWaterSteps(cityData, overWater, {
+    approaches: false,
+    crosswalkEnds: true,
+  });
+  return yield* crosswalksFromEndsSteps(scan.crosswalkEnds);
+}
+
+function* crosswalksFromEndsSteps(ends: CrosswalkEnd[]): Generator<void, PlannedCrosswalk[]> {
   const half0 = (ROAD_WIDTHS_M[0]! * METERS_TO_WORLD) / 2;
-  const minRun = 28 * METERS_TO_WORLD;
-  for (const road of cityData.roads as CityRoad[]) {
-    yield;
-    if (road.tier !== 0) continue;
-    const pts = yield* roadPtsSteps(road);
-    if (!pts) continue;
-    for (const run of yield* splitRoadRunsSteps(pts, overWater)) {
-      yield;
-      if (run.pts.length < 2) continue;
-      let runLen = 0;
-      for (let i = 0; i < run.pts.length - 1; i++) {
-        yield;
-        const a = run.pts.at(i)!;
-        const b = run.pts.at(i + 1)!;
-        runLen += Math.hypot(b.x - a.x, b.z - a.z);
-      }
-      if (runLen < minRun) continue;
-      const pushEnd = (
-        a: {
-          x: number;
-          z: number;
-        },
-        b: {
-          x: number;
-          z: number;
-        },
-      ) => {
-        if (skipRoadVertex(a.x, a.z)) return;
-        let dx = b.x - a.x;
-        let dz = b.z - a.z;
-        const len = Math.hypot(dx, dz) || 1;
-        dx /= len;
-        dz /= len;
-        ends.push({ x: a.x, z: a.z, dx, dz, runLen });
-      };
-      pushEnd(run.pts.at(0)!, run.pts.at(1)!);
-      pushEnd(run.pts.at(-1)!, run.pts.at(-2)!);
-    }
-  }
   const junctionR = 16 * METERS_TO_WORLD;
   const hashCell = 16 * METERS_TO_WORLD;
   const grid = new Map<string, number[]>();
@@ -4321,7 +4349,7 @@ function* plannedCrosswalksSteps(cityData: CityData): Generator<void, PlannedCro
       }
     }
     if (!crossing) continue;
-    let best: End | null = null;
+    let best: CrosswalkEnd | null = null;
     for (const i of idxs) {
       yield;
       const end = ends[i]!;
@@ -4503,8 +4531,17 @@ const roadCoverContextCache = new WeakMap<CityData, RoadCoverContext>();
 export function* roadCoverContextSteps(cityData: CityData): Generator<void, RoadCoverContext> {
   const cached = roadCoverContextCache.get(cityData);
   if (cached) return cached;
-  const crossings = yield* riverCrossingSpansSteps(cityData);
-  const crosswalks = yield* plannedCrosswalksSteps(cityData);
+  const cachedCrossings = riverCrossingCache.get(cityData);
+  const rings = yield* waterSourceRingsSteps(cityData);
+  const overWater = (x: number, z: number) => pointOverWaterSteps(x, z, rings);
+  const scan = yield* scanRoadsAgainstWaterSteps(cityData, overWater, {
+    approaches: !cachedCrossings,
+    crosswalkEnds: true,
+  });
+  const crossings = cachedCrossings
+    ? yield* copyCrossingSpansSteps(cachedCrossings)
+    : yield* crossingSpansFromScanSteps(cityData, scan, overWater);
+  const crosswalks = yield* crosswalksFromEndsSteps(scan.crosswalkEnds);
   for (const span of crossings) {
     Object.freeze(span.pts[0]);
     Object.freeze(span.pts[1]);
