@@ -28,9 +28,14 @@ improvement. Native context, game/save and fallback checks pass. Later paired
 SwiftShader controls fail at 45s on both published `44bdd96` and context-only
 `e1aa660`; the earlier unpaired failure remains recorded. Startup, software
 readiness, physical Safari and faithful-London reconstruction are unaccepted.
-The parent owns the next diagnosis: distinguish generation CPU from
-scheduling/render overhead using the existing profile. No browser measurement
-is running. Read current status before using the historical continuation below.
+The parent owns the next diagnosis. Accepted source `294d3bf` (`30fde9f` locally)
+combines duplicate road/water scans. Independent review passes with no material
+defects, including base-versus-candidate cold/warm/interleaved/cancelled parity.
+Committed-data parity and all combined repository gates pass; native browser
+A/B against `bff439c` is next, delegated after publication. See the
+[source evidence and review](../evidence/R6/road-context-cpu.md).
+A read-only feasibility worker is assessing overview draw-call reduction.
+Read current status before using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover
 and renderer/stream review; [repository gates and reports](../evidence/R6/README.md)

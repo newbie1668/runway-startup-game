@@ -4017,11 +4017,6 @@ interface RoadWaterScan {
   crosswalkEnds: CrosswalkEnd[];
 }
 
-/**
- * One decode-and-split pass over the roads. Crossing approaches and tier-0
- * crosswalk ends come from the same runs so the whole-city water scan that
- * dominates the road cover context runs once instead of twice.
- */
 function* scanRoadsAgainstWaterSteps(
   cityData: CityData,
   overWater: (x: number, z: number) => Generator<void, boolean>,
