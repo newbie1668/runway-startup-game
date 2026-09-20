@@ -150,7 +150,7 @@ export class StockDrawRanges {
   drain(budgetMs: number): void {
     if (this.closed || budgetMs <= 0 || !this.direction) return;
     const started = this.now();
-    for (let steps = 0; steps < 16 && this.now() - started < budgetMs; steps++) {
+    for (let steps = 0; steps < 16 && (steps === 0 || this.now() - started < budgetMs); steps++) {
       let entry = this.active?.entry;
       try {
         if (!this.active) {

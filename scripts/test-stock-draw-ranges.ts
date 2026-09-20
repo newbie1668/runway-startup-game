@@ -31,6 +31,23 @@ function triples(index: THREE.BufferAttribute): string[] {
   return result.sort();
 }
 
+for (const tickMs of [2, 5, 100]) {
+  const { mesh, camera } = fixture();
+  let ticks = 0;
+  const errors: unknown[] = [];
+  const ranges = new StockDrawRanges(() => ticks++ * tickMs, (error) => errors.push(error));
+  const before = triples(mesh.geometry.index!);
+  ranges.add(mesh);
+  ranges.prepare(camera, false);
+  finish(ranges);
+  assert.equal(ranges.settled(mesh), true, `coverage settles with ${tickMs}ms clock`);
+  assert.equal(mesh.geometry.drawRange.count, 18);
+  assert.deepEqual(triples(mesh.geometry.index!), before);
+  assert.deepEqual(errors, []);
+  ranges.dispose();
+  assert.equal(mesh.geometry.drawRange.count, Infinity);
+}
+
 {
   const { mesh, root, camera } = fixture();
   const errors: unknown[] = [];
