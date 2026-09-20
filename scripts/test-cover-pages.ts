@@ -45,10 +45,10 @@ function run(job: BuildJob): number {
   return steps;
 }
 
+/** Road tiers share one page stream per material, so keys are material-only. */
 function colorKey(mesh: THREE.Mesh): string {
   const material = mesh.material as THREE.Material & { color?: THREE.Color };
-  const tier = mesh.parent?.userData.roadTier;
-  return `${material.type}:${material.color?.getHexString() ?? '-'}:${tier ?? '-'}:${mesh.renderOrder}`;
+  return `${material.type}:${material.color?.getHexString() ?? '-'}:${mesh.renderOrder}`;
 }
 
 /** Ordered per-material triangle streams, independent of mesh/page layout. */
