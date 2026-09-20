@@ -392,7 +392,7 @@ export function GameApp() {
       {/* Map side */}
       <div
         className={`relative ${
-          screen === 'play'
+          screen === 'play' && game && !hideChrome
             ? 'h-[44dvh] min-h-64 flex-none md:absolute md:inset-0 md:h-full'
             : 'min-h-0 flex-1 md:h-full'
         }`}
