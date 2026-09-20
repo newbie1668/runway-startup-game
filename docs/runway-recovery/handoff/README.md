@@ -1,6 +1,17 @@
-# Recovery handoff — 17 September 2026
+# Recovery handoff — 20 September 2026
 
 Continue from **draft PR #30**, branch `build/runway-recovery`, base `docs/runway-recovery-plan` (planning PR #29). This is the active integration branch; do not restart from old map PR #27 or the primary checkout. The owner subsequently requested completion of PR #30. No merge or deployment is authorized by this handoff.
+
+Latest supplemental checkpoint: UI `00a7465` fixes hidden-controls play height
+and passes all repository gates plus 28 focused browser assertions. Renderer
+source remains `70b4cc2`. Controlled warmed tours repeat resident resources
+exactly; application cleanup and loop cessation are measured, with physical
+reclamation and ordinary React routed unmount still unproven. The
+[supplemental report](../evidence/R6/browser-cleanup-layout.md) preserves the
+old first-arrival observation, 404 attribution limits, HQ overlap and all
+performance failures. The parent awaits a read-only overview feasibility
+review; no new rendering algorithm is accepted. Read current status before
+using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover
 and renderer/stream review; [repository gates and reports](../evidence/R6/README.md)

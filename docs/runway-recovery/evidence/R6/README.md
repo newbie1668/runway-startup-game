@@ -2,11 +2,20 @@
 
 Latest accepted integration source: `70b4cc2d656df636c2045038708cc2665d4d337b`.
 Published evidence source: `03e5f02b20b9b23c7f250891c7f665257c264517`.
+Latest verified UI correction: `00a7465ca82c5dd2fdfb01f5ae51ed3fc8ce7f4a`.
 Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
 
 ## Current native production result
+
+The [supplemental cleanup/layout procedure](browser-cleanup-layout.md)
+establishes controlled repeated-tour resource equality and application
+cleanup, and verifies the hidden-controls height correction with 28 focused
+browser assertions. All required repository gates plus TypeScript pass on
+that one-line UI correction. The renderer source and prior timing failures
+are unchanged. Physical reclamation, ordinary routed unmount and physical
+Safari remain unproven; recorded favicon/HQ-layout caveats remain.
 
 The accepted runtime source was published at `03e5f02`. Its [complete native
 production procedure](browser-03e5f02.md) shows actual streamed city pixels,
@@ -34,11 +43,12 @@ ownership, cover sequence, cover lifecycle, project TypeScript and scoped ESLint
 Protected committed assets and game rules still have no diff against the PR base.
 No build overlaps browser measurement.
 
-The exact source has completed the bounded production-browser matrix. Physical
-iPhone Safari, exact all-slice timing, forced-GC/GPU disposal, duplicate-loop
-counting, separate non-touch mobile sizing, current SwiftShader and formal
-fidelity acceptance remain open. CPU-only improvements are not browser
-acceptance.
+The exact source has completed the bounded production-browser matrix.
+Supplemental forced-GC, per-context handle and loop diagnostics and separate
+non-touch mobile sizing are now recorded above with their limits. Physical
+iPhone Safari, exact all-slice timing, complete physical reclamation, ordinary
+routed unmount, current SwiftShader and formal fidelity acceptance remain
+open. CPU-only improvements are not browser acceptance.
 
 ## Accepted combined runtime candidate
 
