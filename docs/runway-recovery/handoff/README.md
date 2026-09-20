@@ -13,16 +13,24 @@ performance failures. The corrected overview feasibility review supports a
 capped staging-index hypothesis. Helper `8b6561b` and isolated controller
 `2d3ecd0` pass independent source reviews and combined repository gates.
 Follow-up `758bfe4` fixes coarse-clock progress and passes scoped review and
-all combined gates. Bounded production overview validation is running.
-Its CPU probe confirms the triangle bound
-without reducing resident bytes, but is slower than the unfiltered CPU run.
-The parent
-also has source-reviewed context candidate `e1aa660` on a separate branch.
+all combined gates. Reviewed integration `1c52c13` has identical source,
+tests and assets. The [completed browser comparison](../evidence/R6/browser-overview-758bfe4.md)
+passes the triangle ceiling at three matched azimuths, tracked geometry and
+held-pan budgets, with game/save/fallback continuity. Wide startup still fails,
+including a retained 30.673s cold sample; calls remain 2,817. Touch-emulated
+readiness is 18.637s. Added compatibility checks, settlement dependency and
+index uploads have an unresolved startup trade-off. Independent evidence
+review accepts only a limited draft checkpoint.
+The parent also integrated source-reviewed context reuse `e1aa660`.
 Its [native five-pair A/B](../evidence/R6/browser-context-ab.md) fails every
 cold start, with baseline/candidate medians 6.015s/5.887s and no reliable
-improvement. Native context, game/save and fallback checks pass; separate
-SwiftShader readiness fails at 45s. Neither candidate is published to PR #30
-or runtime-accepted. Read current status before using the historical continuation below.
+improvement. Native context, game/save and fallback checks pass. Later paired
+SwiftShader controls fail at 45s on both published `44bdd96` and context-only
+`e1aa660`; the earlier unpaired failure remains recorded. Startup, software
+readiness, physical Safari and faithful-London reconstruction are unaccepted.
+The parent owns the next diagnosis: distinguish generation CPU from
+scheduling/render overhead using the existing profile. No browser measurement
+is running. Read current status before using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover
 and renderer/stream review; [repository gates and reports](../evidence/R6/README.md)

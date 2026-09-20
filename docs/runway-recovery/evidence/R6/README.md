@@ -1,13 +1,27 @@
 # R6 integration candidate
 
-Latest accepted integration source: `70b4cc2d656df636c2045038708cc2665d4d337b`.
-Published evidence source: `03e5f02b20b9b23c7f250891c7f665257c264517`.
+Latest reviewed integration source: `1c52c13` (limited triangle-count checkpoint).
+Latest tested source: `758bfe4` (source/tests/assets identical to integration).
+Earlier complete browser matrix source: `03e5f02b20b9b23c7f250891c7f665257c264517`.
 Latest verified UI correction: `00a7465ca82c5dd2fdfb01f5ae51ed3fc8ce7f4a`.
 Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
 Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
 
 ## Current native production result
+
+The [bounded overview comparison](browser-overview-758bfe4.md) and corrected
+independent review accept the candidate only as a limited draft checkpoint.
+Three matched native views meet two million triangles; zero-angle triangles
+fall from 2,658,931 to 1,908,689. Geometry bytes remain 130,812,722 and calls
+remain 2,817, above the 300-call limit. Wide cold starts take 17.702s/30.673s
+and touch-emulated readiness takes 18.637s. Startup regression is neither
+excluded nor demonstrated. Pan, search, picks, Build/save/reload and context
+loss checks pass within the bounded procedure. Paired SwiftShader controls
+fail at 45s on both the published and context-only baselines. The
+[combined candidate gates](integration-checks/758bfe4.log) pass; the integration
+has no source/test/asset differences. Earlier procedures below retain their
+original conditions and limitations. No runtime release acceptance is claimed.
 
 The [supplemental cleanup/layout procedure](browser-cleanup-layout.md)
 establishes controlled repeated-tour resource equality and application
