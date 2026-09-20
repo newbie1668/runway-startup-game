@@ -4657,18 +4657,21 @@ export function createRoadCoverJob(
         yield;
       }
     };
+    // One page stream per material for the whole cell: every tier and the
+    // crossing stitches share the same pavement/asphalt identity and height,
+    // so only the last page of each stream is a partial page.
+    const walkWriter = createCoverPageWriter(context, () => {
+      sidewalkMaterial ??= context.own(
+        new THREE.MeshLambertMaterial({
+          color: pal.PAVEMENT,
+          side: THREE.DoubleSide,
+          fog: true,
+        }),
+      );
+      return sidewalkMaterial;
+    });
+    const roadWriter = createCoverPageWriter(context, asphalt);
     for (let tier = 0; tier <= 2; tier++) {
-      const walkWriter = createCoverPageWriter(context, () => {
-        sidewalkMaterial ??= context.own(
-          new THREE.MeshLambertMaterial({
-            color: pal.PAVEMENT,
-            side: THREE.DoubleSide,
-            fog: true,
-          }),
-        );
-        return sidewalkMaterial;
-      });
-      const roadWriter = createCoverPageWriter(context, asphalt);
       const halfCarriage = (ROAD_WIDTHS_M[tier]! * METERS_TO_WORLD) / 2;
       const halfWalk = halfCarriage + SIDEWALK_M[tier]! * METERS_TO_WORLD;
       for (const index of options.roadIndices) {
@@ -4687,18 +4690,13 @@ export function createRoadCoverJob(
           }
         }
       }
-      const tierGroup = new THREE.Group();
-      tierGroup.userData.roadTier = tier;
-      const pages = (yield* walkWriter.finish(tierGroup)) + (yield* roadWriter.finish(tierGroup));
-      if (pages) context.root.add(tierGroup);
     }
-    const stitchWriter = createCoverPageWriter(context, asphalt);
     for (const span of roadContext.crossings) {
       yield;
       const points = [{ ...span.pts[0] }, { ...span.pts[1] }];
       if (runTouchesTowerBridge(points)) continue;
       yield* appendCoverRibbonSteps(
-        stitchWriter,
+        roadWriter,
         points,
         (CROSSING_WIDTH_M * METERS_TO_WORLD) / 2,
         ROAD_Y,
@@ -4706,7 +4704,8 @@ export function createRoadCoverJob(
       );
       if (paintMarks) yield* marks(points);
     }
-    yield* stitchWriter.finish(context.root);
+    yield* walkWriter.finish(context.root);
+    yield* roadWriter.finish(context.root);
     if (paintMarks) {
       for (const zebra of roadContext.crosswalks) {
         yield;

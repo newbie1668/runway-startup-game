@@ -18,9 +18,10 @@ function meshes(root: THREE.Object3D | null): THREE.Mesh[] {
 }
 
 /**
- * Paged output may split one legacy mesh into several fixed-capacity pages, so
- * parity is checked on the logical geometry: for each material stream (same
- * material colour, road tier, render order and metadata, in first-appearance
+ * Paged output may split one legacy mesh into several fixed-capacity pages and
+ * merges every road tier into one page stream per material, so parity is
+ * checked on the logical geometry: for each render stream (same material
+ * colour, polygon offset, render order and metadata, in first-appearance
  * order) the ordered triangle list with every present attribute must match.
  */
 type Stream = { key: string; meshes: THREE.Mesh[] };
@@ -29,21 +30,23 @@ function streamKey(mesh: THREE.Mesh): string {
   return JSON.stringify([
     mesh.material.color.getHex(),
     mesh.material.polygonOffsetFactor,
-    mesh.parent?.userData.roadTier ?? null,
     mesh.renderOrder,
     mesh.userData,
     mesh.name,
   ]);
 }
-function streams(root: THREE.Object3D | null): Stream[] {
+/** Legacy tier meshes of one material are separate objects but one stream. */
+function streams(root: THREE.Object3D | null, contiguous = false): Stream[] {
   const result: Stream[] = [];
   for (const mesh of meshes(root)) {
     const key = streamKey(mesh);
     const last = result[result.length - 1];
     if (last?.key === key) last.meshes.push(mesh);
     else {
-      assert(!result.some((stream) => stream.key === key), `stream ${key} is contiguous`);
-      result.push({ key, meshes: [mesh] });
+      const seen = result.find((stream) => stream.key === key);
+      assert(!(seen && contiguous), `stream ${key} is contiguous`);
+      if (seen) seen.meshes.push(mesh);
+      else result.push({ key, meshes: [mesh] });
     }
   }
   return result;
@@ -105,12 +108,12 @@ const legacyRoot = buildRoads(city);
 const after = meshes(output),
   before = meshes(legacyRoot);
 const want = streams(legacyRoot),
-  got = streams(output);
-assert.equal(want.length, before.length, 'each legacy road mesh is its own material stream');
+  got = streams(output, true);
+assert.equal(want.length, 3, 'pavement, asphalt and markings');
 assert.deepEqual(
   got.map((stream) => stream.key),
   want.map((stream) => stream.key),
-  'material/tier/render-order stream sequence preserved',
+  'material/render-order stream sequence preserved',
 );
 assert(after.length > before.length, 'whole-city output is split into pages');
 for (let i = 0; i < want.length; i++) {
@@ -128,11 +131,27 @@ for (let i = 0; i < want.length; i++) {
     assert.equal(page.material, b.meshes[0]!.material, 'one material per stream');
     assert.deepEqual(page.userData, legacy.userData);
     assert.equal(page.renderOrder, legacy.renderOrder);
-    assert.equal(page.parent?.userData.roadTier, legacy.parent?.userData.roadTier);
+    assert.equal(page.parent, output, 'pages hang directly off the job root');
   }
+  // Cross-tier tail sharing: only the final page of a stream is a short page,
+  // and pages are only cut early by the primitive that did not fit.
+  const slack = 24;
+  for (const page of b.meshes.slice(0, -1))
+    assert(
+      page.geometry.getAttribute('position').count >= COVER_PAGE_VERTICES - slack,
+      `page filled before the next one opens (${a.key})`,
+    );
 }
+assert(got[0]!.meshes.length > 1 && got[1]!.meshes.length > 1, 'shared streams span pages');
+const asphaltHex = (got[1]!.meshes[0]!.material as THREE.MeshLambertMaterial).color.getHex();
 const materialsOf = (list: THREE.Mesh[]) => new Set(list.map((mesh) => mesh.material));
 assert.equal(materialsOf(after).size, materialsOf(before).size, 'shared materials as legacy');
+assert.equal(
+  after.filter((mesh) => (mesh.material as THREE.MeshLambertMaterial).color.getHex() === asphaltHex)
+    .length,
+  got[1]!.meshes.length,
+  'crossing stitches share the tier asphalt page stream',
+);
 const resources = new Set<{ dispose(): void }>();
 for (const mesh of [...before, ...after]) {
   resources.add(mesh.geometry);
@@ -151,6 +170,52 @@ const data: CityData = {
     { tier: 0, pts: new Uint16Array([quantizeX(10), quantizeY(10), quantizeX(20), quantizeY(10)]) },
   ],
 };
+
+// Markings on/off: the same pavement/asphalt streams, marks only when painted.
+const tiered: CityData = {
+  buildings: [],
+  water: [],
+  parks: [],
+  roads: [0, 1, 2].map((tier) => ({
+    tier,
+    pts: new Uint16Array([
+      quantizeX(10),
+      quantizeY(10 + tier),
+      quantizeX(40),
+      quantizeY(10 + tier),
+      quantizeX(70),
+      quantizeY(12 + tier),
+    ]),
+  })),
+};
+for (const paintMarks of [true, false]) {
+  let marked: THREE.Group | null = null;
+  const job = createRoadCoverJob({
+    id: `marks-${paintMarks}`,
+    generation: 4,
+    essential: true,
+    cityData: tiered,
+    roadIndices: [0, 1, 2],
+    paintMarks,
+    now: () => 0,
+    roadContext: { crossings: [], crosswalks: [] },
+    onReady(group) {
+      marked = group;
+    },
+  });
+  while (!job.step()) {}
+  const legacy = streams(buildRoads(tiered, null, paintMarks));
+  const paged = streams(marked, true);
+  assert.deepEqual(
+    paged.map((stream) => stream.key),
+    legacy.map((stream) => stream.key),
+    `stream set with paintMarks=${paintMarks}`,
+  );
+  assert.equal(paged.length, paintMarks ? 3 : 2, 'markings stream only when painted');
+  assert.equal(meshes(marked).length, paged.length, 'three tiers emit one page per material');
+  for (let i = 0; i < legacy.length; i++)
+    assert.deepEqual(triangles(paged[i]!), triangles(legacy[i]!), `marks=${paintMarks} stream ${i}`);
+}
 let local: THREE.Group | null = null;
 const crossing = createRoadCoverJob({
   id: 'crossing',
