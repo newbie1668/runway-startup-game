@@ -50,20 +50,25 @@ export async function createMapRenderer(
   const coarsePointer =
     typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const budget = meshBudget();
-  const context = cityCanvas.getContext('webgl2', {
-    alpha: false,
-    antialias: !coarsePointer && !budget.skipAntialias,
-    powerPreference: 'high-performance',
-  });
-  if (!context) return make2d(overlayCanvas, opts.diagnostics, 'WebGL2 unavailable');
-
+  let context: WebGL2RenderingContext | null = null;
   try {
+    context = cityCanvas.getContext('webgl2', {
+      alpha: false,
+      antialias: !coarsePointer && !budget.skipAntialias,
+      powerPreference: 'high-performance',
+    });
+    if (!context) return make2d(overlayCanvas, opts.diagnostics, 'WebGL2 unavailable');
     const { CityRenderer3D } = await import('./CityRenderer3D');
     const renderer = new CityRenderer3D(cityCanvas, overlayCanvas, { ...opts, context });
     opts.diagnostics.selectMode('3d');
     return { renderer, mode: '3d' };
   } catch (error) {
     opts.diagnostics.recordError('init:3d', true, error);
+    try {
+      context?.getExtension('WEBGL_lose_context')?.loseContext();
+    } catch (cleanupError) {
+      opts.diagnostics.recordError('init:webgl-cleanup', false, cleanupError);
+    }
     const message = error instanceof Error ? error.message : String(error);
     return make2d(overlayCanvas, opts.diagnostics, `3D initialization failed: ${message}`);
   }
