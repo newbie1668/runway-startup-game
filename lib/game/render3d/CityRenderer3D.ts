@@ -247,6 +247,7 @@ export class CityRenderer3D implements IMapRenderer {
       onFatal: (reason?: string) => void;
       onReady?: () => void;
       diagnostics?: MapDiagnosticsReporter;
+      context?: WebGL2RenderingContext;
     },
   ) {
     this.cityCanvas = cityCanvas;
@@ -267,6 +268,7 @@ export class CityRenderer3D implements IMapRenderer {
     const budget = meshBudget();
     this.renderer = new THREE.WebGLRenderer({
       canvas: cityCanvas,
+      context: opts.context,
       alpha: false,
       antialias: !this.isCoarsePointer && !budget.skipAntialias,
       powerPreference: 'high-performance',
