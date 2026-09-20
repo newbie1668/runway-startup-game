@@ -42,9 +42,14 @@ and integrated as `104147c`, after the preceding browser run completed.
 All parent repository gates and affected focused checks pass.
 [Source evidence](../evidence/R6/road-pages-shared-writers.md) reproduces
 957→530 CPU cover calls with identical cover triangles and geometry bytes.
-Its native matched-camera browser verification is next; browser totals,
-startup and frustum effects cannot be inferred from source parity alone.
-Stock tile cutovers remain unaccepted, and the 300 total-call target is unchanged.
+The [native comparison on published `0e3a314`](../evidence/R6/browser-shared-road-pages-0e3a314.md)
+now measures 2,817→2,390 calls at zero, with exact triangle/byte parity at three
+angles and p95 19.7ms. Bounded road/game/save/fallback checks pass; all eight
+wide startup observations and every wide call count still fail acceptance.
+An isolated Ultra worker is implementing the next connected overview
+stock-page checkpoint from `0e3a314`; source ownership and scope are in status.
+Stock tile cutovers remain unaccepted and unintegrated. Hidden picks/coverage,
+typed IDs and transition peaks need explicit checks; 128MiB/300 calls stay fixed.
 Read current status before using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover

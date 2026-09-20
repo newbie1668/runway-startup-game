@@ -42,7 +42,10 @@ production build, committed-geodata verification and diff checks passed.
 The parent also passed road-cover parity, cover pages, clipping, context
 ownership, cover lifecycle and road-context parity after integration.
 
-Browser measurement of this integrated candidate is pending. Different page
-boundaries can affect frustum culling even with exact geometry parity. The
-source reduction does not meet the total 300-call target, establish the
-five-second startup target or justify release readiness. PR #30 stays draft.
+The completed [native comparison on `0e3a314`](browser-shared-road-pages-0e3a314.md)
+measures 2,817→2,390 total calls at zero azimuth, with reductions at two other
+angles and exact triangle/byte parity at all three. Held-pan p95 is 19.7 ms;
+the bounded road/tour/pick/save/fallback inspection finds no new defect.
+All eight wide startup observations still fail five seconds, and every wide
+angle still fails 300 calls. The reduction is accepted as a limited
+improvement. PR #30 stays draft.

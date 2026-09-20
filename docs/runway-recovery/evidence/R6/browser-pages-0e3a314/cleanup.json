@@ -1,0 +1,46 @@
+{
+  "at": "2026-09-20T23:51:54.433445+00:00",
+  "candidateStatus": {
+    "command": [
+      "git",
+      "status",
+      "--short"
+    ],
+    "returncode": 0,
+    "stdout": "?? docs/runway-recovery/evidence/R6/browser-pages-0e3a314/\n?? docs/runway-recovery/evidence/R6/browser-road-6e1fcb1/\n",
+    "stderr": ""
+  },
+  "candidateTrackedDiff": {
+    "command": [
+      "git",
+      "diff",
+      "--stat"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "baselineStatus": {
+    "command": [
+      "git",
+      "status",
+      "--short"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "ports": {
+    "command": [
+      "lsof",
+      "-nP",
+      "-iTCP:4320",
+      "-iTCP:4321",
+      "-sTCP:LISTEN"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  "ownedProcessMatches": []
+}

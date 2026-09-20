@@ -1,0 +1,453 @@
+{
+  "environment": {
+    "at": "2026-09-20T23:36:42.027913+00:00",
+    "sources": [
+      {
+        "label": "baseline",
+        "path": "/Users/devin/repos/runway-qa-pages-base-6e1fcb1",
+        "commit": "6e1fcb1fc8b34788805199148545e554a91a4c74",
+        "buildId": "-NkUmz2TDeg09WHMIiv84",
+        "status": "",
+        "url": "http://127.0.0.1:4320/game",
+        "httpStatus": 200,
+        "nodeModulesSymlink": false,
+        "citySha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0"
+      },
+      {
+        "label": "candidate",
+        "path": "/Users/devin/repos/runway-streaming",
+        "commit": "0e3a31442f4a4bfd775f70d9a29ba07e5b4ae10e",
+        "buildId": "bZ44S-RojE17U8WjcoNo0",
+        "status": "?? docs/runway-recovery/evidence/R6/browser-road-6e1fcb1/\n",
+        "url": "http://127.0.0.1:4321/game",
+        "httpStatus": 200,
+        "nodeModulesSymlink": false,
+        "citySha256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0"
+      }
+    ],
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.5.2\nBuildVersion:\t\t25F84\n",
+    "cache": "Fresh Chrome process/profile per pair; clear HTTP cache before cold and disable throughout. OS/driver/compiler/shader caches not reset. Reload shares process/JIT/GPU state.",
+    "builds": "Independent frozen installs, sequential production builds completed before timing.",
+    "harness": "/Users/devin/runway-pages-0e3a314/run.cjs"
+  },
+  "timings": [
+    {
+      "name": "baseline-wide-1-cold",
+      "revision": "baseline",
+      "url": "http://127.0.0.1:4320/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 14958.099999999627,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2817,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 261,
+        "stream:indices": 14.200000001117587,
+        "stream:cover-index": null,
+        "stream:road-context": 6603.5999999996275,
+        "stream:coverage:1": 13784.199999999255
+      }
+    },
+    {
+      "name": "baseline-wide-1-reload",
+      "revision": "baseline",
+      "url": "http://127.0.0.1:4320/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 12961.699999999255,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2817,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 54.09999999962747,
+        "stream:indices": 12.099999999627471,
+        "stream:cover-index": 137.40000000037253,
+        "stream:road-context": 6042.299999998882,
+        "stream:coverage:1": 12482.300000000745
+      }
+    },
+    {
+      "name": "candidate-wide-1-cold",
+      "revision": "candidate",
+      "url": "http://127.0.0.1:4321/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 13475.400000000373,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2390,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 94.59999999962747,
+        "stream:indices": 13.400000000372529,
+        "stream:cover-index": 137.5,
+        "stream:road-context": 6260.39999999851,
+        "stream:coverage:1": 12500
+      }
+    },
+    {
+      "name": "candidate-wide-1-reload",
+      "revision": "candidate",
+      "url": "http://127.0.0.1:4321/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 12916.400000000373,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2390,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 57.29999999888241,
+        "stream:indices": 12.099999999627471,
+        "stream:cover-index": 140.5,
+        "stream:road-context": 6127,
+        "stream:coverage:1": 12434.299999998882
+      }
+    },
+    {
+      "name": "candidate-wide-2-cold",
+      "revision": "candidate",
+      "url": "http://127.0.0.1:4321/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 13873.299999998882,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2390,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 86.09999999962747,
+        "stream:indices": 13.5,
+        "stream:cover-index": 135.89999999850988,
+        "stream:road-context": 6269.199999999255,
+        "stream:coverage:1": 12663.300000000745
+      }
+    },
+    {
+      "name": "candidate-wide-2-reload",
+      "revision": "candidate",
+      "url": "http://127.0.0.1:4321/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 13261,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2390,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 62.5,
+        "stream:indices": 11.900000000372529,
+        "stream:cover-index": 145.30000000074506,
+        "stream:road-context": 6458.299999998882,
+        "stream:coverage:1": 12765.699999999255
+      }
+    },
+    {
+      "name": "baseline-wide-2-cold",
+      "revision": "baseline",
+      "url": "http://127.0.0.1:4320/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 15091,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2817,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 77,
+        "stream:indices": 13.400000000372529,
+        "stream:cover-index": 152.59999999962747,
+        "stream:road-context": 6537.5,
+        "stream:coverage:1": 14041.799999998882
+      }
+    },
+    {
+      "name": "baseline-wide-2-reload",
+      "revision": "baseline",
+      "url": "http://127.0.0.1:4320/game?qa=1&view=wide",
+      "firstUsefulFrameMs": 15339.400000000373,
+      "passes5000ms": false,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 2817,
+      "triangles": 1908689,
+      "geometryBytes": 130812722,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "elapsedStagesMs": {
+        "load:city": 62.30000000074506,
+        "stream:indices": 12.100000001490116,
+        "stream:cover-index": 155.09999999962747,
+        "stream:road-context": 6565.5,
+        "stream:coverage:1": 14851.599999999627
+      }
+    },
+    {
+      "name": "candidate-default-1-cold",
+      "revision": "candidate",
+      "url": "http://127.0.0.1:4321/game?qa=1",
+      "firstUsefulFrameMs": 4933.699999999255,
+      "passes5000ms": true,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 120,
+      "triangles": 371167,
+      "geometryBytes": 36188922,
+      "camera": {
+        "x": 80.42889105358047,
+        "y": 32.40000000000265,
+        "zoom": 468.75
+      },
+      "elapsedStagesMs": {
+        "load:city": 120.60000000149012,
+        "stream:indices": 13.5,
+        "stream:cover-index": 153.09999999962747,
+        "stream:road-context": null,
+        "stream:coverage:1": 3717.9000000003725
+      }
+    },
+    {
+      "name": "candidate-default-1-reload",
+      "revision": "candidate",
+      "url": "http://127.0.0.1:4321/game?qa=1",
+      "firstUsefulFrameMs": 4112.5,
+      "passes5000ms": true,
+      "metUsefulBound": true,
+      "settled": true,
+      "drawCalls": 120,
+      "triangles": 371167,
+      "geometryBytes": 36188922,
+      "camera": {
+        "x": 80.42889105358047,
+        "y": 32.40000000000265,
+        "zoom": 468.75
+      },
+      "elapsedStagesMs": {
+        "load:city": null,
+        "stream:indices": null,
+        "stream:cover-index": 136.09999999962747,
+        "stream:road-context": null,
+        "stream:coverage:1": 3687
+      }
+    }
+  ],
+  "timingGroups": {
+    "baseline-wide-cold": {
+      "values": [
+        14958.099999999627,
+        15091
+      ],
+      "median": 15024.549999999814,
+      "min": 14958.099999999627,
+      "max": 15091
+    },
+    "baseline-wide-reload": {
+      "values": [
+        12961.699999999255,
+        15339.400000000373
+      ],
+      "median": 14150.549999999814,
+      "min": 12961.699999999255,
+      "max": 15339.400000000373
+    },
+    "candidate-wide-cold": {
+      "values": [
+        13475.400000000373,
+        13873.299999998882
+      ],
+      "median": 13674.349999999627,
+      "min": 13475.400000000373,
+      "max": 13873.299999998882
+    },
+    "candidate-wide-reload": {
+      "values": [
+        12916.400000000373,
+        13261
+      ],
+      "median": 13088.700000000186,
+      "min": 12916.400000000373,
+      "max": 13261
+    },
+    "candidate-default-cold": {
+      "values": [
+        4933.699999999255
+      ],
+      "median": 4933.699999999255,
+      "min": 4933.699999999255,
+      "max": 4933.699999999255
+    },
+    "candidate-default-reload": {
+      "values": [
+        4112.5
+      ],
+      "median": 4112.5,
+      "min": 4112.5,
+      "max": 4112.5
+    }
+  },
+  "matchedAngles": [
+    {
+      "look": "zero",
+      "azimuthRadians": 0,
+      "cameraMatch": true,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "baseline": {
+        "drawCalls": 2817,
+        "triangles": 1908689,
+        "geometryBytes": 130812722
+      },
+      "candidate": {
+        "drawCalls": 2390,
+        "triangles": 1908689,
+        "geometryBytes": 130812722
+      },
+      "callDelta": -427,
+      "callReductionPercent": 15.157969471068512,
+      "triangleDelta": 0,
+      "geometryByteDelta": 0
+    },
+    {
+      "look": "stpauls",
+      "azimuthRadians": 0.72,
+      "cameraMatch": true,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "baseline": {
+        "drawCalls": 2774,
+        "triangles": 1889114,
+        "geometryBytes": 130812722
+      },
+      "candidate": {
+        "drawCalls": 2351,
+        "triangles": 1889114,
+        "geometryBytes": 130812722
+      },
+      "callDelta": -423,
+      "callReductionPercent": 15.24873828406633,
+      "triangleDelta": 0,
+      "geometryByteDelta": 0
+    },
+    {
+      "look": "eye",
+      "azimuthRadians": -1.5707963267948966,
+      "cameraMatch": true,
+      "camera": {
+        "x": 102.71491504520723,
+        "y": 50.00000000000071,
+        "zoom": 6.822069497882382
+      },
+      "baseline": {
+        "drawCalls": 2551,
+        "triangles": 1817927,
+        "geometryBytes": 126393623
+      },
+      "candidate": {
+        "drawCalls": 2148,
+        "triangles": 1817927,
+        "geometryBytes": 126393623
+      },
+      "callDelta": -403,
+      "callReductionPercent": 15.797726381811055,
+      "triangleDelta": 0,
+      "geometryByteDelta": 0
+    }
+  ],
+  "pan": {
+    "p95": 19.69999999999709,
+    "median": 16.60000000000582,
+    "passed": true,
+    "moved": true
+  },
+  "panIntervalCount": 1800,
+  "save": {
+    "exactParity": true,
+    "utf8Bytes": 1512
+  },
+  "fallback": {
+    "initialTransientMode": "3d",
+    "initialTransientState": "failed",
+    "finalMode": "2d",
+    "finalState": "fallback",
+    "reason": "WebGL context lost",
+    "productBefore": 11.103643902194694,
+    "productAfter": 16.70935590360837
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "dpr": 2,
+      "coarse": true,
+      "visible": "visible"
+    },
+    "firstUsefulFrameMs": 4800,
+    "mode": "3d",
+    "state": "ready"
+  },
+  "events": {
+    "byKind": {
+      "console": 16
+    },
+    "consoleByLocation": {
+      "http://127.0.0.1:4320/favicon.ico": 5,
+      "http://127.0.0.1:4321/favicon.ico": 11
+    }
+  },
+  "limitations": [
+    "HTTP cache cleared/disabled, not OS/driver/compiler/shader cache reset",
+    "Fresh process/profile per pair; reload shares process/JIT/GPU state",
+    "Small bounded sample; no reliable causal startup improvement established",
+    "Elapsed passive stages include yields and overlap; null means missed observation",
+    "rAF intervals are not GPU execution durations",
+    "Physical Safari, formal London fidelity, GPU transfer/execution cost and driver memory unmeasured",
+    "Prior startup/mobile failures and paired SwiftShader failures preserved; no software rerun"
+  ]
+}
