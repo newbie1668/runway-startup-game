@@ -6,6 +6,7 @@ import {
   createCellStockJob,
   createStockTileJob,
   type CellStockReady,
+  type StockJob,
   type StockTileReady,
 } from './cellStockJob';
 import {
@@ -118,6 +119,7 @@ export class CityStream {
   private readonly covers = createStreamResidentStore<CoverResident>();
   private readonly trees = createStreamResidentStore<CoverResident>();
   private readonly pending = new Map<string, Request>();
+  private readonly staging = new Map<string, StockJob>();
   private requests: Request[] = [];
   private cursor = 0;
   private essentialEnd = 0;
@@ -200,6 +202,16 @@ export class CityStream {
   /** Replacement cells owned and tracked but not yet exposed because a tile still covers them. */
   get hiddenCells(): number {
     return this.hidden.size;
+  }
+
+  /**
+   * Geometry bytes live outside the tracker: stock-job fragments, open targets and sealed
+   * unpublished pages, plus the draw-range controller's single scratch index.
+   */
+  get stagingBytes(): number {
+    let bytes = this.drawRanges.stagingBytes;
+    for (const job of this.staging.values()) bytes += job.stagingBytes();
+    return bytes;
   }
 
   buildingMeshes(): THREE.Mesh[] {
@@ -303,7 +315,9 @@ export class CityStream {
     this.tiles.beginGeneration();
     this.covers.beginGeneration();
     this.trees.beginGeneration();
-    this.reconcile();
+    // Residents outside the new retain rings leave before the new plan adds bytes; visible
+    // coverage is inside every retain ring, so old useful representations stay until cutover.
+    this.trimResidents();
     this.coverageJob = `stream:coverage:${this.generation}`;
     this.options.diagnostics.registerJob(this.coverageJob, true);
     this.options.diagnostics.startJob(this.coverageJob);
@@ -409,6 +423,7 @@ export class CityStream {
       this.scheduler = createBuildScheduler();
       for (const id of this.pending.keys()) this.options.diagnostics.cancelJob(id);
       this.pending.clear();
+      this.staging.clear();
       if (this.coverageJob) this.options.diagnostics.cancelJob(this.coverageJob);
       this.coverageJob = null;
       this.requests = [];
@@ -665,8 +680,8 @@ export class CityStream {
       now: this.options.now,
       sliceMs: 4,
     };
-    if (request.kind === 'tile')
-      return createStockTileJob({
+    if (request.kind === 'tile') {
+      const job = createStockTileJob({
         ...common,
         tileId: request.id,
         cells: request.tile.cells,
@@ -674,8 +689,11 @@ export class CityStream {
         material: this.options.material,
         onReady: (ready) => this.publishTile(request, generation, ready),
       });
-    if (request.kind === 'stock')
-      return createCellStockJob({
+      this.staging.set(id, job);
+      return job;
+    }
+    if (request.kind === 'stock') {
+      const job = createCellStockJob({
         ...common,
         cell: this.options.cityIndex.cells.get(request.id)!,
         excludedBuildingIndices: this.options.exclusions,
@@ -683,6 +701,9 @@ export class CityStream {
         detail: request.detail,
         onReady: (ready) => this.publishStock(request, generation, ready),
       });
+      this.staging.set(id, job);
+      return job;
+    }
     if (request.kind === 'decor') {
       const stock = this.stocks.get(request.id)!;
       if (stock.detail !== request.detail)
@@ -868,10 +889,12 @@ export class CityStream {
         completed += result.completed.length;
         for (const id of result.completed) {
           this.pending.delete(id);
+          this.staging.delete(id);
           this.options.diagnostics.completeJob(id);
         }
         for (const failure of result.failed) {
           this.pending.delete(failure.id);
+          this.staging.delete(failure.id);
           this.options.diagnostics.failJob(failure.id, failure.error);
           if (failure.essential) {
             this.options.onFatal(failure.id);

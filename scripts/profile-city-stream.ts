@@ -4,6 +4,7 @@ import { project, WORLD } from '../lib/game/geo';
 import { createMapDiagnostics } from '../lib/game/mapDiagnostics';
 import { createBuildScheduler } from '../lib/game/render3d/buildScheduler';
 import { CameraRig } from '../lib/game/render3d/cameraRig';
+import { MAX_PAGE_INDEX_BYTES, MAX_PAGE_VERTICES } from '../lib/game/render3d/cellStockJob';
 import { createBuildingMaterial } from '../lib/game/render3d/cityBuilder';
 import { indexCity } from '../lib/game/render3d/cityIndex';
 import { CityStream } from '../lib/game/render3d/cityStream';
@@ -49,7 +50,22 @@ while (!indexed.value) {
   if (++indexFrames > 100_000) throw new Error('Cover index did not settle');
 }
 const resources = createResourcePool();
-const tracker = createGeometryTracker();
+const ledger = createGeometryTracker();
+/** Combined resident + live stock-job staging bytes, sampled at every attach as well as per frame. */
+let peakCombinedBytes = 0;
+const sampleCombined = (): number => {
+  const combined = ledger.bytes() + stream.stagingBytes;
+  peakCombinedBytes = Math.max(peakCombinedBytes, combined);
+  return combined;
+};
+const tracker: typeof ledger = {
+  trackTree(tree) {
+    ledger.trackTree(tree);
+    sampleCombined();
+  },
+  bytes: () => ledger.bytes(),
+  clear: () => ledger.clear(),
+};
 const material = createBuildingMaterial();
 resources.retain(material);
 const diagnostics = createMapDiagnostics(1, () => performance.now());
@@ -90,22 +106,34 @@ rig.update(
 const frameLimit = process.argv.includes('--sample') ? 2500 : 100_000;
 const transitions = process.argv.includes('--transitions');
 const SLICE_TARGET_MS = 4;
+const RESIDENT_CEILING_BYTES = 128 * 1024 * 1024;
+/** CityStream.drain() spends up to 2ms on draw ranges before its 4ms generation budget. */
+const FRAME_BUDGET_MS = SLICE_TARGET_MS + 2;
 let lastJobId = '';
 
 /** Resident stock representation: per-cell groups, tile groups and their pages. */
 function stockShape() {
   const tiles = new Set<string>();
   let cells = 0, pages = 0, maxPageVertices = 0, maxPageIndexBytes = 0, sources = 0;
+  let maxCellVertices = 0, maxCellIndexBytes = 0;
   for (const mesh of stream.buildingMeshes()) {
     sources += (mesh.userData.sourceBuildingIndices as readonly number[]).length;
     const vertices = mesh.geometry.getAttribute('position').count;
     const index = mesh.geometry.getIndex();
-    maxPageVertices = Math.max(maxPageVertices, vertices);
-    maxPageIndexBytes = Math.max(maxPageIndexBytes, index ? index.array.byteLength : 0);
+    const indexBytes = index ? index.array.byteLength : 0;
     if (mesh.userData.tileId) {
       tiles.add(mesh.userData.tileId as string);
       pages++;
-    } else cells++;
+      if (vertices > MAX_PAGE_VERTICES || indexBytes > MAX_PAGE_INDEX_BYTES ||
+        !(index?.array instanceof Uint16Array))
+        throw new Error(`tile page ${mesh.userData.tileId} escaped the Uint16 page bounds`);
+      maxPageVertices = Math.max(maxPageVertices, vertices);
+      maxPageIndexBytes = Math.max(maxPageIndexBytes, indexBytes);
+    } else {
+      cells++;
+      maxCellVertices = Math.max(maxCellVertices, vertices);
+      maxCellIndexBytes = Math.max(maxCellIndexBytes, indexBytes);
+    }
   }
   if (sources !== stream.stockBuildings) throw new Error('drawn-building count diverged from exposed sources');
   return {
@@ -113,8 +141,12 @@ function stockShape() {
     tiles: tiles.size,
     tilePages: pages,
     meshes: cells + pages,
+    /** Tile pages only: bounded Uint16. */
     maxPageVertices,
     maxPageIndexBytes,
+    /** Legacy per-cell detailed/near stock (unchanged single-cell path, may exceed Uint16). */
+    maxCellVertices,
+    maxCellIndexBytes,
     tileCoveredCells: stream.tileCoveredCells,
     hiddenCells: stream.hiddenCells,
   };
@@ -143,10 +175,14 @@ function runPhase(stage: string) {
   let firstCoverageFrame: number | null = null;
   let maxSliceMs = 0;
   let sliceOverruns = 0;
+  let framesOverBudget = 0;
   let peakBytes = tracker.bytes();
+  let peakStagingBytes = 0;
   let peakHiddenCells = 0;
-  const startBytes = tracker.bytes();
   const phaseStarted = performance.now();
+  const startBytes = tracker.bytes();
+  peakCombinedBytes = 0;
+  sampleCombined();
   while (!stream.idle) {
     const before = performance.now();
     if (drawRanges) stream.prepareDrawRanges(rig.camera, false);
@@ -154,7 +190,10 @@ function runPhase(stage: string) {
     const slice = performance.now() - before;
     maxSliceMs = Math.max(maxSliceMs, slice);
     if (slice > SLICE_TARGET_MS * 2) sliceOverruns++;
+    if (slice > FRAME_BUDGET_MS) framesOverBudget++;
     peakBytes = Math.max(peakBytes, tracker.bytes());
+    peakStagingBytes = Math.max(peakStagingBytes, stream.stagingBytes);
+    sampleCombined();
     peakHiddenCells = Math.max(peakHiddenCells, stream.hiddenCells);
     frames++;
     const lastJob = diagnostics.snapshot().lastJob;
@@ -184,16 +223,27 @@ function runPhase(stage: string) {
     if (frames > frameLimit) break;
   }
   assertUniqueSources();
+  if (stream.stagingBytes !== 0) throw new Error(`${stage}: ${stream.stagingBytes} staging bytes remain while idle`);
+  if (peakCombinedBytes > RESIDENT_CEILING_BYTES)
+    throw new Error(
+      `${stage}: resident + staging peaked at ${(peakCombinedBytes / 1024 / 1024).toFixed(3)} MiB above the 128 MiB ceiling`,
+    );
   return {
     stage,
     frames,
     firstCoverageFrame,
     maxSliceMs,
+    /** Drain frames above 2x the slice target. */
     sliceOverruns,
+    /** Drain frames above the stream's own frame budget (draw-range 2ms + 4ms generation). */
+    framesOverBudget,
     elapsedMs: performance.now() - phaseStarted,
+    /** Resident bytes right after update(): residents outside the new retain rings are already gone. */
     startGeometryMiB: startBytes / 1024 / 1024,
     geometryMiB: tracker.bytes() / 1024 / 1024,
     peakGeometryMiB: peakBytes / 1024 / 1024,
+    peakStagingMiB: peakStagingBytes / 1024 / 1024,
+    peakResidentPlusStagingMiB: peakCombinedBytes / 1024 / 1024,
     peakHiddenCells,
     buildings: stream.stockBuildings,
     residentCells: stream.residentCells,
@@ -278,6 +328,7 @@ console.log(
       residentCells: stream.residentCells,
       stock: stockShape(),
       sliceTargetMs: SLICE_TARGET_MS,
+      frameBudgetMs: FRAME_BUDGET_MS,
       phases: transitions ? phases : undefined,
       cpuDrawEstimate,
       note: 'CPU-only, excludes landmarks, GPU upload/rendering, frame waits and browser readiness',

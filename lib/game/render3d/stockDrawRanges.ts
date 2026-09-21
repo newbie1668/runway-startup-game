@@ -79,6 +79,11 @@ export class StockDrawRanges {
     return this.active === null && this.queue.size === 0;
   }
 
+  /** Scratch index the active job may hold: one same-length copy, at most MAX_INDEX_BYTES. */
+  get stagingBytes(): number {
+    return this.active?.entry.stamp?.index.array.byteLength ?? 0;
+  }
+
   settled(mesh: THREE.Mesh): boolean {
     return !this.entries.get(mesh)?.pending;
   }

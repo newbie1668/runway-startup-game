@@ -142,57 +142,81 @@ function singleCell(cityData: CityData, cell: CityCell): { group: THREE.Group | 
   drain(createCellStockJob({ id: `single:${cell.id}`, generation: 1, essential: true, cityData, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now: () => 0, onReady: (v) => { out = { group: v.group, scratch: v.scratch, sources: v.sourceBuildingIndices }; } }));
   assert.ok(out); return out;
 }
+let lastTilePeakStagingBytes = 0;
 function tileJob(cityData: CityData, cells: readonly CityCell[], caps: { maxPageVertices?: number; maxPageIndexBytes?: number } = {}): StockTileReady {
   let out: StockTileReady | undefined;
-  drain(createStockTileJob({ id: 'tile', generation: 1, essential: true, cityData, tileId: 'tile:0,0', cells, excludedBuildingIndices: new Set(), material, now: () => 0, ...caps, onReady: (v) => { out = v; } }));
+  const job = createStockTileJob({ id: 'tile', generation: 1, essential: true, cityData, tileId: 'tile:0,0', cells, excludedBuildingIndices: new Set(), material, now: () => 0, ...caps, onReady: (v) => { out = v; } });
+  lastTilePeakStagingBytes = 0; let complete = false;
+  for (let i = 0; i < 100000 && !(complete = job.step()); i++) lastTilePeakStagingBytes = Math.max(lastTilePeakStagingBytes, job.stagingBytes());
+  assert.equal(complete, true, 'bounded drain completes'); assert.equal(job.stagingBytes(), 0, 'nothing stays staged after publication');
   assert.ok(out); return out;
 }
 function geometryOf(group: THREE.Group | null): THREE.BufferGeometry | null { return group ? (group.children[0] as THREE.Mesh).geometry : null; }
+function pushAll(into: number[], values: ArrayLike<number>): void { for (let i = 0; i < values.length; i++) into.push(values[i]!); }
+/** Vertex/index counts of one source building at overview detail (the unit a split page boundary may separate). */
+function buildingCounts(cityData: CityData, cellId: CityCell['id'], source: number): { vertices: number; indices: number } {
+  const group = buildCellStockBatch({ cityData, cellId, buildingIndices: [source], excludedBuildingIndices: new Set(), material, detail: 'overview', scratch: createScratch() });
+  let vertices = 0, indices = 0; group?.traverse((o) => { if (o instanceof THREE.Mesh) { vertices += o.geometry.getAttribute('position').count; indices += o.geometry.getIndex()!.count; o.geometry.dispose(); } });
+  return { vertices, indices };
+}
 function assertTileParity(cityData: CityData, cells: readonly CityCell[], ready: StockTileReady, caps = { maxPageVertices: MAX_PAGE_VERTICES, maxPageIndexBytes: MAX_PAGE_INDEX_BYTES }): void {
   assert.deepEqual([...ready.cellIds], cells.map((cell) => cell.id));
-  assert.deepEqual(ready.pages.flatMap((page) => [...page.cellIds]), cells.map((cell) => cell.id), 'pages cover every cell exactly once in tile order');
   const singles = new Map(cells.map((cell) => [cell.id, singleCell(cityData, cell)] as const));
+  const cellVertices = (cellId: string) => geometryOf(singles.get(cellId)!.group)?.getAttribute('position').count ?? 0;
+  const cellIndices = (cellId: string) => geometryOf(singles.get(cellId)!.group)?.getIndex()!.count ?? 0;
+  const cellFits = (cellId: string) => cellVertices(cellId) <= caps.maxPageVertices && cellIndices(cellId) * 2 <= caps.maxPageIndexBytes;
+  // Page cell lists are consecutive runs of the tile order; a cell spans several pages only when it cannot fit an empty page.
+  const runs = ready.pages.flatMap((page) => [...page.cellIds]).filter((id, i, all) => i === 0 || all[i - 1] !== id);
+  assert.deepEqual(runs, cells.map((cell) => cell.id), 'pages cover every cell in tile order');
+  for (const page of ready.pages) assert.equal(new Set(page.cellIds).size, page.cellIds.length, 'a page lists each cell once');
+  const spans = new Map<string, number>(); for (const page of ready.pages) for (const id of page.cellIds) spans.set(id, (spans.get(id) ?? 0) + 1);
+  for (const [id, count] of spans) if (count > 1) assert.ok(!cellFits(id), `${id} is split only because it overflows an empty page`);
   const expectedSources = cells.flatMap((cell) => [...singles.get(cell.id)!.sources]);
   assert.deepEqual([...ready.sourceBuildingIndices], expectedSources, 'tile source order equals per-cell source order');
   assert.equal(new Set(ready.sourceBuildingIndices).size, ready.sourceBuildingIndices.length, 'no duplicate source identity');
-  assert.deepEqual(ready.scratch.picks, cells.flatMap((cell) => singles.get(cell.id)!.scratch.picks), 'picks are the ordered per-cell picks');
-  assert.deepEqual(ready.pages.flatMap((page) => [...page.sourceBuildingIndices]), expectedSources);
+  assert.deepEqual(ready.scratch.picks, cells.flatMap((cell) => singles.get(cell.id)!.scratch.picks), 'picks are the ordered per-cell picks exactly once');
+  assert.deepEqual(ready.pages.flatMap((page) => [...page.sourceBuildingIndices]), expectedSources, 'page source lists partition the tile sources in order');
+  const cellOf = new Map<number, string>(); for (const cell of cells) for (const n of cell.buildingIndices) cellOf.set(n, cell.id);
+  for (const page of ready.pages) for (const source of page.sourceBuildingIndices) assert.ok(page.cellIds.includes(cellOf.get(source) as CityCell['id']), `page lists the cell of source ${source}`);
   const meshes: THREE.Mesh[] = []; ready.group?.traverse((o) => { if (o instanceof THREE.Mesh) meshes.push(o); });
   assert.deepEqual(meshes, ready.pages.map((page) => page.mesh), 'group children are exactly the pages');
-  let geometryBytes = 0;
+  // Complete ordered parity: the pages concatenated equal the single-cell outputs concatenated, with page-local indices rebased.
+  const actualPosition: number[] = [], actualNormal: number[] = [], actualColor: number[] = [], actualIndex: number[] = [];
+  let geometryBytes = 0, pageBase = 0;
   for (const page of ready.pages) {
     const geometry = page.mesh.geometry, position = geometry.getAttribute('position'), normal = geometry.getAttribute('normal'), color = geometry.getAttribute('color'), index = geometry.getIndex()!;
-    assert.equal(page.mesh.material, material); assert.equal(page.mesh.userData.tileId, 'tile:0,0'); assert.deepEqual(page.mesh.userData.cellIds, page.cellIds);
+    assert.equal(page.mesh.material, material); assert.equal(page.mesh.userData.tileId, 'tile:0,0'); assert.deepEqual(page.mesh.userData.cellIds, page.cellIds); assert.deepEqual(page.mesh.userData.sourceBuildingIndices, page.sourceBuildingIndices);
     assert.equal(position.count, page.vertices); assert.equal(index.array.byteLength, page.indexBytes);
     assert.ok(normal.array instanceof Int8Array && color.array instanceof Uint8Array);
-    const oversized = page.cellIds.length === 1 && page.vertices > caps.maxPageVertices;
-    if (!oversized) { assert.ok(page.vertices <= caps.maxPageVertices, 'page stays within the vertex cap'); assert.ok(page.indexBytes <= caps.maxPageIndexBytes, 'page stays within the index-byte cap'); }
-    assert.ok(page.vertices <= 65535 ? index.array instanceof Uint16Array : index.array instanceof Uint32Array, 'Uint16 pages never overflow');
+    assert.ok(page.vertices <= caps.maxPageVertices, `page stays within the vertex cap (${page.vertices} <= ${caps.maxPageVertices})`); assert.ok(page.indexBytes <= caps.maxPageIndexBytes, `page stays within the index-byte cap (${page.indexBytes} <= ${caps.maxPageIndexBytes})`);
+    assert.ok(index.array instanceof Uint16Array, 'tile pages are always Uint16');
     geometryBytes += position.array.byteLength + normal.array.byteLength + color.array.byteLength + index.array.byteLength;
     assert.equal(page.geometryBytes, position.array.byteLength + normal.array.byteLength + color.array.byteLength + index.array.byteLength);
-    let vertexAt = 0, indexAt = 0;
-    for (const cellId of page.cellIds) {
-      const expected = geometryOf(singles.get(cellId)!.group); if (!expected) continue;
-      const ep = expected.getAttribute('position'), en = expected.getAttribute('normal'), ec = expected.getAttribute('color'), ei = expected.getIndex()!;
-      assert.deepEqual(Array.from((position.array as Float32Array).subarray(vertexAt * 3, (vertexAt + ep.count) * 3)), Array.from(ep.array), `positions for ${cellId}`);
-      assert.deepEqual(Array.from((normal.array as Int8Array).subarray(vertexAt * 3, (vertexAt + ep.count) * 3)), Array.from(en.array), `packed normals for ${cellId}`);
-      assert.deepEqual(Array.from((color.array as Uint8Array).subarray(vertexAt * 3, (vertexAt + ep.count) * 3)), Array.from(ec.array), `packed colors for ${cellId}`);
-      assert.deepEqual(Array.from(index.array.subarray(indexAt, indexAt + ei.count)), Array.from(ei.array).map((v) => v + vertexAt), `offset indices for ${cellId}`);
-      vertexAt += ep.count; indexAt += ei.count;
-    }
-    assert.equal(vertexAt, position.count, 'page holds exactly its cells');
-    assert.equal(indexAt, index.count);
+    pushAll(actualPosition, position.array); pushAll(actualNormal, normal.array); pushAll(actualColor, color.array);
+    for (const value of index.array) actualIndex.push(value + pageBase);
+    pageBase += position.count;
     const box = geometry.boundingBox!; const check = new THREE.BufferGeometry(); check.setAttribute('position', position); check.computeBoundingBox();
     assert.deepEqual(box.min.toArray(), check.boundingBox!.min.toArray()); assert.deepEqual(box.max.toArray(), check.boundingBox!.max.toArray());
   }
   assert.equal(ready.geometryBytes, geometryBytes);
-  // Greedy cell-aligned packing: each page break is forced by the next whole cell.
-  const cellVertices = (cellId: string) => geometryOf(singles.get(cellId)!.group)?.getAttribute('position').count ?? 0;
-  const cellIndices = (cellId: string) => geometryOf(singles.get(cellId)!.group)?.getIndex()!.count ?? 0;
+  const expectedPosition: number[] = [], expectedNormal: number[] = [], expectedColor: number[] = [], expectedIndex: number[] = [];
+  let cellBase = 0;
+  for (const cell of cells) {
+    const expected = geometryOf(singles.get(cell.id)!.group); if (!expected) continue;
+    const ep = expected.getAttribute('position'), en = expected.getAttribute('normal'), ec = expected.getAttribute('color'), ei = expected.getIndex()!;
+    pushAll(expectedPosition, ep.array); pushAll(expectedNormal, en.array); pushAll(expectedColor, ec.array);
+    for (const value of ei.array) expectedIndex.push(value + cellBase);
+    cellBase += ep.count;
+  }
+  assert.equal(pageBase, cellBase, 'pages hold exactly the per-cell vertices');
+  assert.deepEqual(actualPosition, expectedPosition, 'ordered positions'); assert.deepEqual(actualNormal, expectedNormal, 'ordered packed normals'); assert.deepEqual(actualColor, expectedColor, 'ordered packed colors'); assert.deepEqual(actualIndex, expectedIndex, 'ordered rebased indices');
+  // Greedy packing: each page break is forced by the next whole cell, or by the next building when a cell is split.
   for (let i = 0; i + 1 < ready.pages.length; i++) {
-    const page = ready.pages[i]!, next = ready.pages[i + 1]!.cellIds[0]!;
-    const vertices = page.vertices + cellVertices(next), indices = page.mesh.geometry.getIndex()!.count + cellIndices(next);
-    assert.ok(vertices > caps.maxPageVertices || indices * (vertices <= 65535 ? 2 : 4) > caps.maxPageIndexBytes, `page ${i} closes only when the next cell would overflow a cap`);
+    const page = ready.pages[i]!, next = ready.pages[i + 1]!, nextCell = next.cellIds[0]!;
+    const continues = page.cellIds[page.cellIds.length - 1] === nextCell;
+    const unit = continues ? buildingCounts(cityData, nextCell, next.sourceBuildingIndices[0]!) : { vertices: cellVertices(nextCell), indices: cellIndices(nextCell) };
+    const vertices = page.vertices + unit.vertices, indices = page.mesh.geometry.getIndex()!.count + unit.indices;
+    assert.ok(vertices > caps.maxPageVertices || indices * 2 > caps.maxPageIndexBytes, `page ${i} closes only when the next ${continues ? 'building' : 'cell'} would overflow a cap`);
   }
   for (const single of singles.values()) single.group?.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
 }
@@ -207,7 +231,7 @@ function assertTileParity(cityData: CityData, cells: readonly CityCell[], ready:
     const ready = tileJob(denseCity, tile.cells);
     assertTileParity(denseCity, tile.cells, ready);
     for (const page of ready.pages) assert.ok(page.indexBytes <= MAX_PAGE_INDEX_BYTES && page.mesh.geometry.getIndex()!.array instanceof Uint16Array, 'committed tiles stay in Uint16 pages under the draw-range cap');
-    console.log(JSON.stringify({ tile: tile.id, cells: tile.cells.length, buildings: ready.sourceBuildingIndices.length, pages: ready.pages.map((page) => ({ cells: page.cellIds.length, vertices: page.vertices, indexBytes: page.indexBytes })) }));
+    console.log(JSON.stringify({ tile: tile.id, cells: tile.cells.length, buildings: ready.sourceBuildingIndices.length, geometryBytes: ready.geometryBytes, peakStagingBytes: lastTilePeakStagingBytes, pages: ready.pages.map((page) => ({ cells: page.cellIds.length, vertices: page.vertices, indexBytes: page.indexBytes })) }));
     ready.group?.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
   }
 }
@@ -220,10 +244,18 @@ function assertTileParity(cityData: CityData, cells: readonly CityCell[], ready:
   const synthetic: CityData = { ...overflowCity, buildings: [...overflowBuildings, building(10, 10), building(30, 10), building(50, 10)] };
   const ready = tileJob(synthetic, [smallA, empty, oversized, smallB]);
   assertTileParity(synthetic, [smallA, empty, oversized, smallB], ready);
-  assert.deepEqual(ready.pages.map((page) => [...page.cellIds]), [['0,0', '1,0'], ['2,0'], ['3,0']], 'an oversized cell becomes its own page at cell boundaries');
-  assert.ok(ready.pages[1]!.mesh.geometry.getIndex()!.array instanceof Uint32Array && ready.pages[1]!.vertices > 65535, 'oversized cell falls back to Uint32 without dropping geometry');
-  assert.ok(ready.pages[0]!.mesh.geometry.getIndex()!.array instanceof Uint16Array && ready.pages[2]!.mesh.geometry.getIndex()!.array instanceof Uint16Array);
+  const oversizedPages = ready.pages.filter((page) => page.cellIds.includes('2,0'));
+  assert.deepEqual(ready.pages[0]!.cellIds, ['0,0', '1,0'], 'the oversized cell forces a break at the preceding cell boundary');
+  assert.ok(oversizedPages.length >= 2, 'a cell that overflows an empty page is split across consecutive bounded pages');
+  const trailing = oversizedPages.at(-1)!.cellIds.includes('3,0') ? buildingCounts(synthetic, '3,0', 66).vertices : 0;
+  assert.equal(oversizedPages.reduce((n, page) => n + page.vertices, 0) - trailing, overflowGeometry.getAttribute('position').count, 'split pages hold every vertex of the legacy Uint32 single-cell output');
+  assert.deepEqual(oversizedPages.flatMap((page) => page.sourceBuildingIndices.filter((n) => n < 64)), overflowCell.buildingIndices, 'split pages carry the dense cell sources in order exactly once');
+  assert.ok(ready.pages.every((page) => page.vertices <= 65535 && page.indexBytes <= MAX_PAGE_INDEX_BYTES && page.mesh.geometry.getIndex()!.array instanceof Uint16Array), 'no tile page bypasses the caps');
+  console.log(JSON.stringify({ tile: 'synthetic-oversized', pages: ready.pages.map((page) => ({ cells: [...page.cellIds], buildings: page.sourceBuildingIndices.length, vertices: page.vertices, indexBytes: page.indexBytes })) }));
   ready.group?.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+  // A single building that alone exceeds a supplied cap fails the tile explicitly and disposes what it staged.
+  const { vertices: oneBuildingVertices } = buildingCounts(synthetic, '2,0', 0);
+  disposeSpy((disposed) => { const job = createStockTileJob({ id: 'tile-unsplittable', generation: 1, essential: true, cityData: synthetic, tileId: 'tile:0,0', cells: [smallA, oversized], excludedBuildingIndices: new Set(), material, now: () => 0, maxPageVertices: oneBuildingVertices - 1, onReady: () => assert.fail('published') }); assert.throws(() => drain(job), /exceeds page bounds/); assert.ok(disposed.length >= 3, 'staged fragments are disposed after the explicit failure'); assert.equal(new Set(disposed).size, disposed.length); assert.equal(job.stagingBytes(), 0); assert.equal(job.step(), true); });
   const excludedReady = tileJob(synthetic, [smallA, smallB]);
   let excludedOut: StockTileReady | undefined;
   drain(createStockTileJob({ id: 'tile-excluded', generation: 1, essential: true, cityData: synthetic, tileId: 'tile:0,0', cells: [smallA, smallB], excludedBuildingIndices: new Set([65]), material, now: () => 0, onReady: (v) => { excludedOut = v; } }));
@@ -253,5 +285,23 @@ function assertTileParity(cityData: CityData, cells: readonly CityCell[], ready:
   disposeSpy((disposed) => { const parent = new THREE.Group(); let published: StockTileReady | undefined; const job = createStockTileJob({ ...tileArgs, id: 'tile-throw', maxPageVertices: oneVertices * 2, now: () => 0, onReady: (v) => { published = v; parent.add(v.group!); throw new Error('publish-error'); } }); assert.throws(() => drain(job), /publish-error/); assert.equal(published!.pages.length, 2); assert.equal(published!.group!.parent, null, 'thrown publication detaches the root'); for (const page of published!.pages) assert.ok(disposed.includes(page.mesh.geometry), 'every sealed page is disposed after a publication throw'); assert.equal(new Set(disposed).size, disposed.length); });
   disposeSpy((disposed) => { const scene = new THREE.Group(); let published: StockTileReady | undefined; const reentrant = createStockTileJob({ ...tileArgs, id: 'tile-publish-cancel', maxPageVertices: oneVertices * 2, now: () => 0, onReady: (v) => { published = v; scene.add(v.group!); reentrant.cancel(); } }); drain(reentrant); assert.equal(scene.children.length, 0); for (const page of published!.pages) assert.ok(disposed.includes(page.mesh.geometry)); assert.equal(new Set(disposed).size, disposed.length, 'reentrant cancellation disposes each page once'); });
   disposeSpy((disposed) => { let published: StockTileReady | undefined; const adopted = new THREE.Group(); const job = createStockTileJob({ ...tileArgs, id: 'tile-complete', maxPageVertices: oneVertices * 2, now: () => 0, onReady: (v) => { published = v; adopted.add(v.group!); } }); drain(job); job.cancel(); assert.equal(disposed.length, 3, 'only the consumed fragments are disposed after transfer'); assert.equal(published!.group!.parent, adopted, 'late cancellation leaves transferred pages with the owner'); assert.equal(job.step(), true); for (const page of published!.pages) page.mesh.geometry.dispose(); });
+  // Staging accounting: stagingBytes() equals every live geometry the job owns (fragments, open target, sealed unpublished pages) at each step.
+  {
+    const live = new Set<THREE.BufferGeometry>(); const originalSetAttribute = THREE.BufferGeometry.prototype.setAttribute, originalDispose = THREE.BufferGeometry.prototype.dispose;
+    THREE.BufferGeometry.prototype.setAttribute = function (name, attribute) { live.add(this); return originalSetAttribute.call(this, name, attribute); };
+    THREE.BufferGeometry.prototype.dispose = function () { live.delete(this); return originalDispose.call(this); };
+    const liveBytes = () => { let n = 0; for (const g of live) { n += g.getIndex()?.array.byteLength ?? 0; for (const a of Object.values(g.attributes)) n += a.array.byteLength; } return n; };
+    try {
+      let clock = oneUnitClock(), published: StockTileReady | undefined, peak = 0, sawSealed = false;
+      const job = createStockTileJob({ ...tileArgs, id: 'tile-staging', maxPageVertices: oneVertices * 2, now: () => clock(), onReady: (v) => { published = v; } });
+      assert.equal(job.stagingBytes(), 0);
+      for (let i = 0; i < 1000 && !published; i++) { clock = oneUnitClock(); job.step(); if (!published) { assert.equal(job.stagingBytes(), liveBytes(), `staging bytes equal live job geometry after step ${i}`); peak = Math.max(peak, job.stagingBytes()); if (live.size > 1 && [...live].some((g) => g.boundingBox !== null)) sawSealed = true; } }
+      assert.ok(published, 'stepped tile publishes'); assert.ok(peak > 0); assert.ok(sawSealed, 'a sealed page waited in staging while later cells were emitted');
+      assert.equal(job.stagingBytes(), 0, 'transferred pages leave staging'); assert.equal(liveBytes(), published!.geometryBytes, 'only the transferred pages remain live');
+      let cancelClock = oneUnitClock(); const cancelled = createStockTileJob({ ...tileArgs, id: 'tile-staging-cancel', maxPageVertices: oneVertices * 2, now: () => cancelClock(), onReady: () => assert.fail('published') });
+      for (let i = 0; i < 6; i++) { cancelClock = oneUnitClock(); cancelled.step(); } assert.ok(cancelled.stagingBytes() > 0); cancelled.cancel(); assert.equal(cancelled.stagingBytes(), 0, 'cancellation releases all staging');
+      for (const page of published!.pages) page.mesh.geometry.dispose();
+    } finally { THREE.BufferGeometry.prototype.setAttribute = originalSetAttribute; THREE.BufferGeometry.prototype.dispose = originalDispose; }
+  }
 }
 console.log('cell stock job checks passed');
