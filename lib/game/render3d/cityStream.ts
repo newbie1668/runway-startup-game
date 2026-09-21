@@ -207,6 +207,7 @@ export class CityStream {
   /**
    * Geometry bytes live outside the tracker: stock-job fragments, open targets and sealed
    * unpublished pages, plus the draw-range controller's single scratch index.
+   * Excludes cover, tree and decoration staging.
    */
   get stagingBytes(): number {
     let bytes = this.drawRanges.stagingBytes;
@@ -479,8 +480,8 @@ export class CityStream {
         try {
           for (const mesh of meshes) this.drawRanges.remove(mesh);
           if (attached) this.buildings -= ready.sourceBuildingIndices.length;
-          onStockEvicted(ready.scratch.picks);
           ready.group?.removeFromParent();
+          onStockEvicted(ready.scratch.picks);
         } finally {
           clearScratch(ready.scratch);
           meshes.length = 0;
@@ -555,8 +556,8 @@ export class CityStream {
         try {
           for (const mesh of meshes) this.drawRanges.remove(mesh);
           if (attached) this.buildings -= ready.sourceBuildingIndices.length;
-          onStockEvicted(ready.scratch.picks);
           ready.group?.removeFromParent();
+          onStockEvicted(ready.scratch.picks);
         } finally {
           clearScratch(ready.scratch);
           meshes.length = 0;

@@ -737,4 +737,78 @@ for (const clockStep of [0, 0.01]) {
     }),
   );
 }
+for (const direction of ['cell-to-tile', 'tile-to-cell']) {
+  const cellWorld = 400 * METERS_TO_WORLD;
+  const dense: CityData = {
+    buildings: Array.from({ length: 16 }, (_, i) =>
+      building((i % 4 + 0.5) * cellWorld, (Math.floor(i / 4) + 0.5) * cellWorld),
+    ),
+    roads: [],
+    parks: [],
+    water: [],
+  };
+  const cover: { value: CoverIndex | null } = { value: null };
+  const indexJob = createCoverIndexJob({
+    id: 'callback-index', generation: 0, essential: true, cityData: dense,
+    cellSizeM: coverCellM, now: () => 0, onReady: (value) => { cover.value = value; },
+  });
+  while (!indexJob.step()) {}
+  assert.ok(cover.value);
+  const root = new THREE.Group();
+  const tracker = createGeometryTracker();
+  const resources = createResourcePool();
+  const material = createBuildingMaterial();
+  resources.retain(material);
+  const diagnostics = createMapDiagnostics(1, () => 0);
+  let throwing = false;
+  let notifications = 0;
+  const failures: string[] = [];
+  const stream = new CityStream({
+    data: dense, cityIndex: indexCity(dense, 400), coverIndex: cover.value,
+    exclusions: new Set(), material, root, resources, tracker, diagnostics,
+    now: () => 0, onStockDrawn: () => undefined,
+    onStockEvicted: () => {
+      if (throwing) {
+        notifications++;
+        throw new Error('host eviction failure');
+      }
+    },
+    onFatal: (reason) => { failures.push(reason); },
+  });
+  const overview = { minX: 0, minZ: 0, maxX: 200, maxZ: 200 };
+  const near = { minX: cellWorld, minZ: cellWorld, maxX: 2 * cellWorld, maxZ: 2 * cellWorld };
+  stream.update(direction === 'cell-to-tile' ? near : overview);
+  let frames = 0;
+  while (!stream.idle) {
+    stream.drain();
+    assert(++frames < 10_000);
+  }
+  assert.deepEqual(failures, []);
+  const oldMeshes = stream.buildingMeshes();
+  const oldGroups = new Set(oldMeshes.map((mesh) => mesh.parent!));
+  assert(oldGroups.size > 0);
+  assert.equal(stream.tileCoveredCells > 0, direction === 'tile-to-cell');
+  const disposals = new Map(oldMeshes.map((mesh) => [mesh.geometry, 0]));
+  for (const geometry of disposals.keys())
+    geometry.addEventListener('dispose', () => disposals.set(geometry, disposals.get(geometry)! + 1));
+  throwing = true;
+  stream.update(direction === 'cell-to-tile' ? overview : near);
+  frames = 0;
+  while (failures.length === 0) {
+    stream.drain();
+    assert(++frames < 10_000, `${direction} reports the host callback failure`);
+  }
+  assert(notifications > 0);
+  for (const group of oldGroups)
+    assert.equal(group.parent, null, `${direction} detaches evicted groups even when the host throws`);
+  for (const count of disposals.values()) assert.equal(count, 1);
+  assert.throws(() => stream.dispose(), /City stream disposal failed/);
+  stream.dispose();
+  assert.equal(root.children.length, 0);
+  assert.equal(tracker.bytes(), 0);
+  assert.equal(stream.stagingBytes, 0);
+  assert.equal(stream.stockBuildings, 0);
+  for (const count of disposals.values()) assert.equal(count, 1);
+  resources.dispose();
+}
 console.log('Camera streaming, replacement, queue bounds, overview and eviction passed');
