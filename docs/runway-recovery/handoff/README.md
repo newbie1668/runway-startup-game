@@ -63,9 +63,15 @@ fail. Reversals after 30ms and 500ms lose most prior stock for 2.4–2.5s;
 essential work settles 6.4–6.7s after return. Recovery passes, continuity fails.
 The same worker is correcting this measured failure from `cc0d2d2` without
 restoring over-budget overlap. Parent reviews/integrates and repeats affected
-checks. A separate bounded existing-parameter probe has finished and awaits
-parent assessment; it changes no source. Do not replay completed full gates
-without source changes.
+checks. The separate [cover-grid candidate](../evidence/R6/cover-grid-3200.md)
+`0cf8649` changes only the existing cover-index cell size from 1600 to 3200 m
+and passes independent source review and the full repository gate. Expected zero-angle calls fall to 593,
+still above 300; larger close-view cover work needs native readiness checks.
+Parent publishes this source checkpoint while the stock correction proceeds;
+any accepted correction needs its combined gate before the native comparison.
+The probe's proposed named-anchor batching change was rejected
+after an unchanged runtime test failed; both batching flags remain `true`.
+Do not replay completed full gates without source changes.
 No user input is needed. New [native draw attribution](../evidence/R6/browser-draw-inventory-1a9517f.md)
 measures 781 non-stock calls, so stock batching alone cannot meet 300 with
 the remaining layers unchanged.
