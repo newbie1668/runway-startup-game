@@ -1,4 +1,4 @@
-# Recovery handoff — 20 September 2026
+# Recovery handoff — 21 September 2026
 
 Continue from **draft PR #30**, branch `build/runway-recovery`, base `docs/runway-recovery-plan` (planning PR #29). This is the active integration branch; do not restart from old map PR #27 or the primary checkout. The owner subsequently requested completion of PR #30. No merge or deployment is authorized by this handoff.
 
@@ -46,10 +46,16 @@ The [native comparison on published `0e3a314`](../evidence/R6/browser-shared-roa
 now measures 2,817→2,390 calls at zero, with exact triangle/byte parity at three
 angles and p95 19.7ms. Bounded road/game/save/fallback checks pass; all eight
 wide startup observations and every wide call count still fail acceptance.
-An isolated Ultra worker is implementing the next connected overview
-stock-page checkpoint from `0e3a314`; source ownership and scope are in status.
-Stock tile cutovers remain unaccepted and unintegrated. Hidden picks/coverage,
-typed IDs and transition peaks need explicit checks; 128MiB/300 calls stay fixed.
+The isolated Ultra worker returned stock-page candidate `9867e31` from
+`0e3a314`: CPU stock calls 1,609→124 with identical settled triangles/bytes.
+It remains unaccepted and unintegrated. The worker is correcting transition
+peaks (150.88MiB neighbourhood, 132.03MiB search), unpublished stock-job
+buffer accounting and oversized-cell page-cap bypasses. Independent source
+review is running on the frozen checkpoint; the correction delta also needs
+review before the parent integrates and runs the combined gate and native
+browser comparison. Current owners and links are in status. No user input
+is needed; the parent is working while the correction and review run.
+Hidden picks/coverage, atomic cutovers and the 128MiB/300-call limits stay fixed.
 Read current status before using the historical continuation below.
 
 Continuation checkpoint: source `8393133` independently passes bounded cover
