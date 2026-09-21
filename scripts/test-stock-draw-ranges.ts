@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createGeometryTracker } from '../lib/game/render3d/diagnostics';
-import { StockDrawRanges } from '../lib/game/render3d/stockDrawRanges';
+import { MAX_PAGE_INDEX_BYTES } from '../lib/game/render3d/cellStockJob';
+import { MAX_INDEX_BYTES, StockDrawRanges } from '../lib/game/render3d/stockDrawRanges';
 
 function fixture() {
   const geometry = new THREE.BoxGeometry();
@@ -186,7 +187,24 @@ for (const tickMs of [2, 5, 100]) {
   const { mesh, camera } = fixture();
   const errors: unknown[] = [];
   const ranges = new StockDrawRanges(() => 0, (error) => errors.push(error));
-  mesh.geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(32_769), 1));
+  assert.equal(MAX_INDEX_BYTES, MAX_PAGE_INDEX_BYTES, 'controller cap matches the overview page cap');
+  assert.equal(MAX_INDEX_BYTES, 256 * 1024, 'controller staging cap stays within the 256KiB bound');
+  const fullPage = MAX_INDEX_BYTES / Uint16Array.BYTES_PER_ELEMENT;
+  const boxTriples = triples(mesh.geometry.index!);
+  const paddedIndex = new Uint16Array(fullPage - (fullPage % 3));
+  paddedIndex.set(mesh.geometry.index!.array);
+  mesh.geometry.setIndex(new THREE.BufferAttribute(paddedIndex, 1));
+  ranges.add(mesh);
+  ranges.prepare(camera, false);
+  assert.equal(ranges.idle, false, 'a page at the 256KiB index cap is accepted for staging');
+  finish(ranges);
+  assert.equal(ranges.settled(mesh), true);
+  assert.deepEqual(errors, []);
+  assert.equal(mesh.geometry.index!.count, paddedIndex.length, 'full index length retained');
+  for (const triple of boxTriples)
+    assert(triples(mesh.geometry.index!).includes(triple), 'every box triangle survives filtering');
+  ranges.remove(mesh);
+  mesh.geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(fullPage + 3), 1));
   ranges.add(mesh);
   ranges.prepare(camera, false);
   assert(ranges.idle, 'over-cap stock remains unfiltered without allocating a job');

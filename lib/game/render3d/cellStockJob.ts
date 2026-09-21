@@ -1,47 +1,72 @@
 import * as THREE from 'three';
 import { buildCellStockBatch, createScratch, type CityScratch } from './cityBuilder';
 import type { BuildJob } from './buildScheduler';
-import type { CityCell } from './cityIndex';
+import type { CellId, CityCell } from './cityIndex';
 import type { StockDetail } from './detailPolicy';
 import type { CityData } from './format';
 
 export type CellStockReady = { group: THREE.Group | null; scratch: CityScratch; sourceBuildingIndices: readonly number[]; geometryBytes: number };
 export type CellStockJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cell: CityCell; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; onReady: (ready: CellStockReady) => void };
+/** One cell-aligned overview page: whole source cells packed into a single indexed mesh. */
+export type StockPage = { mesh: THREE.Mesh; cellIds: readonly CellId[]; sourceBuildingIndices: readonly number[]; vertices: number; indexBytes: number; geometryBytes: number };
+export type StockTileReady = { group: THREE.Group | null; pages: readonly StockPage[]; cellIds: readonly CellId[]; scratch: CityScratch; sourceBuildingIndices: readonly number[]; geometryBytes: number };
+export type StockTileJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; tileId: string; cells: readonly CityCell[]; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; now: () => number; sliceMs?: number; maxPageVertices?: number; maxPageIndexBytes?: number; onReady: (ready: StockTileReady) => void };
+type PagesReady = { root: THREE.Group | null; pages: readonly StockPage[]; scratch: CityScratch; emitted: number[]; bytes: number };
+type PagesJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cells: readonly CityCell[]; label: { cellId: CellId } | { tileId: string }; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; maxPageVertices: number; maxPageIndexBytes: number; onReady: (ready: PagesReady) => void };
 type Fragment = { geometry: THREE.BufferGeometry; vertices: number; indices: number };
+type PageSpec = { cellIds: CellId[]; sources: number[]; fragments: number; vertices: number; indices: number };
+export const MAX_PAGE_VERTICES = 65535;
+export const MAX_PAGE_INDEX_BYTES = 256 * 1024;
 function clear(s: CityScratch): void { s.windows.length = s.windowColors.length = s.picks.length = s.rooftops.length = s.rooftopColors.length = s.signs.length = 0; }
 function append(a: CityScratch, b: CityScratch): void { a.windows.push(...b.windows); a.windowColors.push(...b.windowColors); a.picks.push(...b.picks); a.rooftops.push(...b.rooftops); a.rooftopColors.push(...b.rooftopColors); a.signs.push(...b.signs); }
 type Disposal = { didThrow: boolean; error?: unknown };
 function dispose(g: THREE.BufferGeometry): Disposal { try { g.dispose(); return { didThrow: false }; } catch (error) { return { didThrow: true, error }; } }
+function newPage(): PageSpec { return { cellIds: [], sources: [], fragments: 0, vertices: 0, indices: 0 }; }
 
-export function createCellStockJob(args: CellStockJobArgs): BuildJob {
+/**
+ * Emits whole source cells in order and packs them into cell-aligned pages. A page closes at a
+ * cell boundary once the next whole cell would exceed the vertex or index-byte cap; a single cell
+ * larger than either cap becomes its own page (Uint32 indices above 65,535 vertices) so geometry
+ * is never dropped. Staging holds at most one open page plus one open cell of fragments.
+ */
+function createStockPagesJob(args: PagesJobArgs): BuildJob {
   const sliceMs = args.sliceMs ?? 4;
   if (!Number.isFinite(sliceMs) || sliceMs <= 0 || sliceMs > 4) throw new RangeError('sliceMs must be a finite positive number no greater than 4');
   if (!['overview', 'neighbourhood', 'street'].includes(args.detail)) throw new RangeError(`unknown stock detail: ${String(args.detail)}`);
-  const sources = [...args.cell.buildingIndices], excluded = new Set<number>(), seen = new Set<number>();
+  if (!Number.isInteger(args.maxPageVertices) || args.maxPageVertices <= 0 || args.maxPageVertices > 65535) throw new RangeError('maxPageVertices must be a positive integer no greater than 65535');
+  if (!Number.isInteger(args.maxPageIndexBytes) || args.maxPageIndexBytes <= 0) throw new RangeError('maxPageIndexBytes must be a positive integer');
+  const cells = args.cells, sources: number[] = [], cellEnds: number[] = [], excluded = new Set<number>(), seen = new Set<number>(), seenCells = new Set<CellId>();
   const valid = (n: number) => Number.isInteger(n) && n >= 0 && n < args.cityData.buildings.length;
-  for (const n of sources) { if (!valid(n)) throw new RangeError(`invalid building index: ${n}`); if (seen.has(n)) throw new RangeError(`duplicate building index: ${n}`); seen.add(n); }
+  for (const cell of cells) {
+    if (seenCells.has(cell.id)) throw new RangeError(`duplicate cell: ${cell.id}`); seenCells.add(cell.id);
+    for (const n of cell.buildingIndices) { if (!valid(n)) throw new RangeError(`invalid building index: ${n}`); if (seen.has(n)) throw new RangeError(`duplicate building index: ${n}`); seen.add(n); sources.push(n); }
+    cellEnds.push(sources.length);
+  }
   for (const n of args.excludedBuildingIndices) { if (!valid(n)) throw new RangeError(`invalid excluded building index: ${n}`); excluded.add(n); }
-  const scratch = createScratch(), fragments: Fragment[] = [], emitted: number[] = [];
-  let totalVertices = 0, totalIndices = 0, emitAt = 0, vertexAt = 0, indexAt = 0, targetVertexAt = 0, targetIndexAt = 0, allocationAt = 0;
+  const indexBytes = (vertices: number, indices: number): number => indices * (args.detail === 'overview' && vertices <= 65535 ? 2 : 4);
+  const scratch = createScratch(), staged: Fragment[] = [], emitted: number[] = [], pages: StockPage[] = [];
+  let page = newPage(), open = newPage();
+  let emitAt = 0, cellAt = 0, vertexAt = 0, indexAt = 0, targetVertexAt = 0, targetIndexAt = 0, allocationAt = 0, copied = 0;
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   let target: THREE.BufferGeometry | null = null, root: THREE.Group | null = null;
   let position: Float32Array | null = null;
   let normal: Float32Array | Int8Array | null = null, color: Float32Array | Uint8Array | null = null;
   let indices: Uint32Array | Uint16Array | null = null;
-  let phase: 'emit' | 'allocate' | 'copy' | 'publish' = 'emit', terminal = false, transferred = false, stepping = false;
+  let phase: 'emit' | 'allocate' | 'copy' | 'seal' | 'publish' = 'emit', terminal = false, transferred = false, stepping = false;
   const cleanup = (): unknown[] => {
     const errors: unknown[] = []; const detached = root; root = null;
     if (detached?.parent) { try { detached.parent.remove(detached); } catch (e) { errors.push(e); } }
     if (!transferred && target) { const result = dispose(target); if (result.didThrow) errors.push(result.error); } target = null;
-    while (fragments.length) { const f = fragments.shift()!; const result = dispose(f.geometry); if (result.didThrow) errors.push(result.error); }
+    if (!transferred) while (pages.length) { const p = pages.shift()!; const result = dispose(p.mesh.geometry); if (result.didThrow) errors.push(result.error); }
+    while (staged.length) { const f = staged.shift()!; const result = dispose(f.geometry); if (result.didThrow) errors.push(result.error); }
     clear(scratch); emitted.length = 0; position = normal = color = null; indices = null; return errors;
   };
   const stop = () => { if (terminal) return []; terminal = true; return cleanup(); };
   const fail = (error: unknown): never => { const errors = stop(); if (errors.length) throw new AggregateError([error, ...errors], 'Cell stock job failed and cleanup failed'); throw error; };
-  const emit = (source: number): void => {
-    const local = createScratch(); let group: THREE.Group | null = null; let staged: Fragment[] = [];
+  const emit = (source: number, cell: CityCell): void => {
+    const local = createScratch(); let group: THREE.Group | null = null; let fragments: Fragment[] = [];
     try {
-      group = buildCellStockBatch({ cityData: args.cityData, cellId: args.cell.id, buildingIndices: [source], excludedBuildingIndices: excluded, material: args.material, detail: args.detail, scratch: local });
+      group = buildCellStockBatch({ cityData: args.cityData, cellId: cell.id, buildingIndices: [source], excludedBuildingIndices: excluded, material: args.material, detail: args.detail, scratch: local });
       if (terminal) {
         const errors: unknown[] = [];
         group?.traverse((o) => { if (o instanceof THREE.Mesh) { const result = dispose(o.geometry); if (result.didThrow) errors.push(result.error); } });
@@ -49,29 +74,76 @@ export function createCellStockJob(args: CellStockJobArgs): BuildJob {
         return;
       }
       if (!group) return;
-      group.traverse((o) => { if (o instanceof THREE.Mesh) staged.push({ geometry: o.geometry, vertices: 0, indices: 0 }); });
-      for (const fragment of staged) { const p = fragment.geometry.getAttribute('position'), n = fragment.geometry.getAttribute('normal'), c = fragment.geometry.getAttribute('color'), ix = fragment.geometry.getIndex(); if (!p || !n || !c || !ix) throw new Error('stock fragment is not indexed and complete'); fragment.vertices = p.count; fragment.indices = ix.count; }
-      fragments.push(...staged); for (const f of staged) { totalVertices += f.vertices; totalIndices += f.indices; } staged = [];
-      const ids = group.userData.sourceBuildingIndices as readonly number[] | undefined; if (ids) emitted.push(...ids); append(scratch, local);
-    } catch (e) { const errors: unknown[] = []; while (staged.length) { const f = staged.shift()!; const result = dispose(f.geometry); if (result.didThrow) errors.push(result.error); } if (errors.length) throw new AggregateError([e, ...errors], 'Cell stock fragment validation and cleanup failed'); throw e; }
+      group.traverse((o) => { if (o instanceof THREE.Mesh) fragments.push({ geometry: o.geometry, vertices: 0, indices: 0 }); });
+      for (const fragment of fragments) { const p = fragment.geometry.getAttribute('position'), n = fragment.geometry.getAttribute('normal'), c = fragment.geometry.getAttribute('color'), ix = fragment.geometry.getIndex(); if (!p || !n || !c || !ix) throw new Error('stock fragment is not indexed and complete'); fragment.vertices = p.count; fragment.indices = ix.count; }
+      staged.push(...fragments); for (const f of fragments) { open.fragments++; open.vertices += f.vertices; open.indices += f.indices; } fragments = [];
+      const ids = group.userData.sourceBuildingIndices as readonly number[] | undefined; if (ids) { emitted.push(...ids); open.sources.push(...ids); } append(scratch, local);
+    } catch (e) { const errors: unknown[] = []; while (fragments.length) { const f = fragments.shift()!; const result = dispose(f.geometry); if (result.didThrow) errors.push(result.error); } if (errors.length) throw new AggregateError([e, ...errors], 'Cell stock fragment validation and cleanup failed'); throw e; }
+  };
+  const closeCell = (): void => {
+    const cell = cells[cellAt]!;
+    const fits = page.fragments === 0 || (page.vertices + open.vertices <= args.maxPageVertices && indexBytes(page.vertices + open.vertices, page.indices + open.indices) <= args.maxPageIndexBytes);
+    if (!fits) { phase = 'allocate'; return; }
+    page.cellIds.push(cell.id); page.sources.push(...open.sources); page.fragments += open.fragments; page.vertices += open.vertices; page.indices += open.indices; open = newPage();
+    if (++cellAt === cells.length) phase = 'allocate';
   };
   const allocate = (): void => {
-    if (totalVertices === 0) { phase = 'publish'; return; } if (!target) target = new THREE.BufferGeometry();
-    if (allocationAt === 0) { position = new Float32Array(totalVertices * 3); target.setAttribute('position', new THREE.BufferAttribute(position, 3)); }
-    else if (allocationAt === 1) { normal = args.detail === 'overview' ? new Int8Array(totalVertices * 3) : new Float32Array(totalVertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3, args.detail === 'overview')); }
-    else if (allocationAt === 2) { color = args.detail === 'overview' ? new Uint8Array(totalVertices * 3) : new Float32Array(totalVertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3, args.detail === 'overview')); }
-    else { indices = args.detail === 'overview' && totalVertices <= 65535 ? new Uint16Array(totalIndices) : new Uint32Array(totalIndices); target.setIndex(new THREE.BufferAttribute(indices, 1)); phase = 'copy'; } allocationAt++;
+    if (page.vertices === 0) { phase = 'seal'; return; } if (!target) target = new THREE.BufferGeometry();
+    if (allocationAt === 0) { position = new Float32Array(page.vertices * 3); target.setAttribute('position', new THREE.BufferAttribute(position, 3)); }
+    else if (allocationAt === 1) { normal = args.detail === 'overview' ? new Int8Array(page.vertices * 3) : new Float32Array(page.vertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3, args.detail === 'overview')); }
+    else if (allocationAt === 2) { color = args.detail === 'overview' ? new Uint8Array(page.vertices * 3) : new Float32Array(page.vertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3, args.detail === 'overview')); }
+    else { indices = args.detail === 'overview' && page.vertices <= 65535 ? new Uint16Array(page.indices) : new Uint32Array(page.indices); target.setIndex(new THREE.BufferAttribute(indices, 1)); phase = 'copy'; } allocationAt++;
   };
   const copy = (): boolean => {
-    const f = fragments[0]!, p = f.geometry.getAttribute('position') as THREE.BufferAttribute, n = f.geometry.getAttribute('normal') as THREE.BufferAttribute, c = f.geometry.getAttribute('color') as THREE.BufferAttribute, ix = f.geometry.getIndex() as THREE.BufferAttribute;
+    const f = staged[0]!, p = f.geometry.getAttribute('position') as THREE.BufferAttribute, n = f.geometry.getAttribute('normal') as THREE.BufferAttribute, c = f.geometry.getAttribute('color') as THREE.BufferAttribute, ix = f.geometry.getIndex() as THREE.BufferAttribute;
     if (vertexAt < f.vertices) { const count = Math.min(1365, f.vertices - vertexAt), start = vertexAt * 3, end = (vertexAt + count) * 3; position!.set((p.array as Float32Array).subarray(start, end), targetVertexAt * 3); const sourceNormals = n.array as Float32Array, sourceColors = c.array as Float32Array; if (args.detail === 'overview') { for (let i = start; i < end; i++) { (normal as Int8Array)![targetVertexAt * 3 + i - start] = Math.round(Math.max(-1, Math.min(1, sourceNormals[i]!)) * 127); (color as Uint8Array)![targetVertexAt * 3 + i - start] = Math.round(Math.max(0, Math.min(1, sourceColors[i]!)) * 255); } } else { normal!.set(sourceNormals.subarray(start, end), targetVertexAt * 3); color!.set(sourceColors.subarray(start, end), targetVertexAt * 3); } const a = p.array as Float32Array; for (let i = start; i < end; i += 3) { minX = Math.min(minX, a[i]!); minY = Math.min(minY, a[i + 1]!); minZ = Math.min(minZ, a[i + 2]!); maxX = Math.max(maxX, a[i]!); maxY = Math.max(maxY, a[i + 1]!); maxZ = Math.max(maxZ, a[i + 2]!); } vertexAt += count; targetVertexAt += count; return false; }
     if (indexAt < f.indices) { const count = Math.min(4096, f.indices - indexAt), a = ix.array as Uint16Array | Uint32Array, offset = targetVertexAt - f.vertices; for (let i = 0; i < count; i++) indices![targetIndexAt + i] = a[indexAt + i]! + offset; indexAt += count; targetIndexAt += count; return false; }
-    const done = fragments.shift()!, result = dispose(done.geometry); if (result.didThrow) throw result.error; vertexAt = indexAt = 0; return fragments.length === 0;
+    const done = staged.shift()!, result = dispose(done.geometry); if (result.didThrow) throw result.error; vertexAt = indexAt = 0; return ++copied === page.fragments;
+  };
+  const seal = (): void => {
+    if (target) {
+      target.boundingBox = new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)); const center = target.boundingBox.getCenter(new THREE.Vector3()); target.boundingSphere = new THREE.Sphere(center, center.distanceTo(target.boundingBox.max));
+      const mesh = new THREE.Mesh(target, args.material); mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = true;
+      const cellIds = Object.freeze([...page.cellIds]), pageSources = Object.freeze([...page.sources]);
+      if ('cellId' in args.label) { mesh.userData.cellId = args.label.cellId; mesh.userData.sourceBuildingIndices = emitted; } else { mesh.userData.tileId = args.label.tileId; mesh.userData.cellIds = cellIds; mesh.userData.sourceBuildingIndices = pageSources; }
+      const bytes = position!.byteLength + normal!.byteLength + color!.byteLength + indices!.byteLength;
+      pages.push({ mesh, cellIds, sourceBuildingIndices: pageSources, vertices: page.vertices, indexBytes: indices!.byteLength, geometryBytes: bytes });
+      target = null;
+    }
+    position = normal = color = null; indices = null; allocationAt = copied = targetVertexAt = targetIndexAt = 0;
+    minX = minY = minZ = Infinity; maxX = maxY = maxZ = -Infinity;
+    page = newPage();
+    phase = cellAt === cells.length && open.fragments === 0 && open.sources.length === 0 ? 'publish' : 'emit';
   };
   const publish = (): void => {
-    if (target) { target.boundingBox = new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)); const center = target.boundingBox.getCenter(new THREE.Vector3()); target.boundingSphere = new THREE.Sphere(center, center.distanceTo(target.boundingBox.max)); const mesh = new THREE.Mesh(target, args.material); mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = true; mesh.userData.cellId = args.cell.id; mesh.userData.sourceBuildingIndices = emitted; root = new THREE.Group(); root.frustumCulled = false; root.userData.cellId = args.cell.id; root.userData.sourceBuildingIndices = emitted; root.add(mesh); }
-    const bytes = target ? target.getAttribute('position').array.byteLength + target.getAttribute('normal').array.byteLength + target.getAttribute('color').array.byteLength + target.getIndex()!.array.byteLength : 0;
-    args.onReady({ group: root, scratch, sourceBuildingIndices: emitted, geometryBytes: bytes }); if (terminal) return; terminal = true; transferred = true; target = null;
+    if (pages.length) { root = new THREE.Group(); root.frustumCulled = false; root.userData.sourceBuildingIndices = emitted; if ('cellId' in args.label) root.userData.cellId = args.label.cellId; else { root.userData.tileId = args.label.tileId; root.userData.cellIds = Object.freeze(cells.map((cell) => cell.id)); } for (const p of pages) root.add(p.mesh); }
+    let bytes = 0; for (const p of pages) bytes += p.geometryBytes;
+    args.onReady({ root, pages: Object.freeze([...pages]), scratch, emitted, bytes }); if (terminal) return; terminal = true; transferred = true; target = null;
   };
-  return { id: args.id, generation: args.generation, essential: args.essential, cancel() { const errors = stop(); if (errors.length) throw new AggregateError(errors, 'Cell stock job cleanup failed'); }, step() { if (terminal) return true; if (stepping) throw new Error('Reentrant cell stock job step is unsupported'); stepping = true; try { const deadline = args.now() + sliceMs; let units = 0; while (!terminal && units < 16) { if (args.now() >= deadline) return false; if (phase === 'emit') { if (emitAt === sources.length) { phase = 'allocate'; continue; } emit(sources[emitAt++]!); } else if (phase === 'allocate') allocate(); else if (phase === 'copy') { if (copy()) phase = 'publish'; } else { publish(); return true; } units++; } return terminal; } catch (e) { return fail(e); } finally { stepping = false; } } };
+  return { id: args.id, generation: args.generation, essential: args.essential, cancel() { const errors = stop(); if (errors.length) throw new AggregateError(errors, 'Cell stock job cleanup failed'); }, step() { if (terminal) return true; if (stepping) throw new Error('Reentrant cell stock job step is unsupported'); stepping = true; try { const deadline = args.now() + sliceMs; let units = 0; while (!terminal && units < 16) { if (args.now() >= deadline) return false; if (phase === 'emit') { if (cellAt === cells.length) { phase = 'allocate'; continue; } if (emitAt === cellEnds[cellAt]) { closeCell(); continue; } emit(sources[emitAt++]!, cells[cellAt]!); } else if (phase === 'allocate') allocate(); else if (phase === 'copy') { if (copy()) phase = 'seal'; } else if (phase === 'seal') seal(); else { publish(); return true; } units++; } return terminal; } catch (e) { return fail(e); } finally { stepping = false; } } };
+}
+
+export function createCellStockJob(args: CellStockJobArgs): BuildJob {
+  return createStockPagesJob({
+    ...args,
+    cells: [args.cell],
+    label: { cellId: args.cell.id },
+    maxPageVertices: MAX_PAGE_VERTICES,
+    maxPageIndexBytes: MAX_PAGE_INDEX_BYTES,
+    onReady: ({ root, scratch, emitted, bytes }) => args.onReady({ group: root, scratch, sourceBuildingIndices: emitted, geometryBytes: bytes }),
+  });
+}
+
+/** Overview-only: pack several existing source cells into bounded cell-aligned pages under one group. */
+export function createStockTileJob(args: StockTileJobArgs): BuildJob {
+  if (args.cells.length === 0) throw new RangeError('a stock tile needs at least one cell');
+  const cellIds = Object.freeze(args.cells.map((cell) => cell.id));
+  return createStockPagesJob({
+    ...args,
+    detail: 'overview',
+    label: { tileId: args.tileId },
+    maxPageVertices: args.maxPageVertices ?? MAX_PAGE_VERTICES,
+    maxPageIndexBytes: args.maxPageIndexBytes ?? MAX_PAGE_INDEX_BYTES,
+    onReady: ({ root, pages, scratch, emitted, bytes }) => args.onReady({ group: root, pages, cellIds, scratch, sourceBuildingIndices: emitted, geometryBytes: bytes }),
+  });
 }
