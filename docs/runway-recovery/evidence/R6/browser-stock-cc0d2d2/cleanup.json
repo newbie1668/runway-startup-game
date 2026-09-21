@@ -1,0 +1,19 @@
+{
+  "port4321Listeners": "",
+  "matchedOwnedProcesses": [],
+  "trackedDiff": "",
+  "historicalHashChecks": {
+    "observations.json": true,
+    "final-measurements.json": true,
+    "candidate-continue.json": true,
+    "candidate-angle-zero-settled.png": true,
+    "candidate-angle-stpauls-settled.png": true,
+    "candidate-angle-eye-settled.png": true
+  },
+  "head": "585f3704a86536349f656aaa2b4f06a04ab797a5",
+  "build": "akRqQkiss6Dd_W_6pro4f",
+  "noSourceEdits": true,
+  "noPRWrites": true,
+  "noCommits": true,
+  "noDeployment": true
+}

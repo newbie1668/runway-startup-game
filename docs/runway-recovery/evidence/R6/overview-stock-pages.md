@@ -1,7 +1,7 @@
 # Overview stock pages — reviewed source checkpoint
 
-21 September 2026. Integrated source `cc0d2d2`; native browser validation is next.
-This is not runtime release acceptance.
+21 September 2026. Integrated source `cc0d2d2`; [native validation is now complete](browser-overview-stock-cc0d2d2.md).
+Startup, total calls and early-reversal continuity fail. This is not runtime release acceptance.
 
 ## Integration and review
 

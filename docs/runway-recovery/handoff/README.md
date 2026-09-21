@@ -56,9 +56,16 @@ heroes and cover/tree/decoration staging and do not prove total peak memory.
 Early trimming can briefly rebuild recently discarded coverage on immediate
 reverse zoom. [Source acceptance and review](../evidence/R6/overview-stock-pages.md)
 record both limits and the explicit failure for an individually oversized building.
-The next gate is native production-browser comparison of `cc0d2d2` against
-`0e3a314`; do not replay the completed combined checks without source changes.
-The worker/reviewer have finished. Parent owns browser acceptance and evidence.
+The [native comparison](../evidence/R6/browser-overview-stock-cc0d2d2.md) is now complete:
+2390→905 calls at zero with unchanged triangles/bytes; other angles have
+modest workload growth but remain under 2M/128MiB. Startup and 300 calls still
+fail. Reversals after 30ms and 500ms lose most prior stock for 2.4–2.5s;
+essential work settles 6.4–6.7s after return. Recovery passes, continuity fails.
+The same worker is correcting this measured failure from `cc0d2d2` without
+restoring over-budget overlap. Parent reviews/integrates and repeats affected
+checks. A separate bounded existing-parameter probe has finished and awaits
+parent assessment; it changes no source. Do not replay completed full gates
+without source changes.
 No user input is needed. New [native draw attribution](../evidence/R6/browser-draw-inventory-1a9517f.md)
 measures 781 non-stock calls, so stock batching alone cannot meet 300 with
 the remaining layers unchanged.
