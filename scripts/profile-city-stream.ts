@@ -270,6 +270,100 @@ if (transitions) {
     phases.push(runPhase(stage));
   }
 }
+// Interrupted transitions: from the settled overview, zoom to the neighbourhood, drain a fixed
+// number of frames (or until the first tile->cells cutover exposes detailed cells), then reverse to
+// the wide view. Reports the exposed-building floor across every frame of the interrupted leg and
+// the return, so a coverage collapse shows as a low floor rather than an eventual-idle count.
+const interruptArg = process.argv.find((arg) => arg.startsWith('--interrupt='));
+const interruptions: Array<number | 'cutover'> = interruptArg
+  ? interruptArg
+      .slice('--interrupt='.length)
+      .split(',')
+      .map((token) => (token === 'cutover' ? 'cutover' : Number(token)))
+  : [];
+if (interruptions.some((step) => step !== 'cutover' && !(Number.isInteger(step) && step >= 0)))
+  throw new RangeError('--interrupt takes non-negative frame counts or "cutover"');
+const interrupted: Array<Record<string, unknown>> = [];
+for (const step of interruptions) {
+  const wide = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 1440 / (WORLD.width * 1.1) };
+  rig.update(wide, 0);
+  runPhase('overview');
+  const settled = stream.stockBuildings;
+  const startBytes = tracker.bytes();
+  rig.update({ ...project([-0.1358, 51.5196]), zoom: 900 / 1.92 }, 0.6);
+  stream.update(cameraGroundBounds(rig, 1440, 900));
+  let frames = 0;
+  let floor = stream.stockBuildings;
+  let peak = tracker.bytes();
+  peakCombinedBytes = 0;
+  sampleCombined();
+  // Stream time only: the per-frame source/pick audit below is probe overhead.
+  let legMs = 0;
+  while (step === 'cutover' ? stream.buildingMeshes().every((mesh) => mesh.userData.cellId === undefined) : frames < step) {
+    if (stream.idle) break;
+    const before = performance.now();
+    if (drawRanges) stream.prepareDrawRanges(rig.camera, false);
+    stream.drain();
+    legMs += performance.now() - before;
+    frames++;
+    assertUniqueSources();
+    floor = Math.min(floor, stream.stockBuildings);
+    peak = Math.max(peak, tracker.bytes());
+    sampleCombined();
+  }
+  const atReversal = {
+    buildings: stream.stockBuildings,
+    detailedCells: stream.buildingMeshes().filter((mesh) => mesh.userData.cellId !== undefined).length,
+    hiddenCells: stream.hiddenCells,
+    geometryMiB: tracker.bytes() / 1024 / 1024,
+    stagingMiB: stream.stagingBytes / 1024 / 1024,
+    staleStockMiB: stream.staleStockBytes / 1024 / 1024,
+  };
+  rig.update(wide, 0);
+  stream.update(cameraGroundBounds(rig, 1440, 900));
+  const afterReversal = { buildings: stream.stockBuildings, hiddenCells: stream.hiddenCells, stagingMiB: stream.stagingBytes / 1024 / 1024 };
+  let returnFrames = 0;
+  let returnFloor = stream.stockBuildings;
+  let returnFirstCoverageFrame: number | null = null;
+  let returnFirstCoverageMs: number | null = null;
+  let returnMs = 0;
+  while (!stream.idle) {
+    const before = performance.now();
+    if (drawRanges) stream.prepareDrawRanges(rig.camera, false);
+    stream.drain();
+    returnMs += performance.now() - before;
+    returnFrames++;
+    assertUniqueSources();
+    returnFloor = Math.min(returnFloor, stream.stockBuildings);
+    peak = Math.max(peak, tracker.bytes());
+    sampleCombined();
+    if (returnFirstCoverageFrame === null && diagnostics.snapshot().pendingEssentialJobs === 0) {
+      returnFirstCoverageFrame = returnFrames;
+      returnFirstCoverageMs = returnMs;
+    }
+    if (returnFrames > frameLimit) break;
+  }
+  if (peakCombinedBytes > RESIDENT_CEILING_BYTES)
+    throw new Error(`interrupt ${step}: resident + staging peaked at ${(peakCombinedBytes / 1024 / 1024).toFixed(3)} MiB`);
+  interrupted.push({
+    step,
+    settledBuildings: settled,
+    startGeometryMiB: startBytes / 1024 / 1024,
+    legFrames: frames,
+    legMs,
+    legFloorBuildings: floor,
+    atReversal,
+    afterReversal,
+    returnFrames,
+    returnFirstCoverageFrame,
+    returnFirstCoverageMs,
+    returnMs,
+    returnFloorBuildings: returnFloor,
+    finalBuildings: stream.stockBuildings,
+    peakGeometryMiB: peak / 1024 / 1024,
+    peakResidentPlusStagingMiB: peakCombinedBytes / 1024 / 1024,
+  });
+}
 const elapsedMs = performance.now() - started;
 root.updateMatrixWorld(true);
 const frustum = new THREE.Frustum().setFromProjectionMatrix(
@@ -330,6 +424,7 @@ console.log(
       sliceTargetMs: SLICE_TARGET_MS,
       frameBudgetMs: FRAME_BUDGET_MS,
       phases: transitions ? phases : undefined,
+      interrupted: interruptions.length ? interrupted : undefined,
       cpuDrawEstimate,
       note: 'CPU-only, excludes landmarks, GPU upload/rendering, frame waits and browser readiness',
     },
