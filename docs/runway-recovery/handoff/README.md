@@ -61,14 +61,21 @@ The [native comparison](../evidence/R6/browser-overview-stock-cc0d2d2.md) is now
 modest workload growth but remain under 2M/128MiB. Startup and 300 calls still
 fail. Reversals after 30ms and 500ms lose most prior stock for 2.4–2.5s;
 essential work settles 6.4–6.7s after return. Recovery passes, continuity fails.
-The same worker is correcting this measured failure from `cc0d2d2` without
-restoring over-budget overlap. Parent reviews/integrates and repeats affected
-checks. The separate [cover-grid candidate](../evidence/R6/cover-grid-3200.md)
+The same worker submitted continuity candidate `cf6f514` from `cc0d2d2`;
+independent reservation/ownership review is running. It is not integrated.
+CPU two-frame reversal keeps all stock; thirty-frame reversal keeps 76%.
+These are partial CPU improvements, not browser continuity acceptance.
+Parent reviews/integrates and repeats affected checks.
+The separate [cover-grid checkpoint](../evidence/R6/cover-grid-3200.md)
 `0cf8649` changes only the existing cover-index cell size from 1600 to 3200 m
-and passes independent source review and the full repository gate. Expected zero-angle calls fall to 593,
-still above 300; larger close-view cover work needs native readiness checks.
-Parent publishes this source checkpoint while the stock correction proceeds;
-any accepted correction needs its combined gate before the native comparison.
+and passes independent source review and the full repository gate.
+[Native comparison at published 7539c58](../evidence/R6/browser-cover-7539c58.md)
+confirms 593/588/569 calls, measured geometry/triangles within budget and
+bounded close/boundary/game/save/repeated-resource checks. Startup passes
+only 1/8 original observations and 0/8 matched controls. Early reversal
+still loses most stock; Fitzrovia retention increases. No dependable causal
+startup improvement is established. Any accepted stock correction needs its
+combined gate before the next native comparison.
 The probe's proposed named-anchor batching change was rejected
 after an unchanged runtime test failed; both batching flags remain `true`.
 Do not replay completed full gates without source changes.

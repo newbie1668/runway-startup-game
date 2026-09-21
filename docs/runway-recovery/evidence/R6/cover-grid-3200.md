@@ -6,7 +6,8 @@ The sole source change is `CityRenderer3D`'s existing cover-index cell size,
 materials, geometry builders, assets and game behavior are unchanged.
 
 **Independent source review and the full repository gate pass for the bounded
-parameter change. Native measurements remain pending.** This does not
+parameter change. [Native measurements](browser-cover-7539c58.md) confirm
+593 calls and bounded close coverage, with startup/reversal failures.** This does not
 establish startup, reverse-zoom continuity or draw-call acceptance.
 
 ## Evidence
@@ -73,7 +74,10 @@ on `0cf8649`: `pnpm test:game`, `pnpm test:ui`, `pnpm lint`,
 `pnpm tsx scripts/fetch-geodata.ts --verify`, and `git diff --check`.
 No browser measurements overlapped these checks.
 
-The parent is publishing this reviewed source checkpoint while awaiting the
-separate stock continuity correction. Any accepted correction requires its
-combined gate before the affected native comparison. Startup, total calls,
-uninterrupted reversal and complete memory accounting remain open.
+The parent published this reviewed source checkpoint as `7539c58`.
+The [native comparison](browser-cover-7539c58.md) confirms the predicted
+593 calls and increased Fitzrovia retention. Bounded close coverage and
+boundary publication pass, while startup, total calls, uninterrupted reversal
+and complete memory accounting remain open. The separate stock continuity
+candidate `cf6f514` awaits independent review; any accepted correction needs
+its combined gate and affected native comparison.
