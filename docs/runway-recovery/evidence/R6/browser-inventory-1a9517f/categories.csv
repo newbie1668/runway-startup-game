@@ -1,0 +1,10 @@
+category,residentRenderables,residentMeshes,hierarchyVisibleRenderables,hierarchyVisibleMeshes,frustumQualifiedRenderables,submittedUniqueObjects,submittedUniqueMeshes,renderBufferDirectInvocations,nativeCalls,triangles,distinctSubmittedMaterialIds
+stock,1609,1609,1609,1609,1609,1609,1609,1609,1609,1337187,1
+cover-road,210,210,210,210,210,210,210,210,210,393325,210
+cover-water,116,116,116,116,116,116,116,116,116,12952,116
+cover-park,204,204,204,204,204,204,204,204,204,124573,203
+cover-tree,0,0,0,0,0,0,0,0,0,0,0
+landmark,208,208,208,208,208,208,208,208,208,33754,172
+noticed-replacement,34,34,34,34,34,34,34,34,34,6880,13
+other-scene,11,3,9,1,9,9,1,9,9,18,9
+unclassified,0,0,0,0,0,0,0,0,0,0,0

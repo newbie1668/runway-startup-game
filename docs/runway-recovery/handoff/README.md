@@ -46,15 +46,18 @@ The [native comparison on published `0e3a314`](../evidence/R6/browser-shared-roa
 now measures 2,817→2,390 calls at zero, with exact triangle/byte parity at three
 angles and p95 19.7ms. Bounded road/game/save/fallback checks pass; all eight
 wide startup observations and every wide call count still fail acceptance.
-The isolated Ultra worker returned stock-page candidate `9867e31` from
-`0e3a314`: CPU stock calls 1,609→124 with identical settled triangles/bytes.
-It remains unaccepted and unintegrated. The worker is correcting transition
-peaks (150.88MiB neighbourhood, 132.03MiB search), unpublished stock-job
-buffer accounting and oversized-cell page-cap bypasses. Independent source
-review is running on the frozen checkpoint; the correction delta also needs
-review before the parent integrates and runs the combined gate and native
-browser comparison. Current owners and links are in status. No user input
-is needed; the parent is working while the correction and review run.
+The isolated Ultra worker returned stock-page correction `b4e90c3` after
+`9867e31`, based on `0e3a314`: CPU stock calls 1,609→124 with identical settled
+triangles/bytes. Early eviction reduces measured combined transition peaks
+to about 49.1MiB/17.8MiB; dense cells split into bounded Uint16 pages.
+It remains unaccepted and unintegrated. The implementation worker has
+stopped; independent review now covers both checkpoints, including staging
+accounting and the explicit failure for an individually oversized building.
+The parent integrates only after review, then runs the combined gate and
+native browser comparison. Current owners and limitations are in status.
+No user input is needed. New [native draw attribution](../evidence/R6/browser-draw-inventory-1a9517f.md)
+measures 781 non-stock calls, so stock batching alone cannot meet 300 with
+the remaining layers unchanged.
 Hidden picks/coverage, atomic cutovers and the 128MiB/300-call limits stay fixed.
 Read current status before using the historical continuation below.
 
