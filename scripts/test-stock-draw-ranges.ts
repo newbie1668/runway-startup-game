@@ -22,7 +22,9 @@ function finish(ranges: StockDrawRanges): void {
   for (let n = 0; !ranges.idle; n++) {
     assert(n < 500, 'filter jobs converge');
     ranges.drain(2);
+    assert(ranges.stagingBytes <= MAX_INDEX_BYTES, 'one scratch index at most, within the cap');
   }
+  assert.equal(ranges.stagingBytes, 0, 'idle controllers hold no scratch index');
 }
 
 function triples(index: THREE.BufferAttribute): string[] {
@@ -197,6 +199,9 @@ for (const tickMs of [2, 5, 100]) {
   ranges.add(mesh);
   ranges.prepare(camera, false);
   assert.equal(ranges.idle, false, 'a page at the 256KiB index cap is accepted for staging');
+  ranges.drain(2);
+  if (!ranges.idle)
+    assert.equal(ranges.stagingBytes, MAX_INDEX_BYTES, 'the active job reports its full same-length scratch index');
   finish(ranges);
   assert.equal(ranges.settled(mesh), true);
   assert.deepEqual(errors, []);
@@ -208,6 +213,7 @@ for (const tickMs of [2, 5, 100]) {
   ranges.add(mesh);
   ranges.prepare(camera, false);
   assert(ranges.idle, 'over-cap stock remains unfiltered without allocating a job');
+  assert.equal(ranges.stagingBytes, 0);
   assert.equal(mesh.geometry.drawRange.count, Infinity);
   mesh.geometry.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 65_535]), 1));
   ranges.prepare(camera, false);
