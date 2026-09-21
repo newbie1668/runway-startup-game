@@ -301,6 +301,35 @@ function assertTileParity(cityData: CityData, cells: readonly CityCell[], ready:
       let cancelClock = oneUnitClock(); const cancelled = createStockTileJob({ ...tileArgs, id: 'tile-staging-cancel', maxPageVertices: oneVertices * 2, now: () => cancelClock(), onReady: () => assert.fail('published') });
       for (let i = 0; i < 6; i++) { cancelClock = oneUnitClock(); cancelled.step(); } assert.ok(cancelled.stagingBytes() > 0); cancelled.cancel(); assert.equal(cancelled.stagingBytes(), 0, 'cancellation releases all staging');
       for (const page of published!.pages) page.mesh.geometry.dispose();
+      // Reservation: every growth of the live bytes is announced first and exactly, on the tile and the single-cell path.
+      const reserving = (create: (now: () => number, reserve: (bytes: number) => void, onReady: () => void) => ReturnType<typeof createStockTileJob>): { calls: number; reserved: number } => {
+        let reserved = 0, calls = 0, done = false, clock = oneUnitClock();
+        assert.equal(liveBytes(), 0, 'precondition: no live geometry before the reserving job');
+        const job = create(() => clock(), (bytes) => { assert.ok(Number.isInteger(bytes) && bytes > 0, 'reservations are whole positive byte counts'); reserved += bytes; calls++; }, () => { done = true; });
+        let lastLive = 0;
+        for (let i = 0; i < 1000 && !done; i++) {
+          const before = reserved; clock = oneUnitClock(); job.step();
+          const grown = Math.max(0, liveBytes() - lastLive); lastLive = liveBytes();
+          assert.ok(reserved - before >= grown, `step ${i}: live bytes grew by ${grown} with ${reserved - before} reserved`);
+          assert.ok(job.stagingBytes() <= reserved, `step ${i}: staging never exceeds what was reserved`);
+        }
+        assert.ok(done, 'reserving job publishes'); return { calls, reserved };
+      };
+      let publishedTile: StockTileReady | undefined;
+      const tileReserve = reserving((now, reserve, onReady) => createStockTileJob({ ...tileArgs, id: 'tile-reserve', maxPageVertices: oneVertices * 2, now, reserve, onReady: (v) => { publishedTile = v; onReady(); } }));
+      assert.equal(publishedTile!.pages.length, 2); assert.equal(tileReserve.calls, 3 + 2 * 4, 'each building and each of the four target arrays per page is reserved separately'); assert.ok(tileReserve.reserved >= publishedTile!.geometryBytes, 'reserved bytes cover the published pages'); for (const page of publishedTile!.pages) page.mesh.geometry.dispose();
+      let publishedCell: THREE.Group | null | undefined;
+      const cellReserve = reserving((now, reserve, onReady) => createCellStockJob({ id: 'cell-reserve', generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail: 'overview', now, reserve, onReady: (v) => { publishedCell = v.group; onReady(); } }));
+      assert.equal(cellReserve.calls, 3 + 4, 'single-cell path reserves three buildings and four target arrays'); geometryOf(publishedCell!)!.dispose();
+      // Refusal: a throwing reservation fails that step, and the job releases everything it held.
+      for (const refuseAt of [1, 3, 4, 6]) {
+        let calls = 0, refuseClock = oneUnitClock(); live.clear();
+        const refused = createStockTileJob({ ...tileArgs, id: `tile-refuse-${refuseAt}`, maxPageVertices: oneVertices * 2, now: () => refuseClock(), reserve: () => { if (++calls === refuseAt) throw new RangeError('over budget'); }, onReady: () => assert.fail('refused job must not publish') });
+        let thrown: unknown;
+        for (let i = 0; i < 1000 && thrown === undefined; i++) { refuseClock = oneUnitClock(); try { if (refused.step()) assert.fail('refused job must not complete'); } catch (error) { thrown = error; } }
+        assert.ok(thrown instanceof RangeError || (thrown instanceof AggregateError && thrown.errors[0] instanceof RangeError), `refusal ${refuseAt} surfaces the reservation error`);
+        refused.cancel(); assert.equal(refused.stagingBytes(), 0, `refusal ${refuseAt}: nothing stays staged`); assert.equal(liveBytes(), 0, `refusal ${refuseAt}: every owned geometry is disposed`); assert.equal(refused.step(), true);
+      }
     } finally { THREE.BufferGeometry.prototype.setAttribute = originalSetAttribute; THREE.BufferGeometry.prototype.dispose = originalDispose; }
   }
 }

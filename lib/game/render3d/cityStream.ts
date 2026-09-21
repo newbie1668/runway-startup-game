@@ -28,23 +28,29 @@ import { planStreamCoverage, type StreamCoveragePlan } from './streamCoverage';
 import { createStreamResidentStore, type StreamResident } from './streamResidentStore';
 import { createStockDecorJob } from './stockDecorJob';
 import { createCoverJob } from './coverGeometry';
-import { StockDrawRanges } from './stockDrawRanges';
+import { MAX_INDEX_BYTES, StockDrawRanges } from './stockDrawRanges';
 import { indexStockTiles, type StockTile, type StockTileId, type StockTileIndex } from './stockTiles';
 
 interface StockResident extends StreamResident {
   readonly detail: StockDetail;
   readonly scratch: CityScratch;
   readonly meshes: readonly THREE.Mesh[];
+  /** Stock geometry bytes the resident holds (decoration excluded). */
+  readonly bytes: number;
   hasDecor(): boolean;
   attachDecor(ready: CoverCellReady): void;
   /** Own and track the geometry without rendering it while a tile still covers the cell. */
   stage(): void;
+  /** Enrol the meshes in draw-range partitioning, or restore their full ranges and leave it. */
+  partition(enabled: boolean): void;
 }
 
 interface TileResident extends StreamResident<StockTileId> {
   readonly cellIds: readonly CellId[];
   readonly scratch: CityScratch;
   readonly meshes: readonly THREE.Mesh[];
+  readonly bytes: number;
+  partition(enabled: boolean): void;
 }
 
 interface CoverResident extends StreamResident {
@@ -68,6 +74,12 @@ interface TileRequest {
 
 type Request = CellRequest | TileRequest;
 
+/** Resident geometry ceiling and the level above which background work waits. */
+export interface ResidentBudget {
+  readonly maxBytes: number;
+  readonly backgroundBytes: number;
+}
+
 export interface CityStreamOptions {
   readonly data: CityData;
   readonly cityIndex: CityIndex;
@@ -78,6 +90,8 @@ export interface CityStreamOptions {
   readonly resources: ResourcePool;
   readonly tracker: ReturnType<typeof createGeometryTracker>;
   readonly diagnostics: MapDiagnosticsReporter;
+  /** Defaults to the 128 MiB / 96 MiB product budget; may only be lowered, never raised. */
+  readonly residentBudget?: ResidentBudget;
   now(): number;
   onRoadContextReady?(context: RoadCoverContext): void;
   onStockDrawn(): void;
@@ -89,6 +103,28 @@ const MAX_PENDING = 4;
 const MAX_REQUESTS_PER_DRAIN = 64;
 const MAX_RESIDENT_BYTES = 128 * 1024 * 1024;
 const BACKGROUND_RESIDENT_BYTES = 96 * 1024 * 1024;
+export const DEFAULT_RESIDENT_BUDGET: ResidentBudget = {
+  maxBytes: MAX_RESIDENT_BYTES,
+  backgroundBytes: BACKGROUND_RESIDENT_BYTES,
+};
+
+function validateBudget(budget: ResidentBudget): ResidentBudget {
+  const { maxBytes, backgroundBytes } = budget;
+  if (
+    !Number.isSafeInteger(maxBytes) || !Number.isSafeInteger(backgroundBytes) ||
+    maxBytes > MAX_RESIDENT_BYTES || maxBytes <= MAX_INDEX_BYTES ||
+    backgroundBytes <= 0 || backgroundBytes > maxBytes
+  )
+    throw new RangeError(
+      `resident budget must satisfy ${MAX_INDEX_BYTES} < maxBytes <= ${MAX_RESIDENT_BYTES} and 0 < backgroundBytes <= maxBytes`,
+    );
+  return budget;
+}
+
+type Candidate = { id: string; distance: number; evict: () => void };
+
+const farthestFirst = (a: Candidate, b: Candidate): number =>
+  b.distance - a.distance || compareIds(b.id, a.id);
 
 function clearScratch(scratch: CityScratch): void {
   scratch.picks.length = 0;
@@ -128,6 +164,8 @@ export class CityStream {
   private visible = new Set<CellId>();
   private detailed = new Set<CellId>();
   private wanted = new Set<CellId>();
+  private retain = new Set<CellId>();
+  private readonly budget: ResidentBudget;
   private signature = '';
   private coverageJob: string | null = null;
   private closed = false;
@@ -136,6 +174,7 @@ export class CityStream {
   private readonly drawRanges: StockDrawRanges;
 
   constructor(private readonly options: CityStreamOptions) {
+    this.budget = validateBudget(options.residentBudget ?? DEFAULT_RESIDENT_BUDGET);
     this.tileIndex = indexStockTiles(options.cityIndex);
     this.drawRanges = new StockDrawRanges(
       options.now,
@@ -215,6 +254,23 @@ export class CityStream {
     return bytes;
   }
 
+  /** Stock/tile geometry bytes resident outside the current retain ring: kept only until needed. */
+  get staleStockBytes(): number {
+    let bytes = 0;
+    for (const id of this.stocks.ids())
+      if (!this.retain.has(id)) bytes += this.stocks.get(id)!.bytes;
+    for (const tileId of this.tiles.ids())
+      if (!this.tileRetained(tileId)) bytes += this.tiles.get(tileId)!.bytes;
+    return bytes;
+  }
+
+  /** Tracked residents plus every stock job's staging; the draw-range scratch is reserved at its cap. */
+  private heldBytes(): number {
+    let bytes = this.options.tracker.bytes();
+    for (const job of this.staging.values()) bytes += job.stagingBytes();
+    return bytes;
+  }
+
   buildingMeshes(): THREE.Mesh[] {
     return [
       ...this.stocks.ids().flatMap((id) => [...this.stocks.get(id)!.meshes]),
@@ -263,6 +319,10 @@ export class CityStream {
     return this.tileIndex.tiles.get(tileId)!;
   }
 
+  private tileRetained(tileId: StockTileId): boolean {
+    return this.tile(tileId).cells.some((cell) => this.retain.has(cell.id));
+  }
+
   /** Representation the current plan wants for a source cell, or null when it is not wanted. */
   private wantedDetail(id: CellId): StockDetail | null {
     if (!this.plan || !this.wanted.has(id)) return null;
@@ -309,6 +369,12 @@ export class CityStream {
     this.visible = new Set(plan.visibleStock);
     this.detailed = new Set(plan.detail === 'overview' ? [] : plan.detailedStock);
     this.wanted = new Set([...plan.visibleStock, ...plan.prefetchStock]);
+    this.retain = new Set(plan.retainStock);
+    // Residents outside the retain ring stay resident and visible until their bytes are needed
+    // (admit) or the new coverage settles (trimResidents); they only leave draw-range partitioning.
+    for (const id of this.stocks.ids()) this.stocks.get(id)!.partition(this.retain.has(id));
+    for (const tileId of this.tiles.ids())
+      this.tiles.get(tileId)!.partition(this.tileRetained(tileId));
     if (signature === this.signature) return;
     this.signature = signature;
     this.cancelPending();
@@ -316,9 +382,7 @@ export class CityStream {
     this.tiles.beginGeneration();
     this.covers.beginGeneration();
     this.trees.beginGeneration();
-    // Residents outside the new retain rings leave before the new plan adds bytes; visible
-    // coverage is inside every retain ring, so old useful representations stay until cutover.
-    this.trimResidents();
+    this.reconcile();
     this.coverageJob = `stream:coverage:${this.generation}`;
     this.options.diagnostics.registerJob(this.coverageJob, true);
     this.options.diagnostics.startJob(this.coverageJob);
@@ -364,7 +428,17 @@ export class CityStream {
     for (const id of plan.visibleStock) classify(id, true);
     for (const id of plan.prefetchStock) classify(id, false);
     const pushedTiles = new Set<StockTileId>();
-    for (const id of this.ordered(plan.visibleStock, bounds, 'city')) {
+    const orderedVisible = this.ordered(plan.visibleStock, bounds, 'city');
+    // Tiles whose cutover releases resident member cells come first: each one is a net release
+    // of resident bytes, so they open room for the tiles that only add.
+    for (const id of orderedVisible) {
+      const tile = tileRequests.get(this.tileOf(id));
+      if (!tile?.essential || pushedTiles.has(tile.id)) continue;
+      if (!tile.tile.cells.some((cell) => this.stocks.get(cell.id) !== undefined)) continue;
+      pushedTiles.add(tile.id);
+      requests.push(tile);
+    }
+    for (const id of orderedVisible) {
       const cell = cellRequests.get(id);
       if (cell) {
         requests.push(cell);
@@ -445,12 +519,23 @@ export class CityStream {
     const release = ready.group ? retainSceneResources(resources, ready.group) : () => undefined;
     let attached = false;
     let disposed = false;
+    let partitioned = false;
     let decoration: CoverCellReady | null = null;
+    const partition = (enabled: boolean): void => {
+      if (disposed || detail !== 'overview' || enabled === partitioned) return;
+      partitioned = enabled;
+      for (const mesh of meshes) {
+        if (enabled) this.drawRanges.add(mesh);
+        else this.drawRanges.remove(mesh);
+      }
+    };
     return {
       id,
       detail,
       scratch: ready.scratch,
       meshes,
+      bytes: ready.geometryBytes,
+      partition,
       hasDecor: () => decoration !== null,
       attachDecor: (next) => {
         if (disposed || decoration) {
@@ -469,8 +554,7 @@ export class CityStream {
           root.add(ready.group);
           tracker.trackTree(ready.group);
         }
-        if (detail === 'overview')
-          for (const mesh of meshes) this.drawRanges.add(mesh);
+        partition(true);
         attached = true;
         this.buildings += ready.sourceBuildingIndices.length;
       },
@@ -536,17 +620,28 @@ export class CityStream {
     const release = ready.group ? retainSceneResources(resources, ready.group) : () => undefined;
     let attached = false;
     let disposed = false;
+    let partitioned = false;
+    const partition = (enabled: boolean): void => {
+      if (disposed || enabled === partitioned) return;
+      partitioned = enabled;
+      for (const mesh of meshes) {
+        if (enabled) this.drawRanges.add(mesh);
+        else this.drawRanges.remove(mesh);
+      }
+    };
     const resident: TileResident = {
       id: request.id,
       cellIds: ready.cellIds,
       scratch: ready.scratch,
       meshes,
+      bytes: ready.geometryBytes,
+      partition,
       attach: () => {
         if (ready.group) {
           root.add(ready.group);
           tracker.trackTree(ready.group);
         }
-        for (const mesh of meshes) this.drawRanges.add(mesh);
+        partition(true);
         attached = true;
         this.buildings += ready.sourceBuildingIndices.length;
       },
@@ -681,6 +776,7 @@ export class CityStream {
       now: this.options.now,
       sliceMs: 4,
     };
+    const reserve = (bytes: number): void => this.admit(bytes, request.essential);
     if (request.kind === 'tile') {
       const job = createStockTileJob({
         ...common,
@@ -688,6 +784,7 @@ export class CityStream {
         cells: request.tile.cells,
         excludedBuildingIndices: this.options.exclusions,
         material: this.options.material,
+        reserve,
         onReady: (ready) => this.publishTile(request, generation, ready),
       });
       this.staging.set(id, job);
@@ -700,6 +797,7 @@ export class CityStream {
         excludedBuildingIndices: this.options.exclusions,
         material: this.options.material,
         detail: request.detail,
+        reserve,
         onReady: (ready) => this.publishStock(request, generation, ready),
       });
       this.staging.set(id, job);
@@ -762,33 +860,58 @@ export class CityStream {
     this.failure ??= { id, error };
   }
 
-  private trimResidents(): void {
-    if (!this.plan) return;
-    const retain = new Set(this.plan.retainStock);
-    this.stocks.evictOutside(retain);
-    this.tiles.evictOutside(
-      new Set(
-        this.tiles.ids().filter((tileId) =>
-          this.tile(tileId).cells.some((cell) => retain.has(cell.id)),
-        ),
-      ),
-    );
-    this.covers.evictOutside(new Set(this.plan.retainCover));
-    this.trees.evictOutside(new Set(this.plan.detail === 'overview' ? [] : this.plan.retainCover));
-    this.reconcile();
-    if (this.options.tracker.bytes() <= MAX_RESIDENT_BYTES) return;
-    const { bounds } = this.plan;
-    const cellBounds = (id: CellId): BoundsXZ => this.options.cityIndex.cells.get(id)!.bounds;
-    type Candidate = { id: string; distance: number; evict: () => void };
-    const farthestFirst = (a: Candidate, b: Candidate): number =>
-      b.distance - a.distance || compareIds(b.id, a.id);
-    // Staged replacements for cells nobody sees are the cheapest bytes to give back.
+  private treesRetained(): ReadonlySet<CellId> {
+    return new Set(this.plan?.detail === 'overview' ? [] : this.plan?.retainCover);
+  }
+
+  private cellBounds(id: CellId): BoundsXZ {
+    return this.options.cityIndex.cells.get(id)!.bounds;
+  }
+
+  /** Residents outside the retain rings: useful old coverage that yields first, farthest first. */
+  private staleResidents(): Candidate[] {
+    const { bounds, retainCover } = this.plan!;
+    const stale: Candidate[] = [];
+    for (const id of this.stocks.ids()) {
+      if (this.retain.has(id)) continue;
+      stale.push({
+        id,
+        distance: centreDistance(this.cellBounds(id), bounds),
+        evict: () => this.stocks.evict([id]),
+      });
+    }
+    for (const tileId of this.tiles.ids()) {
+      if (this.tileRetained(tileId)) continue;
+      stale.push({
+        id: tileId,
+        distance: centreDistance(this.tile(tileId).bounds, bounds),
+        evict: () => this.tiles.evict([tileId]),
+      });
+    }
+    const covers = new Set(retainCover);
+    const trees = this.treesRetained();
+    for (const [store, kept] of [[this.covers, covers], [this.trees, trees]] as const) {
+      for (const id of store.ids()) {
+        if (kept.has(id)) continue;
+        stale.push({
+          id: `${store === this.covers ? 'cover' : 'trees'}:${id}`,
+          distance: centreDistance(this.coverCellBounds(id), bounds),
+          evict: () => store.evict([id]),
+        });
+      }
+    }
+    return stale.sort(farthestFirst);
+  }
+
+  /** Retained stock nobody sees: staged replacements first, then exposed cells and tiles. */
+  private prefetchResidents(): Candidate[] {
+    const { bounds } = this.plan!;
     const staged: Candidate[] = [];
     for (const [id, resident] of this.hidden) {
       if (this.visible.has(id)) continue;
       staged.push({
         id,
-        distance: centreDistance(cellBounds(id), bounds),
+        distance: centreDistance(this.cellBounds(id), bounds),
         evict: () => {
           this.hidden.delete(id);
           resident.dispose();
@@ -797,31 +920,71 @@ export class CityStream {
     }
     const exposed: Candidate[] = [];
     for (const id of this.stocks.ids()) {
-      if (this.visible.has(id)) continue;
+      if (this.visible.has(id) || !this.retain.has(id)) continue;
       exposed.push({
         id,
-        distance: centreDistance(cellBounds(id), bounds),
+        distance: centreDistance(this.cellBounds(id), bounds),
         evict: () => this.stocks.evict([id]),
       });
     }
     for (const tileId of this.tiles.ids()) {
       const tile = this.tile(tileId);
-      if (tile.cells.some((cell) => this.visible.has(cell.id))) continue;
+      if (tile.cells.some((cell) => this.visible.has(cell.id)) || !this.tileRetained(tileId))
+        continue;
       exposed.push({
         id: tileId,
         distance: centreDistance(tile.bounds, bounds),
         evict: () => this.tiles.evict([tileId]),
       });
     }
-    for (const candidate of [...staged.sort(farthestFirst), ...exposed.sort(farthestFirst)]) {
-      candidate.evict();
-      if (this.options.tracker.bytes() <= MAX_RESIDENT_BYTES) {
-        this.reconcile();
-        return;
+    return [...staged.sort(farthestFirst), ...exposed.sort(farthestFirst)];
+  }
+
+  /**
+   * Evict until tracked residents plus stock staging fit `limit`: stale residents always, retained
+   * non-visible stock only for `depth === 'wanted'`. Visible coverage is never evicted here.
+   */
+  private freeResidents(limit: number, depth: 'stale' | 'wanted'): boolean {
+    if (!this.plan || this.heldBytes() <= limit) return true;
+    let evicted = false;
+    try {
+      const tiers = [this.staleResidents()];
+      if (depth === 'wanted') tiers.push(this.prefetchResidents());
+      for (const tier of tiers) {
+        for (const candidate of tier) {
+          candidate.evict();
+          evicted = true;
+          if (this.heldBytes() <= limit) return true;
+        }
       }
+      return false;
+    } finally {
+      if (evicted) this.reconcile();
     }
+  }
+
+  /** A stock job asks to hold `bytes` more; make room or refuse so the ceiling is never crossed. */
+  private admit(bytes: number, essential: boolean): void {
+    const limit = this.budget.maxBytes - MAX_INDEX_BYTES - bytes;
+    if (this.freeResidents(limit, essential ? 'wanted' : 'stale')) return;
+    throw new Error(
+      `stock geometry needs ${bytes} more bytes than the ${this.budget.maxBytes} byte resident ceiling allows`,
+    );
+  }
+
+  /** At settle: release everything outside the retain rings, then enforce the ceiling on what remains. */
+  private trimResidents(): void {
+    if (!this.plan) return;
+    this.stocks.evictOutside(this.retain);
+    this.tiles.evictOutside(new Set(this.tiles.ids().filter((tileId) => this.tileRetained(tileId))));
+    this.covers.evictOutside(new Set(this.plan.retainCover));
+    this.trees.evictOutside(this.treesRetained());
     this.reconcile();
-    this.fatal('stream:resident-budget', new Error('Visible geometry exceeds 128 MiB'));
+    if (this.freeResidents(this.budget.maxBytes - MAX_INDEX_BYTES, 'wanted')) return;
+    this.fatal(
+      'stream:resident-budget',
+      new Error(`Visible geometry exceeds ${this.budget.maxBytes / (1024 * 1024)} MiB`),
+    );
   }
 
   private settleCoverage(): void {
@@ -866,7 +1029,11 @@ export class CityStream {
           this.cursor++;
           requests++;
           if (this.resident(request)) continue;
-          if (!request.essential && this.options.tracker.bytes() >= BACKGROUND_RESIDENT_BYTES)
+          // Stale bytes yield to prefetch on demand, so only retained bytes count against the gate.
+          if (
+            !request.essential &&
+            this.options.tracker.bytes() - this.staleStockBytes >= this.budget.backgroundBytes
+          )
             continue;
           const id = `stream:${this.generation}:${request.kind}:${request.id}:${request.detail}`;
           const job = this.build(request, id);

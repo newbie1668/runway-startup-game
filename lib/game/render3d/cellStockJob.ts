@@ -6,15 +6,21 @@ import type { StockDetail } from './detailPolicy';
 import type { CityData } from './format';
 
 export type CellStockReady = { group: THREE.Group | null; scratch: CityScratch; sourceBuildingIndices: readonly number[]; geometryBytes: number };
-export type CellStockJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cell: CityCell; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; onReady: (ready: CellStockReady) => void };
+/**
+ * Called before the job's staging grows by `bytes`: one building's fragments right after the builder
+ * emitted them, each target array before it is allocated. Throwing fails the job, which releases
+ * everything it holds, so an owner can refuse growth that would leave its resident ceiling.
+ */
+export type StockReserve = (bytes: number) => void;
+export type CellStockJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cell: CityCell; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; reserve?: StockReserve; onReady: (ready: CellStockReady) => void };
 /** A stock job that also reports the bytes of geometry it currently holds outside the scene (fragments, open target, sealed unpublished pages). */
 export type StockJob = BuildJob & { stagingBytes(): number };
 /** One cell-aligned overview page: consecutive source buildings (whole cells where they fit) packed into a single Uint16-indexed mesh. */
 export type StockPage = { mesh: THREE.Mesh; cellIds: readonly CellId[]; sourceBuildingIndices: readonly number[]; vertices: number; indexBytes: number; geometryBytes: number };
 export type StockTileReady = { group: THREE.Group | null; pages: readonly StockPage[]; cellIds: readonly CellId[]; scratch: CityScratch; sourceBuildingIndices: readonly number[]; geometryBytes: number };
-export type StockTileJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; tileId: string; cells: readonly CityCell[]; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; now: () => number; sliceMs?: number; maxPageVertices?: number; maxPageIndexBytes?: number; onReady: (ready: StockTileReady) => void };
+export type StockTileJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; tileId: string; cells: readonly CityCell[]; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; now: () => number; sliceMs?: number; maxPageVertices?: number; maxPageIndexBytes?: number; reserve?: StockReserve; onReady: (ready: StockTileReady) => void };
 type PagesReady = { root: THREE.Group | null; pages: readonly StockPage[]; scratch: CityScratch; emitted: number[]; bytes: number };
-type PagesJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cells: readonly CityCell[]; label: { cellId: CellId } | { tileId: string }; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; maxPageVertices: number; maxPageIndexBytes: number; split: boolean; onReady: (ready: PagesReady) => void };
+type PagesJobArgs = { id: string; generation: number; essential: boolean; cityData: CityData; cells: readonly CityCell[]; label: { cellId: CellId } | { tileId: string }; excludedBuildingIndices: ReadonlySet<number>; material: THREE.Material; detail: StockDetail; now: () => number; sliceMs?: number; maxPageVertices: number; maxPageIndexBytes: number; split: boolean; reserve?: StockReserve; onReady: (ready: PagesReady) => void };
 type Fragment = { geometry: THREE.BufferGeometry; vertices: number; indices: number; bytes: number };
 /** Every fragment one source building emitted; the smallest piece a page boundary may separate. */
 type Unit = { sources: readonly number[]; fragments: number; vertices: number; indices: number };
@@ -89,6 +95,8 @@ function createStockPagesJob(args: PagesJobArgs): StockJob {
       const unit: Unit = { sources: Object.freeze([...((group.userData.sourceBuildingIndices as readonly number[] | undefined) ?? [])]), fragments: fragments.length, vertices: 0, indices: 0 };
       for (const fragment of fragments) { const p = fragment.geometry.getAttribute('position'), n = fragment.geometry.getAttribute('normal'), c = fragment.geometry.getAttribute('color'), ix = fragment.geometry.getIndex(); if (!p || !n || !c || !ix) throw new Error('stock fragment is not indexed and complete'); fragment.vertices = p.count; fragment.indices = ix.count; fragment.bytes = geometryBytes(fragment.geometry); unit.vertices += p.count; unit.indices += ix.count; }
       if (args.split && !fits(newPage(), unit.vertices, unit.indices)) throw new RangeError(`building ${unit.sources.join(',')} in ${cell.id} exceeds page bounds: ${unit.vertices} vertices, ${indexBytes(unit.vertices, unit.indices)} index bytes`);
+      let unitBytes = 0; for (const f of fragments) unitBytes += f.bytes;
+      args.reserve?.(unitBytes);
       for (const f of fragments) { staged.push(f); stagedBytes += f.bytes; } open.push(unit); openVertices += unit.vertices; openIndices += unit.indices; fragments = [];
       emitted.push(...unit.sources); append(scratch, local);
     } catch (e) { const errors: unknown[] = []; while (fragments.length) { const f = fragments.shift()!; const result = dispose(f.geometry); if (result.didThrow) errors.push(result.error); } if (errors.length) throw new AggregateError([e, ...errors], 'Cell stock fragment validation and cleanup failed'); throw e; }
@@ -109,10 +117,13 @@ function createStockPagesJob(args: PagesJobArgs): StockJob {
   };
   const allocate = (): void => {
     if (page.vertices === 0) { phase = 'seal'; return; } if (!target) target = new THREE.BufferGeometry();
+    const packed = args.detail === 'overview', wide = !packed || page.vertices > 65535;
+    const bytes = allocationAt === 0 ? page.vertices * 3 * 4 : allocationAt < 3 ? page.vertices * 3 * (packed ? 1 : 4) : page.indices * (wide ? 4 : 2);
+    args.reserve?.(bytes);
     if (allocationAt === 0) { position = new Float32Array(page.vertices * 3); target.setAttribute('position', new THREE.BufferAttribute(position, 3)); targetBytes += position.byteLength; }
-    else if (allocationAt === 1) { normal = args.detail === 'overview' ? new Int8Array(page.vertices * 3) : new Float32Array(page.vertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3, args.detail === 'overview')); targetBytes += normal.byteLength; }
-    else if (allocationAt === 2) { color = args.detail === 'overview' ? new Uint8Array(page.vertices * 3) : new Float32Array(page.vertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3, args.detail === 'overview')); targetBytes += color.byteLength; }
-    else { indices = args.detail === 'overview' && page.vertices <= 65535 ? new Uint16Array(page.indices) : new Uint32Array(page.indices); target.setIndex(new THREE.BufferAttribute(indices, 1)); targetBytes += indices.byteLength; phase = 'copy'; } allocationAt++;
+    else if (allocationAt === 1) { normal = packed ? new Int8Array(page.vertices * 3) : new Float32Array(page.vertices * 3); target.setAttribute('normal', new THREE.BufferAttribute(normal, 3, packed)); targetBytes += normal.byteLength; }
+    else if (allocationAt === 2) { color = packed ? new Uint8Array(page.vertices * 3) : new Float32Array(page.vertices * 3); target.setAttribute('color', new THREE.BufferAttribute(color, 3, packed)); targetBytes += color.byteLength; }
+    else { indices = wide ? new Uint32Array(page.indices) : new Uint16Array(page.indices); target.setIndex(new THREE.BufferAttribute(indices, 1)); targetBytes += indices.byteLength; phase = 'copy'; } allocationAt++;
   };
   const copy = (): boolean => {
     const f = staged[0]!, p = f.geometry.getAttribute('position') as THREE.BufferAttribute, n = f.geometry.getAttribute('normal') as THREE.BufferAttribute, c = f.geometry.getAttribute('color') as THREE.BufferAttribute, ix = f.geometry.getIndex() as THREE.BufferAttribute;

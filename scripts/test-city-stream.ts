@@ -202,17 +202,28 @@ assert.equal(oldDisposed, 0, 'stock inside the new retain ring survives a plan c
 assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)));
 assert.equal(stream.stagingBytes, 0, 'no stock job has started before a drain');
 const second = { minX: 59, minZ: 8, maxX: 61, maxZ: 11 };
+const residentBeforeJump = tracker.bytes();
 stream.update(second);
-assert.equal(
-  oldDisposed,
-  1,
-  'stock outside the new retain ring is evicted at the plan change, before destination bytes arrive',
-);
+assert.equal(oldDisposed, 0, 'stock outside the new retain ring is not evicted speculatively at the plan change');
+assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)), 'old coverage stays useful');
+assert.equal(tracker.bytes(), residentBeforeJump, 'the plan change itself frees nothing that fits');
+assert.equal(stream.staleStockBytes, oldMesh.geometry.getIndex()!.array.byteLength +
+  Object.values(oldMesh.geometry.attributes).reduce((sum, a) => sum + a.array.byteLength, 0),
+  'stock outside the retain ring is reported as stale');
+assert.equal(evictions, 0);
+let jumpFrames = 0;
+do {
+  stream.drain();
+  assert(++jumpFrames < 10_000);
+  assert.deepEqual(failures, []);
+  if (diagnostics.snapshot().pendingEssentialJobs > 0)
+    assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)),
+      'old coverage stays exposed on every frame until the destination coverage settles');
+} while (diagnostics.snapshot().pendingEssentialJobs > 0);
+assert.equal(oldDisposed, 1, 'stock outside the retain ring leaves when the destination settles');
 assert(!stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)));
-assert.equal(tracker.bytes(), 0, 'nothing from the old destination stays resident');
-assert(evictions > 0, 'early eviction reports its picks');
-ready(second);
-assert.equal(oldDisposed, 1);
+assert.equal(stream.staleStockBytes, 0);
+assert(evictions > 0, 'settle-time eviction reports its picks');
 assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, secondId)));
 assert.equal(materialDisposals, 0, 'shared building material survives cell eviction');
 
@@ -536,17 +547,19 @@ for (const clockStep of [0, 0.01]) {
   const all = new Set(dense.buildings.map((_, i) => i));
   const tileSources = new Set(tileMembers.flatMap((id) => denseIndex.cells.get(id)!.buildingIndices));
   assert.equal(tileSources.size, 16 + heavyCellExtras);
-  // Retention around the inner view keeps tiles 0..2; tile column 3 (ix 12..15) is evicted.
+  // Retention around the inner view keeps tiles 0..2; tile column 3 (ix 12..15) is outside the
+  // retain ring: it stays resident and visible (stale) until its bytes are needed or the new
+  // coverage settles, so a quick reversal finds the whole overview intact.
   const innerExposed = new Set([...all].filter((source) => columnOf(source) <= 11));
+  const staleColumnBytes = stream.buildingMeshes()
+    .filter((mesh) => (mesh.userData.tileId as string).startsWith('tile:3,'))
+    .reduce((sum, mesh) => sum + mesh.geometry.getIndex()!.array.byteLength +
+      Object.values(mesh.geometry.attributes).reduce((s, a) => s + a.array.byteLength, 0), 0);
   stream.update(inner);
-  assert.deepEqual(
-    exposed(),
-    innerExposed,
-    'the far tile column outside the new retain ring is evicted at the plan change',
-  );
-  assert.deepEqual(tileIds(), ['tile:0,0', 'tile:0,1', 'tile:1,0', 'tile:1,1', 'tile:2,0', 'tile:2,1']);
-  const trimmedOverviewBytes = tracker.bytes();
-  assert(trimmedOverviewBytes < steadyOverviewBytes, 'early eviction frees bytes before new work starts');
+  assert.deepEqual(exposed(), all, 'nothing is evicted speculatively at the plan change');
+  assert.equal(tileIds().length, 8);
+  assert.equal(tracker.bytes(), steadyOverviewBytes);
+  assert.equal(stream.staleStockBytes, staleColumnBytes, 'the far tile column is reported stale');
   let sawHidden = false;
   let sawTileWhileHidden = false;
   let sawStaging = false;
@@ -558,6 +571,8 @@ for (const clockStep of [0, 0.01]) {
     if (stream.stagingBytes > 0) sawStaging = true;
     peakTransitionBytes = Math.max(peakTransitionBytes, tracker.bytes());
     const visible = exposed();
+    if (diagnostics.snapshot().pendingEssentialJobs > 0)
+      assert.deepEqual(visible, all, 'every source stays visible on every frame before the new coverage settles');
     for (const source of tileSources) assert(visible.has(source), 'the tile keeps its sources visible during dissolution');
     if (stream.hiddenCells > 0) {
       sawHidden = true;
@@ -580,17 +595,19 @@ for (const clockStep of [0, 0.01]) {
     const detailed = ix! >= 5 && ix! <= 6 && iz! >= 5 && iz! <= 6;
     assert.equal(detailOf(id), detailed ? 'detailed' : 'overview', `cell ${id} carries the wanted detail`);
   }
-  assert(peakTransitionBytes > trimmedOverviewBytes, 'staged replacements are counted while hidden');
+  assert.deepEqual(exposed(), innerExposed, 'settling the new coverage releases the stale far tile column');
+  assert.equal(stream.staleStockBytes, 0);
+  assert(peakTransitionBytes > steadyOverviewBytes, 'staged replacements are counted while hidden');
   assert(sawStaging, 'in-flight stock jobs report live staging geometry');
   idle();
   assert.deepEqual(exposed(), innerExposed, 'membership retention evicts only the far tile column');
   const steadyInnerBytes = tracker.bytes();
   assert(peakStagingBytes > 0);
   assert(
-    peakTransitionBytes <= trimmedOverviewBytes + steadyInnerBytes,
-    'resident bytes never exceed the retained old coverage plus the new steady state',
+    peakTransitionBytes <= steadyOverviewBytes + steadyInnerBytes,
+    'resident bytes never exceed the old coverage plus the new steady state when both fit the budget',
   );
-  console.log(JSON.stringify({ dissolve: { trimmedOverviewBytes, steadyInnerBytes, peakTransitionBytes, peakStagingBytes, peakCombinedBytes } }));
+  console.log(JSON.stringify({ dissolve: { steadyOverviewBytes, staleColumnBytes, steadyInnerBytes, peakTransitionBytes, peakStagingBytes, peakCombinedBytes } }));
   const dissolvePeakCombinedBytes = peakCombinedBytes;
 
   // C: cells -> tile: zooming back out publishes the complete tile and releases the sixteen
@@ -613,15 +630,66 @@ for (const clockStep of [0, 0.01]) {
   assert(tileIds().includes('tile:1,1'));
   assert(stream.hiddenCells < 16, 'reversal happens before the cutover');
   const beforeReversal = exposed();
+  assert.deepEqual(beforeReversal, all);
   stream.update(overview);
   assert.equal(stream.hiddenCells, 0, 'unwanted staged replacements are dropped at the reversal, before any drain');
   assert.equal(stream.stagingBytes, 0, 'cancelled replacement jobs release their staging geometry');
   assert.deepEqual(exposed(), beforeReversal, 'the reversal keeps every visible source');
   assert(tileIds().includes('tile:1,1'), 'the useful tile is still exposed after the reversal');
-  settle(overview, tileSources);
+  assert.equal(tracker.bytes(), steadyOverviewBytes, 'a reversal before the cutover is back at the overview steady state at once');
+  settle(overview, all);
+  assert.equal(stream.stagingBytes, 0, 'no stock is regenerated after a reversal that kept every tile');
   idle();
   assert.deepEqual(cellIds(), []);
   assert.equal(tracker.bytes(), steadyOverviewBytes, 'reversal leaks no staged bytes');
+
+  // D2: reversal sweep, the deterministic equivalent of reversing after 30 ms or 500 ms: reverse
+  // after k frames for every k from "before any allocation" past the cutover. Every frame of every
+  // sweep exposes every source exactly once; a reversal before the cutover regenerates nothing.
+  let cutoverFrame = -1;
+  stream.update(inner);
+  for (frames = 0; tileIds().includes('tile:1,1'); frames++) {
+    drainFrame();
+    assert(frames < 20_000, 'the cutover happens');
+  }
+  cutoverFrame = frames;
+  assert(cutoverFrame > 1, 'the dissolution spans several frames');
+  settle(overview, all);
+  idle();
+  assert.equal(tracker.bytes(), steadyOverviewBytes);
+  let lossless = 0;
+  for (let k = 0; k <= cutoverFrame + 2; k++) {
+    stream.update(inner);
+    let settled = false;
+    for (let i = 0; i < k; i++) {
+      drainFrame();
+      settled = diagnostics.snapshot().pendingEssentialJobs === 0;
+      // The stale far column leaves only in the frame that settles the inner coverage.
+      assert.deepEqual(exposed(), settled ? innerExposed : all, `sweep ${k}: frame ${i} keeps every useful source visible`);
+    }
+    const stagedBeforeReversal = stream.hiddenCells;
+    const tileStillExposed = tileIds().includes('tile:1,1');
+    const kept = exposed();
+    stream.update(overview);
+    assert.equal(stream.hiddenCells, 0, `sweep ${k}: staged replacements are dropped at the reversal`);
+    assert.equal(stream.stagingBytes, 0, `sweep ${k}: in-flight jobs release staging at the reversal`);
+    assert.deepEqual(exposed(), kept, `sweep ${k}: the reversal loses no visible source`);
+    if (tileStillExposed) {
+      lossless++;
+      assert.equal(tracker.bytes(), steadyOverviewBytes, `sweep ${k}: reversal before the cutover is byte-identical`);
+      stream.drain();
+      assert.equal(stream.stagingBytes, 0, `sweep ${k}: nothing is regenerated`);
+    } else {
+      assert.deepEqual(cellIds(), tileMembers, `sweep ${k}: the sixteen members cover the tile after the cutover`);
+      assert(stagedBeforeReversal === 0);
+    }
+    settle(overview, kept);
+    idle();
+    assert.deepEqual(cellIds(), [], `sweep ${k}: the round trip ends on whole tiles`);
+    assert.equal(tracker.bytes(), steadyOverviewBytes, `sweep ${k}: the round trip is byte-identical`);
+  }
+  assert(lossless >= cutoverFrame, 'every reversal before the cutover was lossless');
+  console.log(JSON.stringify({ reversalSweep: { cutoverFrame, sweeps: cutoverFrame + 3, lossless } }));
 
   // E: interrupted cells -> tile: cancel the tile job mid-flight and keep the useful cells.
   settle(inner, tileSources);
@@ -689,25 +757,28 @@ for (const clockStep of [0, 0.01]) {
   stream.update(far);
   assert.equal(stream.hiddenCells, 0, 'a distant search drops staged replacements at the plan change');
   assert.equal(stream.stagingBytes, 0, 'a distant search cancels in-flight staging at the plan change');
-  assert(!tileIds().includes('tile:1,1'), 'the abandoned dissolving tile leaves at the plan change');
-  assert(
-    tileIds().every((id) => id.startsWith('tile:2,')),
-    'only tiles inside the search retain ring stay resident',
-  );
-  exposed();
-  // Tile column 3 left at the inner plan change (outside that retain ring), so the search rebuilds it.
-  settle(far, new Set());
+  assert.deepEqual(exposed(), all, 'the abandoned dissolving tile and the far tiles stay exposed as useful context');
+  assert.equal(tileIds().length, 8);
+  // Tile column 3 is still resident, so the search dissolves tile 3,0 in place instead of rebuilding it.
+  frames = 0;
+  do {
+    drainFrame();
+    if (diagnostics.snapshot().pendingEssentialJobs > 0)
+      assert.deepEqual(exposed(), all, 'every source stays visible until the search coverage settles');
+    assert(++frames < 20_000);
+  } while (diagnostics.snapshot().pendingEssentialJobs > 0);
   idle();
   assert.equal(stream.hiddenCells, 0, 'no staged replacement survives a distant search');
-  assert(!tileIds().includes('tile:1,1'), 'the abandoned dissolving tile is evicted by retention');
+  assert(!tileIds().includes('tile:1,1'), 'the abandoned dissolving tile is evicted by retention at settle');
   assert(!cellIds().some((id) => tileOf(id) === 'tile:1,1'), 'no stale member is revealed');
-  assert(tileIds().length >= 1, 'tiles still cover the retained ring');
+  assert.deepEqual(tileIds(), ['tile:2,0', 'tile:2,1', 'tile:3,1'], 'tiles inside the search retain ring stay; tile 3,0 dissolved into its members');
   for (const source of farVisible) assert(exposed().has(source));
+  assert(cellIds().length > 0);
   for (const id of cellIds()) {
     const [ix, iz] = id.split(',').map(Number);
-    // Search cells (tile 3,0) or the prefetch row iz=4 of the partially wanted tile 3,1.
-    assert(ix! >= 12 && iz! <= 4, `per-cell resident ${id} belongs to the search or its prefetch ring`);
-    if (iz === 4) assert.equal(detailOf(id), 'overview', `prefetch member ${id} is overview stock`);
+    assert(ix! >= 12 && iz! <= 3, `per-cell resident ${id} is a member of the dissolved search tile`);
+    const detailed = ix! >= 13 && ix! <= 14 && iz! >= 1 && iz! <= 2;
+    assert.equal(detailOf(id), detailed ? 'detailed' : 'overview', `member ${id} carries the wanted detail`);
   }
   const evictedSet = new Set(evictedPicks);
   for (const id of tileMembers) assert(evictedSet.has(denseIndex.cells.get(id)!.buildingIndices[0]!), 'evicted picks are reported for every released member');
@@ -728,7 +799,7 @@ for (const clockStep of [0, 0.01]) {
     JSON.stringify({
       tileTransition: {
         steadyOverviewBytes,
-        trimmedOverviewBytes,
+        staleColumnBytes,
         steadyInnerBytes,
         peakTransitionBytes,
         dissolvePeakCombinedBytes,
@@ -736,6 +807,271 @@ for (const clockStep of [0, 0.01]) {
       },
     }),
   );
+}
+// Budget pressure: the same 16 x 8 grid with six buildings per cell, streamed under a resident
+// budget lowered (never raised) so that the old overview plus the new neighbourhood cannot fit.
+// Stale residents must yield on demand, farthest first, before any retained one; visible coverage
+// is never evicted; `tracker + stock staging + draw-range scratch cap <= maxBytes` at every sample.
+{
+  const cellWorld = 400 * METERS_TO_WORLD;
+  const columns = 16, rows = 8, perCell = 6;
+  const heavy: CityData = {
+    buildings: Array.from({ length: columns * rows * perCell }, (_, i) => {
+      const cell = Math.floor(i / perCell), k = i % perCell;
+      return building(
+        (cell % columns) * cellWorld + 0.3 + (k % 3) * 0.4,
+        Math.floor(cell / columns) * cellWorld + 0.3 + Math.floor(k / 3) * 0.4,
+      );
+    }),
+    roads: [],
+    parks: [],
+    water: [],
+  };
+  const heavyIndex = indexCity(heavy, 400);
+  assert.equal(heavyIndex.cells.size, columns * rows);
+  const heavyCover: { value: CoverIndex | null } = { value: null };
+  const heavyCoverJob = createCoverIndexJob({
+    id: 'heavy-index', generation: 0, essential: true, cityData: heavy, now: () => 0,
+    cellSizeM: coverCellM, onReady: (value) => { heavyCover.value = value; },
+  });
+  while (!heavyCoverJob.step()) {}
+  assert.ok(heavyCover.value);
+  const all = new Set(heavy.buildings.map((_, i) => i));
+  const tileOf = (id: CellId): string => {
+    const [ix, iz] = id.split(',').map(Number);
+    return `tile:${Math.floor(ix! / 4)},${Math.floor(iz! / 4)}`;
+  };
+  const sourcesOfTile = (tileId: string): Set<number> =>
+    new Set([...heavyIndex.cells.values()].filter((cell) => tileOf(cell.id) === tileId).flatMap((cell) => cell.buildingIndices));
+  const geometryBytesOf = (mesh: THREE.Mesh): number =>
+    mesh.geometry.getIndex()!.array.byteLength +
+    Object.values(mesh.geometry.attributes).reduce((sum, a) => sum + a.array.byteLength, 0);
+  const overview = { minX: 2 * cellWorld, minZ: 2 * cellWorld, maxX: 14 * cellWorld, maxZ: 6 * cellWorld };
+  const inner = { minX: 5 * cellWorld + 0.2, minZ: 5 * cellWorld + 0.2, maxX: 7 * cellWorld - 0.2, maxZ: 7 * cellWorld - 0.2 };
+  const camera = new THREE.OrthographicCamera();
+  camera.position.set(0, 100, 100);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  type Harness = {
+    stream: CityStream; tracker: ReturnType<typeof createGeometryTracker>; root: THREE.Group;
+    resources: ReturnType<typeof createResourcePool>; diagnostics: ReturnType<typeof createMapDiagnostics>;
+    failures: string[]; evictions: number[][]; frame(): void; exposed(): Set<number>; tileIds(): string[]; cellIds(): CellId[];
+    settle(bounds: BoundsXZ, minimum: ReadonlySet<number>): void; idle(): void; peakHeld(): number; resetPeak(): void;
+  };
+  const harness = (budget?: { maxBytes: number; backgroundBytes: number }): Harness => {
+    const root = new THREE.Group();
+    const tracker = createGeometryTracker();
+    const resources = createResourcePool();
+    const material = createBuildingMaterial();
+    resources.retain(material);
+    const failures: string[] = [];
+    const evictions: number[][] = [];
+    let clock = 0;
+    let peak = 0;
+    let live: CityStream | null = null;
+    // Sampled on every clock read, i.e. between job slices and inside drain loops.
+    const now = (): number => {
+      if (live) peak = Math.max(peak, tracker.bytes() + live.stagingBytes);
+      return (clock += 0.05);
+    };
+    const diagnostics = createMapDiagnostics(1, now);
+    diagnostics.selectMode('3d');
+    const stream = new CityStream({
+      data: heavy, cityIndex: heavyIndex, coverIndex: heavyCover.value!, exclusions: new Set(),
+      material, root, resources, tracker, diagnostics, now,
+      ...(budget ? { residentBudget: budget } : {}),
+      onStockDrawn: () => undefined,
+      onStockEvicted: (picks) => { evictions.push(picks.map((pick) => pick.sourceIndex)); },
+      onFatal: (reason) => { failures.push(reason); },
+    });
+    live = stream;
+    const exposed = (): Set<number> => {
+      const sources = stream.buildingMeshes().flatMap((mesh) => mesh.userData.sourceBuildingIndices as readonly number[]);
+      const unique = new Set(sources);
+      assert.equal(unique.size, sources.length, 'no source is exposed twice');
+      assert.equal(stream.stockBuildings, sources.length);
+      const picks = [...stream.picks()].map((pick) => pick.sourceIndex);
+      assert.deepEqual(new Set(picks), unique, 'picks expose exactly the visible sources');
+      return unique;
+    };
+    const frame = (): void => {
+      stream.drain();
+      now();
+      stream.prepareDrawRanges(camera, false);
+      exposed();
+    };
+    const settle = (bounds: BoundsXZ, minimum: ReadonlySet<number>): void => {
+      stream.update(bounds);
+      let frames = 0;
+      do {
+        frame();
+        const visible = exposed();
+        for (const source of minimum) assert(visible.has(source), `source ${source} stays visible`);
+        assert(++frames < 50_000, 'coverage settles');
+      } while (diagnostics.snapshot().pendingEssentialJobs > 0 && failures.length === 0);
+    };
+    const idle = (): void => {
+      let frames = 0;
+      while (!stream.idle && failures.length === 0) {
+        frame();
+        assert(++frames < 50_000);
+      }
+    };
+    return {
+      stream, tracker, root, resources, diagnostics, failures, evictions, frame, exposed, settle, idle,
+      tileIds: () => [...new Set(stream.buildingMeshes().map((mesh) => mesh.userData.tileId as string | undefined))].filter((id): id is string => id !== undefined).sort(),
+      cellIds: () => stream.buildingMeshes().map((mesh) => mesh.userData.cellId as CellId | undefined).filter((id): id is CellId => id !== undefined).sort(),
+      peakHeld: () => peak,
+      resetPeak: () => { peak = 0; },
+    };
+  };
+  const RESERVE = 256 * 1024; // StockDrawRanges MAX_INDEX_BYTES: the scratch cap reserved by the stream.
+
+  // Reference run under the product budget: measure the steady states and the per-tile bytes.
+  const reference = harness();
+  reference.settle(overview, new Set());
+  reference.idle();
+  assert.deepEqual(reference.failures, []);
+  assert.deepEqual(reference.exposed(), all);
+  assert.equal(reference.tileIds().length, 8);
+  const steadyOverviewBytes = reference.tracker.bytes();
+  const tileBytes = new Map<string, number>();
+  for (const mesh of reference.stream.buildingMeshes())
+    tileBytes.set(mesh.userData.tileId as string, (tileBytes.get(mesh.userData.tileId as string) ?? 0) + geometryBytesOf(mesh));
+  assert.equal([...tileBytes.values()].reduce((a, b) => a + b, 0), steadyOverviewBytes);
+  reference.stream.update(inner);
+  assert.equal(reference.stream.staleStockBytes, tileBytes.get('tile:3,0')! + tileBytes.get('tile:3,1')!);
+  let cutoverTracker = -1, cutoverStale = -1;
+  for (let frames = 0; reference.tileIds().includes('tile:1,1'); frames++) {
+    reference.frame();
+    assert(frames < 50_000);
+  }
+  cutoverTracker = reference.tracker.bytes();
+  cutoverStale = reference.stream.staleStockBytes;
+  assert.equal(cutoverStale, tileBytes.get('tile:3,0')! + tileBytes.get('tile:3,1')!, 'nothing stale was evicted under the product budget');
+  while (reference.diagnostics.snapshot().pendingEssentialJobs > 0) reference.frame();
+  reference.idle();
+  assert.deepEqual(reference.failures, []);
+  const steadyInnerBytes = reference.tracker.bytes();
+  const referencePeak = reference.peakHeld();
+  const innerCells = [...heavyIndex.cells.values()].filter((cell) => tileOf(cell.id) === 'tile:1,1').map((cell) => cell.id).sort();
+  const decorated = (h: Harness): CellId[] =>
+    h.root.children.filter((child) => child.userData.cellId !== undefined && child.children.length > 1).map((child) => child.userData.cellId as CellId).sort();
+  const referenceDecor = decorated(reference);
+  assert(referenceDecor.length > 0, 'detailed cells receive decor under the product budget');
+  // The return leg: the detailed cells stay visible until their tile lands, so the merge tile's
+  // staging is held on top of them. Its peak is the least a ceiling must admit for the round trip.
+  reference.resetPeak();
+  reference.settle(overview, reference.exposed());
+  reference.idle();
+  assert.deepEqual(reference.failures, []);
+  assert.equal(reference.tracker.bytes(), steadyOverviewBytes);
+  const referenceReturnPeak = reference.peakHeld();
+  reference.stream.dispose();
+  reference.resources.dispose();
+  assert(referencePeak > steadyOverviewBytes + tileBytes.get('tile:3,0')!, 'the reference transition holds more than the overview plus one tile');
+
+  // Pressure run: the ceiling admits the overview alone (and the settled round trip) but not the
+  // overview plus the whole transition.
+  const maxBytes = RESERVE + Math.max(steadyOverviewBytes + Math.floor((referencePeak - steadyOverviewBytes) / 2), referenceReturnPeak);
+  assert(maxBytes - RESERVE < referencePeak, 'the lowered ceiling forces eviction during the transition');
+  // Background gate between the retained bytes and the total bytes at the cutover: the old
+  // `tracker >= background` gate would have skipped every decor job, the stale-excluding one admits them.
+  const backgroundBytes = cutoverTracker;
+  assert(cutoverTracker - cutoverStale < backgroundBytes && backgroundBytes <= maxBytes);
+  const pressured = harness({ maxBytes, backgroundBytes });
+  pressured.settle(overview, new Set());
+  pressured.idle();
+  assert.deepEqual(pressured.failures, []);
+  assert.deepEqual(pressured.exposed(), all, 'the overview fits the lowered ceiling');
+  assert.equal(pressured.tracker.bytes(), steadyOverviewBytes);
+  assert(pressured.peakHeld() + RESERVE <= maxBytes);
+  pressured.resetPeak();
+  pressured.stream.update(inner);
+  assert.deepEqual(pressured.exposed(), all, 'no speculative eviction at the plan change');
+  assert.equal(pressured.tracker.bytes(), steadyOverviewBytes);
+  const innerSources = sourcesOfTile('tile:1,1');
+  const retainedTiles = ['tile:0,0', 'tile:0,1', 'tile:1,0', 'tile:2,0', 'tile:2,1'];
+  /** Owner tile of each eviction callback so far, in callback order (the tile 1,1 cutover excluded). */
+  const cellOfSource = new Map<number, CellId>();
+  for (const cell of heavyIndex.cells.values()) for (const source of cell.buildingIndices) cellOfSource.set(source, cell.id);
+  const evictionOrder = (): string[] =>
+    pressured.evictions
+      .map((sources) => tileOf(cellOfSource.get(sources[0]!)!))
+      .filter((tileId) => tileId !== 'tile:1,1');
+  assert.equal(pressured.evictions.length, 0);
+  let firstEvictionFrame = -1;
+  let frames = 0;
+  do {
+    const before = pressured.evictions.length;
+    pressured.frame();
+    assert.deepEqual(pressured.failures, []);
+    assert(pressured.peakHeld() + RESERVE <= maxBytes, `held ${pressured.peakHeld()} + reserve stays under ${maxBytes}`);
+    const visible = pressured.exposed();
+    for (const source of innerSources) assert(visible.has(source), 'visible coverage is never evicted for room');
+    if (pressured.evictions.length > before && firstEvictionFrame < 0) firstEvictionFrame = frames;
+    assert(++frames < 50_000);
+  } while (pressured.diagnostics.snapshot().pendingEssentialJobs > 0);
+  const order = evictionOrder();
+  assert(firstEvictionFrame >= 0 && order.length > 0, 'the lowered ceiling forced on-demand eviction during the transition');
+  assert.deepEqual(order.slice(0, 2), ['tile:3,0', 'tile:3,1'], `stale tiles yield first, farthest first (${order.join(' ')})`);
+  for (const tileId of order.slice(2)) assert(retainedTiles.includes(tileId), `${tileId} is a retained, non-visible tile`);
+  const settledVisible = pressured.exposed();
+  for (const id of innerCells) assert(pressured.cellIds().includes(id));
+  pressured.idle();
+  assert.deepEqual(pressured.failures, []);
+  assert(pressured.peakHeld() + RESERVE <= maxBytes);
+  assert(pressured.tracker.bytes() + RESERVE <= maxBytes);
+  assert.deepEqual(decorated(pressured), referenceDecor, 'stale bytes do not gate decor for the detailed cells');
+  assert(!pressured.tileIds().some((id) => id.startsWith('tile:3,')), 'stale tiles are gone once the coverage settles');
+  const pressurePeak = pressured.peakHeld();
+
+  // Reversal right after the first on-demand eviction: nothing else is lost, the round trip is exact.
+  pressured.settle(overview, settledVisible);
+  pressured.idle();
+  assert.deepEqual(pressured.failures, []);
+  assert.deepEqual(pressured.exposed(), all, 'the settled round trip restores the whole overview');
+  assert.equal(pressured.tracker.bytes(), steadyOverviewBytes, 'the reversed overview is byte-identical');
+  pressured.stream.update(inner);
+  let reversalFrames = 0;
+  while (pressured.tileIds().length === 8) {
+    pressured.frame();
+    assert(++reversalFrames < 50_000);
+  }
+  assert(pressured.tileIds().includes('tile:1,1'), 'the reversal happens before the cutover');
+  const keptAtReversal = pressured.exposed();
+  assert(keptAtReversal.size < all.size && keptAtReversal.size > innerSources.size);
+  pressured.stream.update(overview);
+  assert.equal(pressured.stream.hiddenCells, 0);
+  assert.equal(pressured.stream.stagingBytes, 0);
+  assert.deepEqual(pressured.exposed(), keptAtReversal, 'the reversal itself loses nothing');
+  pressured.settle(overview, keptAtReversal);
+  pressured.idle();
+  assert.deepEqual(pressured.exposed(), all, 'only the evicted tiles are regenerated');
+  assert.equal(pressured.tracker.bytes(), steadyOverviewBytes);
+  assert.deepEqual(pressured.failures, []);
+  pressured.stream.dispose();
+  assert.equal(pressured.tracker.bytes(), 0);
+  assert.equal(pressured.root.children.length, 0);
+  pressured.resources.dispose();
+
+  // Too small for the visible overview: the essential job is refused and reported, never over-allocated.
+  const starved = harness({ maxBytes: RESERVE + Math.floor(steadyOverviewBytes / 2), backgroundBytes: RESERVE + 1 });
+  starved.stream.update(overview);
+  frames = 0;
+  while (starved.failures.length === 0) {
+    starved.frame();
+    assert(starved.peakHeld() + RESERVE <= RESERVE + Math.floor(steadyOverviewBytes / 2), 'a refused allocation never crosses the ceiling');
+    assert(++frames < 50_000, 'the starved stream reports the refused essential job');
+  }
+  assert(starved.failures[0]!.startsWith('stream:'), starved.failures[0]);
+  starved.stream.dispose();
+  assert.equal(starved.tracker.bytes(), 0);
+  assert.equal(starved.stream.stagingBytes, 0);
+  assert.equal(starved.root.children.length, 0);
+  starved.resources.dispose();
+  assert.throws(() => harness({ maxBytes: 128 * 1024 * 1024 + 1, backgroundBytes: 1 }), RangeError, 'the ceiling can only be lowered');
+  console.log(JSON.stringify({ budgetPressure: { steadyOverviewBytes, steadyInnerBytes, referencePeak, referenceReturnPeak, maxBytes, backgroundBytes, pressurePeak, evictionOrder: order, firstEvictionFrame } }));
 }
 for (const direction of ['cell-to-tile', 'tile-to-cell']) {
   const cellWorld = 400 * METERS_TO_WORLD;
