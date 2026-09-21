@@ -1,7 +1,7 @@
 # R6 integration candidate
 
-Latest reviewed integration source: `1c52c13` (limited triangle-count checkpoint).
-Latest tested source: `758bfe4` (source/tests/assets identical to integration).
+Latest reviewed integration source: `cc0d2d2` ([overview stock pages](overview-stock-pages.md)).
+Latest native-tested source: `0e3a314` ([shared road pages](browser-shared-road-pages-0e3a314.md)).
 Earlier complete browser matrix source: `03e5f02b20b9b23c7f250891c7f665257c264517`.
 Latest verified UI correction: `00a7465ca82c5dd2fdfb01f5ae51ed3fc8ce7f4a`.
 Historical integration baseline: `8393133b3b39ff266247348a564e74a475005df3`.
@@ -9,6 +9,12 @@ Parent integration branch: `devin/1789676440-camera-stream`.
 PR #30 remains draft; browser and release acceptance are open.
 
 ## Current native production result
+
+Source-reviewed stock pages are integrated with passing combined repository gates
+and CPU profiles. Native validation is next; the latest native result remains
+2,390 calls at wide zero azimuth, still above 300, with startup acceptance open.
+[Exact stock source checks, review and limits](overview-stock-pages.md).
+The older procedures below retain their original conditions and measurements.
 
 The [bounded overview comparison](browser-overview-758bfe4.md) and corrected
 independent review accept the candidate only as a limited draft checkpoint.

@@ -1,0 +1,199 @@
+{"stage":"visible","phase":"overview","frames":986,"elapsedMs":4106.909416,"buildings":113563,"residentCells":1714,"geometryMiB":122.62349510192871,"stock":{"cellGroups":0,"tiles":105,"tilePages":124,"meshes":124,"maxPageVertices":65268,"maxPageIndexBytes":172080,"maxCellVertices":0,"maxCellIndexBytes":0,"tileCoveredCells":1609,"hiddenCells":0}}
+{"stage":"visible","phase":"overview->neighbourhood","frames":42,"elapsedMs":191.5940840000003,"buildings":13814,"residentCells":148,"geometryMiB":42.278635025024414,"stock":{"cellGroups":13,"tiles":8,"tilePages":11,"meshes":24,"maxPageVertices":64587,"maxPageIndexBytes":171210,"maxCellVertices":210838,"maxCellIndexBytes":1256400,"tileCoveredCells":126,"hiddenCells":0}}
+{"stage":"visible","phase":"neighbourhood->overview","frames":636,"elapsedMs":2670.7065839999996,"buildings":113563,"residentCells":1714,"geometryMiB":122.62349510192871,"stock":{"cellGroups":0,"tiles":105,"tilePages":124,"meshes":124,"maxPageVertices":65268,"maxPageIndexBytes":172080,"maxCellVertices":0,"maxCellIndexBytes":0,"tileCoveredCells":1609,"hiddenCells":0}}
+{"stage":"visible","phase":"overview->search","frames":17,"elapsedMs":77.04012499999953,"buildings":6527,"residentCells":149,"geometryMiB":17.276927947998047,"stock":{"cellGroups":12,"tiles":8,"tilePages":8,"meshes":20,"maxPageVertices":47597,"maxPageIndexBytes":126246,"maxCellVertices":52024,"maxCellIndexBytes":308856,"tileCoveredCells":128,"hiddenCells":0}}
+{"stage":"visible","phase":"search->overview","frames":658,"elapsedMs":2766.041875,"buildings":113563,"residentCells":1714,"geometryMiB":122.62349510192871,"stock":{"cellGroups":0,"tiles":105,"tilePages":124,"meshes":124,"maxPageVertices":65268,"maxPageIndexBytes":172080,"maxCellVertices":0,"maxCellIndexBytes":0,"tileCoveredCells":1609,"hiddenCells":0}}
+{
+  "mode": "overview",
+  "coverCellSizeM": 1600,
+  "drawRanges": true,
+  "stockGuardMeanMs": 0.02827257499999784,
+  "decodedMs": 47.62129200000001,
+  "stockIndexMs": 16.18462500000001,
+  "indexFrames": 5,
+  "maxIndexSliceMs": 4.049542000000002,
+  "frames": 986,
+  "firstCoverageFrame": 986,
+  "maxSliceMs": 5.652207999999973,
+  "elapsedMs": 10039.929875,
+  "geometryMiB": 122.62349510192871,
+  "peakGeometryMiB": 122.62349510192871,
+  "buildings": 113563,
+  "residentCells": 1714,
+  "stock": {
+    "cellGroups": 0,
+    "tiles": 105,
+    "tilePages": 124,
+    "meshes": 124,
+    "maxPageVertices": 65268,
+    "maxPageIndexBytes": 172080,
+    "maxCellVertices": 0,
+    "maxCellIndexBytes": 0,
+    "tileCoveredCells": 1609,
+    "hiddenCells": 0
+  },
+  "sliceTargetMs": 4,
+  "frameBudgetMs": 6,
+  "phases": [
+    {
+      "stage": "overview",
+      "frames": 986,
+      "firstCoverageFrame": 986,
+      "maxSliceMs": 5.652207999999973,
+      "sliceOverruns": 0,
+      "framesOverBudget": 0,
+      "elapsedMs": 4121.843208,
+      "startGeometryMiB": 0,
+      "geometryMiB": 122.62349510192871,
+      "peakGeometryMiB": 122.62349510192871,
+      "peakStagingMiB": 4.452003479003906,
+      "peakResidentPlusStagingMiB": 122.62349510192871,
+      "peakHiddenCells": 0,
+      "buildings": 113563,
+      "residentCells": 1714,
+      "stock": {
+        "cellGroups": 0,
+        "tiles": 105,
+        "tilePages": 124,
+        "meshes": 124,
+        "maxPageVertices": 65268,
+        "maxPageIndexBytes": 172080,
+        "maxCellVertices": 0,
+        "maxCellIndexBytes": 0,
+        "tileCoveredCells": 1609,
+        "hiddenCells": 0
+      }
+    },
+    {
+      "stage": "overview->neighbourhood",
+      "frames": 61,
+      "firstCoverageFrame": 42,
+      "maxSliceMs": 6.499333000000661,
+      "sliceOverruns": 0,
+      "framesOverBudget": 1,
+      "elapsedMs": 268.9756669999997,
+      "startGeometryMiB": 15.846138954162598,
+      "geometryMiB": 42.77653694152832,
+      "peakGeometryMiB": 43.918084144592285,
+      "peakStagingMiB": 13.986539840698242,
+      "peakResidentPlusStagingMiB": 45.4700231552124,
+      "peakHiddenCells": 10,
+      "buildings": 14496,
+      "residentCells": 152,
+      "stock": {
+        "cellGroups": 16,
+        "tiles": 8,
+        "tilePages": 11,
+        "meshes": 27,
+        "maxPageVertices": 64587,
+        "maxPageIndexBytes": 171210,
+        "maxCellVertices": 210838,
+        "maxCellIndexBytes": 1256400,
+        "tileCoveredCells": 126,
+        "hiddenCells": 0
+      }
+    },
+    {
+      "stage": "neighbourhood->overview",
+      "frames": 636,
+      "firstCoverageFrame": 636,
+      "maxSliceMs": 6.620333000000755,
+      "sliceOverruns": 0,
+      "framesOverBudget": 1,
+      "elapsedMs": 2686.1661669999994,
+      "startGeometryMiB": 42.7716007232666,
+      "geometryMiB": 122.62349510192871,
+      "peakGeometryMiB": 122.62349510192871,
+      "peakStagingMiB": 3.6368865966796875,
+      "peakResidentPlusStagingMiB": 122.62349510192871,
+      "peakHiddenCells": 0,
+      "buildings": 113563,
+      "residentCells": 1714,
+      "stock": {
+        "cellGroups": 0,
+        "tiles": 105,
+        "tilePages": 124,
+        "meshes": 124,
+        "maxPageVertices": 65268,
+        "maxPageIndexBytes": 172080,
+        "maxCellVertices": 0,
+        "maxCellIndexBytes": 0,
+        "tileCoveredCells": 1609,
+        "hiddenCells": 0
+      }
+    },
+    {
+      "stage": "overview->search",
+      "frames": 19,
+      "firstCoverageFrame": 17,
+      "maxSliceMs": 6.523375000000669,
+      "sliceOverruns": 0,
+      "framesOverBudget": 1,
+      "elapsedMs": 82.55562499999996,
+      "startGeometryMiB": 8.2318754196167,
+      "geometryMiB": 17.442256927490234,
+      "peakGeometryMiB": 17.506098747253418,
+      "peakStagingMiB": 3.3575706481933594,
+      "peakResidentPlusStagingMiB": 17.677462577819824,
+      "peakHiddenCells": 7,
+      "buildings": 6680,
+      "residentCells": 154,
+      "stock": {
+        "cellGroups": 16,
+        "tiles": 8,
+        "tilePages": 8,
+        "meshes": 24,
+        "maxPageVertices": 47597,
+        "maxPageIndexBytes": 126246,
+        "maxCellVertices": 52024,
+        "maxCellIndexBytes": 308856,
+        "tileCoveredCells": 128,
+        "hiddenCells": 0
+      }
+    },
+    {
+      "stage": "search->overview",
+      "frames": 658,
+      "firstCoverageFrame": 658,
+      "maxSliceMs": 8.132790999999997,
+      "sliceOverruns": 1,
+      "framesOverBudget": 3,
+      "elapsedMs": 2778.4290420000007,
+      "startGeometryMiB": 17.433414459228516,
+      "geometryMiB": 122.62349510192871,
+      "peakGeometryMiB": 122.62349510192871,
+      "peakStagingMiB": 4.021602630615234,
+      "peakResidentPlusStagingMiB": 122.62349510192871,
+      "peakHiddenCells": 0,
+      "buildings": 113563,
+      "residentCells": 1714,
+      "stock": {
+        "cellGroups": 0,
+        "tiles": 105,
+        "tilePages": 124,
+        "meshes": 124,
+        "maxPageVertices": 65268,
+        "maxPageIndexBytes": 172080,
+        "maxCellVertices": 0,
+        "maxCellIndexBytes": 0,
+        "tileCoveredCells": 1609,
+        "hiddenCells": 0
+      }
+    }
+  ],
+  "cpuDrawEstimate": {
+    "stock": {
+      "calls": 124,
+      "triangles": 1338712
+    },
+    "cover": {
+      "calls": 530,
+      "triangles": 530850
+    },
+    "trees": {
+      "calls": 0,
+      "triangles": 0
+    }
+  },
+  "note": "CPU-only, excludes landmarks, GPU upload/rendering, frame waits and browser readiness"
+}

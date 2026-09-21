@@ -46,15 +46,19 @@ The [native comparison on published `0e3a314`](../evidence/R6/browser-shared-roa
 now measures 2,817→2,390 calls at zero, with exact triangle/byte parity at three
 angles and p95 19.7ms. Bounded road/game/save/fallback checks pass; all eight
 wide startup observations and every wide call count still fail acceptance.
-The isolated Ultra worker returned stock-page correction `b4e90c3` after
-`9867e31`, based on `0e3a314`: CPU stock calls 1,609→124 with identical settled
-triangles/bytes. Early eviction reduces measured combined transition peaks
-to about 49.1MiB/17.8MiB; dense cells split into bounded Uint16 pages.
-It remains unaccepted and unintegrated. The implementation worker has
-stopped; independent review now covers both checkpoints, including staging
-accounting and the explicit failure for an individually oversized building.
-The parent integrates only after review, then runs the combined gate and
-native browser comparison. Current owners and limitations are in status.
+The parent integrated reviewed stock-page `9867e31` / `b4e90c3` as
+`01a171f` / `71b27bd`, resolving the review's callback-cleanup defect and
+staging disclosure in `cc0d2d2`. Combined repository gates, affected focused
+checks and production-grid CPU profiles pass. Stock calls fall 1,609→124
+with identical settled triangles/bytes; sampled combined transition peaks
+are 45.47MiB/17.68MiB, with overview still 122.62MiB. These figures exclude
+heroes and cover/tree/decoration staging and do not prove total peak memory.
+Early trimming can briefly rebuild recently discarded coverage on immediate
+reverse zoom. [Source acceptance and review](../evidence/R6/overview-stock-pages.md)
+record both limits and the explicit failure for an individually oversized building.
+The next gate is native production-browser comparison of `cc0d2d2` against
+`0e3a314`; do not replay the completed combined checks without source changes.
+The worker/reviewer have finished. Parent owns browser acceptance and evidence.
 No user input is needed. New [native draw attribution](../evidence/R6/browser-draw-inventory-1a9517f.md)
 measures 781 non-stock calls, so stock batching alone cannot meet 300 with
 the remaining layers unchanged.
