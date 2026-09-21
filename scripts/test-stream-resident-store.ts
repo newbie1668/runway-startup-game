@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import type { CellId } from '../lib/game/render3d/cityIndex';
+import type { StockTileId } from '../lib/game/render3d/stockTiles';
 import {
   createStreamResidentStore,
   type StreamResident,
 } from '../lib/game/render3d/streamResidentStore';
 
-function resident(
-  id: CellId,
+function resident<K extends string = CellId>(
+  id: K,
   events: string[],
   options: { attachError?: Error; disposeError?: Error } = {},
-): StreamResident {
+): StreamResident<K> {
   return {
     id,
     attach() {
@@ -71,6 +72,32 @@ assert.throws(
   (error: unknown) => error instanceof AggregateError && error.errors.length === 2,
 );
 assert.deepEqual(failures.ids(), []);
+
+// Typed tile keys: the same lifecycle over a separate store, explicit removal by id, and no
+// cross-store aliasing between a tile key and a cell key that happen to share digits.
+const tileEvents: string[] = [];
+const tiles = createStreamResidentStore<StreamResident<StockTileId>, StockTileId>();
+const tileGeneration = tiles.beginGeneration();
+const tile = resident<StockTileId>('tile:1,1', tileEvents);
+assert.equal(tiles.publish(tileGeneration, tile), true);
+assert.equal(tiles.publish(tileGeneration, resident<StockTileId>('tile:2,0', tileEvents)), true);
+assert.equal(tiles.get('tile:1,1'), tile);
+assert.equal(store.get('1,1'), replacement, 'cell store is unaffected by tile publication');
+assert.deepEqual([...tiles.ids()].sort(), ['tile:1,1', 'tile:2,0']);
+tiles.evict(['tile:2,0', 'tile:9,9']);
+assert.deepEqual(tiles.ids(), ['tile:1,1']);
+assert.deepEqual(tileEvents, ['attach:tile:1,1', 'attach:tile:2,0', 'dispose:tile:2,0']);
+tiles.evict(['tile:1,1']);
+assert.deepEqual(tiles.ids(), []);
+assert.equal(tileEvents.at(-1), 'dispose:tile:1,1');
+tiles.evict(['tile:1,1']);
+assert.equal(tileEvents.length, 4, 'evicting a missing id disposes nothing');
+assert.equal(tiles.publish(tileGeneration, tile), true, 'a disposed id can be republished');
+tiles.evictOutside(new Set<StockTileId>());
+assert.deepEqual(tiles.ids(), []);
+tiles.dispose();
+assert.equal(tiles.publish(tileGeneration, resident<StockTileId>('tile:1,1', tileEvents)), false);
+assert.equal(tileEvents.at(-1), 'dispose:tile:1,1');
 
 store.dispose();
 assert.deepEqual(store.ids(), []);

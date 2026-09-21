@@ -1,22 +1,23 @@
 import type { CellId } from './cityIndex';
 
-export interface StreamResident {
-  readonly id: CellId;
+export interface StreamResident<K extends string = CellId> {
+  readonly id: K;
   attach(): void;
   dispose(): void;
 }
 
-export interface StreamResidentStore<T extends StreamResident> {
+export interface StreamResidentStore<T extends StreamResident<K>, K extends string = CellId> {
   beginGeneration(): number;
   currentGeneration(): number;
   publish(generation: number, resident: T): boolean;
-  get(id: CellId): T | undefined;
-  ids(): readonly CellId[];
-  evictOutside(retain: ReadonlySet<CellId>): void;
+  get(id: K): T | undefined;
+  ids(): readonly K[];
+  evict(ids: Iterable<K>): void;
+  evictOutside(retain: ReadonlySet<K>): void;
   dispose(): void;
 }
 
-function disposeAll<T extends StreamResident>(residents: Iterable<T>, message: string): void {
+function disposeAll<T extends StreamResident<string>>(residents: Iterable<T>, message: string): void {
   const errors: unknown[] = [];
   for (const resident of residents) {
     try {
@@ -28,8 +29,11 @@ function disposeAll<T extends StreamResident>(residents: Iterable<T>, message: s
   if (errors.length > 0) throw new AggregateError(errors, message);
 }
 
-export function createStreamResidentStore<T extends StreamResident>(): StreamResidentStore<T> {
-  const residents = new Map<CellId, T>();
+export function createStreamResidentStore<
+  T extends StreamResident<K>,
+  K extends string = CellId,
+>(): StreamResidentStore<T, K> {
+  const residents = new Map<K, T>();
   let generation = 0;
   let closed = false;
 
@@ -70,6 +74,16 @@ export function createStreamResidentStore<T extends StreamResident>(): StreamRes
     },
     get: (id) => residents.get(id),
     ids: () => Object.freeze([...residents.keys()]),
+    evict(ids) {
+      const evicted: T[] = [];
+      for (const id of ids) {
+        const resident = residents.get(id);
+        if (!resident) continue;
+        residents.delete(id);
+        evicted.push(resident);
+      }
+      disposeAll(evicted, 'Failed to dispose evicted stream cells');
+    },
     evictOutside(retain) {
       const evicted: T[] = [];
       for (const [id, resident] of residents) {

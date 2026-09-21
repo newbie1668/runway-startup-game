@@ -2,7 +2,12 @@ import * as THREE from 'three';
 import { METERS_TO_WORLD } from '../geo';
 import type { MapDiagnosticsReporter } from '../mapDiagnostics';
 import { createBuildScheduler, type BuildJob } from './buildScheduler';
-import { createCellStockJob, type CellStockReady } from './cellStockJob';
+import {
+  createCellStockJob,
+  createStockTileJob,
+  type CellStockReady,
+  type StockTileReady,
+} from './cellStockJob';
 import {
   createTreeCoverJob,
   roadCoverContextSteps,
@@ -23,6 +28,7 @@ import { createStreamResidentStore, type StreamResident } from './streamResident
 import { createStockDecorJob } from './stockDecorJob';
 import { createCoverJob } from './coverGeometry';
 import { StockDrawRanges } from './stockDrawRanges';
+import { indexStockTiles, type StockTile, type StockTileId, type StockTileIndex } from './stockTiles';
 
 interface StockResident extends StreamResident {
   readonly detail: StockDetail;
@@ -30,18 +36,36 @@ interface StockResident extends StreamResident {
   readonly meshes: readonly THREE.Mesh[];
   hasDecor(): boolean;
   attachDecor(ready: CoverCellReady): void;
+  /** Own and track the geometry without rendering it while a tile still covers the cell. */
+  stage(): void;
+}
+
+interface TileResident extends StreamResident<StockTileId> {
+  readonly cellIds: readonly CellId[];
+  readonly scratch: CityScratch;
+  readonly meshes: readonly THREE.Mesh[];
 }
 
 interface CoverResident extends StreamResident {
   readonly detail: StockDetail;
 }
 
-interface Request {
+interface CellRequest {
   readonly kind: 'stock' | 'cover' | 'trees' | 'decor';
   readonly id: CellId;
   readonly detail: StockDetail;
   readonly essential: boolean;
 }
+
+interface TileRequest {
+  readonly kind: 'tile';
+  readonly id: StockTileId;
+  readonly tile: StockTile;
+  readonly detail: 'overview';
+  readonly essential: boolean;
+}
+
+type Request = CellRequest | TileRequest;
 
 export interface CityStreamOptions {
   readonly data: CityData;
@@ -72,11 +96,25 @@ function clearScratch(scratch: CityScratch): void {
   scratch.signs.length = 0;
 }
 
+function compareIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function centreDistance(a: BoundsXZ, b: BoundsXZ): number {
+  return Math.hypot(
+    (a.minX + a.maxX) / 2 - (b.minX + b.maxX) / 2,
+    (a.minZ + a.maxZ) / 2 - (b.minZ + b.maxZ) / 2,
+  );
+}
+
 export class CityStream {
   private scheduler = createBuildScheduler();
   private readonly contextScheduler = createBuildScheduler();
   private roadContext: RoadCoverContext | null = null;
+  private readonly tileIndex: StockTileIndex;
   private readonly stocks = createStreamResidentStore<StockResident>();
+  private readonly tiles = createStreamResidentStore<TileResident, StockTileId>();
+  private readonly hidden = new Map<CellId, StockResident>();
   private readonly covers = createStreamResidentStore<CoverResident>();
   private readonly trees = createStreamResidentStore<CoverResident>();
   private readonly pending = new Map<string, Request>();
@@ -85,6 +123,9 @@ export class CityStream {
   private essentialEnd = 0;
   private generation = 0;
   private plan: StreamCoveragePlan | null = null;
+  private visible = new Set<CellId>();
+  private detailed = new Set<CellId>();
+  private wanted = new Set<CellId>();
   private signature = '';
   private coverageJob: string | null = null;
   private closed = false;
@@ -93,6 +134,7 @@ export class CityStream {
   private readonly drawRanges: StockDrawRanges;
 
   constructor(private readonly options: CityStreamOptions) {
+    this.tileIndex = indexStockTiles(options.cityIndex);
     this.drawRanges = new StockDrawRanges(
       options.now,
       (error) => options.diagnostics.recordError('stock:draw-range', false, error),
@@ -140,11 +182,31 @@ export class CityStream {
   }
 
   get residentCells(): number {
-    return this.stocks.ids().length + this.covers.ids().length + this.trees.ids().length;
+    let tileCells = 0;
+    for (const id of this.tiles.ids()) tileCells += this.tiles.get(id)!.cellIds.length;
+    return (
+      this.stocks.ids().length + this.hidden.size + tileCells +
+      this.covers.ids().length + this.trees.ids().length
+    );
+  }
+
+  /** Source cells currently covered by a whole-tile page group. */
+  get tileCoveredCells(): number {
+    let tileCells = 0;
+    for (const id of this.tiles.ids()) tileCells += this.tiles.get(id)!.cellIds.length;
+    return tileCells;
+  }
+
+  /** Replacement cells owned and tracked but not yet exposed because a tile still covers them. */
+  get hiddenCells(): number {
+    return this.hidden.size;
   }
 
   buildingMeshes(): THREE.Mesh[] {
-    return this.stocks.ids().flatMap((id) => [...this.stocks.get(id)!.meshes]);
+    return [
+      ...this.stocks.ids().flatMap((id) => [...this.stocks.get(id)!.meshes]),
+      ...this.tiles.ids().flatMap((id) => [...this.tiles.get(id)!.meshes]),
+    ];
   }
 
   prepareDrawRanges(camera: THREE.Camera, shadows: boolean): void {
@@ -153,6 +215,7 @@ export class CityStream {
 
   *picks(): Generator<BuildingPick> {
     for (const id of this.stocks.ids()) yield* this.stocks.get(id)!.scratch.picks;
+    for (const id of this.tiles.ids()) yield* this.tiles.get(id)!.scratch.picks;
   }
 
   private coverCellBounds(id: CellId): BoundsXZ {
@@ -166,21 +229,55 @@ export class CityStream {
     bounds: BoundsXZ,
     grid: 'city' | 'cover',
   ): CellId[] {
-    const x = (bounds.minX + bounds.maxX) / 2;
-    const z = (bounds.minZ + bounds.maxZ) / 2;
     const distances = new Map<CellId, number>();
     for (const id of ids) {
       const cell =
         grid === 'city'
           ? this.options.cityIndex.cells.get(id)!.bounds
           : this.coverCellBounds(id);
-      distances.set(
-        id,
-        Math.hypot((cell.minX + cell.maxX) / 2 - x, (cell.minZ + cell.maxZ) / 2 - z),
-      );
+      distances.set(id, centreDistance(cell, bounds));
     }
-    return [...ids].sort(
-      (a, b) => distances.get(a)! - distances.get(b)! || (a < b ? -1 : a > b ? 1 : 0),
+    return [...ids].sort((a, b) => distances.get(a)! - distances.get(b)! || compareIds(a, b));
+  }
+
+  private tileOf(id: CellId): StockTileId {
+    const tileId = this.tileIndex.tileOf.get(id);
+    if (tileId === undefined) throw new Error(`unknown source cell: ${id}`);
+    return tileId;
+  }
+
+  private tile(tileId: StockTileId): StockTile {
+    return this.tileIndex.tiles.get(tileId)!;
+  }
+
+  /** Representation the current plan wants for a source cell, or null when it is not wanted. */
+  private wantedDetail(id: CellId): StockDetail | null {
+    if (!this.plan || !this.wanted.has(id)) return null;
+    return this.detailed.has(id) ? this.plan.detail : 'overview';
+  }
+
+  /** A resident tile whose members now need per-cell detail keeps rendering until every visible member is staged. */
+  private dissolving(tileId: StockTileId): boolean {
+    return (
+      this.tiles.get(tileId) !== undefined &&
+      this.tile(tileId).cells.some((cell) => this.detailed.has(cell.id))
+    );
+  }
+
+  private tileCovers(id: CellId): boolean {
+    const tileId = this.tileOf(id);
+    return this.tiles.get(tileId) !== undefined && !this.dissolving(tileId);
+  }
+
+  /** Detail of the representation currently exposing a source cell in the scene. */
+  private coverage(id: CellId): StockDetail | undefined {
+    return this.stocks.get(id)?.detail ?? (this.tileCovers(id) ? 'overview' : undefined);
+  }
+
+  /** Whole-tile requests only when every member is wanted and none needs detailed stock. */
+  private tileEligible(tileId: StockTileId): boolean {
+    return this.tile(tileId).cells.every(
+      (cell) => this.wanted.has(cell.id) && !this.detailed.has(cell.id),
     );
   }
 
@@ -196,18 +293,23 @@ export class CityStream {
       plan.prefetchCover.join(';'),
     ].join('|');
     this.plan = plan;
+    this.visible = new Set(plan.visibleStock);
+    this.detailed = new Set(plan.detail === 'overview' ? [] : plan.detailedStock);
+    this.wanted = new Set([...plan.visibleStock, ...plan.prefetchStock]);
     if (signature === this.signature) return;
     this.signature = signature;
     this.cancelPending();
     this.generation = this.stocks.beginGeneration();
+    this.tiles.beginGeneration();
     this.covers.beginGeneration();
     this.trees.beginGeneration();
+    this.reconcile();
     this.coverageJob = `stream:coverage:${this.generation}`;
     this.options.diagnostics.registerJob(this.coverageJob, true);
     this.options.diagnostics.startJob(this.coverageJob);
     const requests: Request[] = [];
     const append = (
-      kind: Request['kind'],
+      kind: CellRequest['kind'],
       ids: readonly CellId[],
       detail: StockDetail,
       essential: boolean,
@@ -216,18 +318,62 @@ export class CityStream {
       for (const id of this.ordered(ids, bounds, grid))
         requests.push({ kind, id, detail, essential });
     };
-    const detailed = new Set(plan.detailedStock);
+    const cellRequests = new Map<CellId, CellRequest>();
+    const tileRequests = new Map<StockTileId, TileRequest>();
+    const classify = (id: CellId, essential: boolean): void => {
+      const detail = this.wantedDetail(id)!;
+      const current = this.stocks.get(id);
+      if (detail !== 'overview') {
+        if (current?.detail !== detail)
+          cellRequests.set(id, { kind: 'stock', id, detail, essential });
+        return;
+      }
+      if (this.tileCovers(id)) return;
+      const covered = current !== undefined && (current.detail === 'overview' || !essential);
+      const tileId = this.tileOf(id);
+      if (this.tiles.get(tileId) === undefined && this.tileEligible(tileId)) {
+        const uncovered = essential && !covered;
+        const existing = tileRequests.get(tileId);
+        if (!existing || (uncovered && !existing.essential))
+          tileRequests.set(tileId, {
+            kind: 'tile',
+            id: tileId,
+            tile: this.tile(tileId),
+            detail: 'overview',
+            essential: uncovered,
+          });
+        return;
+      }
+      if (!covered) cellRequests.set(id, { kind: 'stock', id, detail: 'overview', essential });
+    };
+    for (const id of plan.visibleStock) classify(id, true);
+    for (const id of plan.prefetchStock) classify(id, false);
+    const pushedTiles = new Set<StockTileId>();
     for (const id of this.ordered(plan.visibleStock, bounds, 'city')) {
-      requests.push({
-        kind: 'stock',
-        id,
-        detail: detailed.has(id) ? plan.detail : 'overview',
-        essential: true,
-      });
+      const cell = cellRequests.get(id);
+      if (cell) {
+        requests.push(cell);
+        continue;
+      }
+      const tile = tileRequests.get(this.tileOf(id));
+      if (tile?.essential && !pushedTiles.has(tile.id)) {
+        pushedTiles.add(tile.id);
+        requests.push(tile);
+      }
     }
     append('cover', plan.visibleCover, plan.detail, true, 'cover');
     this.essentialEnd = requests.length;
-    append('stock', plan.prefetchStock, 'overview', false, 'city');
+    for (const id of this.ordered(plan.prefetchStock, bounds, 'city')) {
+      const cell = cellRequests.get(id);
+      if (cell) requests.push(cell);
+    }
+    const backgroundTiles = [...tileRequests.values()].filter((tile) => !pushedTiles.has(tile.id));
+    backgroundTiles.sort(
+      (a, b) =>
+        centreDistance(a.tile.bounds, bounds) - centreDistance(b.tile.bounds, bounds) ||
+        compareIds(a.id, b.id),
+    );
+    for (const tile of backgroundTiles) requests.push({ ...tile, essential: false });
     append('cover', plan.prefetchCover, 'overview', false, 'cover');
     if (plan.detail !== 'overview')
       append('trees', plan.visibleCover, plan.detail, false, 'cover');
@@ -238,12 +384,19 @@ export class CityStream {
   }
 
   private resident(request: Request): boolean {
+    if (request.kind === 'tile') return this.tiles.get(request.id) !== undefined;
     if (request.kind === 'decor') {
       const stock = this.stocks.get(request.id);
       return stock !== undefined && stock.detail === request.detail && stock.hasDecor();
     }
-    const store =
-      request.kind === 'stock' ? this.stocks : request.kind === 'cover' ? this.covers : this.trees;
+    if (request.kind === 'stock') {
+      const current = this.stocks.get(request.id);
+      if (current !== undefined && (current.detail === request.detail || !request.essential))
+        return true;
+      if (this.hidden.get(request.id)?.detail === request.detail) return true;
+      return request.detail === 'overview' && this.tileCovers(request.id);
+    }
+    const store = request.kind === 'cover' ? this.covers : this.trees;
     const current = store.get(request.id);
     return current !== undefined && (current.detail === request.detail || !request.essential);
   }
@@ -264,7 +417,7 @@ export class CityStream {
     }
   }
 
-  private publishStock(request: Request, generation: number, ready: CellStockReady): void {
+  private createStockResident(id: CellId, detail: StockDetail, ready: CellStockReady): StockResident {
     const { root, resources, tracker, onStockDrawn, onStockEvicted } = this.options;
     const meshes: THREE.Mesh[] = [];
     ready.group?.traverse((object) => {
@@ -277,9 +430,9 @@ export class CityStream {
     let attached = false;
     let disposed = false;
     let decoration: CoverCellReady | null = null;
-    const resident: StockResident = {
-      id: request.id,
-      detail: request.detail,
+    return {
+      id,
+      detail,
       scratch: ready.scratch,
       meshes,
       hasDecor: () => decoration !== null,
@@ -292,12 +445,15 @@ export class CityStream {
         tracker.trackTree(next.group);
         decoration = next;
       },
+      stage: () => {
+        if (ready.group) tracker.trackTree(ready.group);
+      },
       attach: () => {
         if (ready.group) {
           root.add(ready.group);
           tracker.trackTree(ready.group);
         }
-        if (request.detail === 'overview')
+        if (detail === 'overview')
           for (const mesh of meshes) this.drawRanges.add(mesh);
         attached = true;
         this.buildings += ready.sourceBuildingIndices.length;
@@ -322,14 +478,166 @@ export class CityStream {
         }
       },
     };
+  }
+
+  private publishStock(request: CellRequest, generation: number, ready: CellStockReady): void {
+    const resident = this.createStockResident(request.id, request.detail, ready);
     try {
+      const tileId = this.tileOf(request.id);
+      if (!this.closed && generation === this.generation && this.tiles.get(tileId) !== undefined) {
+        // The tile keeps rendering; the replacement is owned but hidden until the cutover.
+        if (!this.dissolving(tileId) || this.wantedDetail(request.id) !== request.detail) {
+          resident.dispose();
+          return;
+        }
+        try {
+          resident.stage();
+        } catch (error) {
+          resident.dispose();
+          throw error;
+        }
+        const previous = this.hidden.get(request.id);
+        this.hidden.set(request.id, resident);
+        previous?.dispose();
+        this.reconcile();
+        return;
+      }
       this.stocks.publish(generation, resident);
     } catch (error) {
       this.fatal(`stock:${request.id}`, error);
     }
   }
 
-  private publishCover(request: Request, generation: number, ready: CoverCellReady): void {
+  private publishTile(request: TileRequest, generation: number, ready: StockTileReady): void {
+    const { root, resources, tracker, onStockDrawn, onStockEvicted } = this.options;
+    const meshes: THREE.Mesh[] = [];
+    ready.group?.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.onAfterRender = onStockDrawn;
+        meshes.push(object);
+      }
+    });
+    const release = ready.group ? retainSceneResources(resources, ready.group) : () => undefined;
+    let attached = false;
+    let disposed = false;
+    const resident: TileResident = {
+      id: request.id,
+      cellIds: ready.cellIds,
+      scratch: ready.scratch,
+      meshes,
+      attach: () => {
+        if (ready.group) {
+          root.add(ready.group);
+          tracker.trackTree(ready.group);
+        }
+        for (const mesh of meshes) this.drawRanges.add(mesh);
+        attached = true;
+        this.buildings += ready.sourceBuildingIndices.length;
+      },
+      dispose: () => {
+        if (disposed) return;
+        disposed = true;
+        try {
+          for (const mesh of meshes) this.drawRanges.remove(mesh);
+          if (attached) this.buildings -= ready.sourceBuildingIndices.length;
+          onStockEvicted(ready.scratch.picks);
+          ready.group?.removeFromParent();
+        } finally {
+          clearScratch(ready.scratch);
+          meshes.length = 0;
+          release();
+        }
+      },
+    };
+    try {
+      if (!this.tiles.publish(generation, resident)) return;
+      // Same synchronous step: the tile now exposes its members, so per-cell residents and
+      // staged replacements for those cells are released before anything else can observe them.
+      const errors: unknown[] = [];
+      try {
+        this.stocks.evict(ready.cellIds);
+      } catch (error) {
+        errors.push(error);
+      }
+      for (const id of ready.cellIds) {
+        const staged = this.hidden.get(id);
+        if (!staged) continue;
+        this.hidden.delete(id);
+        try {
+          staged.dispose();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length)
+        throw new AggregateError(errors, `Failed to release cells covered by ${request.id}`);
+    } catch (error) {
+      this.fatal(`tile:${request.id}`, error);
+    }
+  }
+
+  /**
+   * Drop staged replacements the plan no longer wants, expose replacements whose tile is gone,
+   * and cut over each dissolving tile once every visible member is staged: reveal the members and
+   * release the tile in one synchronous step so the scene never shows a source twice or not at all.
+   */
+  private reconcile(): void {
+    if (this.closed || !this.plan) return;
+    const errors: unknown[] = [];
+    for (const [id, staged] of [...this.hidden]) {
+      const tileId = this.tileOf(id);
+      const covered = this.tiles.get(tileId) !== undefined;
+      const wanted = covered && !this.dissolving(tileId) ? null : this.wantedDetail(id);
+      if (wanted !== staged.detail) {
+        this.hidden.delete(id);
+        try {
+          staged.dispose();
+        } catch (error) {
+          errors.push(error);
+        }
+        continue;
+      }
+      if (covered) continue;
+      this.hidden.delete(id);
+      try {
+        this.stocks.publish(this.generation, staged);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    for (const tileId of this.tiles.ids()) {
+      if (!this.dissolving(tileId)) continue;
+      const members = this.tile(tileId).cells;
+      const ready = members.every((cell) => {
+        if (!this.visible.has(cell.id)) return true;
+        const wanted = this.wantedDetail(cell.id);
+        return (
+          this.hidden.get(cell.id)?.detail === wanted || this.stocks.get(cell.id)?.detail === wanted
+        );
+      });
+      if (!ready) continue;
+      for (const cell of members) {
+        const staged = this.hidden.get(cell.id);
+        if (!staged) continue;
+        this.hidden.delete(cell.id);
+        try {
+          this.stocks.publish(this.generation, staged);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      try {
+        this.tiles.evict([tileId]);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length === 1) this.fatal('stream:cutover', errors[0]);
+    else if (errors.length)
+      this.fatal('stream:cutover', new AggregateError(errors, 'Stock representation cutover failed'));
+  }
+
+  private publishCover(request: CellRequest, generation: number, ready: CoverCellReady): void {
     const store = request.kind === 'trees' ? this.trees : this.covers;
     try {
       store.publish(generation, {
@@ -357,6 +665,15 @@ export class CityStream {
       now: this.options.now,
       sliceMs: 4,
     };
+    if (request.kind === 'tile')
+      return createStockTileJob({
+        ...common,
+        tileId: request.id,
+        cells: request.tile.cells,
+        excludedBuildingIndices: this.options.exclusions,
+        material: this.options.material,
+        onReady: (ready) => this.publishTile(request, generation, ready),
+      });
     if (request.kind === 'stock')
       return createCellStockJob({
         ...common,
@@ -427,20 +744,61 @@ export class CityStream {
     if (!this.plan) return;
     const retain = new Set(this.plan.retainStock);
     this.stocks.evictOutside(retain);
+    this.tiles.evictOutside(
+      new Set(
+        this.tiles.ids().filter((tileId) =>
+          this.tile(tileId).cells.some((cell) => retain.has(cell.id)),
+        ),
+      ),
+    );
     this.covers.evictOutside(new Set(this.plan.retainCover));
     this.trees.evictOutside(new Set(this.plan.detail === 'overview' ? [] : this.plan.retainCover));
+    this.reconcile();
     if (this.options.tracker.bytes() <= MAX_RESIDENT_BYTES) return;
-    const visible = new Set(this.plan.visibleStock);
-    const candidates = this.ordered(
-      this.stocks.ids().filter((id) => !visible.has(id)),
-      this.plan.bounds,
-      'city',
-    ).reverse();
-    for (const id of candidates) {
-      retain.delete(id);
-      this.stocks.evictOutside(retain);
-      if (this.options.tracker.bytes() <= MAX_RESIDENT_BYTES) return;
+    const { bounds } = this.plan;
+    const cellBounds = (id: CellId): BoundsXZ => this.options.cityIndex.cells.get(id)!.bounds;
+    type Candidate = { id: string; distance: number; evict: () => void };
+    const farthestFirst = (a: Candidate, b: Candidate): number =>
+      b.distance - a.distance || compareIds(b.id, a.id);
+    // Staged replacements for cells nobody sees are the cheapest bytes to give back.
+    const staged: Candidate[] = [];
+    for (const [id, resident] of this.hidden) {
+      if (this.visible.has(id)) continue;
+      staged.push({
+        id,
+        distance: centreDistance(cellBounds(id), bounds),
+        evict: () => {
+          this.hidden.delete(id);
+          resident.dispose();
+        },
+      });
     }
+    const exposed: Candidate[] = [];
+    for (const id of this.stocks.ids()) {
+      if (this.visible.has(id)) continue;
+      exposed.push({
+        id,
+        distance: centreDistance(cellBounds(id), bounds),
+        evict: () => this.stocks.evict([id]),
+      });
+    }
+    for (const tileId of this.tiles.ids()) {
+      const tile = this.tile(tileId);
+      if (tile.cells.some((cell) => this.visible.has(cell.id))) continue;
+      exposed.push({
+        id: tileId,
+        distance: centreDistance(tile.bounds, bounds),
+        evict: () => this.tiles.evict([tileId]),
+      });
+    }
+    for (const candidate of [...staged.sort(farthestFirst), ...exposed.sort(farthestFirst)]) {
+      candidate.evict();
+      if (this.options.tracker.bytes() <= MAX_RESIDENT_BYTES) {
+        this.reconcile();
+        return;
+      }
+    }
+    this.reconcile();
     this.fatal('stream:resident-budget', new Error('Visible geometry exceeds 128 MiB'));
   }
 
@@ -449,14 +807,15 @@ export class CityStream {
     if (this.cursor < this.essentialEnd) return;
     for (const request of this.pending.values()) if (request.essential) return;
     const detail = this.plan.detail;
-    const detailed = new Set(this.plan.detailedStock);
     const stocksReady = this.plan.visibleStock.every(
-      (id) => this.stocks.get(id)?.detail === (detailed.has(id) ? detail : 'overview'),
+      (id) => this.coverage(id) === this.wantedDetail(id),
     );
     const coverReady = this.plan.visibleCover.every((id) => this.covers.get(id)?.detail === detail);
     if (!stocksReady || !coverReady) return;
-    for (const id of this.plan.visibleStock)
-      if (!this.stocks.get(id)!.meshes.every((mesh) => this.drawRanges.settled(mesh))) return;
+    for (const id of this.plan.visibleStock) {
+      const meshes = this.stocks.get(id)?.meshes ?? this.tiles.get(this.tileOf(id))!.meshes;
+      if (!meshes.every((mesh) => this.drawRanges.settled(mesh))) return;
+    }
     this.options.diagnostics.completeJob(this.coverageJob);
     this.coverageJob = null;
     this.trimResidents();
@@ -570,7 +929,21 @@ export class CityStream {
           this.options.diagnostics.cancelJob('stream:road-context');
         }
       },
+      () => {
+        const staged = [...this.hidden.values()];
+        this.hidden.clear();
+        const failures: unknown[] = [];
+        for (const resident of staged) {
+          try {
+            resident.dispose();
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+        if (failures.length) throw new AggregateError(failures, 'Failed to dispose staged stock');
+      },
       () => this.stocks.dispose(),
+      () => this.tiles.dispose(),
       () => this.covers.dispose(),
       () => this.trees.dispose(),
     ]) {

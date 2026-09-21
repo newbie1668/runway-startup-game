@@ -13,7 +13,8 @@ type Stamp = {
 type Entry = { mesh: THREE.Mesh; stamp: Stamp | null; pending: boolean };
 
 const IDENTITY = new THREE.Matrix4();
-const MAX_INDEX_BYTES = 64 * 1024;
+// Matches the cell-aligned overview page index cap; serial staging copies at most one index.
+export const MAX_INDEX_BYTES = 256 * 1024;
 
 function identityTransform(object: THREE.Object3D): boolean {
   for (let node: THREE.Object3D | null = object; node; node = node.parent) {

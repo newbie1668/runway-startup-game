@@ -87,42 +87,138 @@ rig.update(
     : { ...center, zoom: overview ? 1440 / (WORLD.width * 1.1) : 900 / 1.92 },
   camera ? camera[3]! : overview ? 0 : 0.6,
 );
-stream.update(cameraGroundBounds(rig, 1440, 900));
-let frames = 0;
-let firstCoverageFrame: number | null = null;
-let maxSliceMs = 0;
-let peakBytes = 0;
-let lastJobId = '';
 const frameLimit = process.argv.includes('--sample') ? 2500 : 100_000;
-const streamStarted = performance.now();
-while (!stream.idle) {
-  const before = performance.now();
-  if (drawRanges) stream.prepareDrawRanges(rig.camera, false);
-  stream.drain();
-  maxSliceMs = Math.max(maxSliceMs, performance.now() - before);
-  peakBytes = Math.max(peakBytes, tracker.bytes());
-  frames++;
-  const lastJob = diagnostics.snapshot().lastJob;
-  if (lastJob && lastJob.id !== lastJobId) {
-    lastJobId = lastJob.id;
-    console.log(
-      JSON.stringify({ ...lastJob, frame: frames, geometryMiB: tracker.bytes() / 1024 / 1024 }),
-    );
+const transitions = process.argv.includes('--transitions');
+const SLICE_TARGET_MS = 4;
+let lastJobId = '';
+
+/** Resident stock representation: per-cell groups, tile groups and their pages. */
+function stockShape() {
+  const tiles = new Set<string>();
+  let cells = 0, pages = 0, maxPageVertices = 0, maxPageIndexBytes = 0, sources = 0;
+  for (const mesh of stream.buildingMeshes()) {
+    sources += (mesh.userData.sourceBuildingIndices as readonly number[]).length;
+    const vertices = mesh.geometry.getAttribute('position').count;
+    const index = mesh.geometry.getIndex();
+    maxPageVertices = Math.max(maxPageVertices, vertices);
+    maxPageIndexBytes = Math.max(maxPageIndexBytes, index ? index.array.byteLength : 0);
+    if (mesh.userData.tileId) {
+      tiles.add(mesh.userData.tileId as string);
+      pages++;
+    } else cells++;
   }
-  if (firstCoverageFrame === null && diagnostics.snapshot().pendingEssentialJobs === 0) {
-    firstCoverageFrame = frames;
-    console.log(
-      JSON.stringify({
-        stage: 'visible',
-        frames,
-        elapsedMs: performance.now() - streamStarted,
-        buildings: stream.stockBuildings,
-        residentCells: stream.residentCells,
-        geometryMiB: tracker.bytes() / 1024 / 1024,
-      }),
-    );
+  if (sources !== stream.stockBuildings) throw new Error('drawn-building count diverged from exposed sources');
+  return {
+    cellGroups: cells,
+    tiles: tiles.size,
+    tilePages: pages,
+    meshes: cells + pages,
+    maxPageVertices,
+    maxPageIndexBytes,
+    tileCoveredCells: stream.tileCoveredCells,
+    hiddenCells: stream.hiddenCells,
+  };
+}
+
+function assertUniqueSources(): void {
+  const seen = new Set<number>();
+  for (const mesh of stream.buildingMeshes()) {
+    for (const source of mesh.userData.sourceBuildingIndices as readonly number[]) {
+      if (seen.has(source)) throw new Error(`source ${source} exposed twice`);
+      seen.add(source);
+    }
   }
-  if (frames > frameLimit) break;
+  let picks = 0;
+  for (const pick of stream.picks()) {
+    if (!seen.has(pick.sourceIndex)) throw new Error(`pick ${pick.sourceIndex} has no exposed mesh`);
+    picks++;
+  }
+  if (picks !== seen.size) throw new Error('picks diverged from exposed sources');
+}
+
+/** Drain until idle from the current camera; CPU-only frame loop, no GPU or frame waits. */
+function runPhase(stage: string) {
+  stream.update(cameraGroundBounds(rig, 1440, 900));
+  let frames = 0;
+  let firstCoverageFrame: number | null = null;
+  let maxSliceMs = 0;
+  let sliceOverruns = 0;
+  let peakBytes = tracker.bytes();
+  let peakHiddenCells = 0;
+  const startBytes = tracker.bytes();
+  const phaseStarted = performance.now();
+  while (!stream.idle) {
+    const before = performance.now();
+    if (drawRanges) stream.prepareDrawRanges(rig.camera, false);
+    stream.drain();
+    const slice = performance.now() - before;
+    maxSliceMs = Math.max(maxSliceMs, slice);
+    if (slice > SLICE_TARGET_MS * 2) sliceOverruns++;
+    peakBytes = Math.max(peakBytes, tracker.bytes());
+    peakHiddenCells = Math.max(peakHiddenCells, stream.hiddenCells);
+    frames++;
+    const lastJob = diagnostics.snapshot().lastJob;
+    if (lastJob && lastJob.id !== lastJobId) {
+      lastJobId = lastJob.id;
+      if (!transitions)
+        console.log(
+          JSON.stringify({ ...lastJob, frame: frames, geometryMiB: tracker.bytes() / 1024 / 1024 }),
+        );
+    }
+    if (firstCoverageFrame === null && diagnostics.snapshot().pendingEssentialJobs === 0) {
+      firstCoverageFrame = frames;
+      assertUniqueSources();
+      console.log(
+        JSON.stringify({
+          stage: 'visible',
+          phase: stage,
+          frames,
+          elapsedMs: performance.now() - phaseStarted,
+          buildings: stream.stockBuildings,
+          residentCells: stream.residentCells,
+          geometryMiB: tracker.bytes() / 1024 / 1024,
+          stock: stockShape(),
+        }),
+      );
+    }
+    if (frames > frameLimit) break;
+  }
+  assertUniqueSources();
+  return {
+    stage,
+    frames,
+    firstCoverageFrame,
+    maxSliceMs,
+    sliceOverruns,
+    elapsedMs: performance.now() - phaseStarted,
+    startGeometryMiB: startBytes / 1024 / 1024,
+    geometryMiB: tracker.bytes() / 1024 / 1024,
+    peakGeometryMiB: peakBytes / 1024 / 1024,
+    peakHiddenCells,
+    buildings: stream.stockBuildings,
+    residentCells: stream.residentCells,
+    stock: stockShape(),
+  };
+}
+
+const initial = runPhase(camera ? 'custom' : overview ? 'overview' : 'Fitzrovia');
+const { frames, firstCoverageFrame, maxSliceMs } = initial;
+const peakBytes = initial.peakGeometryMiB * 1024 * 1024;
+const phases = [initial];
+if (transitions) {
+  const fitzrovia = project([-0.1358, 51.5196]);
+  const canaryWharf = project([-0.0195, 51.5054]);
+  const wide = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 1440 / (WORLD.width * 1.1) };
+  const script: Array<[string, { x: number; y: number; zoom: number }, number]> = [
+    ['overview->neighbourhood', { ...fitzrovia, zoom: 900 / 1.92 }, 0.6],
+    ['neighbourhood->overview', wide, 0],
+    ['overview->search', { ...canaryWharf, zoom: 900 / 1.92 }, 0.6],
+    ['search->overview', wide, 0],
+  ];
+  for (const [stage, target, azimuth] of script) {
+    rig.update(target, azimuth);
+    phases.push(runPhase(stage));
+  }
 }
 const elapsedMs = performance.now() - started;
 root.updateMatrixWorld(true);
@@ -144,7 +240,7 @@ for (const group of root.children) {
       object.geometry.drawRange.count,
     ));
     if (count === 0) return;
-    const layer = group.userData.cellId
+    const layer = group.userData.cellId || group.userData.tileId
       ? cpuDrawEstimate.stock
       : object instanceof THREE.InstancedMesh
         ? cpuDrawEstimate.trees
@@ -180,6 +276,9 @@ console.log(
       peakGeometryMiB: peakBytes / 1024 / 1024,
       buildings: stream.stockBuildings,
       residentCells: stream.residentCells,
+      stock: stockShape(),
+      sliceTargetMs: SLICE_TARGET_MS,
+      phases: transitions ? phases : undefined,
       cpuDrawEstimate,
       note: 'CPU-only, excludes landmarks, GPU upload/rendering, frame waits and browser readiness',
     },
