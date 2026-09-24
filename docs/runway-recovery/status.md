@@ -44,9 +44,9 @@ F-track and G2–G4 items in the next section do not block PR #30.
 | E2 | Game/save/2D fallback/context-loss preserved (B7–B9) | **PASS** (native: pick/Build/save on `7539c58`, fallback on `cc0d2d2`; no game/fallback code changed since) | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md), [browser-overview-stock-cc0d2d2](evidence/R6/browser-overview-stock-cc0d2d2.md) |
 | E3 | Typical desktop view: ≤2M triangles, ≤128 MiB geometry, ≤300 calls | **PASS**: default 128 calls; hubs 192/93/123; later changes only lowered calls | [browser-03e5f02](evidence/R6/browser-03e5f02.md), [road-context](evidence/R6/browser-road-context-6e1fcb1.md) |
 | E4 | Wide view renders all hubs within 128 MiB / 2M triangles (B4) | **PASS** at 3 azimuths; 593 calls recorded, not a PR #30 blocker | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) |
-| E5 | Wheel zoom in and back out keeps the city drawn (≥75% on every frame, fully restored) | **Source PASS on `f14f5e2`**: CPU replay floor 90,451/113,563 (was 28,146); needs native confirmation | see "Continuity" below |
-| E6 | `/game` loads into 3D on the first attempt with no failure; load time recorded, not gated | **Likely PASS**: native 5.8–8.4 s before `f14f5e2`; software GL now ~34 s (previously never within 120 s) | confirm in the final native run |
-| E7 | Smooth after loading: desktop held-pan p95 frame interval ≤33 ms | **PASS** on `0e3a314` (p95 19.7 ms); not rerun since | confirm in the final native run |
+| E5 | Wheel zoom in and back out keeps the city drawn, fully restored | **Native: 30 ms reversal PASS (min 87,972/113,538 = 77%); 500 ms reversal min 79,947 = 70%**, below the 75% line this change set for itself. Both fully restored (113,538). Old behaviour: 18%. **Awaiting Foo's decision** | Foo's run on `d8342b6`, Apple M1, Chrome 153 |
+| E6 | `/game` loads into 3D on the first attempt with no failure; load time recorded, not gated | **PASS (native)**: 5/5 ready, median 4.34 s (inside the original 5 s target) | Foo's run on `d8342b6` |
+| E7 | Smooth after loading: desktop held-pan p95 frame interval ≤33 ms | **PASS (native)**: p95 17.5 ms, median 16.7 ms | Foo's run on `d8342b6` |
 
 **The only remaining work for PR #30 is one run of `pnpm check:desktop` on a
 real-GPU desktop.** Foo runs it using [desktop-check.md](desktop-check.md). It
