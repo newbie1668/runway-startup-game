@@ -60,6 +60,7 @@ import { createBuildScheduler, type BuildJob as ScheduledJob } from './buildSche
 import { indexCity } from './cityIndex';
 import { CityStream } from './cityStream';
 import { createIdleGeneration, type IdleGeneration } from './idleGeneration';
+import { drainWithin, loadingBudgetMs, SLICE_MS } from './loadingBudget';
 import { createCoverIndexJob } from './coverIndex';
 import { cameraGroundBounds } from './streamCoverage';
 
@@ -212,6 +213,8 @@ export class CityRenderer3D implements IMapRenderer {
   private cityStream: CityStream | null = null;
   private idleGeneration: IdleGeneration | null = null;
   private lastStreamCamera = '';
+  private lastFrameAt: number | null = null;
+  private frameIntervalMs = 0;
   private hubGlowSprites: Map<HubId, THREE.Sprite> = new Map();
   private lastPlayerHubId: HubId | null = null;
   private readonly minorMeshes: THREE.Mesh[] = [];
@@ -691,10 +694,12 @@ export class CityRenderer3D implements IMapRenderer {
     this.cityStreamed = true;
   }
 
-  private drainStreaming(): void {
+  /** `budgetMs` above one slice only while loading; see loadingBudget.ts. */
+  private drainStreaming(budgetMs = SLICE_MS): void {
+    const startedAt = performance.now();
     if (this.coverIndexBuild) {
       try {
-        const result = this.coverIndexScheduler.drain(4, () => performance.now());
+        const result = this.coverIndexScheduler.drain(budgetMs, () => performance.now());
         if (result.failed.length > 0) throw result.failed[0]!.error;
         if (result.completed.length > 0) {
           this.diagnostics.completeJob('stream:cover-index');
@@ -723,7 +728,12 @@ export class CityRenderer3D implements IMapRenderer {
         this.lastStreamCamera = key;
         this.cityStream.update(cameraGroundBounds(this.rig, this.cssW, this.cssH));
       }
-      this.cityStream.drain();
+      drainWithin(
+        Math.max(SLICE_MS, budgetMs - (performance.now() - startedAt)),
+        () => performance.now(),
+        () => !this.disposed && this.cityStream?.idle === false,
+        () => this.cityStream?.drain(),
+      );
       this.stockBuildings = this.cityStream?.stockBuildings ?? 0;
     } catch (error) {
       this.diagnostics.recordError('stream:camera', true, error);
@@ -1057,7 +1067,9 @@ export class CityRenderer3D implements IMapRenderer {
       this.fitAll();
     }
     this.syncRig();
-    this.drainStreaming();
+    if (this.lastFrameAt !== null) this.frameIntervalMs = startedAt - this.lastFrameAt;
+    this.lastFrameAt = startedAt;
+    this.drainStreaming(this.readyNotified ? SLICE_MS : loadingBudgetMs(this.frameIntervalMs));
     if (this.disposed) return;
 
     const minorVisible = true;

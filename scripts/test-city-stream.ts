@@ -220,10 +220,12 @@ do {
     assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)),
       'old coverage stays exposed on every frame until the destination coverage settles');
 } while (diagnostics.snapshot().pendingEssentialJobs > 0);
-assert.equal(oldDisposed, 1, 'stock outside the retain ring leaves when the destination settles');
-assert(!stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)));
-assert.equal(stream.staleStockBytes, 0);
-assert(evictions > 0, 'settle-time eviction reports its picks');
+// Settling does not release stale stock that fits: it stays until admission needs its bytes
+// (the budget-pressure case below), so a wheel zoom never drops the city at intermediate steps.
+assert.equal(oldDisposed, 0, 'stock outside the retain ring stays after the destination settles');
+assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, firstId)));
+assert(stream.staleStockBytes > 0);
+assert.equal(evictions, 0, 'nothing was evicted, so no picks were reported');
 assert(stream.buildingMeshes().some((mesh) => coversCell(mesh, secondId)));
 assert.equal(materialDisposals, 0, 'shared building material survives cell eviction');
 
@@ -249,10 +251,15 @@ ready(first);
 for (const mesh of stream.buildingMeshes())
   assert.equal(mesh.geometry.drawRange.count, Infinity, 'detailed replacement restores full geometry');
 assert(
-  !stream.buildingMeshes().some((mesh) => coversCell(mesh, secondId)),
-  'overview residents outside hysteresis are evicted after moving close',
+  stream.buildingMeshes().some((mesh) => mesh.userData.tileId === 'tile:4,0'),
+  'overview residents outside hysteresis stay as stale context until their bytes are needed',
 );
-assert.equal(stream.tileCoveredCells, 0, 'the dissolved tile is released once its member is detailed');
+assert(stream.staleStockBytes > 0);
+assert(
+  !stream.buildingMeshes().some((mesh) => mesh.userData.tileId === 'tile:0,0'),
+  'the dissolved tile is released once its member is detailed',
+);
+assert.equal(stream.tileCoveredCells, 1, 'only the stale far tile still covers a cell');
 assert.equal(stream.hiddenCells, 0);
 assert(stream.buildingMeshes().some((mesh) => mesh.userData.cellId === firstId));
 while (!stream.idle) stream.drain();
@@ -384,7 +391,6 @@ for (const clockStep of [0, 0.01]) {
     water: [],
   };
   const total = dense.buildings.length;
-  const columnOf = (source: number): number => (source < gridBuildings ? source % columns : 5);
   const denseIndex = indexCity(dense, 400);
   assert.equal(denseIndex.cells.size, gridBuildings, 'one populated cell per grid building');
   assert.equal(denseIndex.cells.get('5,5')!.buildingIndices.length, 1 + heavyCellExtras);
@@ -548,9 +554,8 @@ for (const clockStep of [0, 0.01]) {
   const tileSources = new Set(tileMembers.flatMap((id) => denseIndex.cells.get(id)!.buildingIndices));
   assert.equal(tileSources.size, 16 + heavyCellExtras);
   // Retention around the inner view keeps tiles 0..2; tile column 3 (ix 12..15) is outside the
-  // retain ring: it stays resident and visible (stale) until its bytes are needed or the new
-  // coverage settles, so a quick reversal finds the whole overview intact.
-  const innerExposed = new Set([...all].filter((source) => columnOf(source) <= 11));
+  // retain ring: it stays resident and visible (stale) until its bytes are needed, including after
+  // the new coverage settles, so a reversal at any point finds the whole overview intact.
   const staleColumnBytes = stream.buildingMeshes()
     .filter((mesh) => (mesh.userData.tileId as string).startsWith('tile:3,'))
     .reduce((sum, mesh) => sum + mesh.geometry.getIndex()!.array.byteLength +
@@ -589,18 +594,18 @@ for (const clockStep of [0, 0.01]) {
   assert.equal(stream.hiddenCells, 0, 'the cutover publishes every staged replacement');
   assert(!tileIds().includes('tile:1,1'), 'the dissolved tile is released in the cutover');
   assert.deepEqual(cellIds(), tileMembers, 'exactly the sixteen members became per-cell residents');
-  assert.equal(stream.tileCoveredCells, 12 * rows - 16, 'retained tile columns 0..2 minus the dissolved tile');
+  assert.equal(stream.tileCoveredCells, 16 * rows - 16, 'every tile but the dissolved one, the stale far column included');
   for (const id of tileMembers) {
     const [ix, iz] = id.split(',').map(Number);
     const detailed = ix! >= 5 && ix! <= 6 && iz! >= 5 && iz! <= 6;
     assert.equal(detailOf(id), detailed ? 'detailed' : 'overview', `cell ${id} carries the wanted detail`);
   }
-  assert.deepEqual(exposed(), innerExposed, 'settling the new coverage releases the stale far tile column');
-  assert.equal(stream.staleStockBytes, 0);
+  assert.deepEqual(exposed(), all, 'settling the new coverage keeps the stale far tile column that fits');
+  assert.equal(stream.staleStockBytes, staleColumnBytes);
   assert(peakTransitionBytes > steadyOverviewBytes, 'staged replacements are counted while hidden');
   assert(sawStaging, 'in-flight stock jobs report live staging geometry');
   idle();
-  assert.deepEqual(exposed(), innerExposed, 'membership retention evicts only the far tile column');
+  assert.deepEqual(exposed(), all, 'nothing is evicted while everything fits the budget');
   const steadyInnerBytes = tracker.bytes();
   assert(peakStagingBytes > 0);
   assert(
@@ -660,12 +665,10 @@ for (const clockStep of [0, 0.01]) {
   let lossless = 0;
   for (let k = 0; k <= cutoverFrame + 2; k++) {
     stream.update(inner);
-    let settled = false;
     for (let i = 0; i < k; i++) {
       drainFrame();
-      settled = diagnostics.snapshot().pendingEssentialJobs === 0;
-      // The stale far column leaves only in the frame that settles the inner coverage.
-      assert.deepEqual(exposed(), settled ? innerExposed : all, `sweep ${k}: frame ${i} keeps every useful source visible`);
+      // The stale far column fits the budget, so it never leaves, even once the inner coverage settles.
+      assert.deepEqual(exposed(), all, `sweep ${k}: frame ${i} keeps every useful source visible`);
     }
     const stagedBeforeReversal = stream.hiddenCells;
     const tileStillExposed = tileIds().includes('tile:1,1');
@@ -691,14 +694,42 @@ for (const clockStep of [0, 0.01]) {
   assert(lossless >= cutoverFrame, 'every reversal before the cutover was lossless');
   console.log(JSON.stringify({ reversalSweep: { cutoverFrame, sweeps: cutoverFrame + 3, lossless } }));
 
+  // D3: gradual (wheel) zoom: each step narrows the view a little and is drained until its coverage
+  // settles, which the resident tiles satisfy at once. Settling must not release stale context
+  // that fits. (Members of a dissolved tile outside the visible set are still not rebuilt while
+  // unseen; that pre-existing edge behavior is why this bounds the floor, not every source.)
+  const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+  const between = (t: number): BoundsXZ => ({
+    minX: lerp(overview.minX, inner.minX, t),
+    minZ: lerp(overview.minZ, inner.minZ, t),
+    maxX: lerp(overview.maxX, inner.maxX, t),
+    maxZ: lerp(overview.maxZ, inner.maxZ, t),
+  });
+  let gradualFloor = all.size;
+  for (const t of [0.2, 0.4, 0.6, 0.8, 1, 0.8, 0.6, 0.4, 0.2, 0]) {
+    stream.update(between(t));
+    frames = 0;
+    do {
+      drainFrame();
+      gradualFloor = Math.min(gradualFloor, exposed().size);
+      assert(++frames < 20_000);
+    } while (diagnostics.snapshot().pendingEssentialJobs > 0);
+  }
+  assert(gradualFloor >= 0.75 * all.size, `the gradual zoom keeps the stale context (floor ${gradualFloor}/${all.size})`);
+  idle();
+  assert.deepEqual(exposed(), all);
+  assert.deepEqual(cellIds(), [], 'the gradual round trip ends on whole tiles');
+  assert.equal(tracker.bytes(), steadyOverviewBytes, 'the gradual round trip is byte-identical');
+  console.log(JSON.stringify({ gradualZoom: { floor: gradualFloor, sources: all.size } }));
+
   // E: interrupted cells -> tile: cancel the tile job mid-flight and keep the useful cells.
   settle(inner, tileSources);
   idle();
   assert.deepEqual(cellIds(), tileMembers);
-  assert.deepEqual(exposed(), innerExposed);
+  assert.deepEqual(exposed(), all);
   assert.equal(tracker.bytes(), steadyInnerBytes);
   stream.update(overview);
-  assert.deepEqual(exposed(), innerExposed, 'zooming out evicts nothing: every inner resident is inside the overview retain ring');
+  assert.deepEqual(exposed(), all, 'zooming out evicts nothing: every inner resident is inside the overview retain ring');
   assert.equal(tracker.bytes(), steadyInnerBytes);
   peakStagingBytes = peakCombinedBytes = 0;
   frames = 0;
@@ -706,12 +737,12 @@ for (const clockStep of [0, 0.01]) {
     drainFrame();
     assert(++frames < 20_000, 'the tile job starts staging');
   }
-  assert.deepEqual(exposed(), innerExposed, 'nothing useful is dropped before the tile is ready');
+  assert.deepEqual(exposed(), all, 'nothing useful is dropped before the tile is ready');
   assert(!tileIds().includes('tile:1,1'), 'the tile job is still in flight');
   assert(diagnostics.snapshot().pendingEssentialJobs > 0);
   stream.update(inner);
   assert.equal(stream.stagingBytes, 0, 'the interrupted tile job releases its staging geometry at the plan change');
-  assert.deepEqual(exposed(), innerExposed, 'the interruption keeps every useful cell');
+  assert.deepEqual(exposed(), all, 'the interruption keeps every useful cell');
   assert.equal(tracker.bytes(), steadyInnerBytes, 'the interruption evicts nothing inside the retain ring');
   settle(inner, tileSources);
   idle();
@@ -734,7 +765,7 @@ for (const clockStep of [0, 0.01]) {
   const mergePeakCombinedBytes = peakCombinedBytes;
 
   // F: distant search during a dissolution: staged replacements for cells nobody wants are
-  // dropped, the abandoned tile is evicted by membership retention, nothing stale is revealed.
+  // dropped, the abandoned tile stays whole as stale context, nothing stale is revealed.
   settle(overview, tileSources);
   idle();
   stream.update(inner);
@@ -769,9 +800,14 @@ for (const clockStep of [0, 0.01]) {
   } while (diagnostics.snapshot().pendingEssentialJobs > 0);
   idle();
   assert.equal(stream.hiddenCells, 0, 'no staged replacement survives a distant search');
-  assert(!tileIds().includes('tile:1,1'), 'the abandoned dissolving tile is evicted by retention at settle');
+  assert(tileIds().includes('tile:1,1'), 'the abandoned dissolving tile stays whole as stale context');
   assert(!cellIds().some((id) => tileOf(id) === 'tile:1,1'), 'no stale member is revealed');
-  assert.deepEqual(tileIds(), ['tile:2,0', 'tile:2,1', 'tile:3,1'], 'tiles inside the search retain ring stay; tile 3,0 dissolved into its members');
+  assert.deepEqual(
+    tileIds(),
+    ['tile:0,0', 'tile:0,1', 'tile:1,0', 'tile:1,1', 'tile:2,0', 'tile:2,1', 'tile:3,1'],
+    'every tile that fits stays; tile 3,0 dissolved into its members',
+  );
+  assert.deepEqual(exposed(), all, 'the whole overview stays exposed');
   for (const source of farVisible) assert(exposed().has(source));
   assert(cellIds().length > 0);
   for (const id of cellIds()) {
@@ -972,12 +1008,16 @@ for (const clockStep of [0, 0.01]) {
   assert(referencePeak > steadyOverviewBytes + tileBytes.get('tile:3,0')!, 'the reference transition holds more than the overview plus one tile');
 
   // Pressure run: the ceiling admits the overview alone (and the settled round trip) but not the
-  // overview plus the whole transition.
-  const maxBytes = RESERVE + Math.max(steadyOverviewBytes + Math.floor((referencePeak - steadyOverviewBytes) / 2), referenceReturnPeak);
+  // overview plus the whole transition. The reference return leg still held the stale far column
+  // (it fit); under pressure that column yields first, so the round trip needs the return peak
+  // without it.
+  const staleColumn = tileBytes.get('tile:3,0')! + tileBytes.get('tile:3,1')!;
+  const maxBytes = RESERVE + Math.max(steadyOverviewBytes + Math.floor((referencePeak - steadyOverviewBytes) / 2), referenceReturnPeak - staleColumn);
   assert(maxBytes - RESERVE < referencePeak, 'the lowered ceiling forces eviction during the transition');
-  // Background gate between the retained bytes and the total bytes at the cutover: the old
-  // `tracker >= background` gate would have skipped every decor job, the stale-excluding one admits them.
-  const backgroundBytes = cutoverTracker;
+  // Background level just above the retained bytes at the cutover: the old `tracker >= background`
+  // gate would have skipped every decor job, the stale-excluding one admits them. Settling trims
+  // stale residents back to this level, which leaves the headroom the return leg needs.
+  const backgroundBytes = cutoverTracker - cutoverStale + 1;
   assert(cutoverTracker - cutoverStale < backgroundBytes && backgroundBytes <= maxBytes);
   const pressured = harness({ maxBytes, backgroundBytes });
   pressured.settle(overview, new Set());
@@ -1014,8 +1054,11 @@ for (const clockStep of [0, 0.01]) {
   } while (pressured.diagnostics.snapshot().pendingEssentialJobs > 0);
   const order = evictionOrder();
   assert(firstEvictionFrame >= 0 && order.length > 0, 'the lowered ceiling forced on-demand eviction during the transition');
-  assert.deepEqual(order.slice(0, 2), ['tile:3,0', 'tile:3,1'], `stale tiles yield first, farthest first (${order.join(' ')})`);
-  for (const tileId of order.slice(2)) assert(retainedTiles.includes(tileId), `${tileId} is a retained, non-visible tile`);
+  assert.equal(order[0], 'tile:3,0', `the farthest stale tile yields first (${order.join(' ')})`);
+  const firstRetained = order.findIndex((tileId) => retainedTiles.includes(tileId));
+  if (firstRetained >= 0)
+    assert(order.slice(0, firstRetained).includes('tile:3,1'), `every stale tile yields before a retained one (${order.join(' ')})`);
+  for (const tileId of order) assert(tileId.startsWith('tile:3,') || retainedTiles.includes(tileId), `${tileId} is stale or retained and non-visible`);
   const settledVisible = pressured.exposed();
   for (const id of innerCells) assert(pressured.cellIds().includes(id));
   pressured.idle();
@@ -1024,7 +1067,7 @@ for (const clockStep of [0, 0.01]) {
   assert(pressured.tracker.bytes() + RESERVE <= maxBytes);
   assert.deepEqual(decorated(pressured), referenceDecor, 'stale bytes do not gate decor for the detailed cells');
   assert.equal(pressured.diagnostics.snapshot().errorCount, 0, 'room pressure is never reported as a map error');
-  assert(!pressured.tileIds().some((id) => id.startsWith('tile:3,')), 'stale tiles are gone once the coverage settles');
+  assert(!pressured.tileIds().includes('tile:3,0'), 'the stale tile that yielded stays released');
   const pressurePeak = pressured.peakHeld();
 
   // Reversal right after the first on-demand eviction: nothing else is lost, the round trip is exact.
@@ -1080,7 +1123,7 @@ for (const clockStep of [0, 0.01]) {
   const innerFromScratchBytes = roomy.tracker.bytes();
   roomy.stream.dispose();
   roomy.resources.dispose();
-  const tightBytes = RESERVE + Math.floor(steadyInnerBytes * 0.6);
+  const tightBytes = RESERVE + Math.floor(innerFromScratchBytes * 0.98);
   const tight = harness({ maxBytes: tightBytes, backgroundBytes: tightBytes });
   tight.settle(inner, new Set());
   tight.idle();

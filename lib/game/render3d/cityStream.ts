@@ -975,13 +975,17 @@ export class CityStream {
     );
   }
 
-  /** At settle: release everything outside the retain rings, then enforce the ceiling on what remains. */
+  /**
+   * At settle: release stale residents (outside the retain rings), farthest first, only until the
+   * held bytes are back at the background level, then enforce the ceiling. A wheel zoom settles
+   * every intermediate view at once (the old tiles already cover it), so releasing every stale
+   * resident dropped most of the city on each step and a reversal had to rebuild it. The nearest
+   * stale context stays, while the gap up to the ceiling stays free for the next transition (for
+   * example, merging detailed cells back into overview tiles).
+   */
   private trimResidents(): void {
     if (!this.plan) return;
-    this.stocks.evictOutside(this.retain);
-    this.tiles.evictOutside(new Set(this.tiles.ids().filter((tileId) => this.tileRetained(tileId))));
-    this.covers.evictOutside(new Set(this.plan.retainCover));
-    this.trees.evictOutside(this.treesRetained());
+    this.freeResidents(this.budget.backgroundBytes, 'stale');
     this.reconcile();
     if (this.freeResidents(this.budget.maxBytes - MAX_INDEX_BYTES, 'wanted')) return;
     this.fatal(
