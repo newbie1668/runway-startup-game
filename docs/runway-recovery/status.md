@@ -29,7 +29,13 @@ reconstruct the current state from the PR body or from the archive.
 
 PR #30 is complete when every row below is PASS on one exact commit. The
 F-track and G2–G4 items in the next section do not block PR #30.
-The thresholds in [verification.md](verification.md) are unchanged.
+**Foo's decisions of 24 September 2026** (see
+[definition-of-done.md](definition-of-done.md)):
+- PR #30 covers runtime recovery only.
+- Wide-view calls are a follow-up.
+- A slow first load is acceptable, as long as the game loads on the first
+  attempt and then plays smoothly. The 5 s load target is recorded, not
+  gating.
 
 | # | Gate | State | Evidence / next action |
 |---|---|---|---|
@@ -38,10 +44,14 @@ The thresholds in [verification.md](verification.md) are unchanged.
 | E3 | Typical desktop view: ≤2M triangles, ≤128 MiB geometry, ≤300 calls | **PASS**: default 128 calls; hubs 192/93/123; later changes only lowered calls | [browser-03e5f02](evidence/R6/browser-03e5f02.md), [road-context](evidence/R6/browser-road-context-6e1fcb1.md) |
 | E4 | Wide view renders all hubs within 128 MiB / 2M triangles (B4) | **PASS** at 3 azimuths; 593 calls recorded, not a PR #30 blocker | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) |
 | E5 | Reverse zoom keeps the city visible (no 113k→20k stock drop) | **Source PASS on `77fdd79`**; needs one native confirmation | see "Continuity" below |
-| E6 | Desktop first useful frame ≤5 s, `/game` default, cold | **FAIL** (5.8–8.4 s cold on the Apple-virtual test machine) | only open engineering item; see "Startup" below |
+| E6 | `/game` loads into 3D on the first attempt with no failure; load time recorded, not gated | **Likely PASS**: every recorded sample reached useful 3D within 60 s (5.8–8.4 s default cold) | confirm in the final native run |
+| E7 | Smooth after loading: desktop held-pan p95 frame interval ≤33 ms | **PASS** on `0e3a314` (p95 19.7 ms); not rerun since | confirm in the final native run |
 
-Run the native checks (E5, E6) **once** on the final candidate. Record five cold samples and the median.
-State the machine. Do not repeat the run to improve the statistics.
+The only remaining work for PR #30 is **one native run on the final candidate**
+covering E5, E6 and E7. Use five cold loads, record the times, run a 30 s held
+pan, and do one zoom-in/zoom-out reversal. State the machine. Do not repeat the
+run to improve the statistics. Foo will provide the machine (their desktop or
+the previous test machine).
 
 ## Not part of PR #30 (tracked separately, owner/human input required)
 
@@ -73,7 +83,7 @@ State the machine. Do not repeat the run to improve the statistics.
 - Native confirmation still needed: repeat the early-reversal check from
   [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) once.
 
-## Startup (E6): next bounded task
+## Startup: optional follow-up (not gating after Foo's decision)
 
 Step 1 is done (CPU-only profile on `77fdd79`, Fitzrovia camera, 3200 m cover
 cells; [job lifetimes](evidence/R6/startup-path-77fdd79/jobs.jsonl)).
@@ -92,7 +102,7 @@ whole-city job. At 60 Hz, 661 frames is about 11 s of wall time; the idle
 drains roughly halve that. This is consistent with the measured 5.8–8.4 s
 native cold starts.
 
-Next task, done once (pick one lever and measure it):
+If faster first loads are wanted later, the levers are:
 
 1. **Preferred:** until the first useful frame (the map is not yet interactive
    and the title UI is DOM), let the stream use a larger per-frame budget.
@@ -104,11 +114,6 @@ Next task, done once (pick one lever and measure it):
    exact geometry parity.
 3. Run the repository gates, then one native five-sample cold run.
    Record PASS or FAIL.
-
-If E6 still fails after that one change, report the stage timings to Foo. Ask
-for a decision: accept the measured startup for this PR, or fund a
-precomputed (baked) road/cover context. Do not start another optimization
-round without that decision.
 
 ## Rules that stay in force
 
