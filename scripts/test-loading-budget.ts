@@ -1,16 +1,28 @@
 import assert from 'node:assert/strict';
 import {
   drainWithin,
+  LOADING_FRAME_TASK_MS,
   loadingBudgetMs,
-  MAX_LOADING_BUDGET_MS,
   SLICE_MS,
 } from '../lib/game/render3d/loadingBudget';
 
-// Budget: half the frame interval, never below one slice or above the long-task-safe cap.
-assert.equal(loadingBudgetMs(16.7), 8.35);
-assert.equal(loadingBudgetMs(4), SLICE_MS, 'fast frames still get one slice');
-assert.equal(loadingBudgetMs(200), MAX_LOADING_BUDGET_MS, 'a 5 fps software renderer is capped');
-for (const bad of [0, -5, NaN, Infinity]) assert.equal(loadingBudgetMs(bad), SLICE_MS);
+// Budget: half the frame interval, never below one slice, and generation plus the rest of the
+// frame's main-thread work stays within the 32 ms loading frame task (below the 50 ms long task).
+assert.equal(loadingBudgetMs(16.7, 3), 8.35);
+assert.equal(loadingBudgetMs(4, 0), SLICE_MS, 'fast frames still get one slice');
+assert.equal(loadingBudgetMs(200, 0), LOADING_FRAME_TASK_MS, 'a 5 fps GPU-bound frame is capped');
+assert.equal(loadingBudgetMs(200, 10), LOADING_FRAME_TASK_MS - 10, 'other frame work is subtracted');
+assert.equal(loadingBudgetMs(200, 60), SLICE_MS, 'a frame already over the limit gets only one slice');
+for (const bad of [0, -5, NaN, Infinity]) assert.equal(loadingBudgetMs(bad, 0), SLICE_MS);
+assert.equal(loadingBudgetMs(200, NaN), LOADING_FRAME_TASK_MS, 'unknown other work counts as none');
+// No self-feeding: when the interval is dominated by the budget itself, the task cap still binds.
+let interval = 16.7;
+for (let i = 0; i < 20; i++) {
+  const other = 12;
+  const budget = loadingBudgetMs(interval, other);
+  assert(budget + other <= LOADING_FRAME_TASK_MS || budget === SLICE_MS);
+  interval = Math.max(interval, other + budget + 30); // a slow GPU adds 30 ms of waiting per frame
+}
 
 // Each drain advances a fake clock by one full slice: 40 ms admits exactly ten slices.
 let clock = 0;

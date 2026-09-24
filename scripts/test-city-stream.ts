@@ -1059,6 +1059,11 @@ for (const clockStep of [0, 0.01]) {
   if (firstRetained >= 0)
     assert(order.slice(0, firstRetained).includes('tile:3,1'), `every stale tile yields before a retained one (${order.join(' ')})`);
   for (const tileId of order) assert(tileId.startsWith('tile:3,') || retainedTiles.includes(tileId), `${tileId} is stale or retained and non-visible`);
+  // The settle rule itself: stale residents were trimmed back to the background level (or none remain).
+  assert(
+    pressured.tracker.bytes() <= backgroundBytes || pressured.stream.staleStockBytes === 0,
+    'settling trims stale residents back to the background level',
+  );
   const settledVisible = pressured.exposed();
   for (const id of innerCells) assert(pressured.cellIds().includes(id));
   pressured.idle();

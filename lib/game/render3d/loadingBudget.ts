@@ -1,18 +1,23 @@
 /**
  * Generation time per animation frame while the map is still loading. Before the first ready
- * frame nothing on the map is interactive, so generation takes half the measured frame interval
- * instead of a fixed 4 ms. Loading then keeps pace on slow GPUs, where each frame takes much
- * longer to render. Work still runs as separate drains of at most one 4 ms slice each, and the
- * 40 ms cap keeps every frame's task below the 50 ms long-task limit. Once the map is ready, the
- * renderer returns to one 4 ms drain per frame.
+ * frame nothing on the map is interactive, so generation may take half the measured frame
+ * interval instead of a fixed 4 ms. Loading then keeps pace on slow GPUs, where each frame waits
+ * much longer for the GPU. Two bounds keep this compatible with the generation gates:
+ * - work still runs as separate drains of at most one 4 ms slice each;
+ * - generation plus the rest of the frame's measured main-thread work (render submission,
+ *   overlay, build queue) stays within 32 ms. That leaves room below the 50 ms long-task limit
+ *   for a single step that overruns its slice.
+ * The budget can therefore not feed on itself through the frame interval. Once the map is ready,
+ * the renderer returns to one 4 ms drain per frame.
  */
 export const SLICE_MS = 4;
-export const MAX_LOADING_BUDGET_MS = 40;
+export const LOADING_FRAME_TASK_MS = 32;
 const MAX_DRAINS = 16;
 
-export function loadingBudgetMs(frameIntervalMs: number): number {
+export function loadingBudgetMs(frameIntervalMs: number, otherFrameMs: number): number {
   if (!Number.isFinite(frameIntervalMs) || frameIntervalMs <= 0) return SLICE_MS;
-  return Math.min(MAX_LOADING_BUDGET_MS, Math.max(SLICE_MS, frameIntervalMs / 2));
+  const other = Number.isFinite(otherFrameMs) && otherFrameMs > 0 ? otherFrameMs : 0;
+  return Math.max(SLICE_MS, Math.min(frameIntervalMs / 2, LOADING_FRAME_TASK_MS - other));
 }
 
 /**

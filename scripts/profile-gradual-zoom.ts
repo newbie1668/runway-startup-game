@@ -23,7 +23,7 @@ const indexed: { value: CoverIndex | null } = { value: null };
 const job = createCoverIndexJob({ id: 'i', generation: 0, essential: true, cityData: data, cellSizeM: 3200, now: () => performance.now(), onReady: (v) => { indexed.value = v; } });
 while (!job.step()) {}
 const MiB = 1048576;
-const extra = Number(process.argv[2] ?? 6) * MiB; // landmark/replacement geometry held by the renderer
+const extra = Number(process.argv[2] ?? 0) * MiB; // landmark/replacement geometry held by the renderer
 const tracker = createGeometryTracker();
 const resources = createResourcePool();
 const material = createBuildingMaterial(); resources.retain(material);

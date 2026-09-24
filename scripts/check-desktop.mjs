@@ -87,8 +87,10 @@ async function checkPan(browser) {
   await page.mouse.up();
   const frames = await page.evaluate(() => { window.__stopFrames = true; return window.__frames.slice(5); });
   const sorted = [...frames].sort((a, b) => a - b);
+  if (sorted.length < 100) { await context.close(); return { pass: false, reason: `only ${sorted.length} frames sampled` }; }
   const pct = (p) => +sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))].toFixed(1);
   const after = await snapshot(page);
+  errors.push(...(after.errors ?? []).map((e) => `${e.jobId}: ${e.message}`));
   await page.screenshot({ path: join(outDir, 'pan-end.png') });
   await context.close();
   const p95 = pct(0.95);
@@ -100,10 +102,13 @@ async function checkPan(browser) {
 }
 
 /**
- * E5: from the wide overview, zoom in with the wheel and reverse early. The whole-city overview
- * nearly fills the 128 MiB budget, so zooming in releases the farthest stale tiles beyond the
- * 96 MiB background level; the CPU replay (scripts/profile-gradual-zoom.ts) keeps ~80% drawn.
- * Pass: at least 75% of buildings drawn on every frame, and ≥95% restored 8 s after returning.
+ * E5: from the wide overview, zoom in with the wheel and reverse early. `stockBuildings` counts
+ * buildings the stream keeps in the scene (off-screen stale context included), sampled every
+ * animation frame. The whole-city overview nearly fills the 128 MiB budget, so zooming in
+ * releases the farthest stale tiles beyond the 96 MiB background level. The CPU replay
+ * (scripts/profile-gradual-zoom.ts) keeps ~80%, against 25% before the fix. The 75% line was set
+ * from that replay: it detects the old collapse, but it is this change's own yardstick, not a
+ * product target. Pass: ≥75% kept on every frame, ≥95% restored 8 s after returning, no errors.
  */
 async function checkReversal(browser) {
   const results = [];
@@ -124,12 +129,14 @@ async function checkReversal(browser) {
     for (let i = 0; i < 8; i++) await page.mouse.wheel(0, 240);
     await page.waitForTimeout(8_000);
     const stock = await page.evaluate(() => { window.__stopStock = true; return window.__stock; });
-    const min = Math.min(...stock);
-    const final = (await snapshot(page)).stockBuildings;
+    const min = stock.length ? Math.min(...stock) : 0; // no frames sampled is a failure, not a pass
+    const after = await snapshot(page);
+    const final = after.stockBuildings;
+    errors.push(...(after.errors ?? []).map((e) => `${e.jobId}: ${e.message}`));
     await page.screenshot({ path: join(outDir, `reversal-${reverseAfterMs}ms.png`) });
     await context.close();
     results.push({
-      reverseAfterMs, stockBefore: before, stockMin: min, stockFinal: final,
+      reverseAfterMs, frames: stock.length, stockBefore: before, stockMin: min, stockFinal: final,
       minRatio: before ? +(min / before).toFixed(3) : null,
       pass: before > 0 && min >= 0.75 * before && final >= 0.95 * before && errors.length === 0, errors,
     });

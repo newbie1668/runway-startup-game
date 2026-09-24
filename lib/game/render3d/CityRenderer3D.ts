@@ -215,6 +215,8 @@ export class CityRenderer3D implements IMapRenderer {
   private lastStreamCamera = '';
   private lastFrameAt: number | null = null;
   private frameIntervalMs = 0;
+  /** Main-thread time of the previous frame after generation (render submission and overlay). */
+  private afterGenerationMs = 0;
   private hubGlowSprites: Map<HubId, THREE.Sprite> = new Map();
   private lastPlayerHubId: HubId | null = null;
   private readonly minorMeshes: THREE.Mesh[] = [];
@@ -694,17 +696,27 @@ export class CityRenderer3D implements IMapRenderer {
     this.cityStreamed = true;
   }
 
-  /** `budgetMs` above one slice only while loading; see loadingBudget.ts. */
+  /**
+   * `budgetMs` is above one slice only while loading (see loadingBudget.ts). The cover index and the
+   * stream each advance in drains of one 4 ms slice until the shared budget is spent.
+   */
   private drainStreaming(budgetMs = SLICE_MS): void {
     const startedAt = performance.now();
     if (this.coverIndexBuild) {
       try {
-        const result = this.coverIndexScheduler.drain(budgetMs, () => performance.now());
-        if (result.failed.length > 0) throw result.failed[0]!.error;
-        if (result.completed.length > 0) {
-          this.diagnostics.completeJob('stream:cover-index');
-          this.coverIndexBuild = null;
-        }
+        drainWithin(
+          budgetMs,
+          () => performance.now(),
+          () => this.coverIndexBuild !== null,
+          () => {
+            const result = this.coverIndexScheduler.drain(SLICE_MS, () => performance.now());
+            if (result.failed.length > 0) throw result.failed[0]!.error;
+            if (result.completed.length > 0) {
+              this.diagnostics.completeJob('stream:cover-index');
+              this.coverIndexBuild = null;
+            }
+          },
+        );
       } catch (error) {
         this.diagnostics.failJob('stream:cover-index', error);
         this.coverIndexBuild?.cancel();
@@ -1069,7 +1081,14 @@ export class CityRenderer3D implements IMapRenderer {
     this.syncRig();
     if (this.lastFrameAt !== null) this.frameIntervalMs = startedAt - this.lastFrameAt;
     this.lastFrameAt = startedAt;
-    this.drainStreaming(this.readyNotified ? SLICE_MS : loadingBudgetMs(this.frameIntervalMs));
+    // Other main-thread work this frame: what already ran (build queue, rig) plus the previous
+    // frame's render and overlay, which are about to run again.
+    const generationStartedAt = performance.now();
+    const otherFrameMs = generationStartedAt - startedAt + this.afterGenerationMs;
+    this.drainStreaming(
+      this.readyNotified ? SLICE_MS : loadingBudgetMs(this.frameIntervalMs, otherFrameMs),
+    );
+    const generationEndedAt = performance.now();
     if (this.disposed) return;
 
     const minorVisible = true;
@@ -1140,6 +1159,7 @@ export class CityRenderer3D implements IMapRenderer {
       textures: this.renderer.info.memory.textures,
       residentCells: this.cityStream?.residentCells,
     });
+    this.afterGenerationMs = performance.now() - generationEndedAt;
     const state = this.diagnostics.getState();
     if (state === 'ready' || state === 'degraded') this.markReady();
     this.idleGeneration?.wake();

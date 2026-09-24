@@ -74,7 +74,12 @@ interface TileRequest {
 
 type Request = CellRequest | TileRequest;
 
-/** Resident geometry ceiling and the level above which background work waits. */
+/**
+ * Resident geometry ceiling and the level above which background work waits. Settling also trims
+ * stale residents back to `backgroundBytes`, so the gap up to `maxBytes` is the headroom a later
+ * transition (merging detailed cells back into tiles) can use. Keep that gap well above one
+ * transition's staging; the product budget leaves 32 MiB.
+ */
 export interface ResidentBudget {
   readonly maxBytes: number;
   readonly backgroundBytes: number;
