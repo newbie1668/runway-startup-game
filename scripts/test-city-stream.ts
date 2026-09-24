@@ -1023,6 +1023,7 @@ for (const clockStep of [0, 0.01]) {
   assert(pressured.peakHeld() + RESERVE <= maxBytes);
   assert(pressured.tracker.bytes() + RESERVE <= maxBytes);
   assert.deepEqual(decorated(pressured), referenceDecor, 'stale bytes do not gate decor for the detailed cells');
+  assert.equal(pressured.diagnostics.snapshot().errorCount, 0, 'room pressure is never reported as a map error');
   assert(!pressured.tileIds().some((id) => id.startsWith('tile:3,')), 'stale tiles are gone once the coverage settles');
   const pressurePeak = pressured.peakHeld();
 
@@ -1071,6 +1072,26 @@ for (const clockStep of [0, 0.01]) {
   assert.equal(starved.root.children.length, 0);
   starved.resources.dispose();
   assert.throws(() => harness({ maxBytes: 128 * 1024 * 1024 + 1, backgroundBytes: 1 }), RangeError, 'the ceiling can only be lowered');
+  // Prefetch refused for room: with the ceiling just above the visible neighbourhood, background
+  // stock jobs cannot all fit. They are deferred quietly, never reported as map errors.
+  const roomy = harness();
+  roomy.settle(inner, new Set());
+  roomy.idle();
+  const innerFromScratchBytes = roomy.tracker.bytes();
+  roomy.stream.dispose();
+  roomy.resources.dispose();
+  const tightBytes = RESERVE + Math.floor(steadyInnerBytes * 0.6);
+  const tight = harness({ maxBytes: tightBytes, backgroundBytes: tightBytes });
+  tight.settle(inner, new Set());
+  tight.idle();
+  assert.deepEqual(tight.failures, []);
+  assert(tight.tracker.bytes() < innerFromScratchBytes, 'the tight ceiling refused some prefetch stock');
+  assert(tight.peakHeld() + RESERVE <= tightBytes);
+  assert.equal(tight.stream.stagingBytes, 0, 'refused jobs release their staging');
+  assert.equal(tight.diagnostics.snapshot().errorCount, 0, 'refused prefetch is deferred, not a map error');
+  assert.notEqual(tight.diagnostics.snapshot().state, 'degraded');
+  tight.stream.dispose();
+  tight.resources.dispose();
   console.log(JSON.stringify({ budgetPressure: { steadyOverviewBytes, steadyInnerBytes, referencePeak, referenceReturnPeak, maxBytes, backgroundBytes, pressurePeak, evictionOrder: order, firstEvictionFrame } }));
 }
 for (const direction of ['cell-to-tile', 'tile-to-cell']) {

@@ -123,6 +123,9 @@ function validateBudget(budget: ResidentBudget): ResidentBudget {
 
 type Candidate = { id: string; distance: number; evict: () => void };
 
+/** A background stock job refused for lack of resident room: deferred, not a map failure. */
+class ResidentRoomDeferred extends Error {}
+
 const farthestFirst = (a: Candidate, b: Candidate): number =>
   b.distance - a.distance || compareIds(b.id, a.id);
 
@@ -967,7 +970,7 @@ export class CityStream {
   private admit(bytes: number, essential: boolean): void {
     const limit = this.budget.maxBytes - MAX_INDEX_BYTES - bytes;
     if (this.freeResidents(limit, essential ? 'wanted' : 'stale')) return;
-    throw new Error(
+    throw new (essential ? Error : ResidentRoomDeferred)(
       `stock geometry needs ${bytes} more bytes than the ${this.budget.maxBytes} byte resident ceiling allows`,
     );
   }
@@ -1063,6 +1066,11 @@ export class CityStream {
         for (const failure of result.failed) {
           this.pending.delete(failure.id);
           this.staging.delete(failure.id);
+          if (!failure.essential && failure.error instanceof ResidentRoomDeferred) {
+            // The job released its staging when it threw; prefetch waits for a later plan, like the background gate.
+            this.options.diagnostics.cancelJob(failure.id);
+            continue;
+          }
           this.options.diagnostics.failJob(failure.id, failure.error);
           if (failure.essential) {
             this.options.onFatal(failure.id);
