@@ -1,6 +1,6 @@
 # RUNWAY recovery: start here
 
-Status: **planning handoff; implementation has not started**. Product direction confirmed by Foo on 5 September 2026: build a **faithful, explorable Three.js London at the selected SFSIM benchmark**, preserving game mechanics. Ordinary buildings and distinctive trees/signs must resemble their real counterparts.
+Status: **runtime recovery in progress on draft PR #30; see [status.md](status.md) for the exit checklist and current state.** This page is the original planning brief. Product direction confirmed by Foo on 5 September 2026: build a **faithful, explorable Three.js London at the selected SFSIM benchmark**, preserving game mechanics. Ordinary buildings and distinctive trees/signs must resemble their real counterparts.
 
 The destination is a virtual London where people can recognize their actual streets and buildings during close exploration. The two owner-selected posts are fixed references. Runtime repair alone is insufficient; the [fidelity contract](fidelity.md) and [reconstruction track](../superpowers/plans/2026-09-05-london-fidelity.md) add source-backed shapes, facades and street objects. Passing a build or producing one flattering landmark screenshot is insufficient.
 

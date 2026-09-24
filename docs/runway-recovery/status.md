@@ -1,75 +1,121 @@
 # Execution status
 
-Updated: 21 September 2026 UTC. **Working; stock continuity candidate awaits independent review, not input from Foo.** Published cover-grid checkpoint `7539c58` (source `0cf8649`) has [native browser evidence](evidence/R6/browser-cover-7539c58.md): calls 905→593, 900→588, 868→569; measured geometry/triangles stay below 128MiB/2M. Startup passes only 1/8 original samples and 0/8 matched controls. Close coverage, boundary publication, repeated resources and game/save checks pass. Early reversal still loses 113,538→20,514 stock before recovery. The parent remains sole integration writer, currently on `devin/1789956260-cover-batch-tuning`, publishing to PR #30's `build/runway-recovery`. PR #30 stays draft; faithful-London reconstruction remains separate and unfinished.
+Updated: 24 September 2026 UTC. Branch `build/runway-recovery`, draft PR #30.
+**Read this page first. It replaces the long running log**, which is archived
+unchanged in [history/status-2026-09-21.md](history/status-2026-09-21.md) and
+[history/handoff-2026-09-21.md](history/handoff-2026-09-21.md). Do not
+reconstruct the current state from the PR body or from the archive.
 
-## Current continuation
+## Why earlier sessions looped (corrected here)
 
-- **Road-context source checkpoint accepted and published at `6e1fcb1`:** worker `294d3bf`, locally `30fde9f`, shares road decoding/water splitting between crossing approaches and crosswalk endpoints. Independent review, committed-data digests (15 crossings/374 crosswalks), combined gates and focused checks pass; [source evidence](evidence/R6/road-context-cpu.md). The [completed native A/B](evidence/R6/browser-road-context-6e1fcb1.md) retains every observation and shows lower default medians but slower wide cold startup. No dependable causal improvement or startup acceptance is established. One touch-emulated default sample passes at 4.520s; historical mobile/software failures and physical-device gaps remain.
-- **Road-page checkpoint accepted as a bounded improvement:** worker `fa951d0`, locally `104147c`, published `0e3a314`, shares pavement/asphalt page tails across tiers and crossings. Independent [review and source evidence](evidence/R6/road-pages-shared-writers.md) confirm exact ordered geometry, fixed capacities, bounded yields, ownership and cancellation; all parent gates pass. [Native measurements](evidence/R6/browser-shared-road-pages-0e3a314.md) confirm 15–16% fewer calls at three angles with identical triangles/bytes. Startup and 300-call acceptance remain open; historical failures are preserved.
-- **Current task/owner:** the parent integrated independently reviewed stock-page source as `01a171f` / `71b27bd`, then resolved the review's throwing-callback cleanup defect and staging disclosure in `cc0d2d2`. Both cutover directions now have fault-injection regression tests. Full repository gates and affected stock/cover checks pass. Parent CPU profiles reproduce 1,609→124 stock calls with identical settled triangles/bytes; sampled resident+stock-job/draw-range peaks are 45.47MiB neighbourhood / 17.68MiB search. Overview remains 122.62MiB. [Evidence](evidence/R6/overview-stock-pages.md) discloses missing hero/cover/tree/decor staging, incomplete intra-slice sampling and brief reverse-zoom rebuilds after early trimming. The worker and reviewer have finished; the parent owns browser acceptance and evidence.
-- **Next gate/active owner:** stock worker submitted `cf6f514` from exact `cc0d2d2` on `devin/1789956240-overview-coverage-continuity`. The [independent reviewer](https://app.devin.ai/sessions/2616899ca099461b99bef420399a8e25) is assessing reservation, transient allocation, eviction/cancellation and visibility. It is not integrated. Worker CPU probes preserve all stock at two frames and 76% at thirty frames; this is not uninterrupted browser acceptance. Parent reviews/integrates only accepted source, then runs combined gates and affected native checks. The [3200 m cover checkpoint](evidence/R6/cover-grid-3200.md) passes source review, full gates and bounded native checks; it measures 593 calls and increased Fitzrovia retention, still failing 300. Named-anchor batching flags remain unchanged after the rejected experiment. No input from Foo is needed.
-- **Remaining call work:** [native draw attribution on unchanged source](evidence/R6/browser-draw-inventory-1a9517f.md) reconciles all 2,390 calls: 1,609 stock + 530 cover + 242 landmarks/replacements + 9 other. This replaces the inferred non-stock contribution in the earlier [feasibility report](https://app.devin.ai/attachments/7bab15b5-e701-4470-b5b1-9962d7933af9/overview-call-feasibility-bff439c.md); it is not a future optimization floor. Keep the 300 total-call target. Stock batching alone cannot meet it while the other layers stay unchanged; measure the reviewed candidate in-game before selecting further work.
-- **Latest UI/cleanup checkpoint:** `00a7465` makes the mobile map full-height when the game sidebar is hidden; game/UI/lint/TypeScript/build/offline-binary/diff checks and 28 focused browser assertions pass. Controlled warmed tours repeat exactly at every destination; direct registered cleanup releases tracked application resources and stops loops. Small post-GC drift is inconclusive; fixed Three.js baseline handles are identified. Favicon 404 and existing narrow HQ/search overlap are recorded, with no clean-console claim. [Evidence and limits](evidence/R6/browser-cleanup-layout.md).
-- **Overview hypothesis:** the [corrected independent feasibility review](https://app.devin.ai/attachments/cae88866-a66b-4018-9466-acdff6a02f2f/review-overview-visibility-d122326.md) accepts capped staging-array publication as a bounded hypothesis, not runtime acceptance. At azimuth zero, 1,338,712 kept stock triangles plus 569,215 unchanged non-stock triangles gives a 1,907,927 submission bound. Degenerates remain included. The live index must stay untouched until the complete staged partition is ready; repeated partitions preserve same-normal order but can alter distinct-normal depth-tie seams. This does not establish pixel identity or solve wide startup.
-- **Earlier overview checkpoint:** helper `8b6561b` [passes independent review](https://app.devin.ai/attachments/d6c66796-a16a-4e8b-97ee-5f76462d03a6/review-stock-draw-range-8b6561b.md); controller `2d3ecd0` [passes source review](https://app.devin.ai/attachments/7ec25ac4-6b95-4b46-b8f1-9e032d1e8e38/review-overview-draw-range-2d3ecd0.md). Follow-up `758bfe4` guarantees one bounded unit/step under coarse clocks and strengthens actual partial-cancellation tests; its [delta review passes](https://app.devin.ai/attachments/ebd7cb1b-fe64-46e7-8efb-a7fd7310b1ef/review-draw-range-progress-758bfe4.md). All sequential game/UI/lint/project-TypeScript/build/offline/diff gates and helper/controller/stream/scheduler/factory/disposal tests pass on that source. It is integrated through `1c52c13` without source drift. The [completed browser comparison](evidence/R6/browser-overview-758bfe4.md) shows 1,908,689 triangles, unchanged 2,817 calls and 130,812,722 geometry bytes. Independent evidence review accepts only a limited draft checkpoint. Active startup and call-reduction work is listed above; the parent remains sole integration writer.
-- **Context reuse:** integrated source `e1aa660` [passes source review](https://app.devin.ai/attachments/749e2558-a07c-4f2b-bd7b-b898d786a259/review-e1aa660.md) and focused native context/game/save/fallback/cleanup/coarse-pointer checks. It reuses the actual city-canvas context with matching Three.js attributes and releases failed initialization. The [five-pair A/B](evidence/R6/browser-context-ab.md) establishes no reliable startup improvement; every cold start exceeds 5s. The later paired software control reproduces the 45s readiness failure on both `44bdd96` and `e1aa660`, superseding the earlier attribution gap without erasing that observation. Context correctness is accepted; startup and software readiness are not. No build overlapped browser timing.
-- **Draw-range CPU probe (`2d3ecd0`):** all 1,609 stock meshes fit the cap; submitted stock drops from 2,089,716 to 1,338,712 triangles at azimuth zero. Cover stays 530,850 triangles and resident geometry stays 122.6235 MiB. The profiler excludes unchanged landmarks and GPU/browser work. Sequential cold Node runs took 5.418s unfiltered and 6.490s filtered, so this probe does **not** demonstrate a startup improvement. The filtered run included compatibility scans before every synthetic drain; settled guards averaged 0.330ms. Maximum drains were 31.55ms/37.79ms. The later browser comparison, not this probe, establishes the current triangle/pan result and startup failures.
-- **Runtime recovery:** source-sequence correction `6b3116c` is independently [accepted](https://app.devin.ai/attachments/0b4e5aa2-16f6-40a6-b09e-6752f77e392f/report.md): all-road run parity, 44,886 independent water checks, bounded lazy/radix sequences, cancellation and exact context hash. Paging now uses fixed-capacity buffers and incremental attachment. Review findings on clipped coincident water source identity and strict page-test narrowing were corrected in `2a5b3d0`. `59fb26b` packs only exact axis-aligned normals into normalized signed bytes; `8393133` retains position/index parity and compares packed park attributes semantically. [Independent cover review](evidence/R6/cover-review.md) **accepted** exact source `8393133` with no blocking findings.
-- **R6 integration:** camera coverage, tier selection, cancellation, resident replacement/eviction and composed cover jobs are connected to `CityRenderer3D`. Decor admission now waits for matching-tier stock and is satisfied only when that stock has decoration; replacement-after-overview is covered by a focused test. Background work stays within camera prefetch/retention rings. Stream, coverage, resident-store, cover-cell, parity/lifecycle tests, project and explicit strict TypeScript, focused lint and diff checks passed. Game (111 checks), UI (9), lint, production build, offline binary verification and diff checks also passed on candidate source `8393133` while scoped reviews continued; only status documentation was dirty. Shared road context remains scheduled and delays essential cover. Water-index `5bbd39b` is independently [accepted](https://app.devin.ai/attachments/a4c94e4d-bd1a-4f93-a1bd-91453b9a7cf9/report.md).
-- **Earlier CPU profile (`8393133`):** packed full overview completed at 127.54 MiB resident geometry, 3,233 residents and 3,359 synthetic four-millisecond drains (14.38 s elapsed, 7.19 ms maximum drain). Decode took 48 ms and stock indexing 18 ms. This excludes landmarks, GPU upload/rendering, browser frame waits, textures and browser/process overhead. The uncompressed overview exceeded 128 MiB; the configured limit was not increased. A CPU-only result below that limit does not establish browser acceptance or sufficient headroom.
-- **Branch reconciliation:** Fitzrovia retains its explicit camera framing and appears exactly once in the catalog; all catalog IDs are tested as unique. Do not overwrite either worker branch or unrelated primary-checkout files.
-- **Actual game evidence:** historical [results on `e153df9`](evidence/R6/browser-e153df9.md) established navigation, Fitzrovia, exact saves and context-loss fallback, but failed startup, wide readiness and three hub budgets. The later [native startup and trace on `ce8716a`](evidence/R6/browser-ce8716a.md) establish useful rendered city pixels but still fail startup. They do not rerun or supersede the historical tour/failure/mobile matrix. Test measurements stopped before edits.
-- **Accepted correction:** `e153df9` replaces the equal-clock early exit with a 4,096-step cap while retaining elapsed-time checks. Rounded 100 µs/1 ms clocks reproduce starvation on base and progress on the fix. Real-binary probes fall from 4,458/4,647 to 6/7 drains (CPU evidence only). The enlarged constant-clock index fixture preserves multi-drain resumability. All affected focused checks and required app gates pass; [independent review](evidence/R6/scheduler-review.md) **accepted** the exact correction with no required fixes, including backwards-clock bounds, FIFO, cancellation and cleanup. Fresh browser acceptance remains open.
-- **Faithful-London reconstruction:** accepted source packet `1aa3fef` is integrated through `7af01fb`, with modelling **NO-GO**. Charlotte Street remains the candidate. The [bounded acquisition recommendation](evidence/F1/acquisition-recommendation.md) specifies a dated daylight pass over the existing finite inventory and leaves missing dimensions/elevations unknown. No new modelling or open-ended research.
-- **Independent R6 acceptance:** [renderer/stream review](evidence/R6/stream-review.md) **accepted** `8393133` within its CPU/code scope. The Node decor test proves attachment, not visible sign content; browser verification must assess the actual rendered result. Overview headroom remains only 0.46 MiB before adding omitted resources. These are evidence gaps, not a browser pass.
-- **Current runtime work:** anchor `b77f6ae` and road `9c7e187` pass independent review with no material findings and are integrated through `70b4cc2`. [Anchor evidence/review](evidence/R6/anchor-bounds-cpu.md) confirms committed-data mapping parity; [road evidence/review](evidence/R6/road-classification-cpu.md) confirms exact parity over 56,793 committed roads and 4,004 synthetic cases. No persistent cache, geometry, budget or readiness change. All six [combined gates](evidence/R6/integration-checks/70b4cc2.log) and affected [focused checks](evidence/R6/integration-checks/70b4cc2-focused.log) pass. The browser tester completed the full bounded procedure on published source `03e5f02`: typical hub calls, interaction, gameplay, saves, coverage and fallback pass, while cold startup, wide startup/triangles, strict first-arrival retention and complete disposal remain open. Next owner: parent, scope one falsifiable correction or an explicit overview tradeoff before another production run.
-- **Accepted stream correction:** `9573562` refills completed stream batches within the shared four-millisecond budget, caps admissions at 64 and defers coverage scans until essential requests finish. [Independent review](https://app.devin.ai/attachments/3f91beaa-32cd-49c9-9996-3866a88946df/r6-review-9573562-citystream.md) accepted the exact candidate, including deadline, readiness, cancellation and budget behavior. The new focused test fails on `ed2203f` and passes on the candidate. A sequential CPU-only overview comparison was 15.56s/3,590 drains before and 14.37s/3,520 after, with unchanged 127.544649 MiB, 113,563 buildings and 3,233 residents.
-- **Accepted park correction:** worker `51c1b4b`, integrated as `56bde73`, replaces repeated linear containment with the existing bounded edge index. [Independent review](https://app.devin.ai/attachments/391f2313-b60a-4b7c-b7bf-f9c599b16d10/park-cover-index-review-51c1b4b.md) accepted exact predicate equivalence, 176,110 queries across all 769 parks, cache publication, cancellation and parity. CPU-only profiles at that source showed Fitzrovia 2.23s/515 drains (coverage at drain 460) and overview 7.75s/1,850 drains; geometry, buildings and residents were unchanged. Maximum drains were 8.96/8.28ms. These changes are not yet browser-accepted.
-- **Rejected experiment:** a conservative whole-road water-bounds bypass preserved geometry/context hashes and reduced resumptions 13%, but isolated single-module cold runs took 1.539/1.529/1.525s against 1.398/1.429/1.432s on the base. Its production helper and test-only draft were removed; no disconnected helper is included. The added full road-context digest assertion remains.
-- **Accepted leaf cache:** `044ee1d`, integrated as `a22118e`, caches exact frozen coordinates in existing four-edge leaves. [Independent review](https://app.devin.ai/attachments/d38f7db8-e18c-43f8-ae3b-b5921014fccf/report.md) accepted parity, bounded work and combined park/cache fixtures: roughly 33% faster repeated queries, 19% faster cold context and 26% faster park generation, with ~2.7 MiB additional JS heap. Parent water-edge/query/context/sequence/water-cover/park-cover/park-eligibility checks passed after integration. Runtime-frozen arrays are retained; the review's optional mutable typed-array experiment is not integrated. These are CPU results, not browser acceptance.
-- **Accepted cover grid:** [independent review](evidence/R6/cover-grid-review.md) accepted `eed997d`, integrated through `7e12480`. Parent reran both 400m/1600m stream tests, index/coverage, boundary geometry parity, tree locality/cleanup, TypeScript and scoped lint; all passed. Latest [CPU profile](evidence/R6/README.md#accepted-cover-grid-integration) reduces overview cover calls to 957 and buffers to 122.62 MiB, with slower street timing and long drain outliers; no browser pass.
-- **Accepted static batching:** [independent review](evidence/R6/static-mesh-batch-review.md) accepts worker `95041a9`, integrated through `171419d`. Corrections preserve material-object identity, GPU attribute type, custom-mesh rejection and actual output-byte caps, including generated/promoted indices. Parent integration checks passed: 17 batching cases, prefab lifecycle and resource-tree ownership. The CPU-only procedural count is 1356→158 meshes with exact vertex/triangle parity; it is not browser draw-call acceptance. Shadow callbacks and cross-root shared geometry are outside the current fresh-prefab call sites; shadow rendering is disabled.
-- **Accepted idle generation:** [independent review](evidence/R6/idle-generation-review.md) accepts `6309990`, integrated as `2ce587c`. One additional bounded stream drain runs only when browser idle time has at least 5ms remaining; animation-frame progress and genuine rendered readiness remain intact. Parent deadline/cancellation/renderer-disposal, scheduler and project TypeScript checks passed after integration. Scoped reviews are finished.
-- **Cover paging measurement:** an isolated, uncommitted grid experiment on `56bde73` reduced CPU-estimated overview cover calls from 9,650 at 400m to 3,179 at 800m and 957 at 1,600m, retaining all 113,563 stock buildings. CPU elapsed was 7.75/5.88/5.52s and stock+cover buffers 127.54/124.20/122.62 MiB. Fitzrovia was 2.23/2.01/2.07s and 31.72/32.00/32.31 MiB. Larger cells reduce clipping duplication and submissions but draw more offscreen cover at close range. This motivates the bounded 1,600m packet; it is not accepted source or browser evidence, and no performance target changed.
-- **Static byte-cap correction:** the 78-byte Uint8 fixture produced 84 bytes on `3e5bc0f`. Worker `95041a9` plans actual output attribute/index bytes. Uint8 promotion, mixed indexed/nonindexed pages and Uint32 promotion all fail on the earlier helper and pass after correction. Review accepted the final delta before integration.
-- **Combined gates:** `2ce587c` passed game (111 checks), UI (9), lint, build, offline binary verification and whitespace checks in one sequential run; [log](evidence/R6/integration-checks/2ce587c.log). All scoped cover, source/clipping, road/water/park/tree, stream, residency, ownership, diagnostics, fallback and street-mark checks passed. Both positional `test-city-stream.ts 400` / `1600` runs passed; an initial mistaken profiler-style flag invocation was rejected by the fixture's argument validation, without changing source.
-- **Next acceptance:** the bounded matrix on `03e5f02` and supplemental checks above are complete with explicit failures/limits. Review one measured performance correction before another timing run; do not repeat the completed full matrix without an affected path. No merge, manual deployment, geography/asset change or domain attachment.
+1. **No reachable finish line.** PR #30 carries runtime recovery (R0–R6), but
+   its "remaining acceptance" section kept listing the G2–G4 release gates:
+   physical iPhone Safari, Foo's place-recognition approval, the Charlotte
+   Street photo pass and a second reconstructed area. No agent can close those,
+   so every session started another optimization and another evidence pass.
+2. **Repeated re-measurement.** Each small change triggered a full native A/B
+   with small N and ended "does not establish causal improvement". That
+   result was then re-run instead of acted on. About 85% of the PR diff is
+   evidence (roughly 61 MB).
+3. **Blocked on sessions a new agent cannot reach.** The last candidate
+   (`cf6f514`) sat "awaiting independent review" in an external Devin
+   session. A missing reviewer is now a reason to review the change yourself,
+   not a reason to wait.
+4. **Wide-view draw calls became a blocker.** The verification contract sets
+   ≤300 draw calls for a *typical desktop view*. The default and hub views
+   already meet it. Only the whole-city wide view (593) exceeds it.
 
-## Earlier accepted checkpoints
+## PR #30 exit checklist (runtime recovery only)
 
-- Product direction: clarified — faithful virtual London in Three.js; real ordinary buildings and distinctive trees/signs recognizable during close street exploration; game preserved.
-- Planning baseline: `4f76b634c2ae1201d939fa3ccff12f4724624b94`.
-- Planning commit: `8408a8b6bc6d2ee048c6a6f45bdb823254b43fae`, verified against draft PR #29 before dispatch.
-- Earlier reviewed integration runtime/runner: `2446254`; clean final R2 capture: `f75d35b98be8a315e6c69e44b0caf4f9b36b76b5`. [R2](evidence/R2/README.md) passed 12/12 hydration phases with zero browser errors. [R0](evidence/R0/result.md) remains the failing 3D baseline; reliability, visual quality and navigation/performance measurements are still open.
-- Execution model: **Luna for specified small tasks**, per Foo's latest instruction. Terra produced the initial submissions and independent reviews; Luna completed the final runner corrections and command execution after usage-limit interruptions. The lead retains architecture and final acceptance. See [model discipline](agent-contract.md#model-and-token-discipline).
-- Current frontier: R2/R1, R4 index, R5a-0 river optimization, R5a scheduler, R3a resource ownership, R3b stock/fallback restoration, R5b-1 selected stock batching, R5b-2 detail APIs and R5b-3 incremental cell job and R5b-3a compact overview are accepted within their helper scopes. Default B1 remains red at about 1.6 GiB on the earlier runtime. G1, F1 GO and visual recognition remain open.
-- Latest completed app checks: all eight sequential commands passed on clean `f1af3e8`: game, UI, lint, build, cell-build, cell-stock-job, scheduler and offline geodata verification. [Compact overview acceptance](evidence/R5b/compact-overview/README.md) includes paired browser previews with no errors; neighbourhood/street are pixel-identical, overview has tiny bounded colour differences. Earlier [R3b browser evidence](evidence/R3b/README.md) passed 3/3 failure cases and 2/2 normal views at its recorded source. Later helper changes have no renderer hookup, so no new runtime performance pass is claimed.
-- Prior checkpoint: [cover index acceptance](evidence/R5b/cover-index/README.md) is complete at `e60eb1d`; its 26 focused checks and game/UI/lint/build/offline-binary integration gates passed. Later bounded-cover submissions and R6 drafts remain pending as detailed above.
-- Source progress: reviewed [cards for 26/28/30 Charlotte Street](evidence/F1/frontage-source-cards.md) add dated context and a correctly addressed ground-floor reference for 30. The wrong 30 Tottenham image remains negative evidence. Full-route coverage, dimensions and current condition are unresolved; no unattended modelling approval is claimed.
-- Model discipline: Luna implemented bounded helpers, browser fixtures and source cards; Terra handled cross-file ownership integration and scoped review, with one targeted escalation after repeated helper-test corrections. A command-reporting error was corrected from actual process exit/logs; final verification used one sequential command wrapper. Completed research/baselines were recovered across usage interruptions.
-- Visual reference: selected by Foo — workflow post `2090527551961940028`, detail post `2090527554310635552`. The [owner screenshot and F0 observations](evidence/F0/reference.md) are now preserved and inspected. They establish the workflow and static building-model benchmark. Motion footage and the complete SF scene remain unverified; they are not blockers for using the supplied reference.
-- Waiting for Foo: **no**. The pilot source audit can use Charlotte Street as its working candidate. Later visual/release decisions concern concrete completed evidence.
-- Publication: owner requested pushing the completed integration branch and adding a handoff to draft PR #30 on 17 September. No merge or deployment. See the PR handoff comment for the verified remote commit.
+PR #30 is complete when every row below is PASS on one exact commit. The
+F-track and G2–G4 items in the next section do not block PR #30.
+The thresholds in [verification.md](verification.md) are unchanged.
 
-The initial pilot candidate is Charlotte Street in Fitzrovia. [F1's checkpoint](evidence/F1/feasibility.md) identifies a 273 m Percy Street–Tottenham Street route, candidate references for 26/28 and a rejected address/photo match for 30. Full source coverage and modelling readiness are not yet established; a familiar public street nominated by Foo may replace the candidate.
+| # | Gate | State | Evidence / next action |
+|---|---|---|---|
+| E1 | `pnpm test:game`, `test:ui`, `lint`, `build`, `fetch-geodata --verify` | **PASS** on `77fdd79` | [log](evidence/R6/integration-checks/77fdd79.log) |
+| E2 | Game/save/2D fallback/context-loss preserved (B7–B9) | **PASS** (native: pick/Build/save on `7539c58`, fallback on `cc0d2d2`; no game/fallback code changed since) | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md), [browser-overview-stock-cc0d2d2](evidence/R6/browser-overview-stock-cc0d2d2.md) |
+| E3 | Typical desktop view: ≤2M triangles, ≤128 MiB geometry, ≤300 calls | **PASS**: default 128 calls; hubs 192/93/123; later changes only lowered calls | [browser-03e5f02](evidence/R6/browser-03e5f02.md), [road-context](evidence/R6/browser-road-context-6e1fcb1.md) |
+| E4 | Wide view renders all hubs within 128 MiB / 2M triangles (B4) | **PASS** at 3 azimuths; 593 calls recorded, not a PR #30 blocker | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) |
+| E5 | Reverse zoom keeps the city visible (no 113k→20k stock drop) | **Source PASS on `77fdd79`**; needs one native confirmation | see "Continuity" below |
+| E6 | Desktop first useful frame ≤5 s, `/game` default, cold | **FAIL** (5.8–8.4 s cold on the Apple-virtual test machine) | only open engineering item; see "Startup" below |
 
-| Task | Owner / isolated branch | Start SHA | Permitted tracked files | Submission / reviewer / acceptance |
-| --- | --- | --- | --- | --- |
-| R5b-4a continuation | [Index worker](https://app.devin.ai/sessions/e3850706546f47a0a359c0ff46d84e34) | `81946c1` | `coverIndex.ts`, `test-cover-index.ts` | Corrected `1633964` independently accepted; integrated and verified at `e60eb1d` |
-| R5b cover emission | Lead / `devin/1789676440-camera-stream`; independent reviewer 86f8b8 | `8393133` combined candidate | Cover jobs, page writer, source sequences and focused tests | Source sequences `6b3116c` and combined `8393133` paging accepted |
-| R6 integration | Parent / `devin/1789676440-camera-stream`; independent reviewer 34f526 | `8393133` combined candidate | Renderer/stream, decoration, search and focused tests | Scoped review accepted; full repository gates passed; player-facing browser acceptance pending |
-| F1 source continuation | [Source auditor](https://app.devin.ai/sessions/189be1f8ac2c49d282a16db98924fcd2) | `81946c1` | F1 evidence and reproducible source-audit script | `1aa3fef` independently [accepted](https://app.devin.ai/attachments/2aca96d6-6e91-462c-a302-72d67d6e8f88/F1-independent-rereview-1aa3fef.md), integrated through `7af01fb`; modelling NO-GO |
-| F1a | Terra implementer + separate Terra reviewer / `task/runway-f1-map-inventory` | `8408a8b` | Two inventory files | `f8e16aa` PASS after correcting distances, source clipping and hash validation; integrated at `d96e774`; [review](evidence/F1/inventory-review.md) |
-| R0a/c/d runner | Terra initial implementer/reviewer, then Luna corrections + independent lead checks / `task/runway-r0-browser` | `8408a8b` | Runner, fixtures, exact Playwright pin/lock, R0 evidence | Final worker `0d3e119` integrated at `5376929`; [code review](evidence/R0/runner-review.md) PASS |
-| Integration checks | Luna / `build/runway-recovery` | `31b1d99` | Log output only | All five commands passed; [records](evidence/R0/integration-checks/results.json) |
-| R2a / R2b | Luna implementers + separate Luna reviewer, lead acceptance / `task/runway-r2-hydration`, `task/runway-r2-browser` | `b8724e4` | CityHud, UI regression, new focused browser runner | R2a `5c06dbd` and R2b `0af8ef3` reviewed PASS; integrated `2446254`; four app gates, fresh lint and final 12/12 browser phases passed; [evidence](evidence/R2/README.md) |
-| R0b baseline and handoff | Lead + Luna QA / `build/runway-recovery` | `e0080a8` | R0 capture evidence, interpretation, status and next packets | 24 records, all red; 4 ready, 18 ready-wait timeouts, 2 diagnostic timeouts; 20 screenshots; B6 actions/trace blocked; [results](evidence/R0/result.md) |
-| R1 diagnostics | Luna implementers, Terra async review, lead runner review/acceptance | `36db827` / `783a204` | Reporter, host/factory, renderer tracker, focused scripts and R1 evidence | Runtime `fe64aa0`, capture `94e4854`; four app gates passed; diagnostics/fallback passed 3/3, real 3D readiness remains red 3/3; [evidence](evidence/R1/README.md) |
+Run the native checks (E5, E6) **once** on the final candidate. Record five cold samples and the median.
+State the machine. Do not repeat the run to improve the statistics.
 
-R2 used Luna for implementation, scoped review and command runs; the lead owned diagnosis, the test brief, integration and final acceptance. A worker usage-limit interruption occurred after its last commit was already complete, so the lead recovered the committed work without reimplementing it. No worker is waiting for Foo.
+## Not part of PR #30 (tracked separately, owner/human input required)
 
-R1a pure reporting was reviewed and integrated at `dd33fdb`; host/factory at `d1643d4`; renderer correction at `fe64aa0`; corrected browser runner at `44275fb`. The renderer worker initially wrote only its assigned files directly in integration; the lead verified the clean diff and serialized its correction there. Independent review caught and resolved late load callbacks after disposal. Review records, evidence and precise limitations are in [R1](evidence/R1/README.md).
+- **G2 faithful street / F1–F5:** Charlotte Street has a modelling **NO-GO**.
+  The next step is a dated daylight photo pass
+  ([recommendation](evidence/F1/acquisition-recommendation.md)), and it needs a
+  person on site. After that, Foo reviews recognition.
+- **Physical iPhone Safari and reference-mobile timing (G4):** these need a device.
+- **Wide-view ≤300 calls:** attribution is 124 stock, 218 cover, 242
+  landmarks/replacements and 9 other. Reaching 300 means batching landmarks
+  and cover. It is an optional follow-up, not a PR #30 gate, unless Foo decides
+  otherwise.
+- **SwiftShader/headless readiness, physical GPU memory reclamation:** these are
+  diagnostic limits, not PR #30 gates.
 
-Fitzrovia search is present and was exercised in three native production tours on `e153df9`. The remaining acceptance work is measured startup/draw-call correction and the incomplete browser matrix; reviewed cover and renderer integration must not be restarted.
+## Continuity (E5), integrated this session
 
-Use disjoint files and worktrees with at most two execution workers. Coordinate builds and browser timing. Do not replay interrupted launches or repeat the full baseline merely because a session resumed. Workers cannot spawn agents, broaden scope, publish, merge or deploy. The lead owns integration, PR publication and the next dependency-ready packet. No release gate is approved by R2.
+- `ead3fb5` is worker candidate `cf6f514`, cherry-picked unchanged onto
+  `01c0575`. Overview stock outside the new retain ring stays resident and
+  visible until its bytes are needed or the new coverage settles. Stock jobs
+  reserve bytes before growing, so the 128 MiB ceiling still holds.
+- `77fdd79` is a review fix. With that change, a *background* stock job
+  refused for room was recorded as a map error, which marked a ready map
+  "degraded". Refused prefetch now cancels quietly, the same outcome as the
+  existing background gate. A new tight-ceiling test fails without the fix.
+- Focused stream tests at 400/1600/3200 m cover cells and the cell-stock-job
+  tests pass. These include a per-frame reversal sweep: every reversal before
+  the cutover keeps all stock and regenerates nothing.
+- Native confirmation still needed: repeat the early-reversal check from
+  [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) once.
+
+## Startup (E6): next bounded task
+
+Step 1 is done (CPU-only profile on `77fdd79`, Fitzrovia camera, 3200 m cover
+cells; [job lifetimes](evidence/R6/startup-path-77fdd79/jobs.jsonl)).
+Command: `pnpm exec tsx scripts/profile-city-stream.ts --cover-cell=3200`.
+
+| Milestone | Synthetic 4 ms frames | CPU ms |
+|---|---:|---:|
+| All visible stock resident | 126 | ~500 |
+| Whole-city `stream:road-context` done | 556 | 1,751 (job lifetime) |
+| Essential coverage settled (readiness) | 661 | 2,764 |
+
+Readiness is **frame-bound, not CPU-bound**. `CityStream.drain()` runs one
+4 ms budget per animation frame, plus one idle drain. The road context only
+gets leftover time, so about 430 of the 661 frames wait on a single
+whole-city job. At 60 Hz, 661 frames is about 11 s of wall time; the idle
+drains roughly halve that. This is consistent with the measured 5.8–8.4 s
+native cold starts.
+
+Next task, done once (pick one lever and measure it):
+
+1. **Preferred:** until the first useful frame (the map is not yet interactive
+   and the title UI is DOM), let the stream use a larger per-frame budget.
+   One example: several 4 ms slices up to ~12 ms per frame. Individual slices stay ≤4 ms,
+   so the generation-slice gate is unchanged, and interaction frames after
+   readiness keep the 4 ms budget.
+2. Alternatively, restrict the road context to the visible cover cells first
+   and complete the rest in the background. This is larger and must keep
+   exact geometry parity.
+3. Run the repository gates, then one native five-sample cold run.
+   Record PASS or FAIL.
+
+If E6 still fails after that one change, report the stage timings to Foo. Ask
+for a decision: accept the measured startup for this PR, or fund a
+precomputed (baked) road/cover context. Do not start another optimization
+round without that decision.
+
+## Rules that stay in force
+
+- Preserve game rules, saves, audio, UI, the 2D fallback, the dynamic
+  `three` import boundary, and the committed bbox/binary/GLBs.
+- No merge, no deployment, no attachment to londonstartupmap.com.
+- Keep evidence small: `result.md` plus numbers. No new multi-MB JSON or
+  screenshot sets unless a gate needs them.
+- Update this page in place, keeping it short. Put history in the archive,
+  not here.

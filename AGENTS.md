@@ -4,6 +4,11 @@ This is a standalone experimental repo for the RUNWAY startup game.
 
 ## Current recovery plan
 
+**Current state and the PR #30 exit checklist:**
+[`docs/runway-recovery/status.md`](docs/runway-recovery/status.md). Read it
+before anything else. Work only on its open rows, and do not re-run
+completed measurements.
+
 For the owner-confirmed faithful virtual London reconstruction in Three.js, start at
 [`docs/runway-recovery/README.md`](docs/runway-recovery/README.md). It links
 the product contract, source audit, architecture, task plan, verification
