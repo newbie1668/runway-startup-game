@@ -1,6 +1,6 @@
 # Execution status
 
-Updated: 24 September 2026 UTC. Branch `build/runway-recovery`, draft PR #30.
+Updated: 24 September 2026 UTC (after `6959ad5`). Branch `build/runway-recovery`, draft PR #30.
 **Read this page first. It replaces the long running log**, which is archived
 unchanged in [history/status-2026-09-21.md](history/status-2026-09-21.md) and
 [history/handoff-2026-09-21.md](history/handoff-2026-09-21.md). Do not
@@ -36,22 +36,23 @@ F-track and G2–G4 items in the next section do not block PR #30.
 - A slow first load is acceptable, as long as the game loads on the first
   attempt and then plays smoothly. The 5 s load target is recorded, not
   gating.
+- **Desktop browser only.** Mobile/iPhone rows are dropped.
 
 | # | Gate | State | Evidence / next action |
 |---|---|---|---|
-| E1 | `pnpm test:game`, `test:ui`, `lint`, `build`, `fetch-geodata --verify` | **PASS** on `77fdd79` | [log](evidence/R6/integration-checks/77fdd79.log) |
+| E1 | `pnpm test:game`, `test:ui`, `lint`, `build`, `fetch-geodata --verify` | **PASS** on `6959ad5`; independent sub-agent review PASS | [log](evidence/R6/integration-checks/6959ad5.log) |
 | E2 | Game/save/2D fallback/context-loss preserved (B7–B9) | **PASS** (native: pick/Build/save on `7539c58`, fallback on `cc0d2d2`; no game/fallback code changed since) | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md), [browser-overview-stock-cc0d2d2](evidence/R6/browser-overview-stock-cc0d2d2.md) |
 | E3 | Typical desktop view: ≤2M triangles, ≤128 MiB geometry, ≤300 calls | **PASS**: default 128 calls; hubs 192/93/123; later changes only lowered calls | [browser-03e5f02](evidence/R6/browser-03e5f02.md), [road-context](evidence/R6/browser-road-context-6e1fcb1.md) |
 | E4 | Wide view renders all hubs within 128 MiB / 2M triangles (B4) | **PASS** at 3 azimuths; 593 calls recorded, not a PR #30 blocker | [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) |
-| E5 | Reverse zoom keeps the city visible (no 113k→20k stock drop) | **Source PASS on `77fdd79`**; needs one native confirmation | see "Continuity" below |
-| E6 | `/game` loads into 3D on the first attempt with no failure; load time recorded, not gated | **Likely PASS**: every recorded sample reached useful 3D within 60 s (5.8–8.4 s default cold) | confirm in the final native run |
+| E5 | Wheel zoom in and back out keeps the city drawn (≥75% on every frame, fully restored) | **Source PASS on `f14f5e2`**: CPU replay floor 90,451/113,563 (was 28,146); needs native confirmation | see "Continuity" below |
+| E6 | `/game` loads into 3D on the first attempt with no failure; load time recorded, not gated | **Likely PASS**: native 5.8–8.4 s before `f14f5e2`; software GL now ~34 s (previously never within 120 s) | confirm in the final native run |
 | E7 | Smooth after loading: desktop held-pan p95 frame interval ≤33 ms | **PASS** on `0e3a314` (p95 19.7 ms); not rerun since | confirm in the final native run |
 
-The only remaining work for PR #30 is **one native run on the final candidate**
-covering E5, E6 and E7. Use five cold loads, record the times, run a 30 s held
-pan, and do one zoom-in/zoom-out reversal. State the machine. Do not repeat the
-run to improve the statistics. Foo will provide the machine (their desktop or
-the previous test machine).
+**The only remaining work for PR #30 is one run of `pnpm check:desktop` on a
+real-GPU desktop.** Foo runs it using [desktop-check.md](desktop-check.md). It
+covers E5–E7. Run it once on the final candidate and do not repeat it to
+improve the statistics. Headless/software GL cannot confirm E5 or E7 (about
+1–4 fps), so the check needs a real GPU.
 
 ## Not part of PR #30 (tracked separately, owner/human input required)
 
@@ -59,7 +60,11 @@ the previous test machine).
   The next step is a dated daylight photo pass
   ([recommendation](evidence/F1/acquisition-recommendation.md)), and it needs a
   person on site. After that, Foo reviews recognition.
-- **Physical iPhone Safari and reference-mobile timing (G4):** these need a device.
+- **Mobile, iPhone/Safari:** dropped by Foo on 24 September (desktop browser only).
+- **Known edge behaviour (pre-existing, follow-up):** when an overview tile
+  splits into detailed cells, members just outside the visible set are not
+  rebuilt while unseen. When the view then moves, they appear a moment later
+  at the screen edge.
 - **Wide-view ≤300 calls:** attribution is 124 stock, 218 cover, 242
   landmarks/replacements and 9 other. Reaching 300 means batching landmarks
   and cover. It is an optional follow-up, not a PR #30 gate, unless Foo decides
@@ -67,21 +72,31 @@ the previous test machine).
 - **SwiftShader/headless readiness, physical GPU memory reclamation:** these are
   diagnostic limits, not PR #30 gates.
 
-## Continuity (E5), integrated this session
+## Continuity (E5)
 
-- `ead3fb5` is worker candidate `cf6f514`, cherry-picked unchanged onto
-  `01c0575`. Overview stock outside the new retain ring stays resident and
-  visible until its bytes are needed or the new coverage settles. Stock jobs
-  reserve bytes before growing, so the 128 MiB ceiling still holds.
-- `77fdd79` is a review fix. With that change, a *background* stock job
-  refused for room was recorded as a map error, which marked a ready map
-  "degraded". Refused prefetch now cancels quietly, the same outcome as the
-  existing background gate. A new tight-ceiling test fails without the fix.
-- Focused stream tests at 400/1600/3200 m cover cells and the cell-stock-job
-  tests pass. These include a per-frame reversal sweep: every reversal before
-  the cutover keeps all stock and regenerates nothing.
-- Native confirmation still needed: repeat the early-reversal check from
-  [browser-cover-7539c58](evidence/R6/browser-cover-7539c58.md) once.
+- `ead3fb5` is worker candidate `cf6f514`. Stock outside the new retain ring
+  stays until its bytes are needed, and stock jobs reserve bytes so the
+  128 MiB ceiling holds. `77fdd79` is a review fix: refused background
+  prefetch was being reported as a map error.
+- The first headless run of `check:desktop` showed this protected only a
+  single camera jump. Wheel zoom settles every intermediate view at once, and
+  the settle step still released all stale stock. The CPU replay dropped
+  113,563 → 28,146 drawn buildings
+  ([script](../../scripts/profile-gradual-zoom.ts)).
+- `f14f5e2`: settling now releases stale residents, farthest first, only down
+  to the 96 MiB background level. That keeps the nearest context and leaves
+  the headroom the zoom-out merge needs. A version that kept everything until
+  128 MiB failed the memory-pressure test with a fatal fallback on the return
+  leg, so it was rejected. Replay floor: 90,451 of 113,563. The lost ~20% is
+  the far city edge, refilled after zooming out. The new gradual-zoom test
+  passes at 400/1600/3200 m.
+- `f14f5e2` also removes a frame-rate dependency from loading. Until the
+  first ready frame, generation gets half of each frame interval, in ≤4 ms
+  drains. The independent review (sub-agent) failed the first version,
+  because loading frames could pass 50 ms. The follow-up commit bounds
+  generation plus the frame's other main-thread work to 32 ms. Software GL at
+  ~4 fps now loads the default view in ~34 s with loading-frame p95 of
+  32–46 ms; before, it was still loading at 120 s.
 
 ## Startup: optional follow-up (not gating after Foo's decision)
 

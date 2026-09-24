@@ -38,7 +38,7 @@ game itself stays exactly as it is.
 | Keep this repo and `/game` separate from londonstartupmap.com. No deploy or attachment without Foo's approval. | AGENTS.md |
 | No merge or deployment without Foo's explicit approval. | every plan and handoff |
 | Before calling a change done: `pnpm test:game`, `pnpm lint`, `pnpm build`, and `pnpm test:ui` for game code. | AGENTS.md |
-| Mobile matters: the layout must work on phones, and weak devices fall back to 2D. | product.md P7 |
+| ~~Mobile matters.~~ **Superseded 24 Sep: desktop browser only** (see decision 4). Existing mobile layout code stays but is not a requirement. | product.md P7 |
 | Use cheaper models for well-specified small tasks. The lead owns architecture and acceptance. | agent-contract.md, 5 September 2026 |
 
 ## Decisions of 24 September 2026 (this session)
@@ -51,6 +51,10 @@ game itself stays exactly as it is.
    load, on the first attempt without failing, and then plays smoothly. The
    5-second desktop load target no longer blocks PR #30. Smooth play after
    loading still does.
+4. **Desktop only: "something that runs in the browser" on a desktop or
+   laptop.** Phones, tablets, iPhone/Safari device testing and
+   reference-mobile performance are dropped from every stage. Mobile layout
+   code is kept (not removed), but is not tested or gated.
 
 ## Definition of done, in three stages
 
@@ -101,16 +105,17 @@ Done when the same process reproduces that quality in a second, contrasting
 area, and Foo has a costed, area-by-area rollout plan for London
 ([product.md](product.md) P12, verification.md G3).
 
-The release candidate also needs a real iPhone/Safari check and a full QA
-pass on the exact commit ([verification.md](verification.md) G4). The final
+The release candidate also needs a full desktop-browser QA pass on the exact
+commit ([verification.md](verification.md) G4, minus its mobile rows per
+decision 4). The final
 geographic extent, target devices and budget are still to be set by Foo after
 Stage 2.
 
 ## Open items only Foo can provide
 
-- Stage 1: about 30 minutes on a desktop with Chrome and a real graphics card
-  for the final smoothness/load check, or access to the previous test machine.
+- Stage 1: about 30 minutes on a desktop with a real graphics card for the
+  final check. Steps: [desktop-check.md](desktop-check.md).
 - Stage 1 end: how to land the unmerged PR stack.
 - Stage 2 start: go/no-go and who takes the Charlotte Street photos (or a
   different street).
-- Stage 3: geographic extent, target devices and budget.
+- Stage 3: geographic extent and budget.

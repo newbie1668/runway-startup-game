@@ -2,9 +2,10 @@
 
 Continue on draft PR #30, branch `build/runway-recovery`. Start from
 [status.md](../status.md) and [definition-of-done.md](../definition-of-done.md).
-They hold the exit checklist and Foo's 24 September decisions. No engineering
-item is open for PR #30. What remains is one native browser confirmation
-(E5–E7) on a machine Foo provides.
+They hold the exit checklist and Foo's 24 September decisions (desktop
+browser only). No engineering item is open for PR #30. What remains is one
+`pnpm check:desktop` run on a real-GPU desktop, which Foo does following
+[desktop-check.md](../desktop-check.md).
 
 - Accepted source is on the branch head. No worker branches are waiting.
   `devin/1789956240-overview-coverage-continuity` (`cf6f514`) is integrated
