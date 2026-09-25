@@ -28,7 +28,7 @@ It should run after, or alongside, the map recovery work, not inside it.
   finish a run without looking at London once.
 
 So the fix is not a different game length. It's making each in-game week a
-short, hands-on stretch of play that happens *on the map*.
+short, hands-on stretch of play that happens _on the map_.
 
 ## The session loop
 
@@ -37,11 +37,11 @@ short, hands-on stretch of play that happens *on the map*.
 Company growth is shown by how much of London you use. The camera pulls back
 as you grow, like Katamari or Spore:
 
-| Act | Stages | Your London | What you're juggling |
-| --- | --- | --- | --- |
-| **1. The neighbourhood** | Garage → Pre-seed | Your HQ hub plus walking distance. Street-level camera. | One founder avatar. Learn the map by walking it. |
-| **2. The city** | Seed → Series A | All eight hubs. The Tube and taxis unlock. Mid-height camera. | Founder plus 1–2 hires you can send out as extra avatars. |
-| **3. The skyline** | Series B → Unicorn | City-wide. Rival turf wars. Your tower on the skyline. Overview camera. | Several team avatars at once, rivals poaching nearby, investor races. |
+| Act                      | Stages             | Your London                                                             | What you're juggling                                                  |
+| ------------------------ | ------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **1. The neighbourhood** | Garage → Pre-seed  | Your HQ hub plus walking distance. Street-level camera.                 | One founder avatar. Learn the map by walking it.                      |
+| **2. The city**          | Seed → Series A    | All eight hubs. The Tube and taxis unlock. Mid-height camera.           | Founder plus 1–2 hires you can send out as extra avatars.             |
+| **3. The skyline**       | Series B → Unicorn | City-wide. Rival turf wars. Your tower on the skyline. Overview camera. | Several team avatars at once, rivals poaching nearby, investor races. |
 
 A win ends with a victory-lap camera flight over London. A loss ends with the
 HQ lights going out and a replay of the run.
@@ -67,7 +67,8 @@ This replaces the current "click 2 buttons, press End week" turn:
 
    Travel time is the cost. The decision is which two or three things you
    can reach this week.
-3. **Things happen on the way.** Dilemma cards fire *somewhere*: the camera
+
+3. **Things happen on the way.** Dilemma cards fire _somewhere_: the camera
    flies there and the clock pauses while you choose.
 4. **Friday: a 5-second recap.** User dots flow toward HQ, cash floats up or
    down, and rival stage-ups flash across the map. Then Monday starts again
@@ -101,16 +102,16 @@ pure turn machine:
 These are recent browser games built with AI coding agents (Claude,
 Opus, Cursor). Each has something we can borrow:
 
-| Game | What it does | What we borrow |
-| --- | --- | --- |
-| [San Francisco — The Game](https://sf.thijs.gg/) (Codex, 2026) | The real city rebuilt from Apple Maps. Walk, drive, climb and hang-glide. Search and teleport to any address. Shareable location links. Multiplayer ghosts. ~884 hours played in its first two days. | Proof that a **recognisable real city is the hook**. Address search → fly there; a **shareable "my HQ" link**; later, other founders' HQs as ghosts. |
-| [The Great Taxi Assignment](https://great-taxi-assignment.netlify.app/) (Claude 3.7 Sonnet, Vibe Jam 2025 winner) and [Capybaras Delivering Food](https://capybara-vibejam26.leocoout.dev/) (Claude Code, Vibe Jam 2026) | Timed pickups and drop-offs across a 3D city. | The **Mon–Fri errand run**: pins with countdowns, and routing across real streets under time pressure. |
-| [Vector Tango](https://www.vector-tango.com/play/) (Vibe Jam 2025, 3rd) | 3D air-traffic control: juggle many moving craft. | **Act 3**: dispatching several team avatars at once without collisions or wasted trips. |
-| [Tiny Skies](https://tinyskies.vercel.app/) (Vibe Jam 2026, Most Polished) and [fly.pieter.com](https://fly.pieter.com/) | Cozy flying over a small, dense world. | The **victory-lap flight** and fly-overs between acts. The map as a joy to move through. |
-| [FULL SEND](https://fullsend.game/) (Cursor + Claude) | Racing on OpenStreetMap scenery, with leaderboards. | Same OSM source as us. **Seeded daily runs** with a leaderboard ("fastest unicorn this week") so one session feels like an attempt worth sharing. |
-| [Kanso](https://github.com/lappemic/awesome-ai-built-games) (Vibe Jam 2026, Most Zen) | A calm, living bonsai that visibly grows. | **Your HQ as the growing thing**: laptop in a café → co-working desk → floor with a sign → building → tower-top logo. |
-| Opus 5 / 5.5 SimCity-style builders ([SimSafari](https://github.com/sandrajovicevic/SimSafari/pull/3), [llm-city-builder](https://github.com/CyberSecDef/llm-city-builder/tree/main)) | Zones, cars following lanes, and demand, jobs and population changing as the city grows. | **Data views**: talent, buzz, rent, rival territory and your users as map recolours, SimCity-style. |
-| [Hop.Earth](https://www.explainx.ai/blog/hop-earth-drive-anywhere-satellite-maps-game-august-2026), [WildCity](https://github.com/Aakif9866/WildCity) | Drivable/explorable worlds from OSM data. | Street-level exploration rewards: hidden leads at real founder spots (Silicon Roundabout, famous cafés). |
+| Game                                                                                                                                                                                                                     | What it does                                                                                                                                                                                         | What we borrow                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [San Francisco — The Game](https://sf.thijs.gg/) (Codex, 2026)                                                                                                                                                           | The real city rebuilt from Apple Maps. Walk, drive, climb and hang-glide. Search and teleport to any address. Shareable location links. Multiplayer ghosts. ~884 hours played in its first two days. | Proof that a **recognisable real city is the hook**. Address search → fly there; a **shareable "my HQ" link**; later, other founders' HQs as ghosts. |
+| [The Great Taxi Assignment](https://great-taxi-assignment.netlify.app/) (Claude 3.7 Sonnet, Vibe Jam 2025 winner) and [Capybaras Delivering Food](https://capybara-vibejam26.leocoout.dev/) (Claude Code, Vibe Jam 2026) | Timed pickups and drop-offs across a 3D city.                                                                                                                                                        | The **Mon–Fri errand run**: pins with countdowns, and routing across real streets under time pressure.                                               |
+| [Vector Tango](https://www.vector-tango.com/play/) (Vibe Jam 2025, 3rd)                                                                                                                                                  | 3D air-traffic control: juggle many moving craft.                                                                                                                                                    | **Act 3**: dispatching several team avatars at once without collisions or wasted trips.                                                              |
+| [Tiny Skies](https://tinyskies.vercel.app/) (Vibe Jam 2026, Most Polished) and [fly.pieter.com](https://fly.pieter.com/)                                                                                                 | Cozy flying over a small, dense world.                                                                                                                                                               | The **victory-lap flight** and fly-overs between acts. The map as a joy to move through.                                                             |
+| [FULL SEND](https://fullsend.game/) (Cursor + Claude)                                                                                                                                                                    | Racing on OpenStreetMap scenery, with leaderboards.                                                                                                                                                  | Same OSM source as us. **Seeded daily runs** with a leaderboard ("fastest unicorn this week") so one session feels like an attempt worth sharing.    |
+| [Kanso](https://github.com/lappemic/awesome-ai-built-games) (Vibe Jam 2026, Most Zen)                                                                                                                                    | A calm, living bonsai that visibly grows.                                                                                                                                                            | **Your HQ as the growing thing**: laptop in a café → co-working desk → floor with a sign → building → tower-top logo.                                |
+| Opus 5 / 5.5 SimCity-style builders ([SimSafari](https://github.com/sandrajovicevic/SimSafari/pull/3), [llm-city-builder](https://github.com/CyberSecDef/llm-city-builder/tree/main))                                    | Zones, cars following lanes, and demand, jobs and population changing as the city grows.                                                                                                             | **Data views**: talent, buzz, rent, rival territory and your users as map recolours, SimCity-style.                                                  |
+| [Hop.Earth](https://www.explainx.ai/blog/hop-earth-drive-anywhere-satellite-maps-game-august-2026), [WildCity](https://github.com/Aakif9866/WildCity)                                                                    | Drivable/explorable worlds from OSM data.                                                                                                                                                            | Street-level exploration rewards: hidden leads at real founder spots (Silicon Roundabout, famous cafés).                                             |
 
 The common thread is that the popular ones let you **move through a real
 place with a goal and a clock**. The ones that only let you look at a city
@@ -122,16 +123,16 @@ place (London). The missing piece is movement with a clock.
 1. **Places, not menus.** Actions happen at hubs, with travel in slots. Click
    a hub to get an action card, and have the sidebar ask "where?". Uses the
    existing hub multipliers (`hireQualityMult`, `hypeMult`,
-   `eventFrequencyMult`, `synergySector`). *Makes the map matter.*
+   `eventFrequencyMult`, `synergySector`). _Makes the map matter._
 2. **The live week.** Founder avatar, animated trips, slot clock with speed
-   controls, Friday recap and auto-advance. *Makes a session flow.*
+   controls, Friday recap and auto-advance. _Makes a session flow._
 3. **The city shows your company.** HQ grows by stage. User dots/lit windows
    spread as traction grows, billboards appear while hype is high, and rival
-   HQs grow too. *Makes progress visible.*
+   HQs grow too. _Makes progress visible._
 4. **Data views.** Talent, buzz, rent, rivals and users as HUD toggles.
-   *Makes the map the place where you plan.*
+   _Makes the map the place where you plan._
 5. **Acts, camera pull-back and team avatars.** The Act 1–3 zones and
-   several avatars in Act 3. *Gives the run an arc.*
+   several avatars in Act 3. _Gives the run an arc._
 6. **Timed leads, located dilemmas, city events.** London Tech Week, a Tube
    strike (taxis only that week), rival offices opening nearby.
 7. **Shareable runs.** A seeded "daily London" run, a result card with a
