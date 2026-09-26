@@ -329,6 +329,60 @@ export class MapOverlay {
     ctx.textAlign = 'center';
   }
 
+  /** Live-week founder: eases between hubs along a shallow arc, then shows a work ring. */
+  private drawAvatar(ctx: CanvasRenderingContext2D, t: number) {
+    const a = this.scene.avatar!;
+    const from = this.projector(HUB_POS[a.from]);
+    const to = this.projector(HUB_POS[a.to]);
+    if (!from || !to) return;
+    const span = Math.max(1, a.arriveMs - a.departMs);
+    const k = Math.min(1, Math.max(0, (t - a.departMs) / span));
+    const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+    const lift =
+      Math.sin(e * Math.PI) * Math.min(60, Math.hypot(to.x - from.x, to.y - from.y) * 0.18);
+    const x = from.x + (to.x - from.x) * e;
+    const y = from.y + (to.y - from.y) * e - lift - 22;
+    if (k < 1) {
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y - 22);
+      ctx.quadraticCurveTo(
+        (from.x + to.x) / 2,
+        (from.y + to.y) / 2 - 22 - lift * 2,
+        to.x,
+        to.y - 22,
+      );
+      ctx.strokeStyle = 'rgba(250,204,21,0.55)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (a.busyUntilMs && k >= 1 && t < a.busyUntilMs) {
+      const start = a.arriveMs;
+      const p = Math.min(1, (t - start) / Math.max(1, a.busyUntilMs - start));
+      ctx.beginPath();
+      ctx.arc(x, y, 17, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      if (a.busyIcon) {
+        ctx.font = '14px ui-sans-serif, system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(a.busyIcon, x, y - 24);
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#facc15';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(8,15,33,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = '13px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('🧑‍💼', x, y + 5);
+  }
+
   /** Area labels — hide when fully zoomed out (illegible) or at street scale (they sit on façades). */
   drawAreaLabels(ctx: CanvasRenderingContext2D, zoom: number) {
     if (zoom <= 3.2 || zoom >= 55) return;
@@ -387,6 +441,12 @@ export class MapOverlay {
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${this.atmosphere === 'day' ? '15,23,42' : '226,232,240'},${labelAlpha})`;
       ctx.fillText(hub.name, p.x, p.y + (setup ? 40 : 20));
+      const badge = !setup ? this.scene.hubBadges?.[hub.id] : undefined;
+      if (badge) {
+        ctx.font = '600 11px ui-sans-serif, system-ui';
+        ctx.fillStyle = `rgba(${this.atmosphere === 'day' ? '15,23,42' : '226,232,240'},0.85)`;
+        ctx.fillText(badge, p.x, p.y + 34);
+      }
       if (setup && hovered) {
         ctx.font = '500 11px ui-sans-serif, system-ui';
         ctx.fillStyle = 'rgba(148,163,184,0.9)';
@@ -412,16 +472,19 @@ export class MapOverlay {
         )!;
         const hovered = this.hover?.type === 'event' && this.hover.eventId === ev.id;
         const pulse = 0.5 + 0.5 * Math.sin(t * 0.004 + pin.x);
+        const lead = ev.tone === 'lead';
         if (!ev.attended) {
           ctx.beginPath();
           ctx.arc(pin.x, pin.y, 12 + pulse * 8, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(125,211,252,${(0.5 - pulse * 0.3).toFixed(2)})`;
+          ctx.strokeStyle = lead
+            ? `rgba(250,204,21,${(0.6 - pulse * 0.3).toFixed(2)})`
+            : `rgba(125,211,252,${(0.5 - pulse * 0.3).toFixed(2)})`;
           ctx.lineWidth = 2;
           ctx.stroke();
         }
         ctx.beginPath();
         ctx.arc(pin.x, pin.y, 9, 0, Math.PI * 2);
-        ctx.fillStyle = ev.attended ? 'rgba(71,85,105,0.9)' : EVENT_COLOR;
+        ctx.fillStyle = ev.attended ? 'rgba(71,85,105,0.9)' : lead ? '#facc15' : EVENT_COLOR;
         ctx.fill();
         ctx.strokeStyle = 'rgba(8,15,33,0.9)';
         ctx.lineWidth = 1.5;
@@ -430,7 +493,7 @@ export class MapOverlay {
         ctx.fillStyle = '#0a1124';
         ctx.font = '700 9px ui-sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(ev.attended ? '✓' : '★', pin.x, pin.y + 3);
+        ctx.fillText(ev.attended ? '✓' : (ev.glyph ?? '★'), pin.x, pin.y + 3);
         if (hovered) this.tooltip(ctx, pin.x, pin.y - 24, ev.name);
       }
     }
@@ -456,6 +519,8 @@ export class MapOverlay {
         ctx.fillText(label, p.x, p.y - 34);
       }
     }
+
+    if (this.scene.avatar && this.scene.mode === 'play') this.drawAvatar(ctx, t);
 
     // --- Particles
     this.stepParticles(ctx, dt);

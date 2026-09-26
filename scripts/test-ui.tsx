@@ -10,6 +10,7 @@ import React, { type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { metadata as gameMetadata } from '../app/game/page';
 import { GameApp } from '../components/game/GameApp';
+import { LiveApp } from '../components/game/LiveApp';
 import { CityHud } from '../components/game/CityHud';
 import { DilemmaModal, EndOverlay, MoveModal } from '../components/game/Modals';
 import { SetupOverlay } from '../components/game/SetupOverlay';
@@ -40,9 +41,7 @@ function cityHudMarkupAt(date: string): string {
     },
   }) as DateConstructor;
   try {
-    return renderToStaticMarkup(
-      <CityHud hide={false} screen="title" game={null} onFlyTo={noop} />,
-    );
+    return renderToStaticMarkup(<CityHud hide={false} screen="title" game={null} onFlyTo={noop} />);
   } finally {
     globalThis.Date = nativeDate;
   }
@@ -212,6 +211,13 @@ check('the play sidebar is a glass panel with label/value rows', () => {
   assert.match(html, />Valuation</);
   assert.match(html, /Advance week/);
   assert.doesNotMatch(html, /bg-\[#0a0f22\]/);
+});
+
+check('the live-week prototype renders on the server with daily and practice entries', () => {
+  const html = renderToStaticMarkup(<LiveApp />);
+  assert.match(html, /LIVE WEEK PLAYTEST/);
+  assert.match(html, /Daily London/);
+  assert.match(html, /Practice run/);
 });
 
 console.log(`\nAll ${passed} UI checks passed.`);

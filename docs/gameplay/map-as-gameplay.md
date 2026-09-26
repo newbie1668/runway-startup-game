@@ -1,8 +1,8 @@
 # Making the map part of play
 
-Status: **direction approved by the owner on 26 Sept 2026; implementation
-not started.** The first step is the playtest prototype (build step 0
-below). The recovery product contract
+Status: **direction approved by the owner on 26 Sept 2026. The step-0 playtest
+prototype is built on branch `feat/live-week-prototype` at `/game/live`**
+(see [Playtest prototype](#playtest-prototype-step-0)). The recovery product contract
 (`docs/runway-recovery/product.md`) keeps game rules, balance, RNG, the save
 schema and action semantics out of scope, and rules out a broader game
 redesign, live citizens/traffic and a day/night switch. Everything below
@@ -250,6 +250,89 @@ core loop and ship together. 3–4 are mostly renderer/overlay work with
 little balance risk. 7–8 are what makes the game spread, so they should
 follow soon after 1–2 rather than last.
 
+## Playtest prototype (step 0)
+
+Play it at **`/game/live`**. Add `?map=2d` to force the 2D map and
+`?stats=1` to show the playtest counters on the title screen. The classic
+game at `/game` is unchanged.
+
+### What's in it
+
+- **Live week.** 10 half-days per week, about 1.2 s each at 1×. Pause with
+  Space, and set speed with 1/2/3. Idle time uses up the week. After Friday
+  there's a short recap, then Monday starts on its own.
+- **Places, not menus:**
+  - Build at HQ.
+  - Recruit at the talent hubs (King's Cross, Farringdon, Shoreditch, Canary
+    Wharf, Battersea).
+  - Press in Soho, Shoreditch or Camden.
+  - Growth anywhere; busier hubs convert more.
+  - Team days in the parks (Camden, Battersea, London Bridge).
+  - Pitch at Mayfair (Soho) up to Series A, and at Canary Wharf after that.
+
+  Each hub shows icons for what it offers.
+
+- **Travel.** The Tube is free and takes 1–2 half-days depending on
+  distance. A taxi takes 1 half-day and costs £120 plus about £45 per km. The
+  founder marker moves along an arc on the map.
+- **Leads.** 1–2 a week: an angel, a star engineer, a journalist or a pilot
+  customer. Each sits at a real venue and is only there for a set window.
+  Classic events now happen on one specific day.
+- **Dilution and payout.** Pitch odds and the share you'd sell are shown
+  before you commit. Weak odds mean you sell more. The unicorn round is
+  priced at £1–3B depending on the company's stats, and the score is equity ×
+  valuation.
+- **Daily London.** A shared seed per UTC day. The first finished run is
+  stored locally as that day's ranked result, and replays are unranked. A
+  copy-to-share result uses a Wordle-style stage ladder plus a challenge link
+  (`/game/live?daily=YYYY-MM-DD`).
+- **Replay log.** Every move is recorded. `replayLive(config, moves)`
+  rebuilds the run exactly, which is the basis for server verification later.
+  `scripts/test-live.ts` checks it.
+
+### Balance (bot, 192 runs)
+
+Doubling burn and starting cash on its own made all the difficulty happen in
+the first 8 weeks, followed by an easy cruise. Stage-scaled burn didn't bite,
+because raises dwarf burn. What worked is a real startup rule: **after each
+round, spend is at least the round size ÷ 7 weeks**, so every raise buys a
+limited runway to reach the next milestone.
+
+Current tuning (`LIVE_TUNING` in `lib/game/live.ts`):
+
+- action costs: build 4, pitch 4, most others 3, team day 2 half-days
+- burn ×1.6
+- starting cash ×1.5
+- round runway 7 weeks
+
+Results:
+
+- **55% of runs reach unicorn, in about 35 weeks on average.**
+- Busts are spread through the run (3 of 86 before week 8).
+- Winning payouts run from £776M (p10) to £1.10B (p90).
+
+At 1× a week lasts about 12 s, so a winning run is about 7–8 minutes.
+
+### Not in it yet
+
+- Leaderboard backend or server verification.
+- Share image, and ghost routes on challenge links.
+- Tube-line routing: travel follows an arc, not real streets.
+- Located dilemmas: cards still fire at the week boundary.
+- The act structure and camera pull-back.
+- Team avatars.
+- HQ growth visuals and data views.
+
+### Running the playtest
+
+1. Give 5–10 people the link with `?stats=1`. Ask them to play Daily London
+   first and then keep going if they want.
+2. Record from the counters: runs started, runs finished, wins, **restarts
+   within 60 s of finishing**, and share clicks.
+3. Ask each person one question: "What were you trying to do on the map?"
+4. Carry on to step 1 if most people finish a run and at least half restart
+   straight away. If not, re-tune the loop first.
+
 ## Engineering constraints to respect
 
 - **Engine stays pure and deterministic.** It adds slots, travel, leads and
@@ -285,16 +368,20 @@ follow soon after 1–2 rather than last.
   - a share card with a challenge link
 - A playtest prototype comes before the full build.
 
+## Decided (26 Sept 2026, continued)
+
+- The prototype lives on its own branch, `feat/live-week-prototype`, which
+  is kept out of the recovery PR.
+- Once the playtest passes, the live week replaces "End week" by default,
+  with classic turns kept as a setting.
+- A save-version bump is accepted, meaning old saves reset. The prototype
+  uses its own save key for now.
+- Founder/team avatars moving on the map are allowed, as an exception to "no
+  live citizens".
+
 ## Still open
 
-1. Which branch and PR the prototype goes on. It should stay out of the
-   recovery PR (#30).
-2. Should the live week replace "End week" by default, with classic turns
-   kept as a setting? (Recommended: yes.)
-3. Is a save-version bump OK, meaning old saves reset? (Recommended: yes.)
-4. Can founder/team avatars move on the map, as an exception to "no live
-   citizens"? (Recommended: yes.)
-5. The leaderboard backend: which host and data store, and how display
+1. The leaderboard backend: which host and data store, and how display
    names are moderated.
-6. Launch domain. Sharing works best from `londonstartupmap.com`, but
+2. Launch domain. Sharing works best from `londonstartupmap.com`, but
    attaching the game there still needs explicit product approval.

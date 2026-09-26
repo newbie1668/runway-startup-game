@@ -35,6 +35,20 @@ export interface SceneEvent {
   name: string;
   hubId: HubId;
   attended: boolean;
+  /** Live-week leads draw as gold pins with their own glyph. */
+  tone?: 'lead';
+  glyph?: string;
+}
+
+/** Live-week founder marker, travelling between hubs on the rAF clock. */
+export interface SceneAvatar {
+  from: HubId;
+  to: HubId;
+  departMs: number;
+  arriveMs: number;
+  /** Optional work-in-progress ring at the destination. */
+  busyUntilMs?: number;
+  busyIcon?: string;
 }
 
 export interface Scene {
@@ -45,6 +59,10 @@ export interface Scene {
   stageName: string;
   rivals: SceneRival[];
   events: SceneEvent[];
+  /** Optional live-week layers; the classic game never sets these. */
+  avatar?: SceneAvatar;
+  /** Small caption under a hub's name, e.g. what you can do there. */
+  hubBadges?: Partial<Record<HubId, string>>;
 }
 
 export type HitTarget =
