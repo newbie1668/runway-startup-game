@@ -132,11 +132,11 @@ export function streetUniqueAt(lng: number, lat: number): StreetUniqueId | null 
 }
 
 /**
- * No. 1 Poultry sits on the noticed tray. uniqueStockRecipe (wedge-step,
- * ribbon, accordion, projecting bays) must never run for this address.
+ * No. 1 Poultry's custom tray asset is parked, so it falls back to ordinary stock.
  */
 export function streetUniqueBlocksStock(kind: StreetUniqueId | null): boolean {
-  return kind === 'no-1-poultry';
+  void kind;
+  return false;
 }
 
 export type StreetPt = { x: number; z: number };

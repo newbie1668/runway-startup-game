@@ -1,0 +1,10 @@
+{
+  "command": "node scripts/test-map-diagnostics-browser.mjs",
+  "exitCode": 1,
+  "captureHead": "94e485463e91379d5c7b8863c9597f03a77b9c87",
+  "buildHead": "fe64aa0493f7a337b0a5224d94073d4b5fc897a3",
+  "appAndAssetTreesUnchangedSinceBuild": true,
+  "startedAt": "2026-09-06T15:25:32.474Z",
+  "finishedAt": "2026-09-06T15:27:23.165Z",
+  "interpretation": "Diagnostics and fallback verified; all three real 3D views retain readiness and screenshot failures. This is not a G1 reliability pass."
+}

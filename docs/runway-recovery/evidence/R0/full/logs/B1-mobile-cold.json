@@ -1,0 +1,34 @@
+{
+  "id": "B1",
+  "path": "/game",
+  "url": "http://127.0.0.1:4318/game",
+  "viewport": "mobile",
+  "requested": {
+    "width": 390,
+    "height": 844,
+    "dpr": 2,
+    "isMobile": true,
+    "hasTouch": true,
+    "input": "touch/coarse"
+  },
+  "phase": "cold",
+  "timing": {
+    "navigationMs": 20,
+    "totalMs": 30025
+  },
+  "ready": false,
+  "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+  "actual": null,
+  "force2dAfterLoad": "unavailable",
+  "events": [
+    {
+      "type": "pageerror",
+      "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+    },
+    {
+      "type": "runner",
+      "message": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n"
+    }
+  ],
+  "failed": true
+}

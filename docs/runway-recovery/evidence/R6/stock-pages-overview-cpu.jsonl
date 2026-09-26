@@ -1,0 +1,255 @@
+{"id":"stream:1:tile:tile:7,3:overview","ms":49.66862499999999,"frame":12,"geometryMiB":1.2275848388671875}
+{"id":"stream:1:tile:tile:6,3:overview","ms":22.484874999999988,"frame":17,"geometryMiB":1.99530029296875}
+{"id":"stream:1:tile:tile:7,2:overview","ms":27.610000000000014,"frame":23,"geometryMiB":3.4457931518554688}
+{"id":"stream:1:tile:tile:7,4:overview","ms":21.276917000000026,"frame":28,"geometryMiB":4.4466705322265625}
+{"id":"stream:1:tile:tile:6,2:overview","ms":25.72199999999998,"frame":34,"geometryMiB":6.076515197753906}
+{"id":"stream:1:tile:tile:6,4:overview","ms":15.315000000000055,"frame":38,"geometryMiB":7.0609588623046875}
+{"id":"stream:1:tile:tile:8,3:overview","ms":17.733165999999983,"frame":42,"geometryMiB":7.9426116943359375}
+{"id":"stream:1:tile:tile:8,2:overview","ms":24.521374999999978,"frame":47,"geometryMiB":9.254608154296875}
+{"id":"stream:1:tile:tile:8,4:overview","ms":16.27116699999999,"frame":50,"geometryMiB":10.01239013671875}
+{"id":"stream:1:tile:tile:5,3:overview","ms":18.394082999999966,"frame":54,"geometryMiB":11.189277648925781}
+{"id":"stream:1:tile:tile:5,2:overview","ms":38.44749999999999,"frame":63,"geometryMiB":13.587867736816406}
+{"id":"stream:1:tile:tile:5,4:overview","ms":15.868291,"frame":66,"geometryMiB":14.443771362304688}
+{"id":"stream:1:tile:tile:7,1:overview","ms":24.101291999999944,"frame":71,"geometryMiB":15.698844909667969}
+{"id":"stream:1:tile:tile:6,1:overview","ms":15.905834000000027,"frame":74,"geometryMiB":16.805580139160156}
+{"id":"stream:1:tile:tile:7,5:overview","ms":16.456291999999962,"frame":78,"geometryMiB":17.846145629882812}
+{"id":"stream:1:tile:tile:6,5:overview","ms":17.81620900000007,"frame":82,"geometryMiB":18.90081024169922}
+{"id":"stream:1:tile:tile:8,1:overview","ms":19.05966699999999,"frame":86,"geometryMiB":20.130111694335938}
+{"id":"stream:1:tile:tile:8,5:overview","ms":14.078167000000008,"frame":89,"geometryMiB":20.896339416503906}
+{"id":"stream:1:tile:tile:9,3:overview","ms":14.501540999999975,"frame":92,"geometryMiB":21.589622497558594}
+{"id":"stream:1:tile:tile:5,1:overview","ms":15.340749999999957,"frame":95,"geometryMiB":22.521583557128906}
+{"id":"stream:1:tile:tile:9,2:overview","ms":27.882749999999987,"frame":101,"geometryMiB":23.392181396484375}
+{"id":"stream:1:tile:tile:9,4:overview","ms":12.169124999999894,"frame":103,"geometryMiB":24.022933959960938}
+{"id":"stream:1:tile:tile:5,5:overview","ms":14.497083000000089,"frame":106,"geometryMiB":24.936744689941406}
+{"id":"stream:1:tile:tile:4,3:overview","ms":24.189958000000047,"frame":112,"geometryMiB":26.282455444335938}
+{"id":"stream:1:tile:tile:4,4:overview","ms":19.829834000000005,"frame":116,"geometryMiB":27.897308349609375}
+{"id":"stream:1:tile:tile:4,2:overview","ms":23.60962500000005,"frame":122,"geometryMiB":29.54308319091797}
+{"id":"stream:1:tile:tile:9,1:overview","ms":12.938207999999918,"frame":125,"geometryMiB":30.41100311279297}
+{"id":"stream:1:tile:tile:9,5:overview","ms":15.736499999999978,"frame":129,"geometryMiB":31.211814880371094}
+{"id":"stream:1:tile:tile:7,0:overview","ms":16.46612499999992,"frame":132,"geometryMiB":32.124755859375}
+{"id":"stream:1:tile:tile:6,0:overview","ms":19.294917000000055,"frame":136,"geometryMiB":32.95829772949219}
+{"id":"stream:1:tile:tile:7,6:overview","ms":15.646541999999954,"frame":139,"geometryMiB":33.91731262207031}
+{"id":"stream:1:tile:tile:6,6:overview","ms":14.13737500000002,"frame":142,"geometryMiB":34.704803466796875}
+{"id":"stream:1:tile:tile:4,1:overview","ms":11.317166000000043,"frame":144,"geometryMiB":35.495269775390625}
+{"id":"stream:1:tile:tile:8,0:overview","ms":17.206166000000053,"frame":148,"geometryMiB":36.55529022216797}
+{"id":"stream:1:tile:tile:4,5:overview","ms":13.902874999999995,"frame":151,"geometryMiB":37.321495056152344}
+{"id":"stream:1:tile:tile:8,6:overview","ms":10.968624999999975,"frame":153,"geometryMiB":37.88850402832031}
+{"id":"stream:1:tile:tile:5,0:overview","ms":21.510791999999924,"frame":158,"geometryMiB":39.23046112060547}
+{"id":"stream:1:tile:tile:5,6:overview","ms":17.757540999999947,"frame":162,"geometryMiB":40.25148010253906}
+{"id":"stream:1:tile:tile:10,3:overview","ms":10.39108299999998,"frame":164,"geometryMiB":40.81391143798828}
+{"id":"stream:1:tile:tile:10,2:overview","ms":15.28920800000003,"frame":167,"geometryMiB":41.751365661621094}
+{"id":"stream:1:tile:tile:10,4:overview","ms":10.403999999999996,"frame":169,"geometryMiB":42.313819885253906}
+{"id":"stream:1:tile:tile:9,0:overview","ms":15.362375000000043,"frame":172,"geometryMiB":43.48443603515625}
+{"id":"stream:1:tile:tile:3,3:overview","ms":21.95962499999996,"frame":177,"geometryMiB":44.93879699707031}
+{"id":"stream:1:tile:tile:9,6:overview","ms":4.7205000000000155,"frame":178,"geometryMiB":45.17903137207031}
+{"id":"stream:1:tile:tile:3,2:overview","ms":37.79691600000001,"frame":187,"geometryMiB":46.84918212890625}
+{"id":"stream:1:tile:tile:3,4:overview","ms":32.665707999999995,"frame":194,"geometryMiB":49.158531188964844}
+{"id":"stream:1:tile:tile:10,1:overview","ms":21.24008300000014,"frame":199,"geometryMiB":50.08955383300781}
+{"id":"stream:1:tile:tile:10,5:overview","ms":15.648165999999947,"frame":202,"geometryMiB":50.949623107910156}
+{"id":"stream:1:tile:tile:4,0:overview","ms":22.482792000000018,"frame":207,"geometryMiB":52.25335693359375}
+{"id":"stream:1:tile:tile:4,6:overview","ms":15.164166999999907,"frame":210,"geometryMiB":52.93446350097656}
+{"id":"stream:1:tile:tile:3,1:overview","ms":25.7037499999999,"frame":215,"geometryMiB":54.553436279296875}
+{"id":"stream:1:tile:tile:3,5:overview","ms":15.766750000000002,"frame":218,"geometryMiB":55.353057861328125}
+{"id":"stream:1:tile:tile:10,0:overview","ms":14.035707999999886,"frame":221,"geometryMiB":55.85034942626953}
+{"id":"stream:1:tile:tile:11,3:overview","ms":6.381291000000147,"frame":222,"geometryMiB":56.1727294921875}
+{"id":"stream:1:tile:tile:10,6:overview","ms":10.929833000000144,"frame":224,"geometryMiB":56.768943786621094}
+{"id":"stream:1:tile:tile:11,4:overview","ms":8.800500000000056,"frame":226,"geometryMiB":57.348724365234375}
+{"id":"stream:1:tile:tile:11,2:overview","ms":9.597958000000062,"frame":228,"geometryMiB":57.83454895019531}
+{"id":"stream:1:tile:tile:3,0:overview","ms":24.353500000000167,"frame":233,"geometryMiB":59.38330078125}
+{"id":"stream:1:tile:tile:3,6:overview","ms":8.840457999999899,"frame":235,"geometryMiB":60.00865173339844}
+{"id":"stream:1:tile:tile:2,3:overview","ms":25.263458000000128,"frame":241,"geometryMiB":61.828948974609375}
+{"id":"stream:1:tile:tile:11,1:overview","ms":9.239542000000029,"frame":243,"geometryMiB":62.29820251464844}
+{"id":"stream:1:tile:tile:11,5:overview","ms":10.348083000000088,"frame":245,"geometryMiB":62.918174743652344}
+{"id":"stream:1:tile:tile:2,2:overview","ms":26.01958300000001,"frame":251,"geometryMiB":64.87364959716797}
+{"id":"stream:1:tile:tile:2,4:overview","ms":16.867999999999938,"frame":254,"geometryMiB":66.09253692626953}
+{"id":"stream:1:tile:tile:2,1:overview","ms":17.89675000000011,"frame":258,"geometryMiB":67.13243865966797}
+{"id":"stream:1:tile:tile:2,5:overview","ms":14.272459000000026,"frame":261,"geometryMiB":67.91450500488281}
+{"id":"stream:1:tile:tile:11,0:overview","ms":15.524791999999934,"frame":264,"geometryMiB":68.7579574584961}
+{"id":"stream:1:tile:tile:11,6:overview","ms":18.595708999999943,"frame":268,"geometryMiB":69.69735717773438}
+{"id":"stream:1:tile:tile:12,3:overview","ms":11.307416000000103,"frame":270,"geometryMiB":69.91463470458984}
+{"id":"stream:1:tile:tile:2,0:overview","ms":26.273625000000038,"frame":276,"geometryMiB":71.43592071533203}
+{"id":"stream:1:tile:tile:12,2:overview","ms":10.924250000000029,"frame":278,"geometryMiB":72.08724975585938}
+{"id":"stream:1:tile:tile:12,4:overview","ms":12.932999999999993,"frame":281,"geometryMiB":72.59710693359375}
+{"id":"stream:1:tile:tile:2,6:overview","ms":18.19987500000002,"frame":285,"geometryMiB":73.52327728271484}
+{"id":"stream:1:tile:tile:12,1:overview","ms":15.954999999999927,"frame":288,"geometryMiB":74.384033203125}
+{"id":"stream:1:tile:tile:12,5:overview","ms":19.169624999999996,"frame":292,"geometryMiB":75.37291717529297}
+{"id":"stream:1:tile:tile:1,3:overview","ms":28.35629199999994,"frame":298,"geometryMiB":77.99393463134766}
+{"id":"stream:1:tile:tile:1,2:overview","ms":14.48616600000014,"frame":301,"geometryMiB":79.07890319824219}
+{"id":"stream:1:tile:tile:1,4:overview","ms":17.41495800000007,"frame":305,"geometryMiB":79.92645263671875}
+{"id":"stream:1:tile:tile:1,1:overview","ms":7.391208000000006,"frame":306,"geometryMiB":80.37025451660156}
+{"id":"stream:1:tile:tile:1,5:overview","ms":7.835708000000068,"frame":308,"geometryMiB":80.70806121826172}
+{"id":"stream:1:tile:tile:12,0:overview","ms":19.49616600000013,"frame":312,"geometryMiB":81.84386444091797}
+{"id":"stream:1:tile:tile:12,6:overview","ms":11.160875000000033,"frame":314,"geometryMiB":82.35889434814453}
+{"id":"stream:1:tile:tile:1,0:overview","ms":15.768499999999904,"frame":317,"geometryMiB":83.25965881347656}
+{"id":"stream:1:tile:tile:1,6:overview","ms":14.311916999999994,"frame":320,"geometryMiB":84.06477355957031}
+{"id":"stream:1:tile:tile:13,3:overview","ms":7.023332999999866,"frame":321,"geometryMiB":84.26353454589844}
+{"id":"stream:1:tile:tile:13,2:overview","ms":7.043333000000075,"frame":322,"geometryMiB":84.68282318115234}
+{"id":"stream:1:tile:tile:13,4:overview","ms":8.625125000000025,"frame":324,"geometryMiB":85.13447570800781}
+{"id":"stream:1:tile:tile:13,1:overview","ms":12.841416999999865,"frame":327,"geometryMiB":86.00010681152344}
+{"id":"stream:1:tile:tile:13,5:overview","ms":8.444042000000081,"frame":329,"geometryMiB":86.32960510253906}
+{"id":"stream:1:tile:tile:0,3:overview","ms":18.102833000000146,"frame":332,"geometryMiB":87.45829010009766}
+{"id":"stream:1:tile:tile:0,2:overview","ms":10.946833999999853,"frame":334,"geometryMiB":88.19334411621094}
+{"id":"stream:1:tile:tile:0,4:overview","ms":10.655459000000064,"frame":336,"geometryMiB":88.65464401245117}
+{"id":"stream:1:tile:tile:0,1:overview","ms":6.966417000000092,"frame":337,"geometryMiB":89.05047225952148}
+{"id":"stream:1:tile:tile:0,5:overview","ms":9.778125000000045,"frame":339,"geometryMiB":89.63645553588867}
+{"id":"stream:1:tile:tile:13,6:overview","ms":9.617958000000044,"frame":341,"geometryMiB":89.93514633178711}
+{"id":"stream:1:tile:tile:13,0:overview","ms":12.250125000000025,"frame":343,"geometryMiB":90.93645858764648}
+{"id":"stream:1:tile:tile:0,0:overview","ms":9.760166000000027,"frame":345,"geometryMiB":91.22484970092773}
+{"id":"stream:1:tile:tile:14,2:overview","ms":1.931707999999844,"frame":347,"geometryMiB":91.99407577514648}
+{"id":"stream:1:tile:tile:14,4:overview","ms":4.887541000000056,"frame":348,"geometryMiB":92.18292617797852}
+{"id":"stream:1:tile:tile:14,5:overview","ms":3.7039170000000468,"frame":349,"geometryMiB":92.45602798461914}
+{"id":"stream:1:tile:tile:14,0:overview","ms":11.820292000000109,"frame":351,"geometryMiB":92.88309860229492}
+{"id":"stream:1:tile:tile:14,6:overview","ms":13.721542,"frame":354,"geometryMiB":93.06034469604492}
+{"id":"stream:road-context","ms":983.1887920000001,"frame":594,"geometryMiB":93.06034469604492}
+{"id":"stream:1:cover:7,3:overview","ms":43.45008400000006,"frame":604,"geometryMiB":93.44514656066895}
+{"id":"stream:1:cover:6,3:overview","ms":28.46383300000025,"frame":610,"geometryMiB":93.777663230896}
+{"id":"stream:1:cover:7,2:overview","ms":25.186999999999898,"frame":615,"geometryMiB":94.23080921173096}
+{"id":"stream:1:cover:7,4:overview","ms":30.780083000000104,"frame":622,"geometryMiB":94.58098697662354}
+{"id":"stream:1:cover:6,2:overview","ms":21.614082999999937,"frame":627,"geometryMiB":94.99684810638428}
+{"id":"stream:1:cover:6,4:overview","ms":23.610791000000063,"frame":632,"geometryMiB":95.29003429412842}
+{"id":"stream:1:cover:8,3:overview","ms":24.172665999999936,"frame":637,"geometryMiB":95.60279560089111}
+{"id":"stream:1:cover:5,3:overview","ms":37.10850000000028,"frame":645,"geometryMiB":96.13022804260254}
+{"id":"stream:1:cover:8,2:overview","ms":18.59266600000001,"frame":649,"geometryMiB":96.54162883758545}
+{"id":"stream:1:cover:8,4:overview","ms":14.972250000000258,"frame":652,"geometryMiB":96.82195472717285}
+{"id":"stream:1:cover:5,2:overview","ms":20.434999999999945,"frame":656,"geometryMiB":97.24083137512207}
+{"id":"stream:1:cover:5,4:overview","ms":28.411291999999776,"frame":662,"geometryMiB":97.52989196777344}
+{"id":"stream:1:cover:7,1:overview","ms":18.396500000000287,"frame":666,"geometryMiB":97.86598491668701}
+{"id":"stream:1:cover:7,5:overview","ms":15.621208000000024,"frame":669,"geometryMiB":98.07661056518555}
+{"id":"stream:1:cover:6,1:overview","ms":16.519584000000123,"frame":673,"geometryMiB":98.47528553009033}
+{"id":"stream:1:cover:6,5:overview","ms":18.322791999999936,"frame":677,"geometryMiB":98.7150821685791}
+{"id":"stream:1:cover:9,3:overview","ms":18.08270799999991,"frame":681,"geometryMiB":99.06893062591553}
+{"id":"stream:1:cover:8,1:overview","ms":17.683583,"frame":685,"geometryMiB":99.38277053833008}
+{"id":"stream:1:cover:8,5:overview","ms":10.473417000000154,"frame":687,"geometryMiB":99.59092426300049}
+{"id":"stream:1:cover:9,2:overview","ms":17.617541999999958,"frame":691,"geometryMiB":99.92407035827637}
+{"id":"stream:1:cover:9,4:overview","ms":13.144166999999925,"frame":694,"geometryMiB":100.1665849685669}
+{"id":"stream:1:cover:5,1:overview","ms":24.949125000000095,"frame":700,"geometryMiB":100.59311485290527}
+{"id":"stream:1:cover:5,5:overview","ms":17.676041999999597,"frame":704,"geometryMiB":100.79463386535645}
+{"id":"stream:1:cover:4,3:overview","ms":51.009000000000015,"frame":716,"geometryMiB":101.33624267578125}
+{"id":"stream:1:cover:4,2:overview","ms":27.692833000000064,"frame":722,"geometryMiB":101.84448051452637}
+{"id":"stream:1:cover:4,4:overview","ms":32.25700000000006,"frame":729,"geometryMiB":102.17024517059326}
+{"id":"stream:1:cover:7,0:overview","ms":11.4509579999999,"frame":731,"geometryMiB":102.40357875823975}
+{"id":"stream:1:cover:7,6:overview","ms":10.003541999999925,"frame":733,"geometryMiB":102.6283950805664}
+{"id":"stream:1:cover:6,0:overview","ms":12.261207999999897,"frame":736,"geometryMiB":102.90713024139404}
+{"id":"stream:1:cover:9,1:overview","ms":26.215957999999773,"frame":742,"geometryMiB":103.40156078338623}
+{"id":"stream:1:cover:6,6:overview","ms":13.297124999999596,"frame":745,"geometryMiB":103.64143180847168}
+{"id":"stream:1:cover:9,5:overview","ms":14.653915999999754,"frame":748,"geometryMiB":103.86550712585449}
+{"id":"stream:1:cover:8,0:overview","ms":14.764292000000296,"frame":751,"geometryMiB":104.13856315612793}
+{"id":"stream:1:cover:4,1:overview","ms":27.363458000000264,"frame":757,"geometryMiB":104.62127780914307}
+{"id":"stream:1:cover:8,6:overview","ms":14.578250000000025,"frame":760,"geometryMiB":104.83240413665771}
+{"id":"stream:1:cover:4,5:overview","ms":24.8293749999998,"frame":765,"geometryMiB":105.15561389923096}
+{"id":"stream:1:cover:10,3:overview","ms":21.132084000000305,"frame":770,"geometryMiB":105.40719795227051}
+{"id":"stream:1:cover:5,0:overview","ms":15.6672080000003,"frame":773,"geometryMiB":105.7066125869751}
+{"id":"stream:1:cover:5,6:overview","ms":14.393708999999944,"frame":776,"geometryMiB":105.9587574005127}
+{"id":"stream:1:cover:10,2:overview","ms":22.405874999999924,"frame":781,"geometryMiB":106.32189273834229}
+{"id":"stream:1:cover:10,4:overview","ms":15.648208000000068,"frame":784,"geometryMiB":106.61797428131104}
+{"id":"stream:1:cover:3,3:overview","ms":26.48895799999991,"frame":790,"geometryMiB":107.02997589111328}
+{"id":"stream:1:cover:3,2:overview","ms":22.632125000000087,"frame":795,"geometryMiB":107.41926097869873}
+{"id":"stream:1:cover:3,4:overview","ms":19.825584000000163,"frame":799,"geometryMiB":107.65918922424316}
+{"id":"stream:1:cover:9,0:overview","ms":17.440333999999893,"frame":803,"geometryMiB":107.96699237823486}
+{"id":"stream:1:cover:9,6:overview","ms":23.54399999999987,"frame":808,"geometryMiB":108.30301094055176}
+{"id":"stream:1:cover:10,1:overview","ms":28.818374999999833,"frame":814,"geometryMiB":108.60998153686523}
+{"id":"stream:1:cover:10,5:overview","ms":13.942332999999962,"frame":817,"geometryMiB":108.88765811920166}
+{"id":"stream:1:cover:4,0:overview","ms":11.705332999999882,"frame":819,"geometryMiB":109.13020706176758}
+{"id":"stream:1:cover:4,6:overview","ms":13.463624999999865,"frame":822,"geometryMiB":109.38278388977051}
+{"id":"stream:1:cover:3,1:overview","ms":12.962875000000167,"frame":825,"geometryMiB":109.62345600128174}
+{"id":"stream:1:cover:3,5:overview","ms":19.447041000000354,"frame":829,"geometryMiB":109.89947319030762}
+{"id":"stream:1:cover:11,3:overview","ms":15.414083000000119,"frame":832,"geometryMiB":110.10597896575928}
+{"id":"stream:1:cover:11,2:overview","ms":22.09100000000035,"frame":837,"geometryMiB":110.40495586395264}
+{"id":"stream:1:cover:11,4:overview","ms":20.117416999999932,"frame":841,"geometryMiB":110.64608001708984}
+{"id":"stream:1:cover:10,0:overview","ms":28.544624999999996,"frame":847,"geometryMiB":111.23777961730957}
+{"id":"stream:1:cover:10,6:overview","ms":12.256542000000081,"frame":849,"geometryMiB":111.51181697845459}
+{"id":"stream:1:cover:2,3:overview","ms":17.882959000000028,"frame":853,"geometryMiB":111.79701519012451}
+{"id":"stream:1:cover:3,0:overview","ms":13.606125000000247,"frame":856,"geometryMiB":111.98653221130371}
+{"id":"stream:1:cover:3,6:overview","ms":16.169832999999926,"frame":859,"geometryMiB":112.25238990783691}
+{"id":"stream:1:cover:2,2:overview","ms":11.891541999999845,"frame":861,"geometryMiB":112.46743297576904}
+{"id":"stream:1:cover:2,4:overview","ms":17.320666999999958,"frame":865,"geometryMiB":112.68225002288818}
+{"id":"stream:1:cover:11,1:overview","ms":16.424999999999727,"frame":869,"geometryMiB":113.00613498687744}
+{"id":"stream:1:cover:11,5:overview","ms":35.053042000000005,"frame":877,"geometryMiB":113.71676731109619}
+{"id":"stream:1:cover:2,1:overview","ms":19.694375000000036,"frame":881,"geometryMiB":114.00256633758545}
+{"id":"stream:1:cover:2,5:overview","ms":23.674833000000035,"frame":886,"geometryMiB":114.25692844390869}
+{"id":"stream:1:cover:11,0:overview","ms":15.747292000000016,"frame":889,"geometryMiB":114.62354564666748}
+{"id":"stream:1:cover:11,6:overview","ms":10.391665999999987,"frame":891,"geometryMiB":114.82631206512451}
+{"id":"stream:1:cover:12,3:overview","ms":11.672417000000223,"frame":893,"geometryMiB":114.98927307128906}
+{"id":"stream:1:cover:12,2:overview","ms":15.572541999999885,"frame":896,"geometryMiB":115.2905445098877}
+{"id":"stream:1:cover:12,4:overview","ms":15.03995900000018,"frame":899,"geometryMiB":115.50860023498535}
+{"id":"stream:1:cover:2,0:overview","ms":8.271250000000236,"frame":900,"geometryMiB":115.6603889465332}
+{"id":"stream:1:cover:2,6:overview","ms":13.124166999999943,"frame":903,"geometryMiB":115.86541557312012}
+{"id":"stream:1:cover:1,3:overview","ms":16.29712500000005,"frame":906,"geometryMiB":116.08360290527344}
+{"id":"stream:1:cover:12,1:overview","ms":14.492791000000125,"frame":909,"geometryMiB":116.3357162475586}
+{"id":"stream:1:cover:12,5:overview","ms":11.074791000000005,"frame":911,"geometryMiB":116.5680627822876}
+{"id":"stream:1:cover:1,2:overview","ms":16.561333000000104,"frame":915,"geometryMiB":116.81338405609131}
+{"id":"stream:1:cover:1,4:overview","ms":23.697167000000263,"frame":920,"geometryMiB":117.06770896911621}
+{"id":"stream:1:cover:1,1:overview","ms":16.37620799999968,"frame":923,"geometryMiB":117.2713451385498}
+{"id":"stream:1:cover:1,5:overview","ms":28.71616700000004,"frame":929,"geometryMiB":117.65339469909668}
+{"id":"stream:1:cover:12,0:overview","ms":14.445042000000285,"frame":932,"geometryMiB":117.89911365509033}
+{"id":"stream:1:cover:12,6:overview","ms":15.421499999999469,"frame":935,"geometryMiB":118.24320030212402}
+{"id":"stream:1:cover:13,3:overview","ms":10.59887499999968,"frame":937,"geometryMiB":118.36516857147217}
+{"id":"stream:1:cover:1,0:overview","ms":7.015791000000718,"frame":938,"geometryMiB":118.54584217071533}
+{"id":"stream:1:cover:1,6:overview","ms":12.602250000000822,"frame":941,"geometryMiB":118.77456378936768}
+{"id":"stream:1:cover:13,2:overview","ms":22.392832999999882,"frame":946,"geometryMiB":119.15658187866211}
+{"id":"stream:1:cover:13,4:overview","ms":19.970957999999882,"frame":950,"geometryMiB":119.47162342071533}
+{"id":"stream:1:cover:0,3:overview","ms":14.31445800000074,"frame":953,"geometryMiB":119.64429473876953}
+{"id":"stream:1:cover:13,1:overview","ms":10.850124999999935,"frame":955,"geometryMiB":119.86750602722168}
+{"id":"stream:1:cover:13,5:overview","ms":13.535167000000001,"frame":958,"geometryMiB":120.12074089050293}
+{"id":"stream:1:cover:0,2:overview","ms":11.173415999999634,"frame":960,"geometryMiB":120.349196434021}
+{"id":"stream:1:cover:0,4:overview","ms":25.922999999999774,"frame":966,"geometryMiB":120.65713691711426}
+{"id":"stream:1:cover:0,1:overview","ms":11.01758400000017,"frame":968,"geometryMiB":120.7970781326294}
+{"id":"stream:1:cover:0,5:overview","ms":19.145959000000403,"frame":972,"geometryMiB":121.0574369430542}
+{"id":"stream:1:cover:13,0:overview","ms":7.116791000000376,"frame":973,"geometryMiB":121.22499561309814}
+{"id":"stream:1:cover:13,6:overview","ms":8.450917000000118,"frame":975,"geometryMiB":121.41803455352783}
+{"id":"stream:1:cover:0,0:overview","ms":10.009417000000212,"frame":977,"geometryMiB":121.70148468017578}
+{"id":"stream:1:cover:0,6:overview","ms":17.389624999999796,"frame":981,"geometryMiB":122.06198787689209}
+{"id":"stream:1:cover:14,3:overview","ms":6.276124999999411,"frame":982,"geometryMiB":122.10669136047363}
+{"id":"stream:1:cover:14,2:overview","ms":10.945083999999952,"frame":984,"geometryMiB":122.26123809814453}
+{"id":"stream:1:cover:14,4:overview","ms":7.418582999999671,"frame":985,"geometryMiB":122.34497737884521}
+{"id":"stream:1:cover:14,1:overview","ms":6.856333000000632,"frame":986,"geometryMiB":122.41102981567383}
+{"id":"stream:1:cover:14,5:overview","ms":7.148791999999958,"frame":987,"geometryMiB":122.51048469543457}
+{"id":"stream:coverage:1","ms":4106.375875,"frame":988,"geometryMiB":122.62349510192871}
+{"stage":"visible","phase":"overview","frames":988,"elapsedMs":4119.734667,"buildings":113563,"residentCells":1714,"geometryMiB":122.62349510192871,"stock":{"cellGroups":0,"tiles":105,"tilePages":124,"meshes":124,"maxPageVertices":65268,"maxPageIndexBytes":172080,"maxCellVertices":0,"maxCellIndexBytes":0,"tileCoveredCells":1609,"hiddenCells":0}}
+{
+  "mode": "overview",
+  "coverCellSizeM": 1600,
+  "drawRanges": true,
+  "stockGuardMeanMs": 0.020097566666671205,
+  "decodedMs": 48.211792,
+  "stockIndexMs": 16.241000000000014,
+  "indexFrames": 5,
+  "maxIndexSliceMs": 4.049624999999992,
+  "frames": 988,
+  "firstCoverageFrame": 988,
+  "maxSliceMs": 5.929834000000028,
+  "elapsedMs": 4226.507958,
+  "geometryMiB": 122.62349510192871,
+  "peakGeometryMiB": 122.62349510192871,
+  "buildings": 113563,
+  "residentCells": 1714,
+  "stock": {
+    "cellGroups": 0,
+    "tiles": 105,
+    "tilePages": 124,
+    "meshes": 124,
+    "maxPageVertices": 65268,
+    "maxPageIndexBytes": 172080,
+    "maxCellVertices": 0,
+    "maxCellIndexBytes": 0,
+    "tileCoveredCells": 1609,
+    "hiddenCells": 0
+  },
+  "sliceTargetMs": 4,
+  "frameBudgetMs": 6,
+  "cpuDrawEstimate": {
+    "stock": {
+      "calls": 124,
+      "triangles": 1338712
+    },
+    "cover": {
+      "calls": 530,
+      "triangles": 530850
+    },
+    "trees": {
+      "calls": 0,
+      "triangles": 0
+    }
+  },
+  "note": "CPU-only, excludes landmarks, GPU upload/rendering, frame waits and browser readiness"
+}

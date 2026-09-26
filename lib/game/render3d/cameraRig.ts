@@ -79,6 +79,7 @@ export class CameraRig {
     );
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
   }
 
   /** World ground point -> screen pixel, or null when behind the camera. */

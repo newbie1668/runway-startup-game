@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as THREE from 'three';
-import { londonClimate, londonClock, searchPlaces } from '../lib/game/mapSearch';
+import { londonClimate, londonClock, placeCatalog, searchPlaces } from '../lib/game/mapSearch';
 import {
   STYLE_HOUSE,
   STYLE_OFFICE,
@@ -138,6 +138,8 @@ check('offline search finds Shard, Shoreditch, Hyde Park', () => {
   assert.ok(park.some((h) => h.label === 'Hyde Park' && h.kind === 'park'));
   const chelsea = searchPlaces('chelsea');
   assert.ok(chelsea.some((h) => h.label === 'Chelsea Bridge'));
+  const ids = placeCatalog().map((hit) => hit.id);
+  assert.equal(new Set(ids).size, ids.length, 'place catalog ids are unique');
 });
 
 check('West End 4–6 storey terraces keep bays (not restyled to office)', () => {
@@ -647,7 +649,7 @@ check('citystreet stock has no HVAC red/blue rooftop confetti', () => {
   let verts = 0;
   let sloped = 0;
   for (const major of [true, false]) {
-    const built = buildChunkTier(city, chunkId, major, [], createScratch());
+    const built = buildChunkTier(city, chunkId, major, new Set(), createScratch());
     if (!built) continue;
     assert.equal(built.frustumCulled, false, 'culling the whole chunk group empties close zoom');
     for (const mesh of chunkTierMeshes(built)) {
@@ -701,13 +703,9 @@ check('City skyline punch leaves neighbouring streets', () => {
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
-  const anchors = LANDMARKS.map((l) => {
-    const p = project(l.at);
-    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
-  });
   let verts = 0;
   for (const major of [true, false]) {
-    const built = buildChunkTier(city, chunkId, major, anchors, createScratch());
+    const built = buildChunkTier(city, chunkId, major, new Set(), createScratch());
     if (!built) continue;
     for (const mesh of chunkTierMeshes(built)) {
       verts += mesh.geometry.getAttribute('position')?.count ?? 0;
@@ -793,10 +791,6 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
   const col = Math.min(CHUNK_COLS - 1, Math.max(0, Math.floor((at.x / WORLD.width) * CHUNK_COLS)));
   const row = Math.min(CHUNK_ROWS - 1, Math.max(0, Math.floor((at.y / WORLD.height) * CHUNK_ROWS)));
   const chunkId = row * CHUNK_COLS + col;
-  const anchors = LANDMARKS.map((l) => {
-    const p = project(l.at);
-    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
-  });
   const streetM = 250;
   let nearby = 0;
   let dropped = 0;
@@ -819,7 +813,7 @@ check('look=citystreet keep-disk still extrudes Cheapside stock', () => {
   let verts = 0;
   let tallNear = 0;
   for (const major of [true, false]) {
-    const built = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
+    const built = buildChunkTier(city, chunkId, major, new Set(), createScratch(), keep);
     if (!built) continue;
     assert.equal(built.frustumCulled, false, 'culling the whole chunk group empties close zoom');
     for (const mesh of chunkTierMeshes(built)) {
@@ -962,8 +956,8 @@ check('acute and courtyard plans get stand-out massing, not a shared setback box
   assert.notEqual(recipeFingerprint(a), recipeFingerprint(b));
 });
 
-check('No 1 Poultry is locked off uniqueStockRecipe (wedge-step, ribbon, bays)', () => {
-  assert.equal(streetUniqueBlocksStock('no-1-poultry'), true);
+check('No 1 Poultry falls back to ordinary stock while other street pins stay custom', () => {
+  assert.equal(streetUniqueBlocksStock('no-1-poultry'), false);
   assert.equal(streetUniqueBlocksStock('the-ned'), false);
   assert.equal(streetUniqueBlocksStock(null), false);
 });
@@ -1002,7 +996,7 @@ check('Cheapside unique pins stay; Poultry hull is off the chunk mesh', () => {
   let jewryGlassN = 0;
   let nedGlassN = 0;
   for (const major of [true, false]) {
-    const built = buildChunkTier(city, chunkId, major, [], createScratch());
+    const built = buildChunkTier(city, chunkId, major, new Set(), createScratch());
     if (!built) continue;
     for (const mesh of chunkTierMeshes(built)) {
       const pos = mesh.geometry.getAttribute('position');
@@ -1118,7 +1112,7 @@ check('Cheapside unnamed stock has in-plane window glass, not blank walls', () =
   let near = 0;
   let glassN = 0;
   for (const major of [true, false]) {
-    const built = buildChunkTier(city, chunkId, major, [], createScratch());
+    const built = buildChunkTier(city, chunkId, major, new Set(), createScratch());
     if (!built) continue;
     for (const mesh of chunkTierMeshes(built)) {
       const pos = mesh.geometry.getAttribute('position');
@@ -1240,10 +1234,6 @@ check('view=mid culls keep-disk cells; stock inside the disk stays', () => {
   const city = decodeCity(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
   const look = project([-0.1358, 51.5196]);
   const keep: KeepDisk = { x: look.x, z: look.y, r: 1600 * METERS_TO_WORLD };
-  const anchors = LANDMARKS.map((l) => {
-    const p = project(l.at);
-    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
-  });
   const cssW = 1400;
   const cssH = 900;
   const viewH = 8.5;
@@ -1274,7 +1264,7 @@ check('view=mid culls keep-disk cells; stock inside the disk stays', () => {
     const z1 = ((row + 1) / CHUNK_ROWS) * WORLD.height;
     if (!aabbHitsKeep(x0, z0, x1, z1, keep)) continue;
     for (const major of [true, false]) {
-      const built = buildChunkTier(city, chunkId, major, anchors, createScratch(), keep);
+      const built = buildChunkTier(city, chunkId, major, new Set(), createScratch(), keep);
       if (!built) continue;
       assert.equal(built.frustumCulled, false);
       for (const mesh of chunkTierMeshes(built)) {
@@ -1373,15 +1363,11 @@ check('LCY spit is not OSM boxes or park mounds on the peninsula', () => {
   const budget = meshBudgetFromSearch(new URLSearchParams('look=lcy'));
   assert.equal(budget.skipTrees, true);
   assert.equal(budget.chunkKeepM, 2200);
-  const anchors = LANDMARKS.map((l) => {
-    const p = project(l.at);
-    return { x: p.x, y: p.y, r: (l.exclusionM ?? 80) * METERS_TO_WORLD };
-  });
   const scratch = createScratch();
   let boxes = 0;
   for (let chunkId = 0; chunkId < CHUNK_COUNT; chunkId++) {
     for (const major of [true, false]) {
-      const built = buildChunkTier(city, chunkId, major, anchors, scratch);
+      const built = buildChunkTier(city, chunkId, major, new Set(), scratch);
       if (!built) continue;
       for (const mesh of chunkTierMeshes(built)) {
         const pos = mesh.geometry.getAttribute('position');

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>RUNWAY stock tier preview</title>
+<style>html,body{margin:0;background:#d9d5cc;color:#20262b;font:16px system-ui,sans-serif}#panels{display:flex;width:2400px;height:650px}.panel{position:relative;width:800px;height:600px}.panel canvas{display:block;width:800px;height:600px}.label{position:absolute;top:14px;left:16px;padding:7px 10px;background:#f4f1e9dd;border-radius:4px;font-weight:650}.meta{position:absolute;top:47px;left:16px;padding:4px 8px;background:#f4f1e9cc;border-radius:3px;font-size:13px}.error{color:#8d1d1d}</style>
+</head><body><main id="panels"></main><script type="module">
+import * as THREE from '/three.module.js';
+const payload = await (await fetch('/fixture.json')).json();
+const panels = document.querySelector('#panels');
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xf6f2e8, 0x73777b, 1.7));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(-30, 70, 45); scene.add(sun);
+const all = new THREE.Box3();
+for (const tier of payload.tiers) { const p = new THREE.Float32BufferAttribute(tier.positions, 3); for (let i = 0; i < p.count; i++) all.expandByPoint(new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i))); }
+const centre = all.getCenter(new THREE.Vector3()); const size = all.getSize(new THREE.Vector3());
+const span = Math.max(size.x, size.y, size.z); const camera = new THREE.OrthographicCamera(-span * 0.62, span * 0.62, span * 0.46, -span * 0.46, 0.1, 1000);
+camera.position.copy(centre).add(new THREE.Vector3(span * 0.8, span * 0.8, span * 0.8)); camera.lookAt(centre); camera.updateProjectionMatrix();
+const shared = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xffffff });
+for (let i = 0; i < payload.tiers.length; i++) {
+  const tier = payload.tiers[i]; const geometry = new THREE.BufferGeometry();
+  const known = ['Float32Array', 'Int8Array', 'Uint8Array', 'Uint16Array', 'Uint32Array'];
+  if (!known.includes(tier.positionStorage) || !known.includes(tier.normalStorage) || !known.includes(tier.colorStorage) || !known.includes(tier.indexStorage)) throw new Error(`unknown preview storage for ${tier.detail}`);
+  if (tier.positionStorage !== 'Float32Array' || (tier.buildMode === 'batch' && (tier.normalStorage !== 'Float32Array' || tier.colorStorage !== 'Float32Array' || !['Uint16Array', 'Uint32Array'].includes(tier.indexStorage)))) throw new Error(`unexpected preview storage for ${tier.detail}`);
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(tier.positions, 3));
+  if (tier.normalStorage === 'Int8Array') { const packed = Int8Array.from(tier.normals, (value) => Math.round(value * 127)); geometry.setAttribute('normal', new THREE.BufferAttribute(packed, 3, true)); } else geometry.setAttribute('normal', new THREE.Float32BufferAttribute(tier.normals, 3));
+  if (tier.colorStorage === 'Uint8Array') { const packed = Uint8Array.from(tier.colors, (value) => Math.round(value * 255)); geometry.setAttribute('color', new THREE.BufferAttribute(packed, 3, true)); } else geometry.setAttribute('color', new THREE.Float32BufferAttribute(tier.colors, 3));
+  if (tier.indexStorage === 'Uint16Array') geometry.setIndex(new THREE.BufferAttribute(Uint16Array.from(tier.indices), 1)); else geometry.setIndex(new THREE.BufferAttribute(Uint32Array.from(tier.indices), 1));
+  const mesh = new THREE.Mesh(geometry, shared); const panel = document.createElement('section'); panel.className = 'panel';
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(800, 600, false); renderer.setClearColor(0xd9d5cc, 1); panel.appendChild(renderer.domElement); const label = document.createElement('div'); label.className = 'label'; label.textContent = tier.detail; panel.appendChild(label);
+  const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = `${tier.sourceIds.length} buildings · ${tier.triangles} triangles`; panel.appendChild(meta); panels.appendChild(panel);
+  scene.add(mesh); renderer.render(scene, camera); scene.remove(mesh); renderer.dispose(); geometry.dispose();
+  tier.drawCalls = renderer.info.render.calls; tier.renderTriangles = renderer.info.render.triangles;
+}
+shared.dispose();
+window.__stockTierPreview = { renderComplete: true, canvasCount: 3, drawCounts: payload.tiers.map((tier) => tier.drawCalls), camera: { position: camera.position.toArray(), target: centre.toArray(), span } };
+</script></body></html>

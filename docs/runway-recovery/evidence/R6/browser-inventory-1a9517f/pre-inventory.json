@@ -1,0 +1,45 @@
+{
+  "url": "http://127.0.0.1:4321/game?view=wide&chrome=0&qa=1&look=zero",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1,
+    "coarse": false
+  },
+  "qa": {
+    "mode": "3d",
+    "state": "ready",
+    "generation": 1,
+    "camera": {
+      "x": 102.71491504520723,
+      "y": 50.00000000000071,
+      "zoom": 6.822069497882382
+    },
+    "queuedJobs": 0,
+    "pendingEssentialJobs": 0,
+    "completedJobs": 1791,
+    "failedJobs": 0,
+    "errorCount": 0,
+    "errors": [],
+    "activeJobId": null,
+    "lastJob": {
+      "id": "stream:coverage:1",
+      "ms": 12001.800000000047
+    },
+    "slowestJob": {
+      "id": "stream:coverage:1",
+      "ms": 12001.800000000047
+    },
+    "residentCells": 1714,
+    "stockBuildings": 113538,
+    "stockDrawn": true,
+    "drawCalls": 2390,
+    "triangles": 1908689,
+    "geometryBytes": 130812722,
+    "textures": 1,
+    "firstUsefulFrameMs": 13135.199999999953,
+    "frameP95Ms": 12.800000000046566,
+    "fallbackReason": null
+  },
+  "save": null
+}

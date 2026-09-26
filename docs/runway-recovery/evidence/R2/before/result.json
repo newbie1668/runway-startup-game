@@ -1,0 +1,13 @@
+{
+  "serverClock": "18:48 SAT · SEPT 5",
+  "clientClock": "23:59 THU · JAN 31",
+  "documentSha256": "0e3c6aecc831ab2c7091a13fe9dde579ac73beb2c6421a3c641042ea2c799b87",
+  "browser": "153.0.8010.12",
+  "errors": [
+    {
+      "type": "pageerror",
+      "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+    }
+  ],
+  "scope": "Production HTML frozen once and replayed. Client clock 2030-01-31T23:59:40Z. WebGL2 capability deliberately unavailable; this exercises automatic 2D fallback with visible HUD and does not certify 3D readiness."
+}

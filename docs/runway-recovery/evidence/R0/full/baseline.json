@@ -1,0 +1,949 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-05T17:54:38.278Z",
+  "baseUrl": "http://127.0.0.1:4318",
+  "provenance": {
+    "gitSha": "e0080a898a5fed4bf28f4b2975d8693b72c646c3",
+    "dirty": false
+  },
+  "environment": {
+    "node": "v26.5.0",
+    "pnpm": "10.33.0",
+    "playwright": "1.63.0",
+    "hardware": {
+      "platform": "darwin",
+      "osVersion": "26.6.2",
+      "arch": "arm64",
+      "cpu": "Apple M1",
+      "memoryGiB": 8
+    },
+    "headless": true,
+    "browser": "153.0.8010.12"
+  },
+  "limitations": [
+    "data-map-ready is legacy completion only; it does not prove requested 3D, useful frame, draw calls, geometry bytes, or geographic coverage.",
+    "The drag trace measures browser requestAnimationFrame intervals, not Three.js render time.",
+    "This Chromium run is reproducible browser evidence; it is not representative iPhone Safari performance evidence."
+  ],
+  "scope": {
+    "caseFilter": null,
+    "selectedCaseIds": [
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B8"
+    ]
+  },
+  "cases": [
+    {
+      "id": "B1",
+      "path": "/game",
+      "url": "http://127.0.0.1:4318/game",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 94,
+        "totalMs": 30100
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        },
+        {
+          "type": "runner",
+          "message": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n"
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B1",
+      "path": "/game",
+      "url": "http://127.0.0.1:4318/game",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "totalMs": 3001
+      },
+      "ready": false,
+      "error": "Browser diagnostic evaluation timed out after 3000 ms",
+      "actual": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "coarse": false,
+        "maxTouchPoints": 0
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "runner",
+          "message": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n"
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B1",
+      "path": "/game",
+      "url": "http://127.0.0.1:4318/game",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 20,
+        "totalMs": 30025
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        },
+        {
+          "type": "runner",
+          "message": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n"
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B1",
+      "path": "/game",
+      "url": "http://127.0.0.1:4318/game",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "totalMs": 3001
+      },
+      "ready": false,
+      "error": "Browser diagnostic evaluation timed out after 3000 ms",
+      "actual": null,
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "runner",
+          "message": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n"
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B2",
+      "path": "/game?map=3d&look=citystreet&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 38,
+        "totalMs": 30061
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B2",
+      "path": "/game?map=3d&look=citystreet&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 205,
+        "totalMs": 30232
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B2",
+      "path": "/game?map=3d&look=citystreet&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 37,
+        "totalMs": 30043
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B2",
+      "path": "/game?map=3d&look=citystreet&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=citystreet&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 160,
+        "totalMs": 30168
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B3",
+      "path": "/game?map=3d&view=mid&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=mid&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 26,
+        "totalMs": 30029
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B3",
+      "path": "/game?map=3d&view=mid&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=mid&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 563,
+        "totalMs": 30566
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B3",
+      "path": "/game?map=3d&view=mid&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=mid&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 36,
+        "totalMs": 30042
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B3",
+      "path": "/game?map=3d&view=mid&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=mid&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 253,
+        "totalMs": 30261
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B4",
+      "path": "/game?map=3d&view=wide&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=wide&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 74,
+        "totalMs": 30079
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B4",
+      "path": "/game?map=3d&view=wide&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=wide&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 606,
+        "totalMs": 30608
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B4",
+      "path": "/game?map=3d&view=wide&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=wide&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 30,
+        "totalMs": 30033
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B4",
+      "path": "/game?map=3d&view=wide&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&view=wide&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 377,
+        "totalMs": 30379
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B5",
+      "path": "/game?map=3d&look=buckingham&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=buckingham&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 45,
+        "totalMs": 30053
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B5",
+      "path": "/game?map=3d&look=buckingham&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=buckingham&chrome=0",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 184,
+        "totalMs": 30191
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B5",
+      "path": "/game?map=3d&look=buckingham&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=buckingham&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 43,
+        "totalMs": 30049
+      },
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B5",
+      "path": "/game?map=3d&look=buckingham&chrome=0",
+      "url": "http://127.0.0.1:4318/game?map=3d&look=buckingham&chrome=0",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 232,
+        "totalMs": 30239
+      },
+      "force2dBeforeReload": null,
+      "ready": false,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "actual": null,
+      "force2dAfterLoad": "unavailable",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4318/game?map=2d",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 34,
+        "readyAfterNavigationMs": 156,
+        "totalMs": 692
+      },
+      "ready": true,
+      "actual": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "coarse": false,
+        "maxTouchPoints": 0
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4318/game?map=2d",
+      "viewport": "desktop",
+      "requested": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "isMobile": false,
+        "hasTouch": false,
+        "input": "fine pointer"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 49,
+        "readyAfterNavigationMs": 31,
+        "totalMs": 582
+      },
+      "force2dBeforeReload": null,
+      "ready": true,
+      "actual": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1,
+        "coarse": false,
+        "maxTouchPoints": 0
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4318/game?map=2d",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "cold",
+      "timing": {
+        "navigationMs": 38,
+        "readyAfterNavigationMs": 120,
+        "totalMs": 658
+      },
+      "ready": true,
+      "actual": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "coarse": true,
+        "maxTouchPoints": 1
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    },
+    {
+      "id": "B8",
+      "path": "/game?map=2d",
+      "url": "http://127.0.0.1:4318/game?map=2d",
+      "viewport": "mobile",
+      "requested": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "input": "touch/coarse"
+      },
+      "phase": "reload",
+      "timing": {
+        "navigationMs": 20,
+        "readyAfterNavigationMs": 23,
+        "totalMs": 545
+      },
+      "force2dBeforeReload": null,
+      "ready": true,
+      "actual": {
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "coarse": true,
+        "maxTouchPoints": 1
+      },
+      "force2dAfterLoad": null,
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true
+    }
+  ],
+  "observations": [
+    {
+      "id": "B6-search-tour",
+      "actions": [],
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "failed": true,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "screenshotError": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n"
+    },
+    {
+      "id": "B6-drag-trace",
+      "events": [
+        {
+          "type": "pageerror",
+          "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+        }
+      ],
+      "trace": [],
+      "failed": true,
+      "error": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-map-ready=\"1\"]')\u001b[22m\n",
+      "screenshotError": "screenshot: page.screenshot: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n"
+    }
+  ],
+  "failures": [
+    {
+      "type": "case",
+      "id": "B1-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B1-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B1-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B1-mobile-reload"
+    },
+    {
+      "type": "case",
+      "id": "B2-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B2-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B2-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B2-mobile-reload"
+    },
+    {
+      "type": "case",
+      "id": "B3-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B3-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B3-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B3-mobile-reload"
+    },
+    {
+      "type": "case",
+      "id": "B4-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B4-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B4-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B4-mobile-reload"
+    },
+    {
+      "type": "case",
+      "id": "B5-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B5-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B5-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B5-mobile-reload"
+    },
+    {
+      "type": "case",
+      "id": "B8-desktop-cold"
+    },
+    {
+      "type": "case",
+      "id": "B8-desktop-reload"
+    },
+    {
+      "type": "case",
+      "id": "B8-mobile-cold"
+    },
+    {
+      "type": "case",
+      "id": "B8-mobile-reload"
+    },
+    {
+      "type": "observation",
+      "id": "B6-search-tour"
+    },
+    {
+      "type": "observation",
+      "id": "B6-drag-trace"
+    }
+  ],
+  "finishedAt": "2026-09-05T18:08:08.602Z",
+  "summary": {
+    "cases": 24,
+    "failedCases": 24,
+    "observations": 2,
+    "failedObservations": 2,
+    "failed": 26
+  }
+}

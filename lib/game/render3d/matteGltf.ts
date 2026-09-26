@@ -11,6 +11,8 @@ import * as THREE from 'three';
 export interface MatteGltfOptions {
   /** Keep albedo maps (noticed-tower window grids). Default drops maps. */
   keepMaps?: boolean;
+  /** Override ownership disposal for conversion callers that use a resource pool. */
+  disposeResource?: (resource: { dispose(): void }) => void;
 }
 
 function rgbToL(hex: number): number {
@@ -45,6 +47,7 @@ function resolveMatteColor(hex: number, hadMap: boolean): number {
 
 export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions): void {
   const keepMaps = opts?.keepMaps ?? false;
+  const disposeResource = opts?.disposeResource ?? ((resource: { dispose(): void }) => resource.dispose());
   root.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
     const list = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -54,7 +57,7 @@ export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions):
         'color' in mat && mat.color instanceof THREE.Color ? mat.color.getHex() : 0x9aa4ae;
       const map = 'map' in mat && mat.map ? mat.map : null;
       const hadMap = !!map;
-      if (!keepMaps && map && 'dispose' in map) map.dispose();
+      if (!keepMaps && map && 'dispose' in map) disposeResource(map);
       const next = new THREE.MeshLambertMaterial({
         color: keepMaps
           ? hadMap
@@ -68,10 +71,26 @@ export function makeMatteLambert(root: THREE.Object3D, opts?: MatteGltfOptions):
         opacity: mat.opacity ?? 1,
         vertexColors: !!mat.vertexColors,
       });
-      mat.dispose();
+      disposeResource(mat);
       return next;
     });
-    obj.material = Array.isArray(obj.material) ? mapped : mapped[0]!;
+    try {
+      obj.material = Array.isArray(obj.material) ? mapped : mapped[0]!;
+    } catch (error) {
+      // Assignment can fail after constructors have created materials that are
+      // no longer reachable from the scene. Dispose those orphans transactionally.
+      const cleanupErrors: unknown[] = [];
+      for (const next of mapped) {
+        if (!next || next === obj.material || next instanceof THREE.MeshBasicMaterial) continue;
+        try {
+          next.dispose();
+        } catch (cleanup) {
+          cleanupErrors.push(cleanup);
+        }
+      }
+      if (cleanupErrors.length) throw new AggregateError([error, ...cleanupErrors], 'Matte material assignment failed');
+      throw error;
+    }
   });
 }
 

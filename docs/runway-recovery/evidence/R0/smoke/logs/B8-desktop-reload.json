@@ -1,0 +1,37 @@
+{
+  "id": "B8",
+  "path": "/game?map=2d",
+  "url": "http://127.0.0.1:4317/game?map=2d",
+  "viewport": "desktop",
+  "requested": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1,
+    "isMobile": false,
+    "hasTouch": false,
+    "input": "fine pointer"
+  },
+  "phase": "reload",
+  "timing": {
+    "navigationMs": 21,
+    "readyAfterNavigationMs": 46,
+    "totalMs": 570
+  },
+  "force2dBeforeReload": null,
+  "ready": true,
+  "actual": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1,
+    "coarse": false,
+    "maxTouchPoints": 0
+  },
+  "force2dAfterLoad": null,
+  "events": [
+    {
+      "type": "pageerror",
+      "message": "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+    }
+  ],
+  "failed": true
+}

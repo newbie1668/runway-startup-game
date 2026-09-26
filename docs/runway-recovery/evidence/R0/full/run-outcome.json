@@ -1,0 +1,8 @@
+{
+  "command": "env -u RUNWAY_CASES RUNWAY_BASE_URL=http://127.0.0.1:4318 RUNWAY_EVIDENCE_DIR=docs/runway-recovery/evidence/R0/full pnpm test:map:browser",
+  "exitCode": 1,
+  "startedAt": "2026-09-05T17:54:37.000Z",
+  "endedAt": "2026-09-05T18:08:08.602Z",
+  "serverBuildSha": "31b1d992b4dce272e6a1f2596dc9992e5c316d98",
+  "captureSha": "e0080a898a5fed4bf28f4b2975d8693b72c646c3"
+}

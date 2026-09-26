@@ -1,0 +1,107 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { cpus, hostname, platform, release } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import type * as Three from 'three';
+import { createCellStockJob } from '../../../lib/game/render3d/cellStockJob';
+import { indexCity } from '../../../lib/game/render3d/cityIndex';
+import { decodeCity } from '../../../lib/game/render3d/format';
+
+const require = createRequire(import.meta.url);
+const THREE = require('../../../node_modules/three/build/three.cjs') as typeof import('three');
+const BINARY = new URL('../../../public/map/london-city.bin', import.meta.url);
+const BINARY_SHA = '6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0';
+const CELL_ID = '14,10' as const;
+const OUTPUT_DIR = process.env.RUNWAY_EVIDENCE_DIR ?? '.superpowers/sdd/2026-09-05-runway-recovery';
+
+type Phase = 'emit' | 'allocate' | 'copy' | 'publish' | 'unknown';
+type Unit = { phase: Phase; startedAt: number; finishedAt: number; durationMs: number };
+
+async function main() {
+const sourceSHA = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const dirty = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim() || false;
+const startedAt = new Date().toISOString();
+const bytes = await readFile(BINARY);
+assert.equal(createHash('sha256').update(bytes).digest('hex'), BINARY_SHA);
+const city = decodeCity(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+const index = indexCity(city, 400);
+const cell = index.cells.get(CELL_ID);
+assert.ok(cell);
+assert.equal(cell.buildingIndices.length, 320);
+
+function disposeGroup(group: Three.Group | null): void {
+  group?.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
+}
+
+function profile(detail: 'overview' | 'neighbourhood' | 'street', run: 'first' | 'repeat') {
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const units: Unit[] = [];
+  const outerSteps: Array<{ index: number; durationMs: number; units: Unit[] }> = [];
+  let current: { phase: Phase; startedAt: number } | null = null;
+  let emitBuilding = false;
+  let allocate = false;
+  let published: Three.Group | null = null;
+  let job: ReturnType<typeof createCellStockJob> | undefined;
+  let ready: { geometryBytes: number; sourceBuildingIndices: readonly number[] } | null = null;
+  const mark = (phase: Phase) => {
+    if (!current) current = { phase, startedAt: performance.now() };
+    else if (current.phase === 'unknown' && phase !== 'unknown') current.phase = phase;
+  };
+  const closeUnit = (finishedAt = performance.now()) => {
+    if (!current) return;
+    units.push({ phase: current.phase, startedAt: current.startedAt, finishedAt, durationMs: finishedAt - current.startedAt }); current = null;
+  };
+  const clock = () => { closeUnit(); emitBuilding = false; allocate = false; const now = performance.now(); current = { phase: 'unknown', startedAt: now }; return now; };
+  const cityBuildings = city.buildings;
+  const descriptor = Object.getOwnPropertyDescriptor(city, 'buildings');
+  const buildingProxy = new Proxy(cityBuildings, { get(target, property, receiver) { if (typeof property === 'string' && /^\d+$/.test(property)) { emitBuilding = true; mark('emit'); } return Reflect.get(target, property, receiver); } });
+  Object.defineProperty(city, 'buildings', { configurable: true, get() { return buildingProxy; } });
+  const geometryPrototype = THREE.BufferGeometry.prototype;
+  const originalSetAttribute = geometryPrototype.setAttribute;
+  const originalSetIndex = geometryPrototype.setIndex;
+  const originalGetAttribute = geometryPrototype.getAttribute;
+  const originalGetIndex = geometryPrototype.getIndex;
+  geometryPrototype.setAttribute = function (...args) { if (!emitBuilding) { allocate = true; mark('allocate'); } return originalSetAttribute.apply(this, args); };
+  geometryPrototype.setIndex = function (...args) { if (!emitBuilding) { allocate = true; mark('allocate'); } return originalSetIndex.apply(this, args); };
+  geometryPrototype.getAttribute = function (...args) { if (!emitBuilding && !allocate) mark('copy'); return originalGetAttribute.apply(this, args); };
+  geometryPrototype.getIndex = function (...args) { if (!emitBuilding && !allocate) mark('copy'); return originalGetIndex.apply(this, args); };
+  try {
+    job = createCellStockJob({ id: `${detail}-${run}`, generation: 1, essential: true, cityData: city, cell, excludedBuildingIndices: new Set(), material, detail, now: clock, onReady: (value) => { if (current) current.phase = 'publish'; else mark('publish'); published = value.group; ready = { geometryBytes: value.geometryBytes, sourceBuildingIndices: value.sourceBuildingIndices }; } });
+    let done = false;
+    for (let step = 0; step < 10_000 && !done; step++) {
+      emitBuilding = false; allocate = false;
+      const before = performance.now(); done = job.step(); const after = performance.now(); closeUnit(after);
+      outerSteps.push({ index: step, durationMs: after - before, units: units.splice(0) });
+    }
+    assert.equal(done, true);
+    assert.ok(ready);
+    const phaseTotals = { emit: 0, allocate: 0, copy: 0, publish: 0, unknown: 0 } satisfies Record<Phase, number>;
+    for (const step of outerSteps) {
+      for (const unit of step.units) phaseTotals[unit.phase] += unit.durationMs;
+      const classified = step.units.reduce((sum, unit) => sum + unit.durationMs, 0);
+      phaseTotals.unknown += Math.max(0, step.durationMs - classified);
+    }
+    return { detail, run, steps: outerSteps, totalMs: outerSteps.reduce((sum, step) => sum + step.durationMs, 0), maxStepMs: Math.max(...outerSteps.map((step) => step.durationMs)), phaseTotals, unclassifiedMs: phaseTotals.unknown, geometryBytes: ready.geometryBytes, sourceBuildingIndices: [...ready.sourceBuildingIndices], meshCount: published ? published.children.filter((child) => child instanceof THREE.Mesh).length : 0 };
+  } finally {
+    try {
+      try { job?.cancel(); } catch {}
+      try { disposeGroup(published); } catch {}
+      try { material.dispose(); } catch {}
+    } finally {
+      if (descriptor) Object.defineProperty(city, 'buildings', descriptor); else delete (city as unknown as { buildings?: unknown }).buildings;
+      geometryPrototype.setAttribute = originalSetAttribute; geometryPrototype.setIndex = originalSetIndex; geometryPrototype.getAttribute = originalGetAttribute; geometryPrototype.getIndex = originalGetIndex;
+    }
+  }
+}
+
+const results = (['overview', 'neighbourhood', 'street'] as const).flatMap((detail) => [profile(detail, 'first'), profile(detail, 'repeat')]);
+const finishedAt = new Date().toISOString();
+const output = { schema: 1, sourceSHA, dirty, startedAt, finishedAt, runtimeCapture: 'instrumented indicative Node timing, not browser/phone SLO', host: { hostname: hostname(), platform: platform(), release: release(), arch: process.arch, cpu: cpus()[0]?.model ?? 'unknown', node: process.version, three: THREE.REVISION }, binarySHA256: BINARY_SHA, cellId: CELL_ID, ownerCount: cell.buildingIndices.length, selectedSourceIndices: cell.buildingIndices.slice(0, 16), allOwnerSourceIndices: [...cell.buildingIndices], results, attribution: { emit: 'numeric CityData building getter', allocate: 'BufferGeometry setAttribute/setIndex when no emit is active', copy: 'BufferGeometry getAttribute/getIndex when neither emit nor allocate is active', publish: 'onReady callback', unknown: 'outer-step duration minus classified unit durations, including job control and clock overhead' }, limits: ['One normal process run profiles first then repeat per tier; both runs share process/module/JIT state, so first is not a fresh-process cold start.', 'Phase timings are instrumented indicative Node timings, not browser or phone SLOs.', 'No timing claim is made for incremental geometry workers or the full renderer.'] };
+await mkdir(OUTPUT_DIR, { recursive: true });
+await writeFile(join(OUTPUT_DIR, 'profile-cell-jobs.json'), `${JSON.stringify(output, null, 2)}\n`);
+console.log(JSON.stringify({ output: join(OUTPUT_DIR, 'profile-cell-jobs.json'), sourceSHA, results: results.map((result) => ({ detail: result.detail, run: result.run, totalMs: result.totalMs })) }));
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });

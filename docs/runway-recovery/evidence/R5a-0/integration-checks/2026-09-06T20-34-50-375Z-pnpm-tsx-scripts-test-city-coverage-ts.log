@@ -1,0 +1,20 @@
+command: pnpm tsx scripts/test-city-coverage.ts
+started: 2026-09-06T20:34:50.375Z
+ended: 2026-09-06T20:34:50.880Z
+elapsed_ms: 504.3
+exit_code: 0
+signal: 
+
+--- stdout ---
+City index and coverage
+  ✓ empty data produces an empty stable index
+  ✓ rejects invalid cell sizes and malformed footprints
+  ✓ validates query bounds and padding
+  ✓ assigns by arithmetic vertex centroid and expands owner bounds
+  ✓ output is deterministic and delta is deduplicated and sorted
+  ✓ negative-coordinate selector handles edge-touching bounds
+  binary buildings=113569 cells=1609 indexMs=98.4
+  ✓ every committed binary building has exactly one owner cell
+Passed 7 city coverage checks
+
+--- stderr ---

@@ -1,0 +1,190 @@
+{
+  "schema": 1,
+  "sourceSHA": "f1af3e85e763e3d06a412f5df9912ef0affd0454",
+  "dirty": false,
+  "startedAt": "2026-09-10T06:32:11.123Z",
+  "finishedAt": "2026-09-10T06:32:11.448Z",
+  "runtimeCapture": "instrumented indicative Node timing, not browser/phone SLO",
+  "host": {
+    "hostname": "Foos-MacBook-Air.local",
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "cpu": "Apple M1",
+    "node": "v26.5.0",
+    "three": "185"
+  },
+  "binarySHA256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0",
+  "cellId": "14,10",
+  "ownerCount": 320,
+  "attribution": {
+    "emit": "numeric CityData building getter",
+    "allocate": "BufferGeometry setAttribute/setIndex when no emit is active",
+    "copy": "BufferGeometry getAttribute/getIndex when neither emit nor allocate is active",
+    "publish": "onReady callback",
+    "unknown": "outer-step duration minus classified unit durations, including job control and clock overhead"
+  },
+  "limits": [
+    "One normal process run profiles first then repeat per tier; both runs share process/module/JIT state, so first is not a fresh-process cold start.",
+    "Phase timings are instrumented indicative Node timings, not browser or phone SLOs.",
+    "No timing claim is made for incremental geometry workers or the full renderer."
+  ],
+  "results": [
+    {
+      "detail": "overview",
+      "run": "first",
+      "totalMs": 19.464832000000683,
+      "maxStepMs": 4.050583000000017,
+      "phaseTotals": {
+        "emit": 14.905073000000414,
+        "allocate": 0.22508400000003803,
+        "copy": 3.851843999999062,
+        "publish": 0.18500000000000227,
+        "unknown": 0.29783100000116747
+      },
+      "unclassifiedMs": 0.29783100000116747,
+      "geometryBytes": 243264,
+      "meshCount": 1,
+      "steps": 81,
+      "stepsOver4Ms": 1,
+      "sourceCount": 320,
+      "phaseMaxMs": {
+        "emit": 2.3110419999999863,
+        "allocate": 0.17670900000001666,
+        "copy": 1.6003749999999854,
+        "publish": 0.18500000000000227,
+        "unknown": 0.0049159999999801585
+      }
+    },
+    {
+      "detail": "overview",
+      "run": "repeat",
+      "totalMs": 11.513291999999979,
+      "maxStepMs": 0.8896249999999668,
+      "phaseTotals": {
+        "emit": 9.469997999999748,
+        "allocate": 0.05187499999999545,
+        "copy": 1.7265769999993381,
+        "publish": 0.05379199999998718,
+        "unknown": 0.21105000000090968
+      },
+      "unclassifiedMs": 0.21105000000090968,
+      "geometryBytes": 243264,
+      "meshCount": 1,
+      "steps": 81,
+      "stepsOver4Ms": 0,
+      "sourceCount": 320,
+      "phaseMaxMs": {
+        "emit": 0.23904099999998607,
+        "allocate": 0.021374999999977717,
+        "copy": 0.0432920000000081,
+        "publish": 0.05379199999998718,
+        "unknown": 0.00033400000000938235
+      }
+    },
+    {
+      "detail": "neighbourhood",
+      "run": "first",
+      "totalMs": 21.05558499999995,
+      "maxStepMs": 2.691209000000015,
+      "phaseTotals": {
+        "emit": 17.77278899999976,
+        "allocate": 0.10216599999995424,
+        "copy": 2.938360999999702,
+        "publish": 0.0691669999999931,
+        "unknown": 0.1731020000005401
+      },
+      "unclassifiedMs": 0.1731020000005401,
+      "geometryBytes": 2716056,
+      "meshCount": 1,
+      "steps": 81,
+      "stepsOver4Ms": 0,
+      "sourceCount": 320,
+      "phaseMaxMs": {
+        "emit": 1.8188339999999812,
+        "allocate": 0.042124999999998636,
+        "copy": 0.06483400000001893,
+        "publish": 0.0691669999999931,
+        "unknown": 0.0007500000000391083
+      }
+    },
+    {
+      "detail": "neighbourhood",
+      "run": "repeat",
+      "totalMs": 15.744503000000236,
+      "maxStepMs": 1.2462919999999826,
+      "phaseTotals": {
+        "emit": 13.847208000000307,
+        "allocate": 0.030333999999982098,
+        "copy": 1.676300000000424,
+        "publish": 0.053165999999976066,
+        "unknown": 0.1374949999995465
+      },
+      "unclassifiedMs": 0.1374949999995465,
+      "geometryBytes": 2716056,
+      "meshCount": 1,
+      "steps": 81,
+      "stepsOver4Ms": 0,
+      "sourceCount": 320,
+      "phaseMaxMs": {
+        "emit": 0.4768750000000068,
+        "allocate": 0.014791999999999916,
+        "copy": 0.02408300000001873,
+        "publish": 0.053165999999976066,
+        "unknown": 0.00016700000003311288
+      }
+    },
+    {
+      "detail": "street",
+      "run": "first",
+      "totalMs": 74.25574999999998,
+      "maxStepMs": 4.023667000000046,
+      "phaseTotals": {
+        "emit": 59.00533200000001,
+        "allocate": 0.041127000000074077,
+        "copy": 14.78816999999924,
+        "publish": 0.0699170000000322,
+        "unknown": 0.3512040000006209
+      },
+      "unclassifiedMs": 0.3512040000006209,
+      "geometryBytes": 11339040,
+      "meshCount": 1,
+      "steps": 83,
+      "stepsOver4Ms": 3,
+      "sourceCount": 320,
+      "phaseMaxMs": {
+        "emit": 2.021167000000048,
+        "allocate": 0.02195900000003803,
+        "copy": 0.6060420000000022,
+        "publish": 0.0699170000000322,
+        "unknown": 0.014042000000017651
+      }
+    },
+    {
+      "detail": "street",
+      "run": "repeat",
+      "totalMs": 59.46028500000068,
+      "maxStepMs": 3.9745410000000447,
+      "phaseTotals": {
+        "emit": 49.167542999998886,
+        "allocate": 0.032709000000068045,
+        "copy": 10.021641000000955,
+        "publish": 0.06141700000000583,
+        "unknown": 0.17697500000076616
+      },
+      "unclassifiedMs": 0.17697500000076616,
+      "geometryBytes": 11339040,
+      "meshCount": 1,
+      "steps": 82,
+      "stepsOver4Ms": 0,
+      "sourceCount": 320,
+      "phaseMaxMs": {
+        "emit": 0.9884580000000369,
+        "allocate": 0.014375000000086402,
+        "copy": 0.48500000000001364,
+        "publish": 0.06141700000000583,
+        "unknown": 0.00041699999997035775
+      }
+    }
+  ]
+}

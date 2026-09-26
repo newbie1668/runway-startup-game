@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "sourceSHA": "7610f9fbef827cbe8b819f517b5683348405e630",
+  "dirty": false,
+  "measuredAt": "2026-09-09T22:26:58.818Z",
+  "runtimeCapture": "overview resident-buffer accounting estimate, not performance or GPU-memory measurement",
+  "binarySHA256": "6375dd81dfb23a7ef6e312b888c1b0bcf9e26b67978081a48403429221a2a2c0",
+  "three": "185",
+  "cellSizeM": 400,
+  "cells": 1609,
+  "nonEmptyCells": 1609,
+  "inputOriginalIndices": 113569,
+  "emittedOriginalIndices": 113563,
+  "omittedOriginalIndices": [
+    81516,
+    81523,
+    81529,
+    81536,
+    81556,
+    82574
+  ],
+  "omittedOriginalIndicesCount": 6,
+  "totalGeometryBytes": 97580844,
+  "maxCellBytes": 261480,
+  "maxCellId": "5,15",
+  "maxScratchPicks": 320,
+  "maxIterationGuard": 10000,
+  "detail": "overview",
+  "limits": [
+    "Cells are processed sequentially and published geometry is disposed before the next cell; no whole-city mesh set is retained.",
+    "Aggregate bytes estimate possible cell resident buffers only; Three object/material overhead, prefabs, cover, scene retention, and GPU allocations are excluded.",
+    "This is evidence for a proposed 128 MiB budget decision, not all-city rendered/resident memory or device performance certification."
+  ]
+}

@@ -1,0 +1,5898 @@
+{
+  "scope": "Diagnostic attribution only; debugger pause and instrumentation excluded from performance claims",
+  "url": "http://127.0.0.1:4321/game?view=wide&chrome=0&qa=1&look=zero",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1,
+    "coarse": false
+  },
+  "camera": {
+    "x": 102.71491504520723,
+    "y": 50.00000000000071,
+    "zoom": 6.822069497882382
+  },
+  "total": {
+    "residentRenderables": 2392,
+    "residentMeshes": 2384,
+    "hierarchyVisibleRenderables": 2390,
+    "hierarchyVisibleMeshes": 2382,
+    "frustumQualifiedRenderables": 2390,
+    "submittedUniqueObjects": 2390,
+    "submittedUniqueMeshes": 2382,
+    "renderBufferDirectInvocations": 2390,
+    "nativeCalls": 2390,
+    "triangles": 1908689,
+    "distinctSubmittedMaterialIds": 724
+  },
+  "geometryBytes": 130812722,
+  "categories": [
+    {
+      "category": "stock",
+      "residentRenderables": 1609,
+      "residentMeshes": 1609,
+      "hierarchyVisibleRenderables": 1609,
+      "hierarchyVisibleMeshes": 1609,
+      "frustumQualifiedRenderables": 1609,
+      "submittedUniqueObjects": 1609,
+      "submittedUniqueMeshes": 1609,
+      "renderBufferDirectInvocations": 1609,
+      "nativeCalls": 1609,
+      "triangles": 1337187,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "cover-road",
+      "residentRenderables": 210,
+      "residentMeshes": 210,
+      "hierarchyVisibleRenderables": 210,
+      "hierarchyVisibleMeshes": 210,
+      "frustumQualifiedRenderables": 210,
+      "submittedUniqueObjects": 210,
+      "submittedUniqueMeshes": 210,
+      "renderBufferDirectInvocations": 210,
+      "nativeCalls": 210,
+      "triangles": 393325,
+      "distinctSubmittedMaterialIds": 210
+    },
+    {
+      "category": "cover-water",
+      "residentRenderables": 116,
+      "residentMeshes": 116,
+      "hierarchyVisibleRenderables": 116,
+      "hierarchyVisibleMeshes": 116,
+      "frustumQualifiedRenderables": 116,
+      "submittedUniqueObjects": 116,
+      "submittedUniqueMeshes": 116,
+      "renderBufferDirectInvocations": 116,
+      "nativeCalls": 116,
+      "triangles": 12952,
+      "distinctSubmittedMaterialIds": 116
+    },
+    {
+      "category": "cover-park",
+      "residentRenderables": 204,
+      "residentMeshes": 204,
+      "hierarchyVisibleRenderables": 204,
+      "hierarchyVisibleMeshes": 204,
+      "frustumQualifiedRenderables": 204,
+      "submittedUniqueObjects": 204,
+      "submittedUniqueMeshes": 204,
+      "renderBufferDirectInvocations": 204,
+      "nativeCalls": 204,
+      "triangles": 124573,
+      "distinctSubmittedMaterialIds": 203
+    },
+    {
+      "category": "cover-tree",
+      "residentRenderables": 0,
+      "residentMeshes": 0,
+      "hierarchyVisibleRenderables": 0,
+      "hierarchyVisibleMeshes": 0,
+      "frustumQualifiedRenderables": 0,
+      "submittedUniqueObjects": 0,
+      "submittedUniqueMeshes": 0,
+      "renderBufferDirectInvocations": 0,
+      "nativeCalls": 0,
+      "triangles": 0,
+      "distinctSubmittedMaterialIds": 0
+    },
+    {
+      "category": "landmark",
+      "residentRenderables": 208,
+      "residentMeshes": 208,
+      "hierarchyVisibleRenderables": 208,
+      "hierarchyVisibleMeshes": 208,
+      "frustumQualifiedRenderables": 208,
+      "submittedUniqueObjects": 208,
+      "submittedUniqueMeshes": 208,
+      "renderBufferDirectInvocations": 208,
+      "nativeCalls": 208,
+      "triangles": 33754,
+      "distinctSubmittedMaterialIds": 172
+    },
+    {
+      "category": "noticed-replacement",
+      "residentRenderables": 34,
+      "residentMeshes": 34,
+      "hierarchyVisibleRenderables": 34,
+      "hierarchyVisibleMeshes": 34,
+      "frustumQualifiedRenderables": 34,
+      "submittedUniqueObjects": 34,
+      "submittedUniqueMeshes": 34,
+      "renderBufferDirectInvocations": 34,
+      "nativeCalls": 34,
+      "triangles": 6880,
+      "distinctSubmittedMaterialIds": 13
+    },
+    {
+      "category": "other-scene",
+      "residentRenderables": 11,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 9,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 9,
+      "submittedUniqueObjects": 9,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 9,
+      "nativeCalls": 9,
+      "triangles": 18,
+      "distinctSubmittedMaterialIds": 9
+    },
+    {
+      "category": "unclassified",
+      "residentRenderables": 0,
+      "residentMeshes": 0,
+      "hierarchyVisibleRenderables": 0,
+      "hierarchyVisibleMeshes": 0,
+      "frustumQualifiedRenderables": 0,
+      "submittedUniqueObjects": 0,
+      "submittedUniqueMeshes": 0,
+      "renderBufferDirectInvocations": 0,
+      "nativeCalls": 0,
+      "triangles": 0,
+      "distinctSubmittedMaterialIds": 0
+    }
+  ],
+  "groups": [
+    {
+      "category": "stock",
+      "group": "stock-overview",
+      "residentRenderables": 1609,
+      "residentMeshes": 1609,
+      "hierarchyVisibleRenderables": 1609,
+      "hierarchyVisibleMeshes": 1609,
+      "frustumQualifiedRenderables": 1609,
+      "submittedUniqueObjects": 1609,
+      "submittedUniqueMeshes": 1609,
+      "renderBufferDirectInvocations": 1609,
+      "nativeCalls": 1609,
+      "triangles": 1337187,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "cover-park",
+      "group": "grass",
+      "residentRenderables": 106,
+      "residentMeshes": 106,
+      "hierarchyVisibleRenderables": 106,
+      "hierarchyVisibleMeshes": 106,
+      "frustumQualifiedRenderables": 106,
+      "submittedUniqueObjects": 106,
+      "submittedUniqueMeshes": 106,
+      "renderBufferDirectInvocations": 106,
+      "nativeCalls": 106,
+      "triangles": 122795,
+      "distinctSubmittedMaterialIds": 105
+    },
+    {
+      "category": "cover-road",
+      "group": "asphalt",
+      "residentRenderables": 105,
+      "residentMeshes": 105,
+      "hierarchyVisibleRenderables": 105,
+      "hierarchyVisibleMeshes": 105,
+      "frustumQualifiedRenderables": 105,
+      "submittedUniqueObjects": 105,
+      "submittedUniqueMeshes": 105,
+      "renderBufferDirectInvocations": 105,
+      "nativeCalls": 105,
+      "triangles": 196127,
+      "distinctSubmittedMaterialIds": 105
+    },
+    {
+      "category": "cover-road",
+      "group": "pavement",
+      "residentRenderables": 105,
+      "residentMeshes": 105,
+      "hierarchyVisibleRenderables": 105,
+      "hierarchyVisibleMeshes": 105,
+      "frustumQualifiedRenderables": 105,
+      "submittedUniqueObjects": 105,
+      "submittedUniqueMeshes": 105,
+      "renderBufferDirectInvocations": 105,
+      "nativeCalls": 105,
+      "triangles": 197198,
+      "distinctSubmittedMaterialIds": 105
+    },
+    {
+      "category": "cover-park",
+      "group": "park-paths",
+      "residentRenderables": 98,
+      "residentMeshes": 98,
+      "hierarchyVisibleRenderables": 98,
+      "hierarchyVisibleMeshes": 98,
+      "frustumQualifiedRenderables": 98,
+      "submittedUniqueObjects": 98,
+      "submittedUniqueMeshes": 98,
+      "renderBufferDirectInvocations": 98,
+      "nativeCalls": 98,
+      "triangles": 1778,
+      "distinctSubmittedMaterialIds": 98
+    },
+    {
+      "category": "cover-water",
+      "group": "water-bank",
+      "residentRenderables": 58,
+      "residentMeshes": 58,
+      "hierarchyVisibleRenderables": 58,
+      "hierarchyVisibleMeshes": 58,
+      "frustumQualifiedRenderables": 58,
+      "submittedUniqueObjects": 58,
+      "submittedUniqueMeshes": 58,
+      "renderBufferDirectInvocations": 58,
+      "nativeCalls": 58,
+      "triangles": 8176,
+      "distinctSubmittedMaterialIds": 58
+    },
+    {
+      "category": "cover-water",
+      "group": "water-surface",
+      "residentRenderables": 58,
+      "residentMeshes": 58,
+      "hierarchyVisibleRenderables": 58,
+      "hierarchyVisibleMeshes": 58,
+      "frustumQualifiedRenderables": 58,
+      "submittedUniqueObjects": 58,
+      "submittedUniqueMeshes": 58,
+      "renderBufferDirectInvocations": 58,
+      "nativeCalls": 58,
+      "triangles": 4776,
+      "distinctSubmittedMaterialIds": 58
+    },
+    {
+      "category": "landmark",
+      "group": "buckingham",
+      "residentRenderables": 30,
+      "residentMeshes": 30,
+      "hierarchyVisibleRenderables": 30,
+      "hierarchyVisibleMeshes": 30,
+      "frustumQualifiedRenderables": 30,
+      "submittedUniqueObjects": 30,
+      "submittedUniqueMeshes": 30,
+      "renderBufferDirectInvocations": 30,
+      "nativeCalls": 30,
+      "triangles": 3312,
+      "distinctSubmittedMaterialIds": 16
+    },
+    {
+      "category": "landmark",
+      "group": "eye",
+      "residentRenderables": 20,
+      "residentMeshes": 20,
+      "hierarchyVisibleRenderables": 20,
+      "hierarchyVisibleMeshes": 20,
+      "frustumQualifiedRenderables": 20,
+      "submittedUniqueObjects": 20,
+      "submittedUniqueMeshes": 20,
+      "renderBufferDirectInvocations": 20,
+      "nativeCalls": 20,
+      "triangles": 944,
+      "distinctSubmittedMaterialIds": 19
+    },
+    {
+      "category": "landmark",
+      "group": "oldstreet",
+      "residentRenderables": 20,
+      "residentMeshes": 20,
+      "hierarchyVisibleRenderables": 20,
+      "hierarchyVisibleMeshes": 20,
+      "frustumQualifiedRenderables": 20,
+      "submittedUniqueObjects": 20,
+      "submittedUniqueMeshes": 20,
+      "renderBufferDirectInvocations": 20,
+      "nativeCalls": 20,
+      "triangles": 1200,
+      "distinctSubmittedMaterialIds": 20
+    },
+    {
+      "category": "landmark",
+      "group": "lcy",
+      "residentRenderables": 18,
+      "residentMeshes": 18,
+      "hierarchyVisibleRenderables": 18,
+      "hierarchyVisibleMeshes": 18,
+      "frustumQualifiedRenderables": 18,
+      "submittedUniqueObjects": 18,
+      "submittedUniqueMeshes": 18,
+      "renderBufferDirectInvocations": 18,
+      "nativeCalls": 18,
+      "triangles": 1944,
+      "distinctSubmittedMaterialIds": 10
+    },
+    {
+      "category": "landmark",
+      "group": "towerbridge",
+      "residentRenderables": 17,
+      "residentMeshes": 17,
+      "hierarchyVisibleRenderables": 17,
+      "hierarchyVisibleMeshes": 17,
+      "frustumQualifiedRenderables": 17,
+      "submittedUniqueObjects": 17,
+      "submittedUniqueMeshes": 17,
+      "renderBufferDirectInvocations": 17,
+      "nativeCalls": 17,
+      "triangles": 2164,
+      "distinctSubmittedMaterialIds": 9
+    },
+    {
+      "category": "noticed-replacement",
+      "group": "charrington-tower",
+      "residentRenderables": 16,
+      "residentMeshes": 16,
+      "hierarchyVisibleRenderables": 16,
+      "hierarchyVisibleMeshes": 16,
+      "frustumQualifiedRenderables": 16,
+      "submittedUniqueObjects": 16,
+      "submittedUniqueMeshes": 16,
+      "renderBufferDirectInvocations": 16,
+      "nativeCalls": 16,
+      "triangles": 3216,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "landmark",
+      "group": "towerlondon",
+      "residentRenderables": 11,
+      "residentMeshes": 11,
+      "hierarchyVisibleRenderables": 11,
+      "hierarchyVisibleMeshes": 11,
+      "frustumQualifiedRenderables": 11,
+      "submittedUniqueObjects": 11,
+      "submittedUniqueMeshes": 11,
+      "renderBufferDirectInvocations": 11,
+      "nativeCalls": 11,
+      "triangles": 2716,
+      "distinctSubmittedMaterialIds": 6
+    },
+    {
+      "category": "landmark",
+      "group": "stpauls",
+      "residentRenderables": 9,
+      "residentMeshes": 9,
+      "hierarchyVisibleRenderables": 9,
+      "hierarchyVisibleMeshes": 9,
+      "frustumQualifiedRenderables": 9,
+      "submittedUniqueObjects": 9,
+      "submittedUniqueMeshes": 9,
+      "renderBufferDirectInvocations": 9,
+      "nativeCalls": 9,
+      "triangles": 2444,
+      "distinctSubmittedMaterialIds": 9
+    },
+    {
+      "category": "noticed-replacement",
+      "group": "one-park-drive",
+      "residentRenderables": 8,
+      "residentMeshes": 8,
+      "hierarchyVisibleRenderables": 8,
+      "hierarchyVisibleMeshes": 8,
+      "frustumQualifiedRenderables": 8,
+      "submittedUniqueObjects": 8,
+      "submittedUniqueMeshes": 8,
+      "renderBufferDirectInvocations": 8,
+      "nativeCalls": 8,
+      "triangles": 1360,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "other-scene",
+      "group": "hub-glows",
+      "residentRenderables": 8,
+      "residentMeshes": 0,
+      "hierarchyVisibleRenderables": 8,
+      "hierarchyVisibleMeshes": 0,
+      "frustumQualifiedRenderables": 8,
+      "submittedUniqueObjects": 8,
+      "submittedUniqueMeshes": 0,
+      "renderBufferDirectInvocations": 8,
+      "nativeCalls": 8,
+      "triangles": 16,
+      "distinctSubmittedMaterialIds": 8
+    },
+    {
+      "category": "landmark",
+      "group": "britishmuseum",
+      "residentRenderables": 6,
+      "residentMeshes": 6,
+      "hierarchyVisibleRenderables": 6,
+      "hierarchyVisibleMeshes": 6,
+      "frustumQualifiedRenderables": 6,
+      "submittedUniqueObjects": 6,
+      "submittedUniqueMeshes": 6,
+      "renderBufferDirectInvocations": 6,
+      "nativeCalls": 6,
+      "triangles": 1138,
+      "distinctSubmittedMaterialIds": 6
+    },
+    {
+      "category": "landmark",
+      "group": "alberthall",
+      "residentRenderables": 5,
+      "residentMeshes": 5,
+      "hierarchyVisibleRenderables": 5,
+      "hierarchyVisibleMeshes": 5,
+      "frustumQualifiedRenderables": 5,
+      "submittedUniqueObjects": 5,
+      "submittedUniqueMeshes": 5,
+      "renderBufferDirectInvocations": 5,
+      "nativeCalls": 5,
+      "triangles": 880,
+      "distinctSubmittedMaterialIds": 5
+    },
+    {
+      "category": "landmark",
+      "group": "goodgest",
+      "residentRenderables": 5,
+      "residentMeshes": 5,
+      "hierarchyVisibleRenderables": 5,
+      "hierarchyVisibleMeshes": 5,
+      "frustumQualifiedRenderables": 5,
+      "submittedUniqueObjects": 5,
+      "submittedUniqueMeshes": 5,
+      "renderBufferDirectInvocations": 5,
+      "nativeCalls": 5,
+      "triangles": 216,
+      "distinctSubmittedMaterialIds": 5
+    },
+    {
+      "category": "landmark",
+      "group": "nationaltheatre",
+      "residentRenderables": 5,
+      "residentMeshes": 5,
+      "hierarchyVisibleRenderables": 5,
+      "hierarchyVisibleMeshes": 5,
+      "frustumQualifiedRenderables": 5,
+      "submittedUniqueObjects": 5,
+      "submittedUniqueMeshes": 5,
+      "renderBufferDirectInvocations": 5,
+      "nativeCalls": 5,
+      "triangles": 276,
+      "distinctSubmittedMaterialIds": 5
+    },
+    {
+      "category": "landmark",
+      "group": "stcharles",
+      "residentRenderables": 5,
+      "residentMeshes": 5,
+      "hierarchyVisibleRenderables": 5,
+      "hierarchyVisibleMeshes": 5,
+      "frustumQualifiedRenderables": 5,
+      "submittedUniqueObjects": 5,
+      "submittedUniqueMeshes": 5,
+      "renderBufferDirectInvocations": 5,
+      "nativeCalls": 5,
+      "triangles": 176,
+      "distinctSubmittedMaterialIds": 5
+    },
+    {
+      "category": "landmark",
+      "group": "stpancras",
+      "residentRenderables": 5,
+      "residentMeshes": 5,
+      "hierarchyVisibleRenderables": 5,
+      "hierarchyVisibleMeshes": 5,
+      "frustumQualifiedRenderables": 5,
+      "submittedUniqueObjects": 5,
+      "submittedUniqueMeshes": 5,
+      "renderBufferDirectInvocations": 5,
+      "nativeCalls": 5,
+      "triangles": 600,
+      "distinctSubmittedMaterialIds": 5
+    },
+    {
+      "category": "landmark",
+      "group": "tatemodern",
+      "residentRenderables": 5,
+      "residentMeshes": 5,
+      "hierarchyVisibleRenderables": 5,
+      "hierarchyVisibleMeshes": 5,
+      "frustumQualifiedRenderables": 5,
+      "submittedUniqueObjects": 5,
+      "submittedUniqueMeshes": 5,
+      "renderBufferDirectInvocations": 5,
+      "nativeCalls": 5,
+      "triangles": 1020,
+      "distinctSubmittedMaterialIds": 5
+    },
+    {
+      "category": "landmark",
+      "group": "allsouls",
+      "residentRenderables": 4,
+      "residentMeshes": 4,
+      "hierarchyVisibleRenderables": 4,
+      "hierarchyVisibleMeshes": 4,
+      "frustumQualifiedRenderables": 4,
+      "submittedUniqueObjects": 4,
+      "submittedUniqueMeshes": 4,
+      "renderBufferDirectInvocations": 4,
+      "nativeCalls": 4,
+      "triangles": 476,
+      "distinctSubmittedMaterialIds": 4
+    },
+    {
+      "category": "landmark",
+      "group": "bigben",
+      "residentRenderables": 4,
+      "residentMeshes": 4,
+      "hierarchyVisibleRenderables": 4,
+      "hierarchyVisibleMeshes": 4,
+      "frustumQualifiedRenderables": 4,
+      "submittedUniqueObjects": 4,
+      "submittedUniqueMeshes": 4,
+      "renderBufferDirectInvocations": 4,
+      "nativeCalls": 4,
+      "triangles": 704,
+      "distinctSubmittedMaterialIds": 4
+    },
+    {
+      "category": "noticed-replacement",
+      "group": "citi",
+      "residentRenderables": 4,
+      "residentMeshes": 4,
+      "hierarchyVisibleRenderables": 4,
+      "hierarchyVisibleMeshes": 4,
+      "frustumQualifiedRenderables": 4,
+      "submittedUniqueObjects": 4,
+      "submittedUniqueMeshes": 4,
+      "renderBufferDirectInvocations": 4,
+      "nativeCalls": 4,
+      "triangles": 192,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "landmark",
+      "group": "battersea",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 1496,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "landmark",
+      "group": "canadasq",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 916,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "landmark",
+      "group": "gherkin",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 3936,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "landmark",
+      "group": "shard",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 2144,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "landmark",
+      "group": "walkie",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 204,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "noticed-replacement",
+      "group": "hsbc-uk",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 576,
+      "distinctSubmittedMaterialIds": 3
+    },
+    {
+      "category": "noticed-replacement",
+      "group": "newfoundland-quay",
+      "residentRenderables": 3,
+      "residentMeshes": 3,
+      "hierarchyVisibleRenderables": 3,
+      "hierarchyVisibleMeshes": 3,
+      "frustumQualifiedRenderables": 3,
+      "submittedUniqueObjects": 3,
+      "submittedUniqueMeshes": 3,
+      "renderBufferDirectInvocations": 3,
+      "nativeCalls": 3,
+      "triangles": 1536,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "abbey",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 188,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "albertbr",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 520,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "bishop",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 156,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "bttower",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 832,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "grater",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 536,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "monument",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 232,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "o2",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 1332,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "tower42",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 2,
+      "hierarchyVisibleMeshes": 2,
+      "frustumQualifiedRenderables": 2,
+      "submittedUniqueObjects": 2,
+      "submittedUniqueMeshes": 2,
+      "renderBufferDirectInvocations": 2,
+      "nativeCalls": 2,
+      "triangles": 80,
+      "distinctSubmittedMaterialIds": 2
+    },
+    {
+      "category": "landmark",
+      "group": "blackfriarsbr",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 60,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "heron",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 56,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "hungerford",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 72,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "lambethbr",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 60,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "londonbr",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 36,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "millennium",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 544,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "waterloobr",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 60,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "landmark",
+      "group": "westminsterbr",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 84,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "other-scene",
+      "group": "ground",
+      "residentRenderables": 1,
+      "residentMeshes": 1,
+      "hierarchyVisibleRenderables": 1,
+      "hierarchyVisibleMeshes": 1,
+      "frustumQualifiedRenderables": 1,
+      "submittedUniqueObjects": 1,
+      "submittedUniqueMeshes": 1,
+      "renderBufferDirectInvocations": 1,
+      "nativeCalls": 1,
+      "triangles": 2,
+      "distinctSubmittedMaterialIds": 1
+    },
+    {
+      "category": "other-scene",
+      "group": "selection-beam",
+      "residentRenderables": 2,
+      "residentMeshes": 2,
+      "hierarchyVisibleRenderables": 0,
+      "hierarchyVisibleMeshes": 0,
+      "frustumQualifiedRenderables": 0,
+      "submittedUniqueObjects": 0,
+      "submittedUniqueMeshes": 0,
+      "renderBufferDirectInvocations": 0,
+      "nativeCalls": 0,
+      "triangles": 0,
+      "distinctSubmittedMaterialIds": 0
+    }
+  ],
+  "nonStockMaterialSignatures": [
+    {
+      "signature": {
+        "color": "ffffff",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": true,
+        "polygonOffsetFactor": -2,
+        "polygonOffsetUnits": -2,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": true,
+        "visible": true
+      },
+      "nativeCalls": 106,
+      "triangles": 122795,
+      "uniqueObjects": 106,
+      "distinctMaterialInstances": 105,
+      "materialIds": [
+        204,
+        209,
+        215,
+        220,
+        226,
+        232,
+        238,
+        244,
+        248,
+        253,
+        257,
+        262,
+        267,
+        271,
+        277,
+        281,
+        287,
+        293,
+        297,
+        303,
+        309,
+        315,
+        319,
+        325,
+        331,
+        337,
+        341,
+        345,
+        349,
+        355,
+        359,
+        363,
+        367,
+        373,
+        377,
+        383,
+        389,
+        395,
+        399,
+        405,
+        411,
+        417,
+        423,
+        429,
+        433,
+        437,
+        443,
+        449,
+        455,
+        459,
+        463,
+        469,
+        475,
+        481,
+        487,
+        493,
+        497,
+        501,
+        505,
+        510,
+        516,
+        520,
+        526,
+        530,
+        536,
+        542,
+        548,
+        552,
+        558,
+        562,
+        568,
+        572,
+        578,
+        582,
+        586,
+        590,
+        594,
+        600,
+        606,
+        612,
+        616,
+        620,
+        626,
+        630,
+        634,
+        640,
+        646,
+        650,
+        654,
+        658,
+        662,
+        668,
+        674,
+        680,
+        684,
+        688,
+        692,
+        696,
+        702,
+        706,
+        712,
+        716,
+        720,
+        724,
+        727
+      ],
+      "groups": {
+        "grass": 106
+      }
+    },
+    {
+      "signature": {
+        "color": "d6d2c8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 105,
+      "triangles": 197198,
+      "uniqueObjects": 105,
+      "distinctMaterialInstances": 105,
+      "materialIds": [
+        205,
+        211,
+        216,
+        222,
+        228,
+        234,
+        240,
+        246,
+        249,
+        255,
+        258,
+        263,
+        269,
+        273,
+        279,
+        283,
+        289,
+        295,
+        299,
+        305,
+        311,
+        317,
+        321,
+        327,
+        333,
+        339,
+        343,
+        347,
+        351,
+        357,
+        361,
+        365,
+        369,
+        375,
+        379,
+        385,
+        391,
+        397,
+        401,
+        407,
+        413,
+        419,
+        425,
+        431,
+        435,
+        439,
+        445,
+        451,
+        457,
+        461,
+        465,
+        471,
+        477,
+        483,
+        489,
+        495,
+        499,
+        503,
+        506,
+        512,
+        518,
+        522,
+        528,
+        532,
+        538,
+        544,
+        550,
+        554,
+        560,
+        564,
+        570,
+        574,
+        580,
+        584,
+        588,
+        592,
+        596,
+        602,
+        608,
+        614,
+        618,
+        622,
+        628,
+        632,
+        636,
+        642,
+        648,
+        652,
+        656,
+        660,
+        664,
+        670,
+        676,
+        682,
+        686,
+        690,
+        694,
+        698,
+        704,
+        708,
+        714,
+        718,
+        722,
+        725,
+        729
+      ],
+      "groups": {
+        "pavement": 105
+      }
+    },
+    {
+      "signature": {
+        "color": "3c3e42",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": true,
+        "polygonOffsetFactor": -1,
+        "polygonOffsetUnits": -1,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 105,
+      "triangles": 196127,
+      "uniqueObjects": 105,
+      "distinctMaterialInstances": 105,
+      "materialIds": [
+        206,
+        212,
+        217,
+        223,
+        229,
+        235,
+        241,
+        247,
+        250,
+        256,
+        259,
+        264,
+        270,
+        274,
+        280,
+        284,
+        290,
+        296,
+        300,
+        306,
+        312,
+        318,
+        322,
+        328,
+        334,
+        340,
+        344,
+        348,
+        352,
+        358,
+        362,
+        366,
+        370,
+        376,
+        380,
+        386,
+        392,
+        398,
+        402,
+        408,
+        414,
+        420,
+        426,
+        432,
+        436,
+        440,
+        446,
+        452,
+        458,
+        462,
+        466,
+        472,
+        478,
+        484,
+        490,
+        496,
+        500,
+        504,
+        507,
+        513,
+        519,
+        523,
+        529,
+        533,
+        539,
+        545,
+        551,
+        555,
+        561,
+        565,
+        571,
+        575,
+        581,
+        585,
+        589,
+        593,
+        597,
+        603,
+        609,
+        615,
+        619,
+        623,
+        629,
+        633,
+        637,
+        643,
+        649,
+        653,
+        657,
+        661,
+        665,
+        671,
+        677,
+        683,
+        687,
+        691,
+        695,
+        699,
+        705,
+        709,
+        715,
+        719,
+        723,
+        726,
+        730
+      ],
+      "groups": {
+        "asphalt": 105
+      }
+    },
+    {
+      "signature": {
+        "color": "ddd6c6",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 98,
+      "triangles": 1778,
+      "uniqueObjects": 98,
+      "distinctMaterialInstances": 98,
+      "materialIds": [
+        210,
+        221,
+        227,
+        233,
+        239,
+        245,
+        254,
+        268,
+        272,
+        278,
+        282,
+        288,
+        294,
+        298,
+        304,
+        310,
+        316,
+        320,
+        326,
+        332,
+        338,
+        342,
+        346,
+        350,
+        356,
+        360,
+        364,
+        368,
+        374,
+        378,
+        384,
+        390,
+        396,
+        400,
+        406,
+        412,
+        418,
+        424,
+        430,
+        434,
+        438,
+        444,
+        450,
+        456,
+        460,
+        464,
+        470,
+        476,
+        482,
+        488,
+        494,
+        498,
+        502,
+        511,
+        517,
+        521,
+        527,
+        531,
+        537,
+        543,
+        549,
+        553,
+        559,
+        563,
+        569,
+        573,
+        579,
+        583,
+        587,
+        591,
+        595,
+        601,
+        607,
+        613,
+        617,
+        621,
+        627,
+        631,
+        635,
+        641,
+        647,
+        651,
+        655,
+        659,
+        663,
+        669,
+        675,
+        681,
+        685,
+        689,
+        693,
+        697,
+        703,
+        707,
+        713,
+        717,
+        721,
+        728
+      ],
+      "groups": {
+        "park-paths": 98
+      }
+    },
+    {
+      "signature": {
+        "color": "6b8498",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 58,
+      "triangles": 4776,
+      "uniqueObjects": 58,
+      "distinctMaterialInstances": 58,
+      "materialIds": [
+        202,
+        207,
+        213,
+        218,
+        224,
+        230,
+        236,
+        242,
+        251,
+        260,
+        265,
+        275,
+        285,
+        291,
+        301,
+        307,
+        313,
+        323,
+        329,
+        335,
+        353,
+        371,
+        381,
+        387,
+        393,
+        403,
+        409,
+        415,
+        421,
+        427,
+        441,
+        447,
+        453,
+        467,
+        473,
+        479,
+        485,
+        491,
+        508,
+        514,
+        524,
+        534,
+        540,
+        546,
+        556,
+        566,
+        576,
+        598,
+        604,
+        610,
+        624,
+        638,
+        644,
+        666,
+        672,
+        678,
+        700,
+        710
+      ],
+      "groups": {
+        "water-surface": 58
+      }
+    },
+    {
+      "signature": {
+        "color": "8fa4b4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 58,
+      "triangles": 8176,
+      "uniqueObjects": 58,
+      "distinctMaterialInstances": 58,
+      "materialIds": [
+        203,
+        208,
+        214,
+        219,
+        225,
+        231,
+        237,
+        243,
+        252,
+        261,
+        266,
+        276,
+        286,
+        292,
+        302,
+        308,
+        314,
+        324,
+        330,
+        336,
+        354,
+        372,
+        382,
+        388,
+        394,
+        404,
+        410,
+        416,
+        422,
+        428,
+        442,
+        448,
+        454,
+        468,
+        474,
+        480,
+        486,
+        492,
+        509,
+        515,
+        525,
+        535,
+        541,
+        547,
+        557,
+        567,
+        577,
+        599,
+        605,
+        611,
+        625,
+        639,
+        645,
+        667,
+        673,
+        679,
+        701,
+        711
+      ],
+      "groups": {
+        "water-bank": 58
+      }
+    },
+    {
+      "signature": {
+        "color": "a8d8ea",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 16,
+      "triangles": 192,
+      "uniqueObjects": 16,
+      "distinctMaterialInstances": 16,
+      "materialIds": [
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35
+      ],
+      "groups": {
+        "eye": 16
+      }
+    },
+    {
+      "signature": {
+        "color": "f3ece3",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 14,
+      "triangles": 2448,
+      "uniqueObjects": 14,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        199
+      ],
+      "groups": {
+        "charrington-tower": 14
+      }
+    },
+    {
+      "signature": {
+        "color": "b8d4e8",
+        "depthTest": true,
+        "depthWrite": false,
+        "forceSinglePass": false,
+        "map": true,
+        "opacity": 0.35,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": true,
+        "type": "SpriteMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 8,
+      "triangles": 16,
+      "uniqueObjects": 8,
+      "distinctMaterialInstances": 8,
+      "materialIds": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "groups": {
+        "hub-glows": 8
+      }
+    },
+    {
+      "signature": {
+        "color": "6a8aa0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 7,
+      "triangles": 1656,
+      "uniqueObjects": 7,
+      "distinctMaterialInstances": 7,
+      "materialIds": [
+        48,
+        49,
+        50,
+        51,
+        144,
+        145,
+        146
+      ],
+      "groups": {
+        "stpauls": 4,
+        "buckingham": 3
+      }
+    },
+    {
+      "signature": {
+        "color": "eee4d4",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 7,
+      "triangles": 172,
+      "uniqueObjects": 7,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        131
+      ],
+      "groups": {
+        "buckingham": 7
+      }
+    },
+    {
+      "signature": {
+        "color": "8d9aa6",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 7,
+      "triangles": 784,
+      "uniqueObjects": 7,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        189
+      ],
+      "groups": {
+        "one-park-drive": 7
+      }
+    },
+    {
+      "signature": {
+        "color": "e6d9c6",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 5,
+      "triangles": 368,
+      "uniqueObjects": 5,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        59
+      ],
+      "groups": {
+        "towerbridge": 5
+      }
+    },
+    {
+      "signature": {
+        "color": "3c3e42",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 5,
+      "triangles": 144,
+      "uniqueObjects": 5,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        63,
+        68
+      ],
+      "groups": {
+        "towerbridge": 3,
+        "lcy": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "e8dcc8",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 5,
+      "triangles": 956,
+      "uniqueObjects": 5,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        132
+      ],
+      "groups": {
+        "buckingham": 5
+      }
+    },
+    {
+      "signature": {
+        "color": "c8c4b8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 4,
+      "triangles": 48,
+      "uniqueObjects": 4,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        70
+      ],
+      "groups": {
+        "lcy": 4
+      }
+    },
+    {
+      "signature": {
+        "color": "f8f4ea",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 4,
+      "triangles": 48,
+      "uniqueObjects": 4,
+      "distinctMaterialInstances": 4,
+      "materialIds": [
+        101,
+        105,
+        109,
+        113
+      ],
+      "groups": {
+        "oldstreet": 4
+      }
+    },
+    {
+      "signature": {
+        "color": "111111",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 4,
+      "triangles": 48,
+      "uniqueObjects": 4,
+      "distinctMaterialInstances": 4,
+      "materialIds": [
+        103,
+        107,
+        111,
+        115
+      ],
+      "groups": {
+        "oldstreet": 4
+      }
+    },
+    {
+      "signature": {
+        "color": "c4b8a4",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 4,
+      "triangles": 2016,
+      "uniqueObjects": 4,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        126
+      ],
+      "groups": {
+        "towerlondon": 4
+      }
+    },
+    {
+      "signature": {
+        "color": "ddd4c4",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 4,
+      "triangles": 264,
+      "uniqueObjects": 4,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        137
+      ],
+      "groups": {
+        "buckingham": 4
+      }
+    },
+    {
+      "signature": {
+        "color": "3c4654",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 3,
+      "triangles": 72,
+      "uniqueObjects": 3,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        61
+      ],
+      "groups": {
+        "towerbridge": 3
+      }
+    },
+    {
+      "signature": {
+        "color": "e8e6dc",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": true,
+        "polygonOffsetFactor": -4,
+        "polygonOffsetUnits": -4,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 3,
+      "triangles": 1344,
+      "uniqueObjects": 3,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        69
+      ],
+      "groups": {
+        "lcy": 3
+      }
+    },
+    {
+      "signature": {
+        "color": "c5d0dc",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 272,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        17
+      ],
+      "groups": {
+        "eye": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "f4f8fc",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 2120,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        37,
+        85
+      ],
+      "groups": {
+        "shard": 1,
+        "canadasq": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f4eee0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 204,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        53,
+        154
+      ],
+      "groups": {
+        "stpauls": 1,
+        "britishmuseum": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "243040",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 900,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        62,
+        135
+      ],
+      "groups": {
+        "towerbridge": 1,
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "7a92a4",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 432,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        66,
+        67
+      ],
+      "groups": {
+        "towerbridge": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "ece8dc",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 48,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        71
+      ],
+      "groups": {
+        "lcy": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "7a9088",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 48,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        74
+      ],
+      "groups": {
+        "lcy": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "d8d4cc",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 608,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        78,
+        198
+      ],
+      "groups": {
+        "walkie": 1,
+        "newfoundland-quay": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8d0c0",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 192,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        94,
+        147
+      ],
+      "groups": {
+        "abbey": 1,
+        "monument": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3c3830",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 84,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        95,
+        166
+      ],
+      "groups": {
+        "abbey": 1,
+        "stcharles": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c4b9a6",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 144,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        116,
+        117
+      ],
+      "groups": {
+        "westminsterbr": 1,
+        "lambethbr": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8e8474",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 48,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        127
+      ],
+      "groups": {
+        "towerlondon": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "6a5848",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 256,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        129
+      ],
+      "groups": {
+        "towerlondon": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "3e4450",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 48,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        134
+      ],
+      "groups": {
+        "buckingham": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "6ea84c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": true,
+        "polygonOffsetFactor": -1,
+        "polygonOffsetUnits": -1,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 24,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        140,
+        142
+      ],
+      "groups": {
+        "buckingham": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "e8c45a",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 168,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        148,
+        188
+      ],
+      "groups": {
+        "monument": 1,
+        "alberthall": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "6a88a0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 672,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        151,
+        152
+      ],
+      "groups": {
+        "britishmuseum": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "5a7090",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 216,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        157,
+        167
+      ],
+      "groups": {
+        "allsouls": 1,
+        "stcharles": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c8c0b0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 24,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        172,
+        173
+      ],
+      "groups": {
+        "nationaltheatre": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "2a3848",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 960,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 2,
+      "materialIds": [
+        176,
+        177
+      ],
+      "groups": {
+        "tatemodern": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "8a8580",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 24,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        191
+      ],
+      "groups": {
+        "citi": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "5a7a88",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 2,
+      "triangles": 1024,
+      "uniqueObjects": 2,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        197
+      ],
+      "groups": {
+        "newfoundland-quay": 2
+      }
+    },
+    {
+      "signature": {
+        "color": "6a6860",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 2,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        5
+      ],
+      "groups": {
+        "ground": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "9aabbd",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 384,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        18
+      ],
+      "groups": {
+        "eye": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "b0becb",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 96,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        19
+      ],
+      "groups": {
+        "eye": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3d5668",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 8,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        36
+      ],
+      "groups": {
+        "shard": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c8d4dc",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        38
+      ],
+      "groups": {
+        "shard": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d4c4a8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 224,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        39
+      ],
+      "groups": {
+        "bigben": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a3228",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 360,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        40
+      ],
+      "groups": {
+        "bigben": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e8c878",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 112,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        41
+      ],
+      "groups": {
+        "bigben": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "ffe9a8",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 8,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        42
+      ],
+      "groups": {
+        "bigben": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d0ccc4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 336,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        43
+      ],
+      "groups": {
+        "bttower": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a424c",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 496,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        44
+      ],
+      "groups": {
+        "bttower": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "ddd6c4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 856,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        45
+      ],
+      "groups": {
+        "stpauls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a453c",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        46
+      ],
+      "groups": {
+        "stpauls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e8d48a",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 136,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        47
+      ],
+      "groups": {
+        "stpauls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e8e2d2",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 384,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        52
+      ],
+      "groups": {
+        "stpauls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8dee6",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 756,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        54
+      ],
+      "groups": {
+        "o2": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f5c542",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 576,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        55
+      ],
+      "groups": {
+        "o2": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "7a9aa8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 1536,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        56
+      ],
+      "groups": {
+        "gherkin": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d0e0dc",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 2304,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        57
+      ],
+      "groups": {
+        "gherkin": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a7080",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 96,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        58
+      ],
+      "groups": {
+        "gherkin": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f2ebe0",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 96,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        60
+      ],
+      "groups": {
+        "towerbridge": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8dce0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 216,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        64
+      ],
+      "groups": {
+        "towerbridge": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5c6570",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 80,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        65
+      ],
+      "groups": {
+        "towerbridge": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a5468",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 180,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        72
+      ],
+      "groups": {
+        "lcy": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "1c2a34",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        73
+      ],
+      "groups": {
+        "lcy": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "6a8a48",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        75
+      ],
+      "groups": {
+        "lcy": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8a9096",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 108,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        76
+      ],
+      "groups": {
+        "lcy": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "b4b0a6",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        77
+      ],
+      "groups": {
+        "lcy": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5a7080",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 96,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        79
+      ],
+      "groups": {
+        "walkie": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f0d090",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        80
+      ],
+      "groups": {
+        "walkie": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5a7388",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 8,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        81
+      ],
+      "groups": {
+        "grater": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8e0e8",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 528,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        82
+      ],
+      "groups": {
+        "grater": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8aa0b0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        83
+      ],
+      "groups": {
+        "canadasq": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d6dce4",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 896,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        84
+      ],
+      "groups": {
+        "canadasq": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8a3e36",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        86
+      ],
+      "groups": {
+        "battersea": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "eadcc8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 1280,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        87
+      ],
+      "groups": {
+        "battersea": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "2c2018",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 192,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        88
+      ],
+      "groups": {
+        "battersea": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "7a8a98",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 144,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        89
+      ],
+      "groups": {
+        "bishop": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c8d2dc",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        90
+      ],
+      "groups": {
+        "bishop": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "7a8ea0",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 56,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        91
+      ],
+      "groups": {
+        "heron": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "7a848c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 36,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        92
+      ],
+      "groups": {
+        "tower42": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c8bdb0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 44,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        93
+      ],
+      "groups": {
+        "tower42": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a3c42",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 512,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        96
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8d0b8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 336,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        97
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5a7a52",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 96,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        98
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c8d0d6",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 64,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        99
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e23a2b",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        100
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "1a6ad4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        102
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f5c230",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        104
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f4f0e6",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        106
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "2bb673",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        108
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f27830",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        110
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a38c8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        112
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "1a1a1c",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        114
+      ],
+      "groups": {
+        "oldstreet": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "b0a898",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 60,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        118
+      ],
+      "groups": {
+        "waterloobr": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c9a24a",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 60,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        119
+      ],
+      "groups": {
+        "blackfriarsbr": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "6e6a64",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 36,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        120
+      ],
+      "groups": {
+        "londonbr": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "b8c0c8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 544,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        121
+      ],
+      "groups": {
+        "millennium": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e8a0b4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 480,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        122
+      ],
+      "groups": {
+        "albertbr": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5aa86a",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 40,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        123
+      ],
+      "groups": {
+        "albertbr": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5a5048",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 72,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        124
+      ],
+      "groups": {
+        "hungerford": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f2e8d6",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 192,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        125
+      ],
+      "groups": {
+        "towerlondon": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a342c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 192,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        128
+      ],
+      "groups": {
+        "towerlondon": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "a89e8c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        130
+      ],
+      "groups": {
+        "towerlondon": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d4c6b0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        133
+      ],
+      "groups": {
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "1c2834",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 756,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        136
+      ],
+      "groups": {
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c9a24a",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 216,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        138
+      ],
+      "groups": {
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c45a3a",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        139
+      ],
+      "groups": {
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5a9340",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": true,
+        "polygonOffsetFactor": -1,
+        "polygonOffsetUnits": -1,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        141
+      ],
+      "groups": {
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "88bf5e",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": true,
+        "polygonOffsetFactor": -1,
+        "polygonOffsetUnits": -1,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        143
+      ],
+      "groups": {
+        "buckingham": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e2d8c4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 90,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        149
+      ],
+      "groups": {
+        "britishmuseum": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a3630",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        150
+      ],
+      "groups": {
+        "britishmuseum": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f0eadc",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 352,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        153
+      ],
+      "groups": {
+        "britishmuseum": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e8dfcc",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 332,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        155
+      ],
+      "groups": {
+        "allsouls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a4038",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        156
+      ],
+      "groups": {
+        "allsouls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f2ead8",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        158
+      ],
+      "groups": {
+        "allsouls": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "6a2428",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 68,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        159
+      ],
+      "groups": {
+        "goodgest": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e4d8c4",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 48,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        160
+      ],
+      "groups": {
+        "goodgest": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a4540",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 28,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        161
+      ],
+      "groups": {
+        "goodgest": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "2a3040",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 60,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        162
+      ],
+      "groups": {
+        "goodgest": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "1a1a1c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        163
+      ],
+      "groups": {
+        "goodgest": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "e6dcc8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 36,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        164
+      ],
+      "groups": {
+        "stcharles": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8a5648",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 20,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        165
+      ],
+      "groups": {
+        "stcharles": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f0ead8",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        168
+      ],
+      "groups": {
+        "stcharles": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "9a968c",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 48,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        169
+      ],
+      "groups": {
+        "nationaltheatre": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "5a5852",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        170
+      ],
+      "groups": {
+        "nationaltheatre": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a4a58",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 192,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        171
+      ],
+      "groups": {
+        "nationaltheatre": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8a4e42",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        174
+      ],
+      "groups": {
+        "tatemodern": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a3834",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        175
+      ],
+      "groups": {
+        "tatemodern": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8c8b0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        178
+      ],
+      "groups": {
+        "tatemodern": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "7a3a34",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 24,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        179
+      ],
+      "groups": {
+        "stpancras": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "d8cbb8",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 60,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        180
+      ],
+      "groups": {
+        "stpancras": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a5058",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 20,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        181
+      ],
+      "groups": {
+        "stpancras": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a4a60",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 432,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        182
+      ],
+      "groups": {
+        "stpancras": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "f0e6d0",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 64,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        183
+      ],
+      "groups": {
+        "stpancras": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "8a4a40",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 108,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        184
+      ],
+      "groups": {
+        "alberthall": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "b86848",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 136,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        185
+      ],
+      "groups": {
+        "alberthall": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a545c",
+        "depthTest": true,
+        "depthWrite": true,
+        "flatShading": false,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshLambertMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 552,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        186
+      ],
+      "groups": {
+        "alberthall": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a4860",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 72,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        187
+      ],
+      "groups": {
+        "alberthall": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "2c343c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 576,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        190
+      ],
+      "groups": {
+        "one-park-drive": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "6a8490",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        192
+      ],
+      "groups": {
+        "citi": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "b8c4cc",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 156,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        193
+      ],
+      "groups": {
+        "citi": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "4a5c68",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        194
+      ],
+      "groups": {
+        "hsbc-uk": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "c8d0d6",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 552,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        195
+      ],
+      "groups": {
+        "hsbc-uk": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "3a444c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 12,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        196
+      ],
+      "groups": {
+        "hsbc-uk": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "2c4450",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 2,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 672,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        200
+      ],
+      "groups": {
+        "charrington-tower": 1
+      }
+    },
+    {
+      "signature": {
+        "color": "2a343c",
+        "depthTest": true,
+        "depthWrite": true,
+        "forceSinglePass": false,
+        "map": false,
+        "opacity": 1,
+        "polygonOffset": false,
+        "polygonOffsetFactor": 0,
+        "polygonOffsetUnits": 0,
+        "side": 0,
+        "transparent": false,
+        "type": "MeshBasicMaterial",
+        "vertexColors": false,
+        "visible": true
+      },
+      "nativeCalls": 1,
+      "triangles": 96,
+      "uniqueObjects": 1,
+      "distinctMaterialInstances": 1,
+      "materialIds": [
+        201
+      ],
+      "groups": {
+        "charrington-tower": 1
+      }
+    }
+  ],
+  "nonStockMaterialTypes": [
+    {
+      "type": "MeshBasicMaterial",
+      "calls": 360,
+      "triangles": 152771
+    },
+    {
+      "type": "MeshLambertMaterial",
+      "calls": 413,
+      "triangles": 418715
+    },
+    {
+      "type": "SpriteMaterial",
+      "calls": 8,
+      "triangles": 16
+    }
+  ],
+  "reconciliation": [
+    {
+      "frame": 7701,
+      "nativeCalls": 2390,
+      "nativeTriangles": 1908689,
+      "rendererInfo": {
+        "frame": 7701,
+        "calls": 2390,
+        "triangles": 1908689,
+        "points": 0,
+        "lines": 0
+      },
+      "allAttributed": true,
+      "pass": true,
+      "nativeMethods": {
+        "drawElements": 2388,
+        "drawArrays": 2
+      },
+      "renderBufferDirectInvocations": 2390,
+      "nativeCallsPerInvocation": {
+        "1": 2390
+      }
+    },
+    {
+      "frame": 7702,
+      "nativeCalls": 2390,
+      "nativeTriangles": 1908689,
+      "rendererInfo": {
+        "frame": 7702,
+        "calls": 2390,
+        "triangles": 1908689,
+        "points": 0,
+        "lines": 0
+      },
+      "allAttributed": true,
+      "pass": true,
+      "nativeMethods": {
+        "drawElements": 2388,
+        "drawArrays": 2
+      },
+      "renderBufferDirectInvocations": 2390,
+      "nativeCallsPerInvocation": {
+        "1": 2390
+      }
+    }
+  ],
+  "identicalConsecutiveSubmissions": true,
+  "restoration": {
+    "cameraUnchanged": true,
+    "callsUnchanged": true,
+    "trianglesUnchanged": true,
+    "bytesUnchanged": true,
+    "disposableContextSaveUnchanged": true,
+    "saveCaveat": "Fresh disposable browser context has no save; no historical browser/save artifacts were changed; no gameplay replay"
+  },
+  "interpretation": "Non-stock 781 calls is measured for this view/runtime, not a lower bound for another implementation. Calls do not measure CPU/GPU time or pixel contribution."
+}

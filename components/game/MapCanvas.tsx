@@ -15,6 +15,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { MapRenderer, type HitTarget, type IMapRenderer, type Scene } from '@/lib/game/render';
 import { createMapRenderer } from '@/lib/game/render3d/factory';
+import { createMapDiagnostics, type MapQaBridge } from '@/lib/game/mapDiagnostics';
+
+let nextGeneration = 0;
 
 // Matches render.ts's 2D sky gradient exactly. The 2D canvas paints over this
 // every frame; the 3D canvas is alpha-transparent, so this shows through as
@@ -51,6 +54,31 @@ export function MapCanvas({ scene, rendererRef, onHit, onReady, className }: Pro
 
     let cancelled = false;
     let readyFired = false;
+    const diagnostics = createMapDiagnostics(++nextGeneration, () => performance.now());
+    let activeMode: '2d' | '3d' | null = null;
+    let lastQaSearch = '';
+    let bridgeOwned = false;
+    const bridge: MapQaBridge = Object.freeze({ snapshot: () => diagnostics.snapshot() });
+    const syncQa = () => {
+      const search = window.location.search;
+      if (search === lastQaSearch) return;
+      lastQaSearch = search;
+      const qa = new URLSearchParams(search).get('qa') === '1';
+      const win = window as typeof window & { __runwayQA?: MapQaBridge };
+      if (qa) {
+        win.__runwayQA = bridge;
+        bridgeOwned = true;
+      } else if (bridgeOwned && win.__runwayQA === bridge) {
+        delete win.__runwayQA;
+        bridgeOwned = false;
+      }
+    };
+    const publish = () => {
+      const mode = activeMode ?? 'pending';
+      const state = diagnostics.getState();
+      if (shell.dataset.mapMode !== mode) shell.dataset.mapMode = mode;
+      if (shell.dataset.mapState !== state) shell.dataset.mapState = state;
+    };
     const fireReady = () => {
       if (cancelled || readyFired) return;
       readyFired = true;
@@ -58,21 +86,31 @@ export function MapCanvas({ scene, rendererRef, onHit, onReady, className }: Pro
     };
 
     // 3D→2D fallback: carry the camera over so the swap is invisible.
-    const onFatal = () => {
+    const onFatal = (reason = '3D renderer failed') => {
+      if (cancelled || activeMode === '2d') return;
       const old = rendererRef.current;
       const cam = old?.getCamera();
-      old?.dispose();
+      try { old?.dispose(); } catch (error) { diagnostics.recordError('dispose:3d', false, error); }
       const fallback = new MapRenderer(overlayCanvas);
+      fallback.resize();
       fallback.scene = sceneRef.current;
       if (cam) fallback.setCamera(cam);
-      fallback.resize();
-      rendererRef.current = fallback; // loop picks it up next frame — it's ref-driven
-      fireReady();
+      rendererRef.current = fallback;
+      activeMode = '2d';
+      diagnostics.selectMode('2d', reason);
+      publish();
     };
 
-    createMapRenderer(cityCanvas, overlayCanvas, { onFatal, onReady: fireReady }).then(
+    createMapRenderer(cityCanvas, overlayCanvas, { onFatal, onReady: () => {
+      const state = diagnostics.getState();
+      if (state === 'ready' || state === 'degraded') fireReady();
+    }, diagnostics }).then(
       ({ renderer, mode }) => {
         if (cancelled) {
+          renderer.dispose();
+          return;
+        }
+        if (mode === '3d' && activeMode === '2d') {
           renderer.dispose();
           return;
         }
@@ -80,19 +118,50 @@ export function MapCanvas({ scene, rendererRef, onHit, onReady, className }: Pro
         renderer.resize();
         renderer.fitAll();
         rendererRef.current = renderer;
-        if (mode === '2d') fireReady();
+        activeMode = mode;
+        publish();
+        if (mode === '2d') {
+          // Readiness waits for the first actual 2D frame in the loop.
+        }
       },
-    );
+    ).catch((error) => {
+      diagnostics.recordError('init:factory', true, error);
+      onFatal(`3D initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
 
     let raf = 0;
     let last = performance.now();
     const loop = (t: number) => {
       const r = rendererRef.current;
-      if (r) r.frame(t, Math.min(0.05, (t - last) / 1000));
+      const start = performance.now();
+      const dt = Math.min(0.05, (t - last) / 1000);
+      try {
+        if (r) r.frame(t, dt);
+      } catch (error) {
+        if (activeMode === '3d') {
+          diagnostics.recordError('frame:3d', true, error);
+          onFatal('3D frame failed');
+        } else throw error;
+      }
       last = t;
+      if (r && r === rendererRef.current) {
+        const cam = r.getCamera();
+        diagnostics.setCamera(cam);
+        if (activeMode === '2d') {
+          diagnostics.recordFrame({ mode: '2d', durationMs: performance.now() - start });
+          fireReady();
+        } else if (activeMode === '3d') {
+          const state = diagnostics.getState();
+          if (state === 'ready' || state === 'degraded') fireReady();
+        }
+      }
+      publish();
+      syncQa();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
+    shell.dataset.mapMode = 'pending';
+    publish();
 
     const ro = new ResizeObserver(() => rendererRef.current?.resize());
     ro.observe(shell);
@@ -190,6 +259,9 @@ export function MapCanvas({ scene, rendererRef, onHit, onReady, className }: Pro
 
     return () => {
       cancelled = true;
+      diagnostics.dispose();
+      const win = window as typeof window & { __runwayQA?: MapQaBridge };
+      if (bridgeOwned && win.__runwayQA === bridge) delete win.__runwayQA;
       cancelAnimationFrame(raf);
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);

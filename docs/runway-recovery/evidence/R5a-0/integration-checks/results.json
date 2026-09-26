@@ -1,0 +1,78 @@
+{
+  "tested_sha": "655ca6c5e14af6d438560b22c7e2a0929954f4cb",
+  "generated_at": "2026-09-06T20:34:52.966Z",
+  "results": [
+    {
+      "command": "pnpm test:game",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-33-29-440Z-pnpm-test-game.log",
+      "started": "2026-09-06T20:33:29.440Z",
+      "ended": "2026-09-06T20:34:31.032Z",
+      "elapsed_ms": 61590.4,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm test:ui",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-31-041Z-pnpm-test-ui.log",
+      "started": "2026-09-06T20:34:31.041Z",
+      "ended": "2026-09-06T20:34:31.710Z",
+      "elapsed_ms": 669.5,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm lint",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-31-711Z-pnpm-lint.log",
+      "started": "2026-09-06T20:34:31.711Z",
+      "ended": "2026-09-06T20:34:35.713Z",
+      "elapsed_ms": 4002.6,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm build",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-35-714Z-pnpm-build.log",
+      "started": "2026-09-06T20:34:35.714Z",
+      "ended": "2026-09-06T20:34:47.466Z",
+      "elapsed_ms": 11752.1,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm tsx scripts/test-water-query.ts",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-47-467Z-pnpm-tsx-scripts-test-water-query-ts.log",
+      "started": "2026-09-06T20:34:47.467Z",
+      "ended": "2026-09-06T20:34:50.375Z",
+      "elapsed_ms": 2907.8,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm tsx scripts/test-city-coverage.ts",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-50-375Z-pnpm-tsx-scripts-test-city-coverage-ts.log",
+      "started": "2026-09-06T20:34:50.375Z",
+      "ended": "2026-09-06T20:34:50.880Z",
+      "elapsed_ms": 504.3,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm tsx scripts/test-scene-resources.ts",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-50-880Z-pnpm-tsx-scripts-test-scene-resources-ts.log",
+      "started": "2026-09-06T20:34:50.880Z",
+      "ended": "2026-09-06T20:34:51.249Z",
+      "elapsed_ms": 369.3,
+      "exit_code": 0,
+      "signal": null
+    },
+    {
+      "command": "pnpm tsx scripts/profile-water-query.ts",
+      "log": "docs/runway-recovery/evidence/R5a-0/integration-checks/2026-09-06T20-34-51-250Z-pnpm-tsx-scripts-profile-water-query-ts.log",
+      "started": "2026-09-06T20:34:51.250Z",
+      "ended": "2026-09-06T20:34:52.966Z",
+      "elapsed_ms": 1716.4,
+      "exit_code": 0,
+      "signal": null
+    }
+  ]
+}

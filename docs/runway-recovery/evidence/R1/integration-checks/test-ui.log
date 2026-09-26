@@ -1,0 +1,20 @@
+tested_sha=fe64aa0493f7a337b0a5224d94073d4b5fc897a3
+start_utc=2026-09-06T15:19:34Z
+
+> runway-startup-game@0.1.0 test:ui /Users/foomingli/Documents/runway-startup-game-1/.claude/worktrees/runway-recovery-integration
+> tsx scripts/test-ui.tsx
+
+RUNWAY UI regression tests
+  ✓ title and setup use the full mobile viewport when no sidebar exists
+  ✓ identity setup is a labelled, top-reachable dialog
+  ✓ HQ setup exposes every neighbourhood through a labelled native selector
+  ✓ dilemma, move, and end overlays use modal dialog semantics
+  ✓ the London game uses pounds consistently for its unicorn goal
+  ✓ the mobile hero keeps its copy readable and sound control named
+  ✓ the 3D map carries an SFSIM glass HUD with offline place search
+  ✓ the city HUD hydrates a neutral clock and keeps SSR date independent
+  ✓ the play sidebar is a glass panel with label/value rows
+
+All 9 UI checks passed.
+exit=0
+end_utc=2026-09-06T15:19:35Z

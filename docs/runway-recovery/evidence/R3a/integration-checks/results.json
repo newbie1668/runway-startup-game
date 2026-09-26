@@ -1,0 +1,104 @@
+[
+  {
+    "index": 1,
+    "command": "pnpm test:game",
+    "start": null,
+    "end": null,
+    "elapsed_seconds": null,
+    "timing_note": "Timing unmeasured: initial wrapper did not export captured timestamps; authoritative session completion was polled separately.",
+    "exit": 0,
+    "log": "01-test-game.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false,
+    "completion_evidence": "Original exec session28277 final poll exit_code0; final log confirms all40 street-camera checks passed.",
+    "execution_note": "Game suite overlapped later UI/lint/build checks; these command durations are not performance benchmarks. Initial premature completion/timing record corrected after actual session exit."
+  },
+  {
+    "index": 2,
+    "command": "pnpm test:ui",
+    "start": "2026-09-07T15:11:37Z",
+    "end": "2026-09-07T15:11:38Z",
+    "elapsed_seconds": 1,
+    "exit": 0,
+    "log": "02-test-ui.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 3,
+    "command": "pnpm lint",
+    "start": "2026-09-07T15:11:52Z",
+    "end": "2026-09-07T15:12:07Z",
+    "elapsed_seconds": 15,
+    "exit": 0,
+    "log": "03-lint.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 4,
+    "command": "pnpm build",
+    "start": "2026-09-07T15:12:07Z",
+    "end": "2026-09-07T15:12:50Z",
+    "elapsed_seconds": 43,
+    "exit": 0,
+    "log": "04-build.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 5,
+    "command": "pnpm tsx scripts/test-build-scheduler.ts",
+    "start": "2026-09-07T15:12:50Z",
+    "end": "2026-09-07T15:12:51Z",
+    "elapsed_seconds": 1,
+    "exit": 0,
+    "log": "05-test-build-scheduler.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 6,
+    "command": "pnpm tsx scripts/test-scene-resources.ts",
+    "start": "2026-09-07T15:12:51Z",
+    "end": "2026-09-07T15:12:52Z",
+    "elapsed_seconds": 1,
+    "exit": 0,
+    "log": "06-test-scene-resources.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 7,
+    "command": "pnpm tsx scripts/test-scene-resource-tree.ts",
+    "start": "2026-09-07T15:12:52Z",
+    "end": "2026-09-07T15:12:54Z",
+    "elapsed_seconds": 2,
+    "exit": 0,
+    "log": "07-test-scene-resource-tree.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 8,
+    "command": "pnpm tsx scripts/test-prefab-lifecycle.ts",
+    "start": "2026-09-07T15:12:54Z",
+    "end": "2026-09-07T15:12:55Z",
+    "elapsed_seconds": 1,
+    "exit": 0,
+    "log": "08-test-prefab-lifecycle.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  },
+  {
+    "index": 9,
+    "command": "pnpm tsx scripts/test-renderer-disposal.ts",
+    "start": "2026-09-07T15:12:55Z",
+    "end": "2026-09-07T15:12:57Z",
+    "elapsed_seconds": 2,
+    "exit": 0,
+    "log": "09-test-renderer-disposal.log",
+    "initial_sha": "8a586d16b1bf0ca6f0b8418a78ed8a04ffc56251",
+    "initial_dirty": false
+  }
+]
