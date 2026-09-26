@@ -1,11 +1,13 @@
 # Making the map part of play
 
-Status: **proposal, not yet approved.** The recovery product contract
+Status: **direction approved by the owner on 26 Sept 2026; implementation
+not started.** The first step is the playtest prototype (build step 0
+below). The recovery product contract
 (`docs/runway-recovery/product.md`) keeps game rules, balance, RNG, the save
 schema and action semantics out of scope, and rules out a broader game
 redesign, live citizens/traffic and a day/night switch. Everything below
-changes those things, so it needs the owner to approve it as its own track.
-It should run after, or alongside, the map recovery work, not inside it.
+changes those things, so it is its own gameplay track. It must not land in
+the recovery PR, and it runs after, or alongside, the map recovery work.
 
 ## Owner direction (25 Sept 2026)
 
@@ -15,6 +17,19 @@ It should run after, or alongside, the map recovery work, not inside it.
   tomorrow".
 - **The map must be interactive and show itself off**, taking cues from
   what people are building in Three.js with Claude.
+
+## Owner direction (26 Sept 2026)
+
+- **Competitive and shareable.** Players should chase a leaderboard, share
+  their result, and pull friends in to try to beat them. The owner approved
+  the recommendations in [Competition and sharing](#competition-and-sharing):
+  - short runs
+  - a daily seed
+  - scoring on founder payout
+  - neighbourhood leaderboards
+  - a share card
+  - server-verified scores
+  - a playtest before the full build
 
 ## Where we are today
 
@@ -27,12 +42,22 @@ It should run after, or alongside, the map recovery work, not inside it.
   attended from any distance. Rival shields only show a message. A player can
   finish a run without looking at London once.
 
-So the fix is not a different game length. It's making each in-game week a
-short, hands-on stretch of play that happens _on the map_.
+Two fixes follow. Each in-game week becomes a short, hands-on stretch of play
+that happens _on the map_. And the run gets shorter so that restarting is
+tempting (see below).
+
+- **Too easy to rank on.** The bot wins 82% of runs. Every unicorn scores the
+  same fixed £1B valuation plus cash. Each funding round is one roll at
+  5–93% odds. The leaderboard would be flat at the top and decided by luck.
 
 ## The session loop
 
-### One run = 30–40 minutes, three acts
+### One run = 8–12 minutes, three acts
+
+The competitive loop needs "one more go": a lost run should cost minutes,
+not an evening. The default **Daily London** and **Practice** modes target
+8–12 minutes. A longer **Founder mode** (~30–40 minutes, the full-depth run)
+can stay as an unranked option.
 
 Company growth is shown by how much of London you use. The camera pulls back
 as you grow, like Katamari or Spore:
@@ -46,7 +71,7 @@ as you grow, like Katamari or Spore:
 A win ends with a victory-lap camera flight over London. A loss ends with the
 HQ lights going out and a replay of the run.
 
-### One week = a 30–60 second live "workday" on the map
+### One week = a ~15 second live "workday" on the map
 
 This replaces the current "click 2 buttons, press End week" turn:
 
@@ -88,14 +113,81 @@ pure turn machine:
 - A week is **10 half-day slots** (Mon AM … Fri PM). Every action and trip
   costs whole slots. Trips use a **committed hub-to-hub travel table** (walk,
   Tube or taxi, cost in slots and £) generated at bake time, not at runtime.
-- The UI plays each slot back over ~3–5 real seconds, animating the avatar
+- The UI plays each slot back over ~1–2 real seconds at 1×, animating the avatar
   along a pre-baked street path. Pausing or changing speed only changes the
   animation. Engine state changes happen only at slot boundaries.
 - Leads and dilemmas are rolled from the seeded RNG. Saves store the slot
   index, so a run can still be resumed at any time.
 - The balance bot plans slots and travel, so `test-game.ts` keeps guarding
-  fairness. The target is the bot winning in ~40–60 weeks, which at ~40 s a
-  week gives the 30–40 minute run.
+  fairness. The target is the bot winning in ~30–40 weeks, which at ~15 s a
+  week gives the 8–12 minute run. The bot's win rate should drop from 82%
+  to roughly 40–55%, so that finishing at all is an achievement and skill
+  shows in the score.
+
+## Competition and sharing
+
+### Daily London (the ranked mode)
+
+- Everyone plays **the same seed each day**: the same leads, events,
+  dilemmas and rival moves, in the same places. The comparison is fair and
+  people have something to talk about ("did you take the angel at Monmouth on
+  Wednesday?").
+- Ranked on the **first attempt** of the day. Retries are allowed but
+  unranked, so the daily result means something.
+- **Practice** uses random seeds and is never ranked.
+
+### Scoring with room to improve
+
+- **Dilution.** Each round sells equity. The founder starts at 100%, and each
+  round's cut depends on how ready you were (traction, hype, connections).
+  This is the real founder trade-off: raise early and own less, or grow
+  slowly and keep more.
+- **Valuation above £1B.** The unicorn round is priced on the company's
+  stats, so a strong run can close at £2–3B.
+- **Headline score = founder payout** (equity kept × final valuation), shown
+  as "you walked away with £412M". Weeks to unicorn is shown next to it as a
+  speedrun time and used as the tiebreak.
+- A run that fails still posts a result: it ranks by weeks survived and peak
+  valuation, below every unicorn.
+
+### Luck you can plan around
+
+- **Show pitch odds before you commit.** Preparation raises them: warm intros
+  from events, a demo, traction, hype. A failed pitch should feel like a
+  choice you made, not bad dice.
+- Keep randomness in _what appears_ (leads, dilemmas), which is identical for
+  everyone on the daily seed. Keep it out of _whether your good play pays off_.
+
+### Leaderboards tied to real places
+
+- Global daily and weekly boards.
+- **Neighbourhood boards** by starting hub ("Shoreditch vs King's Cross this
+  week"), plus a hub-vs-hub total. London tech people identify with their
+  patch. This is the leaderboard only the map can give us.
+- Friends board through the challenge link (below). No accounts are needed
+  to play. A display name is asked for once, when you first submit.
+
+### The share card
+
+- A generated image showing:
+  - the 3D skyline with your tower
+  - your route across London drawn on the map
+  - a fake-press headline, e.g. "_Pigeonly (Shoreditch): unicorn in 34
+    weeks, founders kept 18%, top 6% today_"
+- Built for LinkedIn and X, where London founders post. It has a
+  Wordle-style text version too, for chats.
+- The card's link is a **challenge link**: it opens the same daily seed, and
+  your ghost route is shown on the map to race against.
+
+### Scores verified on a server
+
+- Clients submit **the seed plus the list of moves**. The server replays the
+  engine and records the score it computes, not the score the client
+  claims. The pure, deterministic engine makes this cheap. It needs the same
+  engine code on the server, and a replay size/time limit.
+- This needs a small backend: a Next.js API route plus a store for
+  submissions and boards. Which host and store to use is an owner decision
+  (see below).
 
 ## Three.js inspiration
 
@@ -118,7 +210,19 @@ place with a goal and a clock**. The ones that only let you look at a city
 don't hold attention for long. RUNWAY already has the goal (unicorn) and the
 place (London). The missing piece is movement with a clock.
 
-## Map features, in build order
+## Build order
+
+0. **Playtest prototype (first).** A rough live week in the **2D map**:
+   - actions at places, with travel in slots
+   - the slot clock and auto-advance
+   - dilution with pitch odds shown before you commit
+   - a fixed seed
+
+   No leaderboard backend, no new 3D work. Have 5–10 people play it and
+   record three things: do they finish a run, do they **start a second run
+   straight away**, and would they share the result. The immediate restart
+   is the most important of the three. Go on to step 1 only if the loop
+   passes. Otherwise re-tune the loop and test again.
 
 1. **Places, not menus.** Actions happen at hubs, with travel in slots. Click
    a hub to get an action card, and have the sidebar ask "where?". Uses the
@@ -135,12 +239,16 @@ place (London). The missing piece is movement with a clock.
    several avatars in Act 3. _Gives the run an arc._
 6. **Timed leads, located dilemmas, city events.** London Tech Week, a Tube
    strike (taxis only that week), rival offices opening nearby.
-7. **Shareable runs.** A seeded "daily London" run, a result card with a
-   flight-path replay of the run, and an HQ link.
+7. **Daily London and leaderboards.**
+   - the daily seed
+   - server replay verification
+   - global, neighbourhood and friends boards
+8. **Share card and challenge link**, with a ghost route.
 
-Slices 1–2 are the new core loop and should ship together. 3–4 are mostly
-renderer/overlay work with little balance risk. 5–7 add depth once the loop
-feels good.
+Step 0 decides whether the rest is worth building. Slices 1–2 are the new
+core loop and ship together. 3–4 are mostly renderer/overlay work with
+little balance risk. 7–8 are what makes the game spread, so they should
+follow soon after 1–2 rather than last.
 
 ## Engineering constraints to respect
 
@@ -148,7 +256,8 @@ feels good.
   HQ tier to `GameState`, all rolled from the seeded RNG. Bumping
   `SAVE_VERSION` means old saves reset (needs owner approval).
 - **Balance bot.** `scripts/test-game.ts` must plan slots and travel, and the
-  fairness ranges get re-tuned to the 40–60-week target.
+  fairness ranges get re-tuned to the 30–40-week, 40–55% win-rate target. The
+  bot also checks that dilution and payout scores spread out, not cluster.
 - **Renderer contract is additive.** Extend `Scene` with optional fields
   (avatars + paths, HQ tier, user density, ads, leads, overlay mode), and
   `HitTarget` with `lead`. The 2D fallback must show the same information as
@@ -166,13 +275,26 @@ feels good.
   "no live citizens/traffic". A Mon→Fri light change would conflict with "no
   day/night switch". Keep the light fixed unless the owner lifts that.
 
-## Decisions needed from the owner
+## Decided (26 Sept 2026)
 
-1. Approve a gameplay track separate from map recovery.
-2. Replace "End week" with the live week by default, keeping classic turns as
-   a setting?
-3. Accept a save-version bump (old saves reset).
-4. Allow founder/team avatars moving on the map (an exception to "no live
-   citizens").
-5. Do you want the seeded daily run + leaderboard, or should the game stay
-   purely single-player with no shared results?
+- The gameplay track is approved as a separate track from map recovery.
+- The game is competitive and shareable:
+  - short runs
+  - Daily London with leaderboards
+  - payout scoring with dilution
+  - a share card with a challenge link
+- A playtest prototype comes before the full build.
+
+## Still open
+
+1. Which branch and PR the prototype goes on. It should stay out of the
+   recovery PR (#30).
+2. Should the live week replace "End week" by default, with classic turns
+   kept as a setting? (Recommended: yes.)
+3. Is a save-version bump OK, meaning old saves reset? (Recommended: yes.)
+4. Can founder/team avatars move on the map, as an exception to "no live
+   citizens"? (Recommended: yes.)
+5. The leaderboard backend: which host and data store, and how display
+   names are moderated.
+6. Launch domain. Sharing works best from `londonstartupmap.com`, but
+   attaching the game there still needs explicit product approval.
