@@ -555,8 +555,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       {/* News */}
       <aside className="pointer-events-none absolute top-16 left-3 w-80 space-y-1.5">
         {s.news
-          .slice(-4)
-          .reverse()
+          .slice(0, 4)
           .map((n, i) => (
             <div
               key={`${n.day}-${i}-${n.text}`}
