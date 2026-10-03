@@ -1,14 +1,13 @@
 /**
  * RUNWAY: London Live — map overlay renderer.
  *
- * Draws on top of the existing 2D London MapRenderer (same canvas, same
- * camera): places (talent / customers / investors), offices, people, move
- * paths, timed pins, particles and the minimap. Read-only view of RtsState.
+ * Draws places, offices, people, move paths, timed pins, particles and the
+ * minimap on its own canvas over a projected London map renderer.
  */
 
 import { HUBS } from '@/lib/game/content';
-import { MapRenderer } from '@/lib/game/render';
 import { project, THAMES, WORLD, type WorldPoint } from '@/lib/game/geo';
+import type { ProjectedMapRenderer } from '@/lib/game/mapProjection';
 import type { HubId } from '@/lib/game/types';
 import { FEATURES, OFFICE_LEVELS, SEGMENT_INFO } from './content';
 import { personActivity, unlockedSegments } from './sim';
@@ -76,7 +75,8 @@ interface Particle {
 }
 
 export class RtsRenderer {
-  readonly base: MapRenderer;
+  map: ProjectedMapRenderer;
+  atmosphere: 'day' | 'night' = 'night';
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   state: RtsState | null = null;
@@ -89,18 +89,9 @@ export class RtsRenderer {
   private particles: Particle[] = [];
   private personScreen = new Map<string, { x: number; y: number }>();
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, map: ProjectedMapRenderer) {
     this.canvas = canvas;
-    this.base = new MapRenderer(canvas);
-    this.base.scene = {
-      mode: 'play',
-      playerHubId: null,
-      playerSectorId: null,
-      companyName: '',
-      stageName: '',
-      rivals: [],
-      events: [],
-    };
+    this.map = map;
     this.ctx = canvas.getContext('2d')!;
   }
 
@@ -112,20 +103,21 @@ export class RtsRenderer {
     return this.canvas.getBoundingClientRect().height;
   }
   zoom(): number {
-    return this.base.worldToScreen({ x: 1, y: 0 }).x - this.base.worldToScreen({ x: 0, y: 0 }).x;
+    return this.map.getCamera().zoom;
   }
   w2s(p: WorldPoint) {
-    return this.base.worldToScreen(p);
+    return this.map.worldToScreen(p);
   }
   centerOn(p: WorldPoint) {
-    const c = this.base.screenToWorld(this.cssW / 2, this.cssH / 2);
-    const z = this.zoom();
-    this.base.pan(-(p.x - c.x) * z, -(p.y - c.y) * z);
+    this.map.lookAt(p.x, p.y);
   }
-  viewRect() {
-    const a = this.base.screenToWorld(0, 0);
-    const b = this.base.screenToWorld(this.cssW, this.cssH);
-    return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+  viewCorners(): WorldPoint[] {
+    return [
+      this.map.screenToWorld(0, 0),
+      this.map.screenToWorld(this.cssW, 0),
+      this.map.screenToWorld(this.cssW, this.cssH),
+      this.map.screenToWorld(0, this.cssH),
+    ];
   }
 
   private anchorOf(id: string): WorldPoint | null {
@@ -146,7 +138,8 @@ export class RtsRenderer {
         list.push(p);
         groups.set(p.at, list);
       } else {
-        this.personScreen.set(p.id, this.w2s(p));
+        const q = this.w2s(p);
+        if (q) this.personScreen.set(p.id, q);
       }
     }
     for (const [at, list] of groups) {
@@ -154,6 +147,7 @@ export class RtsRenderer {
       if (!anchor) continue;
       list.sort((a, b) => COMPANY_ORDER.indexOf(a.company) - COMPANY_ORDER.indexOf(b.company));
       const c = this.w2s(anchor);
+      if (!c) continue;
       const rings = [
         { n: 6, r: 26 },
         { n: 11, r: 44 },
@@ -194,14 +188,17 @@ export class RtsRenderer {
     }
     for (const lead of s.leads) {
       const q = this.w2s(lead);
+      if (!q) continue;
       if (near(q.x, q.y, 16)) return { type: 'lead', id: lead.id };
     }
     for (const place of s.places) {
       const q = this.w2s(place);
+      if (!q) continue;
       if (near(q.x, q.y - 12, 17)) return { type: 'place', id: place.id };
     }
     for (const office of s.offices) {
       const q = this.w2s(office);
+      if (!q) continue;
       if (near(q.x, q.y - 10, 18)) return { type: 'office', id: office.id };
     }
     return null;
@@ -257,7 +254,14 @@ export class RtsRenderer {
 
   // --- frame ----------------------------------------------------------------
   frame(t: number, dt: number) {
-    this.base.frame(t, dt);
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const width = Math.round(rect.width * dpr);
+    const height = Math.round(rect.height * dpr);
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.clearRect(0, 0, rect.width, rect.height);
     const s = this.state;
     if (!s) return;
     const ctx = this.ctx;
@@ -269,6 +273,7 @@ export class RtsRenderer {
     // Places
     for (const place of s.places) {
       const q = this.w2s(place);
+      if (!q) continue;
       const hit: RtsHit = { type: 'place', id: place.id };
       const focused = this.isFocused(hit);
       const locked = place.kind === 'customers' && !open.has(place.segment);
@@ -296,6 +301,7 @@ export class RtsRenderer {
       const c = s.companies[office.company];
       if (!c?.alive) continue;
       const q = this.w2s(office);
+      if (!q) continue;
       const focused = this.isFocused({ type: 'office', id: office.id });
       this.drawOffice(q.x, q.y, c.color, office.level, focused, office.company === 'player');
       if (office.company === 'player' && (showLabels || focused)) {
@@ -308,6 +314,7 @@ export class RtsRenderer {
     // Leads with countdown rings
     for (const lead of s.leads) {
       const q = this.w2s(lead);
+      if (!q) continue;
       const st = LEAD_STYLE[lead.kind];
       const life = Math.max(1e-6, lead.expiresDay - lead.spawnDay);
       const left = Math.max(0, Math.min(1, (lead.expiresDay - s.day) / life));
@@ -337,6 +344,7 @@ export class RtsRenderer {
       if (!p.order || p.company !== 'player') continue;
       const a = this.w2s(p);
       const b = this.w2s({ x: p.order.toX, y: p.order.toY });
+      if (!a || !b) continue;
       ctx.save();
       ctx.setLineDash([6, 6]);
       ctx.lineDashOffset = -(t * 0.03) % 12;
@@ -479,10 +487,10 @@ export class RtsRenderer {
     const ctx = this.ctx;
     ctx.font = '700 10.5px ui-sans-serif, system-ui';
     ctx.textAlign = 'center';
-    ctx.lineWidth = 3.5;
-    ctx.strokeStyle = 'rgba(5,9,20,0.9)';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = this.atmosphere === 'day' ? '#fff' : 'rgba(5,9,20,0.9)';
     ctx.strokeText(text, x, y);
-    ctx.fillStyle = color;
+    ctx.fillStyle = this.atmosphere === 'day' ? '#0f172a' : color;
     ctx.fillText(text, x, y);
   }
 
@@ -518,6 +526,7 @@ export class RtsRenderer {
       p.ox += p.vx * dt;
       p.oy += p.vy * dt;
       const b = this.w2s({ x: p.wx, y: p.wy });
+      if (!b) continue;
       const x = b.x + p.ox;
       const y = b.y + p.oy;
       const k = p.age / p.ttl;
@@ -595,11 +604,16 @@ export class RtsRenderer {
       mctx.arc(q.x, q.y, 3, 0, Math.PI * 2);
       mctx.stroke();
     }
-    const v = this.viewRect();
-    const a = m({ x: v.x, y: v.y });
+    const corners = this.viewCorners().map(m);
+    mctx.beginPath();
+    corners.forEach((p, i) => {
+      if (i === 0) mctx.moveTo(p.x, p.y);
+      else mctx.lineTo(p.x, p.y);
+    });
+    mctx.closePath();
     mctx.strokeStyle = 'rgba(226,232,240,0.85)';
     mctx.lineWidth = 1;
-    mctx.strokeRect(a.x, a.y, v.w * k, v.h * k);
+    mctx.stroke();
   }
 
   minimapToWorld(mini: HTMLCanvasElement, mx: number, my: number): WorldPoint {

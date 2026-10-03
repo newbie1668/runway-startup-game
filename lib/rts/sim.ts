@@ -1,6 +1,6 @@
 import type { HubId, SectorId } from '@/lib/game/types';
 import { HUBS, STAGES, generateCompanyName, hubById, sectorById } from '@/lib/game/content';
-import { project } from '@/lib/game/geo';
+import { LANDMARKS, project } from '@/lib/game/geo';
 import { Dice, seedFromString } from '@/lib/game/rng';
 import {
   BASE_ARPU,
@@ -12,6 +12,8 @@ import {
   FEATURES,
   GROWTH_HIRE_FEE,
   GROWTH_SALARY_WEEK,
+  JOURNAL_HYPE,
+  JOURNAL_RADIUS,
   OFFICE_LEVELS,
   OFFICE_OPEN_COST,
   PERSON_NAMES,
@@ -203,6 +205,7 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
       return { ...place };
     }),
     leads: [],
+    journal: {},
     dilemma: null,
     news: [],
     nextId: 1,
@@ -747,7 +750,6 @@ function decayHype(state: RtsState, dt: number): void {
 
 function spawnLead(state: RtsState, dice: Dice): void {
   if (state.leads.length >= 5) return;
-  const hub = dice.weighted(HUBS, (item) => item.eventFrequencyMult);
   const kindRoll = dice.float();
   const kind =
     kindRoll < 0.28
@@ -757,16 +759,15 @@ function spawnLead(state: RtsState, dice: Dice): void {
         : kindRoll < 0.79
           ? 'journalist'
           : 'angel';
-  const details = generateLeadDetails(dice, hub.id);
-  const center = hubPoint(hub.id);
+  const details = generateLeadDetails(dice);
   const lead: Lead = {
     id: nextId(state, 'lead'),
     kind,
     name: details.title,
     venue: details.venue,
-    hubId: hub.id,
-    x: center.x + dice.float() * 10 - 5,
-    y: center.y + dice.float() * 10 - 5,
+    hubId: details.hubId,
+    x: details.x,
+    y: details.y,
     spawnDay: state.day,
     expiresDay: state.day + dice.int(4, 7),
     takenBy:
@@ -889,6 +890,46 @@ function updateEndConditions(state: RtsState): void {
   }
 }
 
+function distanceToSegmentSquared(
+  point: { x: number; y: number },
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t =
+    lengthSquared === 0
+      ? 0
+      : clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 0, 1);
+  const nearestX = start.x + t * dx;
+  const nearestY = start.y + t * dy;
+  return (point.x - nearestX) ** 2 + (point.y - nearestY) ** 2;
+}
+
+function stampNearbyLandmarks(
+  state: RtsState,
+  previous: Map<string, { x: number; y: number }>,
+  fx: RtsFx[],
+): void {
+  const player = state.companies.player;
+  if (!player.alive) return;
+  const radiusSquared = JOURNAL_RADIUS * JOURNAL_RADIUS;
+  for (const person of state.people) {
+    if (person.company !== 'player') continue;
+    const start = previous.get(person.id) ?? person;
+    for (const landmark of LANDMARKS) {
+      if (state.journal[landmark.kind] !== undefined) continue;
+      const point = project(landmark.at);
+      if (distanceToSegmentSquared(point, start, person) > radiusSquared) continue;
+      state.journal[landmark.kind] = state.day;
+      player.hype = clamp(player.hype + JOURNAL_HYPE, 0, MAX_HYPE);
+      addNews(state, `📮 Discovered ${landmark.name}`, 'good');
+      fx.push({ kind: 'postcard', landmark: landmark.kind, x: point.x, y: point.y });
+    }
+  }
+}
+
 export function tick(state: RtsState, dtDays: number): RtsResult {
   const next = clone(state);
   const fx: RtsFx[] = [];
@@ -897,7 +938,13 @@ export function tick(state: RtsState, dtDays: number): RtsResult {
   while (remaining > 1e-9 && next.phase === 'playing') {
     const dt = Math.min(0.1, remaining);
     next.day += dt;
+    const previous = new Map(
+      next.people
+        .filter((person) => person.company === 'player')
+        .map((person) => [person.id, { x: person.x, y: person.y }]),
+    );
     advanceMovement(next, dt, fx);
+    stampNearbyLandmarks(next, previous, fx);
     performWork(next, dt, fx);
     applyEconomy(next, dt);
     decayHype(next, dt);
@@ -906,6 +953,13 @@ export function tick(state: RtsState, dtDays: number): RtsResult {
     remaining -= dt;
   }
   return result(next, fx);
+}
+
+export function journalProgress(state: RtsState): { found: number; total: number } {
+  return {
+    found: LANDMARKS.reduce((count, landmark) => count + Number(state.journal[landmark.kind] !== undefined), 0),
+    total: LANDMARKS.length,
+  };
 }
 
 export function movePeople(

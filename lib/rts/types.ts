@@ -14,6 +14,7 @@
 
 import type { HubId, SectorId } from '@/lib/game/types';
 import type { RngState } from '@/lib/game/rng';
+import type { LandmarkKind } from '@/lib/game/geo';
 
 export type CompanyId = 'player' | 'rival1' | 'rival2' | 'rival3';
 export type Role = 'founder' | 'engineer' | 'growth';
@@ -211,7 +212,8 @@ export type RtsFx =
   | { kind: 'float'; x: number; y: number; text: string; color?: string }
   | { kind: 'confetti'; x: number; y: number }
   | { kind: 'sparkle'; x: number; y: number }
-  | { kind: 'focus'; x: number; y: number };
+  | { kind: 'focus'; x: number; y: number }
+  | { kind: 'postcard'; landmark: LandmarkKind; x: number; y: number };
 
 export interface RtsState {
   seed: string;
@@ -224,6 +226,7 @@ export interface RtsState {
   offices: Office[];
   places: Place[];
   leads: Lead[];
+  journal: Partial<Record<LandmarkKind, number>>;
   dilemma: ActiveDilemma | null;
   news: NewsItemRts[];
   /** Monotonic id counter for people/offices/leads. */

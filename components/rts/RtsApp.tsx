@@ -11,7 +11,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HUBS, SECTORS, STAGES, generateCompanyName } from '@/lib/game/content';
 import { fmtMoney, fmtUsers } from '@/lib/game/format';
+import { LANDMARKS, project, type LandmarkKind } from '@/lib/game/geo';
 import { Dice, seedFromString } from '@/lib/game/rng';
+import { MapRenderer } from '@/lib/game/render';
+import { createMapDiagnostics } from '@/lib/game/mapDiagnostics';
+import { hasProjection, type ProjectedMapRenderer } from '@/lib/game/mapProjection';
+import { createMapRenderer } from '@/lib/game/render3d/factory';
+import type { Scene } from '@/lib/game/scene';
 import type { HubId, SectorId } from '@/lib/game/types';
 import {
   ENGINEER_HIRE_FEE,
@@ -19,12 +25,12 @@ import {
   FEATURES,
   GROWTH_HIRE_FEE,
   GROWTH_WEEKLY_SALARY,
+  LANDMARK_FACTS,
   OFFICE_LEVELS,
   OFFICE_OPEN_COST,
   SEGMENT_INFO,
 } from '@/lib/rts/content';
 import {
-  HUB_WORLD,
   LEAD_STYLE,
   ROLE_ICON,
   ROLE_LABEL,
@@ -39,6 +45,7 @@ import {
   hire,
   movePeople,
   newRtsGame,
+  journalProgress,
   openOffice,
   personActivity,
   pitch,
@@ -224,9 +231,15 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
 // ---------------------------------------------------------------------------
 
 function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () => void; onNewSetup: () => void }) {
+  const cityCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RtsRenderer | null>(null);
+  const mapRef = useRef<ProjectedMapRenderer | null>(null);
+  const mapReadyRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [initial] = useState(() =>
     newRtsGame({ seed: cfg.seed, companyName: cfg.name, sectorId: cfg.sectorId, hqHub: cfg.hqHub }),
   );
@@ -235,6 +248,11 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const [ui, setUi] = useState<RtsState>(initial);
   const [speed, setSpeedState] = useState(0);
   const [selection, setSelection] = useState<string[]>([]);
+  const selectionRef = useRef<string[]>([]);
+  const [ridingId, setRidingIdState] = useState<string | null>(null);
+  const ridingIdRef = useRef<string | null>(null);
+  const [postcards, setPostcards] = useState<{ id: number; landmark: LandmarkKind }[]>([]);
+  const postcardIdRef = useRef(0);
   const [focus, setFocus] = useState<RtsHit | null>(() => {
     const hq = initial.offices.find((o) => o.company === 'player');
     return hq ? { type: 'office', id: hq.id } : null;
@@ -242,8 +260,31 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const [toast, setToast] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(true);
   const [showRoadmap, setShowRoadmap] = useState(false);
+  const [showJournal, setShowJournal] = useState(false);
 
+  const setRideAlong = useCallback((id: string | null) => {
+    ridingIdRef.current = id;
+    setRidingIdState(id);
+  }, []);
+  const toggleRideAlong = useCallback(
+    (id: string) => setRideAlong(ridingIdRef.current === id ? null : id),
+    [setRideAlong],
+  );
+  const selectPeople = useCallback(
+    (next: string[] | ((previous: string[]) => string[])) => {
+      const selected = typeof next === 'function' ? next(selectionRef.current) : next;
+      selectionRef.current = selected;
+      setSelection(selected);
+      if (
+        ridingIdRef.current &&
+        (selected.length !== 1 || selected[0] !== ridingIdRef.current)
+      )
+        setRideAlong(null);
+    },
+    [setRideAlong],
+  );
   const setSpeed = useCallback((v: number) => {
+    if (v > 0 && !mapReadyRef.current) return;
     speedRef.current = v;
     setSpeedState(v);
   }, []);
@@ -255,9 +296,29 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
   const handleFx = useCallback((res: RtsResult) => {
     const r = rendererRef.current;
-    if (!r) return;
-    r.applyFx(res.fx);
-    for (const f of res.fx) if (f.kind === 'focus') r.centerOn(f);
+    r?.applyFx(res.fx);
+    for (const f of res.fx) if (f.kind === 'focus') r?.centerOn(f);
+    const found = res.fx.flatMap((f) =>
+      f.kind === 'postcard' ? [{ id: ++postcardIdRef.current, landmark: f.landmark }] : [],
+    );
+    if (found.length > 0) setPostcards((queue) => [...queue, ...found]);
+  }, []);
+
+  const currentPostcardId = postcards[0]?.id ?? null;
+  useEffect(() => {
+    if (currentPostcardId === null) return;
+    const timer = window.setTimeout(() => {
+      setPostcards((queue) => (queue[0]?.id === currentPostcardId ? queue.slice(1) : queue));
+    }, 7000);
+    return () => window.clearTimeout(timer);
+  }, [currentPostcardId]);
+
+  const flyToLandmark = useCallback((kind: LandmarkKind) => {
+    const landmark = LANDMARKS.find((item) => item.kind === kind);
+    if (!landmark) return;
+    const point = project(landmark.at);
+    mapRef.current?.lookAt(point.x, point.y, 6);
+    setShowJournal(false);
   }, []);
 
   const run = useCallback(
@@ -277,6 +338,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
   useEffect(() => {
     const r = rendererRef.current;
+    selectionRef.current = selection;
     if (!r) return;
     r.selected = new Set(selection);
     r.focus = focus;
@@ -321,20 +383,67 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
   // Renderer + loop + input
   useEffect(() => {
+    const cityCanvas = cityCanvasRef.current!;
+    const overlayCanvas = overlayCanvasRef.current!;
     const canvas = canvasRef.current!;
-    const r = new RtsRenderer(canvas);
-    rendererRef.current = r;
-    r.state = stateRef.current;
-    r.base.resize();
-    r.base.fitAll();
-    r.base.zoomAt(canvas.clientWidth / 2, canvas.clientHeight / 2, 1.6);
-    r.centerOn(HUB_WORLD[cfg.hqHub]);
-
+    let r: RtsRenderer | null = null;
     let raf = 0;
     let last = performance.now();
     let lastUi = 0;
+    let activeMode: '2d' | '3d' | 'pending' = 'pending';
+    let cancelled = false;
     const keys = new Set<string>();
+    const mapScene: Scene = {
+      mode: 'play',
+      playerHubId: null,
+      playerSectorId: cfg.sectorId,
+      companyName: cfg.name,
+      stageName: '',
+      rivals: [],
+      events: [],
+    };
+    const fireReady = () => {
+      if (cancelled || mapReadyRef.current) return;
+      mapReadyRef.current = true;
+      setMapReady(true);
+    };
+    const onFatal = (reason = '3D renderer failed') => {
+      if (cancelled || activeMode === '2d') return;
+      const old = mapRef.current;
+      const camera = old?.getCamera();
+      try {
+        old?.dispose();
+      } catch (error) {
+        console.error('Failed to dispose the 3D map before fallback', error);
+      }
+      const fallback = new MapRenderer(overlayCanvas);
+      fallback.resize();
+      fallback.scene = mapScene;
+      if (camera) fallback.setCamera(camera);
+      if (!hasProjection(fallback))
+        throw new Error('The 2D map renderer is missing ground projection support.');
+      mapRef.current = fallback;
+      activeMode = '2d';
+      if (r) {
+        r.map = fallback;
+        r.atmosphere = 'night';
+      }
+      console.warn(`Falling back to the 2D London map: ${reason}`);
+    };
+
+    const ro = new ResizeObserver(() => mapRef.current?.resize());
+    ro.observe(canvas);
+
+    let drag: { x: number; y: number; moved: number; box: boolean; button: number } | null = null;
+
+    const pos = (e: PointerEvent | MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    let detachInput: (() => void) | null = null;
     const loop = (t: number) => {
+      if (!r) return;
       const dt = Math.min(0.05, (t - last) / 1000);
       last = t;
       const before = stateRef.current;
@@ -343,11 +452,38 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         stateRef.current = res.state;
         handleFx(res);
       }
-      const pan = 520 * dt;
-      if (keys.has('w') || keys.has('arrowup')) r.base.pan(0, pan);
-      if (keys.has('s') || keys.has('arrowdown')) r.base.pan(0, -pan);
-      if (keys.has('a') || keys.has('arrowleft')) r.base.pan(pan, 0);
-      if (keys.has('d') || keys.has('arrowright')) r.base.pan(-pan, 0);
+      const map = mapRef.current;
+      if (map) {
+        const pan = 520 * dt;
+        if (keys.has('w') || keys.has('arrowup')) map.pan(0, pan);
+        if (keys.has('s') || keys.has('arrowdown')) map.pan(0, -pan);
+        if (keys.has('a') || keys.has('arrowleft')) map.pan(pan, 0);
+        if (keys.has('d') || keys.has('arrowright')) map.pan(-pan, 0);
+        const followId = ridingIdRef.current;
+        if (followId) {
+          const person = stateRef.current.people.find((item) => item.id === followId);
+          if (!person) {
+            setRideAlong(null);
+          } else {
+            const camera = map.getCamera();
+            const easing = Math.min(1, dt * 4);
+            const targetZoom = canvas.getBoundingClientRect().height / 6;
+            map.setCamera({
+              ...camera,
+              x: camera.x + (person.x - camera.x) * easing,
+              y: camera.y + (person.y - camera.y) * easing,
+              zoom: camera.zoom + (targetZoom - camera.zoom) * easing,
+            });
+          }
+        }
+        try {
+          map.frame(t, dt);
+        } catch (error) {
+          if (activeMode === '3d') onFatal(error instanceof Error ? error.message : String(error));
+          else throw error;
+        }
+        if (activeMode === '2d') fireReady();
+      }
       r.state = stateRef.current;
       r.frame(t, dt);
       if (miniRef.current) r.drawMinimap(miniRef.current);
@@ -357,118 +493,163 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       }
       raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
-    const ro = new ResizeObserver(() => r.base.resize());
-    ro.observe(canvas);
 
-    const pos = (e: PointerEvent | MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    };
-    let drag: { x: number; y: number; moved: number; box: boolean; button: number } | null = null;
-
-    const onDown = (e: PointerEvent) => {
-      canvas.setPointerCapture(e.pointerId);
-      const p = pos(e);
-      drag = { ...p, moved: 0, box: e.shiftKey && e.button === 0, button: e.button };
-    };
-    const onMove = (e: PointerEvent) => {
-      const p = pos(e);
-      if (drag) {
-        drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
-        if (drag.box) r.box = { x0: drag.x, y0: drag.y, x1: p.x, y1: p.y };
-        else if (drag.button === 0 || drag.button === 1) r.base.pan(e.movementX, e.movementY);
-      } else {
-        r.hover = r.hitTest(p.x, p.y);
-        canvas.style.cursor = r.hover ? 'pointer' : 'default';
-      }
-    };
-    const onUp = (e: PointerEvent) => {
-      const p = pos(e);
-      const d = drag;
-      drag = null;
-      if (!d) return;
-      if (d.box) {
-        setSelection(r.peopleInBox(d.x, d.y, p.x, p.y));
-        r.box = null;
+    void createMapRenderer(cityCanvas, overlayCanvas, {
+      onFatal,
+      onReady: fireReady,
+      diagnostics: createMapDiagnostics(1, () => performance.now()),
+    }).then(({ renderer, mode }) => {
+      if (cancelled) {
+        renderer.dispose();
         return;
       }
-      if (d.button !== 0 || d.moved > 5) return;
-      const hit = r.hitTest(p.x, p.y);
-      if (!hit) {
-        setSelection([]);
+      if (mode === '3d' && activeMode === '2d') {
+        renderer.dispose();
         return;
       }
-      if (hit.type === 'person') {
-        const person = stateRef.current.people.find((x) => x.id === hit.id)!;
-        if (person.company !== 'player') {
-          const c = stateRef.current.companies[person.company];
-          flash(`${person.name} (${c.name}) · ${personActivity(stateRef.current, person).text}`);
+      if (!hasProjection(renderer))
+        throw new Error('The map renderer is missing ground projection support required by London Live.');
+      renderer.scene = mapScene;
+      renderer.resize();
+      const hqOffice = stateRef.current.offices.find((office) => office.company === 'player');
+      if (hqOffice) renderer.lookAt(hqOffice.x, hqOffice.y, 25);
+      mapRef.current = renderer;
+      activeMode = mode;
+      r = new RtsRenderer(canvas, renderer);
+      r.atmosphere = mode === '3d' ? 'day' : 'night';
+      rendererRef.current = r;
+      r.state = stateRef.current;
+      raf = requestAnimationFrame(loop);
+
+      const onDown = (e: PointerEvent) => {
+        canvas.setPointerCapture(e.pointerId);
+        const p = pos(e);
+        drag = { ...p, moved: 0, box: e.shiftKey && e.button === 0, button: e.button };
+      };
+      const onMove = (e: PointerEvent) => {
+        const p = pos(e);
+        if (drag) {
+          drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
+          if (drag.moved > 0) setRideAlong(null);
+          if (drag.box) r!.box = { x0: drag.x, y0: drag.y, x1: p.x, y1: p.y };
+          else if (drag.button === 0 || drag.button === 1) {
+            mapRef.current?.pan(e.movementX, e.movementY);
+          }
+        } else {
+          r!.hover = r!.hitTest(p.x, p.y);
+          canvas.style.cursor = r!.hover ? 'pointer' : 'default';
+        }
+      };
+      const onUp = (e: PointerEvent) => {
+        const p = pos(e);
+        const d = drag;
+        drag = null;
+        if (!d) return;
+        if (d.box) {
+          selectPeople(r!.peopleInBox(d.x, d.y, p.x, p.y));
+          r!.box = null;
           return;
         }
-        setSelection((sel) =>
-          e.shiftKey ? (sel.includes(person.id) ? sel.filter((x) => x !== person.id) : [...sel, person.id]) : [person.id],
-        );
-        return;
-      }
-      setSelection([]);
-      setFocus(hit);
-    };
-    const onContext = (e: MouseEvent) => {
-      e.preventDefault();
-      const ids = [...r.selected];
-      if (ids.length === 0) {
-        flash('Select someone first (click a person, or Shift-drag a box)');
-        return;
-      }
-      const p = pos(e);
-      sendTo(r.hitTest(p.x, p.y), ids);
-    };
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const p = pos(e);
-      r.base.zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0016));
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
-      const k = e.key.toLowerCase();
-      if (k === ' ') {
-        e.preventDefault();
-        setSpeed(speedRef.current === 0 ? 1 : 0);
-      } else if (k === '1' || k === '2' || k === '3') setSpeed(SPEEDS[Number(k)]);
-      else if (k === 'f') {
-        const f = stateRef.current.people.find((p) => p.company === 'player' && p.role === 'founder');
-        if (f) {
-          setSelection([f.id]);
-          r.centerOn(f);
+        if (d.button !== 0 || d.moved > 5) return;
+        const hit = r!.hitTest(p.x, p.y);
+        if (!hit) {
+          selectPeople([]);
+          mapRef.current?.notifyPointer?.(p.x, p.y, 'click');
+          return;
         }
-      } else if (k === 'q') setSelection(stateRef.current.people.filter((p) => p.company === 'player').map((p) => p.id));
-      else if (k === 'r') setShowRoadmap((v) => !v);
-      else if (k === 'escape') {
-        setSelection([]);
-        setShowRoadmap(false);
-      } else keys.add(k);
-    };
-    const onKeyUp = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
+        if (hit.type === 'person') {
+          const person = stateRef.current.people.find((x) => x.id === hit.id)!;
+          if (person.company !== 'player') {
+            const c = stateRef.current.companies[person.company];
+            flash(`${person.name} (${c.name}) · ${personActivity(stateRef.current, person).text}`);
+            return;
+          }
+          selectPeople((sel) =>
+            e.shiftKey ? (sel.includes(person.id) ? sel.filter((x) => x !== person.id) : [...sel, person.id]) : [person.id],
+          );
+          return;
+        }
+        selectPeople([]);
+        setFocus(hit);
+      };
+      const onContext = (e: MouseEvent) => {
+        e.preventDefault();
+        const ids = [...r!.selected];
+        if (ids.length === 0) {
+          flash('Select someone first (click a person, or Shift-drag a box)');
+          return;
+        }
+        const p = pos(e);
+        sendTo(r!.hitTest(p.x, p.y), ids);
+      };
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        setRideAlong(null);
+        const p = pos(e);
+        mapRef.current?.zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0016));
+      };
+      const onKeyDown = (e: KeyboardEvent) => {
+        if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+        const k = e.key.toLowerCase();
+        if (k === ' ') {
+          e.preventDefault();
+          setSpeed(speedRef.current === 0 ? 1 : 0);
+        } else if (k === '1' || k === '2' || k === '3') setSpeed(SPEEDS[Number(k)]);
+        else if (k === 'j') setShowJournal((value) => !value);
+        else if (k === 'v') {
+          const ids = selectionRef.current;
+          if (ids.length === 1) setRideAlong(ridingIdRef.current === ids[0] ? null : ids[0]!);
+        }
+        else if (k === 'f') {
+          const f = stateRef.current.people.find((p) => p.company === 'player' && p.role === 'founder');
+          if (f) {
+            selectPeople([f.id]);
+            r!.centerOn(f);
+          }
+        } else if (k === 'q') selectPeople(stateRef.current.people.filter((p) => p.company === 'player').map((p) => p.id));
+        else if (k === 'r') setShowRoadmap((v) => !v);
+        else if (k === 'escape') {
+          setRideAlong(null);
+          selectPeople([]);
+          setShowJournal(false);
+          setShowRoadmap(false);
+        } else {
+          if (['w', 'a', 's', 'd'].includes(k)) setRideAlong(null);
+          keys.add(k);
+        }
+      };
+      const onKeyUp = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
 
-    canvas.addEventListener('pointerdown', onDown);
-    canvas.addEventListener('pointermove', onMove);
-    canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('contextmenu', onContext);
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+      canvas.addEventListener('pointerdown', onDown);
+      canvas.addEventListener('pointermove', onMove);
+      canvas.addEventListener('pointerup', onUp);
+      canvas.addEventListener('contextmenu', onContext);
+      canvas.addEventListener('wheel', onWheel, { passive: false });
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+      detachInput = () => {
+        canvas.removeEventListener('pointerdown', onDown);
+        canvas.removeEventListener('pointermove', onMove);
+        canvas.removeEventListener('pointerup', onUp);
+        canvas.removeEventListener('contextmenu', onContext);
+        canvas.removeEventListener('wheel', onWheel);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('keyup', onKeyUp);
+      };
+    }).catch((error: unknown) => {
+      if (!cancelled)
+        setMapError(error instanceof Error ? error.message : 'Unable to load the London map.');
+    });
+
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
-      canvas.removeEventListener('pointerdown', onDown);
-      canvas.removeEventListener('pointermove', onMove);
-      canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('contextmenu', onContext);
-      canvas.removeEventListener('wheel', onWheel);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      detachInput?.();
+      mapRef.current?.dispose();
+      mapRef.current = null;
       rendererRef.current = null;
+      mapReadyRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -480,6 +661,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const runway = runwayWeeks(s, 'player');
   const myPeople = s.people.filter((p) => p.company === 'player');
   const selectedPeople = myPeople.filter((p) => selection.includes(p.id));
+  const journal = journalProgress(s);
+  const ridingPerson = myPeople.find((person) => person.id === ridingId);
+  const visiblePostcard = postcards[0];
+  const postcardLandmark = visiblePostcard
+    ? LANDMARKS.find((landmark) => landmark.kind === visiblePostcard.landmark)
+    : undefined;
   const week = Math.floor(s.day / 7) + 1;
   const dayName = DAY_NAMES[Math.floor(s.day) % 7];
   const nextStage = STAGES[Math.min(STAGES.length - 1, me.stageIndex + 1)];
@@ -498,7 +685,18 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#070c1a] text-slate-100 select-none">
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" aria-label="London map" />
+      <div className="absolute inset-0">
+        <canvas ref={cityCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
+        <canvas ref={overlayCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" aria-label="London map" />
+      </div>
+      {!mapReady && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-[#070c1a]/65">
+          <p className="rounded-xl border border-slate-600/60 bg-[#0b1226]/95 px-5 py-3 text-lg font-bold shadow-xl">
+            {mapError ?? 'Loading London…'}
+          </p>
+        </div>
+      )}
 
       {/* Top bar */}
       <header className="absolute inset-x-0 top-0 flex items-center gap-4 border-b border-slate-700/60 bg-[#0b1226]/95 px-4 py-2 text-sm shadow-lg">
@@ -530,6 +728,13 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               : 'Pick next feature →'}
           </div>
         </button>
+        <button
+          onClick={() => setShowJournal(true)}
+          className="rounded-lg border border-violet-400/40 bg-violet-400/10 px-3 py-2 text-xs font-bold text-violet-200 hover:bg-violet-400/20"
+          title="London journal (J)"
+        >
+          📮 Journal {journal.found}/{journal.total}
+        </button>
         <div className="ml-auto flex items-center gap-3">
           <span className="font-mono text-slate-300">
             Week {week} · {dayName}
@@ -539,6 +744,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               <button
                 key={v}
                 onClick={() => setSpeed(v)}
+                disabled={!mapReady}
                 className={`px-2.5 py-1 text-xs font-bold ${speed === v ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
                 title={i === 0 ? 'Pause (Space)' : `Speed ${v}× (${i})`}
               >
@@ -551,6 +757,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           </button>
         </div>
       </header>
+
+      {ridingPerson && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 rounded-full border border-sky-400/40 bg-[#0b1226]/95 px-3 py-1 text-xs font-bold text-sky-200 shadow-lg">
+          🎥 Riding along with {ridingPerson.name}
+        </div>
+      )}
 
       {/* News */}
       <aside className="pointer-events-none absolute top-16 left-3 w-80 space-y-1.5">
@@ -612,7 +824,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       <footer className="absolute inset-x-3 bottom-3 flex items-end gap-3">
         <div className="min-h-[156px] flex-1 rounded-xl border border-slate-700/70 bg-[#0b1226]/95 p-3 text-sm shadow-2xl">
           {selectedPeople.length > 0 ? (
-            <PeoplePanel people={selectedPeople} state={s} />
+            <PeoplePanel
+              people={selectedPeople}
+              state={s}
+              onRide={() => toggleRideAlong(selectedPeople[0]!.id)}
+              riding={selectedPeople.length === 1 && ridingId === selectedPeople[0]!.id}
+            />
           ) : focusedPlace ? (
             <PlacePanel
               place={focusedPlace}
@@ -624,7 +841,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
                 const f = myPeople.find((p) => p.role === 'founder');
                 if (f) sendTo({ type: 'place', id: focusedPlace.id }, [f.id]);
               }}
-              onSelectHere={(ids) => setSelection(ids)}
+              onSelectHere={selectPeople}
             />
           ) : focusedOffice ? (
             <OfficePanel
@@ -632,7 +849,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               state={s}
               onUpgrade={() => run((st) => upgradeOffice(st, focusedOffice.id))}
               onRoadmap={() => setShowRoadmap(true)}
-              onSelectHere={(ids) => setSelection(ids)}
+              onSelectHere={selectPeople}
             />
           ) : focusedLead ? (
             <LeadPanel lead={focusedLead} state={s} onSend={(p) => sendTo({ type: 'lead', id: focusedLead.id }, [p.id])} />
@@ -648,6 +865,71 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       {toast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 rounded-lg border border-amber-400/40 bg-[#0b1226] px-4 py-2 text-sm shadow-xl">
           {toast}
+        </div>
+      )}
+
+      {visiblePostcard && postcardLandmark && (
+        <div className="absolute bottom-[180px] left-3 z-20 w-80 rounded-xl border border-violet-400/40 bg-[#0b1226]/95 p-3 shadow-2xl">
+          <div className="text-[10px] font-bold tracking-widest text-violet-300">📮 New in your London journal</div>
+          <h3 className="mt-1 font-black">{postcardLandmark.name}</h3>
+          <p className="mt-1 text-xs text-slate-300">{LANDMARK_FACTS[postcardLandmark.kind]}</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => {
+                flyToLandmark(visiblePostcard.landmark);
+                setPostcards((queue) => queue.slice(1));
+              }}
+              className="rounded-md bg-violet-400 px-2.5 py-1 text-xs font-bold text-slate-950"
+            >
+              Fly there
+            </button>
+            <button onClick={() => setPostcards((queue) => queue.slice(1))} className="rounded-md border border-slate-600 px-2.5 py-1 text-xs">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showJournal && s.phase === 'playing' && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 p-4">
+          <div className="flex max-h-[88vh] w-[min(1050px,95vw)] flex-col rounded-2xl border border-violet-400/30 bg-[#0b1226] p-5 shadow-2xl">
+            <header className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-violet-200">📮 London journal</h2>
+                <p className="text-xs text-slate-400">{journal.found} of {journal.total} landmarks discovered</p>
+              </div>
+              <button onClick={() => setShowJournal(false)} className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm">
+                Close
+              </button>
+            </header>
+            <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+              {LANDMARKS.map((landmark) => {
+                const day = s.journal[landmark.kind];
+                return (
+                  <article
+                    key={landmark.kind}
+                    className={`rounded-lg border p-3 ${day === undefined ? 'border-slate-700 bg-slate-900/60 text-slate-500' : 'border-violet-400/30 bg-violet-400/5'}`}
+                  >
+                    <h3 className={`font-bold ${day === undefined ? 'text-slate-500' : 'text-slate-100'}`}>{landmark.name}</h3>
+                    {day === undefined ? (
+                      <p className="mt-1 text-xs italic">Not visited yet</p>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-xs text-slate-300">{LANDMARK_FACTS[landmark.kind]}</p>
+                        <p className="mt-1 text-[10px] font-bold text-violet-300">Week {Math.floor(day / 7) + 1}</p>
+                      </>
+                    )}
+                    <button
+                      onClick={() => flyToLandmark(landmark.kind)}
+                      className="mt-2 rounded-md border border-sky-400/30 px-2.5 py-1 text-xs font-bold text-sky-200 hover:bg-sky-400/10"
+                    >
+                      Fly there
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -683,9 +965,10 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               setShowHelp(false);
               setSpeed(1);
             }}
-            className="mt-4 w-full rounded-lg bg-amber-400 py-2 font-black text-slate-900"
+            disabled={!mapReady}
+            className="mt-4 w-full rounded-lg bg-amber-400 py-2 font-black text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Start the clock
+            {mapReady ? 'Start the clock' : 'Loading London…'}
           </button>
         </div>
       )}
@@ -721,7 +1004,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               {me.name} · week {week} · {STAGES[me.stageIndex].name} · {fmtUsers(me.users)} users · you own {pct(me.equity)}
             </p>
             <p className="mt-1 text-slate-400">
-              Founder payout: <b className="text-amber-300">{fmtMoney(me.equity * me.valuation)}</b>
+              Founder payout: <b className="text-amber-300">{fmtMoney(s.phase === 'won' ? me.equity * me.valuation : 0)}</b>
             </p>
             <div className="mt-5 flex gap-2">
               <button onClick={onRestart} className="flex-1 rounded-lg bg-amber-400 py-2 font-black text-slate-900">
@@ -805,13 +1088,33 @@ function PeopleHere({ state, at, onSelect }: { state: RtsState; at: string; onSe
   );
 }
 
-function PeoplePanel({ people, state }: { people: Person[]; state: RtsState }) {
+function PeoplePanel({
+  people,
+  state,
+  onRide,
+  riding,
+}: {
+  people: Person[];
+  state: RtsState;
+  onRide: () => void;
+  riding: boolean;
+}) {
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <h3 className="font-black text-amber-300">
-          {people.length === 1 ? `${ROLE_ICON[people[0].role]} ${people[0].name} · ${ROLE_LABEL[people[0].role]}` : `${people.length} people selected`}
-        </h3>
+        <div className="flex items-center gap-3">
+          <h3 className="font-black text-amber-300">
+            {people.length === 1 ? `${ROLE_ICON[people[0].role]} ${people[0].name} · ${ROLE_LABEL[people[0].role]}` : `${people.length} people selected`}
+          </h3>
+          {people.length === 1 && (
+            <button
+              onClick={onRide}
+              className={`rounded-md border px-2 py-1 text-xs font-bold ${riding ? 'border-sky-400/60 bg-sky-400/15 text-sky-200' : 'border-slate-600 text-slate-300 hover:border-sky-400/50'}`}
+            >
+              {riding ? '⏹ Stop ride along' : '🎥 Ride along (V)'}
+            </button>
+          )}
+        </div>
         <span className="text-xs text-slate-400">Right-click a place, pin or investor to send them</span>
       </div>
       <div className="mt-2 grid max-h-[110px] grid-cols-2 gap-x-6 gap-y-1 overflow-y-auto text-xs lg:grid-cols-3">

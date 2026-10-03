@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict';
 import { HUBS, SECTORS, STAGES } from '@/lib/game/content';
-import { DILEMMAS, FEATURES, OFFICE_LEVELS } from '@/lib/rts/content';
+import { LANDMARKS, WORLD, project } from '@/lib/game/geo';
+import { MapRenderer } from '@/lib/game/render';
+import { hasProjection } from '@/lib/game/mapProjection';
+import {
+  DILEMMAS,
+  FEATURES,
+  JOURNAL_HYPE,
+  LEAD_VENUES,
+  LANDMARK_FACTS,
+  OFFICE_LEVELS,
+  PLACE_AT,
+  PLACE_RENAME,
+  PLACES,
+} from '@/lib/rts/content';
 import {
   autoCommands,
   canResearch,
   hire,
+  journalProgress,
   movePeople,
   newRtsGame,
   openOffice,
@@ -172,6 +186,118 @@ check('initial state has a separate founder, engineer, office, and place pool pe
   assert.ok(state.places.some((place) => place.kind === 'customers' && place.poolMax > 0));
   assert.equal(state.companies.player.researching, 'mvp');
   assertSane(state);
+});
+
+check('all authored places use their real projected coordinates within the map bounds', () => {
+  for (const place of PLACES) {
+    const at = PLACE_AT[place.id];
+    assert.ok(at, `${place.id} is missing an authored coordinate`);
+    const point = project(at);
+    assert.deepEqual({ x: place.x, y: place.y }, point);
+    assert.ok(point.x >= 0 && point.x <= WORLD.width, `${place.id} is outside the world x bounds`);
+    assert.ok(point.y >= 0 && point.y <= WORLD.height, `${place.id} is outside the world y bounds`);
+    assert.equal(place.name, PLACE_RENAME[place.id] ?? place.name);
+  }
+  for (const id of Object.keys(PLACE_AT)) {
+    assert.ok(PLACES.some((place) => place.id === id), `${id} has coordinates but no place`);
+  }
+});
+
+check('MapRenderer exposes the additive projection contract on a stub canvas', () => {
+  const canvas = { getContext: () => ({}) } as unknown as HTMLCanvasElement;
+  const renderer = new MapRenderer(canvas);
+  assert.ok(hasProjection(renderer));
+  assert.ok(renderer.worldToScreen({ x: 2, y: 3 }));
+  assert.ok(Number.isFinite(renderer.screenToWorld(20, 30).x));
+});
+
+check('seeded leads use authored London venues and coordinates', () => {
+  let state = game('authored-leads');
+  const seen = new Map<string, RtsState['leads'][number]>();
+  while (state.day < 40 && seen.size < 5) {
+    state = tick(state, 0.1).state;
+    for (const lead of state.leads) seen.set(lead.id, lead);
+  }
+  assert.ok(seen.size >= 5, `only observed ${seen.size} spawned leads`);
+  for (const lead of seen.values()) {
+    assert.ok(
+      LEAD_VENUES.some((venue) => {
+        const point = project(venue.at);
+        return (
+          lead.venue === venue.name &&
+          lead.hubId === venue.hubId &&
+          lead.x === point.x &&
+          lead.y === point.y
+        );
+      }),
+      `${lead.id} does not match an authored lead venue`,
+    );
+  }
+});
+
+check('player landmark discoveries stamp once, add hype and queue one postcard', () => {
+  const state = game('journal-discovery');
+  const founder = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const landmark = LANDMARKS[0]!;
+  const point = project(landmark.at);
+  founder.x = point.x;
+  founder.y = point.y;
+  founder.at = null;
+  founder.order = null;
+  const hypeBefore = state.companies.player.hype;
+
+  const first = tick(state, 0.01);
+  assert.equal(first.state.journal[landmark.kind], first.state.day);
+  assert.ok(
+    Math.abs(first.state.companies.player.hype - (hypeBefore + JOURNAL_HYPE)) < 0.01,
+  );
+  assert.equal(first.fx.filter((effect) => effect.kind === 'postcard').length, 1);
+  assert.equal(journalProgress(first.state).found, 1);
+  assert.equal(journalProgress(first.state).total, LANDMARKS.length);
+  assert.ok(first.state.news.some((item) => item.text === `📮 Discovered ${landmark.name}`));
+  assert.equal(LANDMARK_FACTS[landmark.kind].length > 0, true);
+
+  const second = tick(first.state, 0.01);
+  assert.equal(second.fx.filter((effect) => effect.kind === 'postcard').length, 0);
+  assert.ok(second.state.companies.player.hype <= first.state.companies.player.hype);
+});
+
+check('landmark discovery uses the movement segment and ignores rival people', () => {
+  const crossing = game('journal-crossing');
+  const founder = crossing.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const landmark = LANDMARKS.find((item) => item.kind === 'lcy')!;
+  const point = project(landmark.at);
+  founder.x = point.x - 5;
+  founder.y = point.y;
+  founder.at = null;
+  founder.order = {
+    target: { kind: 'place', id: 'ucl-careers' },
+    fromX: point.x - 5,
+    fromY: point.y,
+    toX: point.x + 5,
+    toY: point.y,
+    progress: 0,
+    durationDays: 0.01,
+  };
+  const crossed = tick(crossing, 0.1);
+  assert.equal(crossed.state.journal[landmark.kind], crossed.state.day);
+  assert.ok(crossed.fx.some((effect) => effect.kind === 'postcard' && effect.landmark === landmark.kind));
+
+  const rivalState = game('journal-rival');
+  const rival = rivalState.people.find(
+    (person) => person.company === 'rival1' && person.role === 'founder',
+  )!;
+  const rivalLandmark = LANDMARKS.find((item) => item.kind === 'lcy')!;
+  const rivalPoint = project(rivalLandmark.at);
+  rival.x = rivalPoint.x;
+  rival.y = rivalPoint.y;
+  rival.at = null;
+  rival.order = null;
+  assert.equal(tick(rivalState, 0.01).state.journal[rivalLandmark.kind], undefined);
 });
 
 check('every exported command leaves its input unchanged', () => {

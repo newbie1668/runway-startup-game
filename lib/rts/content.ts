@@ -1,7 +1,100 @@
 import type { HubId, SectorId } from '@/lib/game/types';
-import { EVENT_TEMPLATES, VENUES_BY_HUB, hubById } from '@/lib/game/content';
-import { project } from '@/lib/game/geo';
+import { EVENT_TEMPLATES } from '@/lib/game/content';
+import { METERS_TO_WORLD, project, type LandmarkKind } from '@/lib/game/geo';
 import type { CustomerPlace, Feature, InvestorPlace, Place, Segment, TalentPlace } from './types';
+
+type LngLat = readonly [number, number];
+
+export const JOURNAL_RADIUS = 250 * METERS_TO_WORLD;
+export const JOURNAL_HYPE = 2;
+
+/** Real coordinates for every place (lng, lat). Replaces the hub-offset positions. */
+export const PLACE_AT: Record<string, LngLat> = {
+  'ucl-careers': [-0.1340, 51.5246],
+  'silicon-roundabout': [-0.0815, 51.5262],
+  'soho-studios': [-0.1324, 51.5155],
+  'wharf-alumni': [-0.0235, 51.5058],
+  'old-street': [-0.0877, 51.5256],
+  'farringdon-cowork': [-0.1053, 51.5203],
+  'camden-market': [-0.1466, 51.5413],
+  'soho-high-street': [-0.1389, 51.5133],
+  'borough-traders': [-0.0910, 51.5055],
+  'battersea-shops': [-0.1446, 51.4819],
+  'kx-devs': [-0.1255, 51.5358],
+  'wharf-banks': [-0.0176, 51.5033],
+  'more-london': [-0.0806, 51.5050],
+  'brick-lane-capital': [-0.0717, 51.5210],
+  'thames-ventures': [-0.1260, 51.5330],
+  'dean-street-partners': [-0.1325, 51.5138],
+  'level39-fund': [-0.0196, 51.5050],
+  'borough-seed': [-0.0920, 51.5038],
+};
+
+/** Display-name changes for places (others keep their names). */
+export const PLACE_RENAME: Record<string, string> = {
+  'soho-high-street': 'Carnaby Street shoppers',
+  'wharf-banks': 'Canada Square bank HQs',
+  'kx-devs': 'Coal Drops Yard dev community',
+};
+
+/** One true line per landmark for the London journal postcard. */
+export const LANDMARK_FACTS: Record<LandmarkKind, string> = {
+  eye: '135 m tall, it opened in 2000 as the Millennium Wheel.',
+  shard: 'At 310 m, the tallest building in the UK, completed in 2012.',
+  bigben: 'Big Ben is the bell, not the tower. The tower became Elizabeth Tower in 2012.',
+  bttower: 'Opened in 1965 and long treated as an official secret, missing from maps.',
+  stpauls: "Christopher Wren's cathedral, rebuilt after the Great Fire of 1666.",
+  o2: 'Built as the Millennium Dome. Its 12 yellow masts stand for the months of the year.',
+  gherkin: '30 St Mary Axe, finished in 2003. The only curved glass is the lens at the top.',
+  towerbridge: 'Opened in 1894. Its bascules still lift to let tall ships through.',
+  walkie: '20 Fenchurch Street. In 2013 its curved glass focused sunlight hot enough to melt parts of a car.',
+  grater: "The Leadenhall Building slopes back to protect views of St Paul's.",
+  canadasq: "One Canada Square, 235 m, was the UK's tallest building until 2010.",
+  battersea: "Its four chimneys are on the cover of Pink Floyd's Animals.",
+  bishop: '22 Bishopsgate is the tallest tower in the City of London, at 278 m.',
+  heron: 'Heron Tower has one of the largest private aquariums in the UK in its lobby.',
+  tower42: 'Built as the NatWest Tower. From above it is shaped like the NatWest logo.',
+  abbey: 'Every coronation since 1066 has taken place here.',
+  oldstreet: "The heart of 'Silicon Roundabout', London's tech cluster.",
+  westminsterbr: 'Painted green to match the seats in the House of Commons.',
+  lambethbr: 'Painted red to match the benches in the House of Lords.',
+  waterloobr: "Built during the Second World War largely by women: 'the Ladies' Bridge'.",
+  blackfriarsbr: 'Next to it, Blackfriars is the only London station that spans the Thames.',
+  londonbr: 'The previous London Bridge was sold in 1968 and rebuilt in Lake Havasu City, Arizona.',
+  millennium: "Nicknamed the 'Wobbly Bridge' after it swayed on opening day in 2000.",
+  albertbr: 'Signs still tell troops to break step when marching across.',
+  hungerford: 'The Golden Jubilee footbridges either side of the rail bridge opened in 2002.',
+  towerlondon: 'Home of the Crown Jewels, and by legend of at least six ravens.',
+  buckingham: 'The palace has 775 rooms, including 78 bathrooms.',
+  monument: 'It is 202 ft tall and stands 202 ft from where the Great Fire of 1666 began.',
+  britishmuseum: 'Home of the Rosetta Stone. It has been free to visit since 1759.',
+  allsouls: "John Nash's round portico turns the corner where Regent Street meets Langham Place.",
+  goodgest: "Its deep-level shelter was used by Eisenhower's staff in the Second World War.",
+  stcharles: 'A Catholic church tucked away on Ogle Street in Fitzrovia.',
+  nationaltheatre: "Denys Lasdun's Brutalist theatre on the South Bank, opened in 1976.",
+  tatemodern: 'A former power station. The Turbine Hall once held its generators.',
+  stpancras: "Its 1868 train shed was the world's largest single-span roof when built.",
+  alberthall: 'Opened by Queen Victoria in 1871. It hosts the Proms every summer.',
+  lcy: 'Its short runway means jets come in on a steep 5.5° approach.',
+};
+
+/** Real venues where pop-up leads appear. Replaces hub-centre lead positions. */
+export const LEAD_VENUES: readonly { name: string; at: LngLat; hubId: HubId }[] = [
+  { name: 'Tate Modern Turbine Hall', at: [-0.0993, 51.5077], hubId: 'londonbridge' },
+  { name: 'The Shard, 31st floor', at: [-0.0865, 51.5045], hubId: 'londonbridge' },
+  { name: 'The O2', at: [0.0032, 51.5029], hubId: 'canarywharf' },
+  { name: 'British Museum Great Court', at: [-0.1269, 51.5194], hubId: 'kingscross' },
+  { name: 'St Pancras station', at: [-0.1254, 51.5304], hubId: 'kingscross' },
+  { name: 'Battersea Power Station', at: [-0.1446, 51.4819], hubId: 'battersea' },
+  { name: 'Boxpark Shoreditch', at: [-0.0752, 51.5234], hubId: 'shoreditch' },
+  { name: 'Somerset House', at: [-0.1172, 51.5110], hubId: 'soho' },
+  { name: 'Barbican Centre', at: [-0.0937, 51.5202], hubId: 'farringdon' },
+  { name: 'Smithfield Market', at: [-0.1020, 51.5196], hubId: 'farringdon' },
+  { name: 'The Roundhouse, Camden', at: [-0.1517, 51.5434], hubId: 'camden' },
+  { name: 'Crossrail Place roof garden', at: [-0.0187, 51.5061], hubId: 'canarywharf' },
+  { name: 'Royal Festival Hall', at: [-0.1166, 51.5056], hubId: 'soho' },
+  { name: 'Granary Square', at: [-0.1248, 51.5352], hubId: 'kingscross' },
+];
 
 export const STARTING_CASH = 150_000;
 export const OFFICE_OPEN_COST = 20_000;
@@ -148,77 +241,62 @@ export const OFFICE_LEVELS = [
   { name: 'HQ building', capacity: 24, rentMult: 2.5, cost: 400_000 },
 ] as const;
 
-function coords(hubId: HubId, dx: number, dy: number) {
-  const hub = hubById(hubId);
-  const point = project([hub.lng, hub.lat]);
-  return { x: point.x + dx, y: point.y + dy };
+function placePosition(id: string) {
+  return project(PLACE_AT[id]);
 }
 
-function talent(
-  id: string,
-  name: string,
-  hubId: HubId,
-  quality: number,
-  dx: number,
-  dy: number,
-): TalentPlace {
-  return { id, kind: 'talent', name, hubId, quality, ...coords(hubId, dx, dy) };
+function placeName(id: string, name: string) {
+  return PLACE_RENAME[id] ?? name;
 }
 
-function customer(
-  id: string,
-  name: string,
-  hubId: HubId,
-  segment: Segment,
-  poolMax: number,
-  dx: number,
-  dy: number,
-): CustomerPlace {
+function talent(id: string, name: string, hubId: HubId, quality: number): TalentPlace {
+  return { id, kind: 'talent', name: placeName(id, name), hubId, quality, ...placePosition(id) };
+}
+
+function customer(id: string, name: string, hubId: HubId, segment: Segment, poolMax: number): CustomerPlace {
   return {
     id,
     kind: 'customers',
-    name,
+    name: placeName(id, name),
     hubId,
     segment,
     pool: poolMax,
     poolMax,
-    ...coords(hubId, dx, dy),
+    ...placePosition(id),
   };
 }
 
-function investor(id: string, name: string, hubId: HubId, dx: number, dy: number): InvestorPlace {
-  return { id, kind: 'investor', name, hubId, cooldownUntil: {}, ...coords(hubId, dx, dy) };
+function investor(id: string, name: string, hubId: HubId): InvestorPlace {
+  return { id, kind: 'investor', name: placeName(id, name), hubId, cooldownUntil: {}, ...placePosition(id) };
 }
 
 export const PLACES: readonly Place[] = [
-  talent('ucl-careers', 'UCL careers fair', 'kingscross', 1.2, -6, -5),
-  talent('silicon-roundabout', 'Silicon Roundabout meetup', 'shoreditch', 1.0, -6, 5),
-  talent('soho-studios', 'Soho design studios', 'soho', 1.0, -6, -5),
-  talent('wharf-alumni', 'Ex-bankers, Canary Wharf', 'canarywharf', 1.1, 6, -5),
+  talent('ucl-careers', 'UCL careers fair', 'kingscross', 1.2),
+  talent('silicon-roundabout', 'Silicon Roundabout meetup', 'shoreditch', 1.0),
+  talent('soho-studios', 'Soho design studios', 'soho', 1.0),
+  talent('wharf-alumni', 'Ex-bankers, Canary Wharf', 'canarywharf', 1.1),
 
-  customer('old-street', 'Old Street early adopters', 'shoreditch', 'earlyAdopters', 3_000, 5, -5),
+  customer('old-street', 'Old Street early adopters', 'shoreditch', 'earlyAdopters', 2_700),
   customer(
     'farringdon-cowork',
     'Farringdon co-working floors',
     'farringdon',
     'earlyAdopters',
-    2_500,
-    6,
-    4,
+    2_250,
   ),
-  customer('camden-market', 'Camden Market crowds', 'camden', 'consumers', 39_500, -5, 4),
-  customer('soho-high-street', 'Soho high street', 'soho', 'consumers', 39_500, 5, -4),
-  customer('borough-traders', 'Borough Market traders', 'londonbridge', 'smb', 29_500, -6, 4),
-  customer('battersea-shops', 'Battersea Power Station shops', 'battersea', 'smb', 29_500, 6, 4),
-  customer('kx-devs', "King's Cross dev community", 'kingscross', 'developers', 34_500, 6, 4),
-  customer('wharf-banks', 'Canary Wharf bank HQs', 'canarywharf', 'enterprise', 49_750, -5, 4),
-  customer('more-london', 'More London offices', 'londonbridge', 'enterprise', 49_750, 5, -4),
+  customer('camden-market', 'Camden Market crowds', 'camden', 'consumers', 35_550),
+  customer('soho-high-street', 'Soho high street', 'soho', 'consumers', 35_550),
+  customer('borough-traders', 'Borough Market traders', 'londonbridge', 'smb', 26_550),
+  customer('battersea-shops', 'Battersea Power Station shops', 'battersea', 'smb', 26_550),
+  customer('kx-devs', "King's Cross dev community", 'kingscross', 'developers', 31_050),
+  customer('wharf-banks', 'Canary Wharf bank HQs', 'canarywharf', 'enterprise', 44_775),
+  customer('more-london', 'More London offices', 'londonbridge', 'enterprise', 44_775),
 
-  investor('brick-lane-capital', 'Brick Lane Capital', 'shoreditch', 3, 7),
-  investor('thames-ventures', 'Thames Ventures', 'kingscross', 3, 7),
-  investor('dean-street-partners', 'Dean Street Partners', 'soho', 3, 7),
-  investor('level39-fund', 'Level39 Fund', 'canarywharf', -2, 8),
-  investor('borough-seed', 'Borough Seed', 'londonbridge', 2, 8),
+  investor('brick-lane-capital', 'Brick Lane Capital', 'shoreditch'),
+  investor('thames-ventures', 'Thames Ventures', 'kingscross'),
+  investor('dean-street-partners', 'Dean Street Partners', 'soho'),
+  investor('level39-fund', 'Level39 Fund', 'canarywharf'),
+  investor('borough-seed', 'Borough Seed', 'londonbridge'),
 ];
 
 export const DILEMMAS = [
@@ -303,12 +381,14 @@ export const DILEMMAS = [
 
 export type DilemmaEffect = (typeof DILEMMAS)[number]['options'][number]['effect'];
 
-export function generateLeadDetails(dice: { pick<T>(items: readonly T[]): T }, hubId: HubId) {
+export function generateLeadDetails(dice: { pick<T>(items: readonly T[]): T }) {
   const template = dice.pick(EVENT_TEMPLATES);
-  const venue = dice.pick(VENUES_BY_HUB[hubId]);
+  const venue = dice.pick(LEAD_VENUES);
   return {
     title: template.name,
-    venue,
+    venue: venue.name,
+    hubId: venue.hubId,
+    ...project(venue.at),
   };
 }
 

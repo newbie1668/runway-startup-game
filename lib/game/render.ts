@@ -14,6 +14,7 @@
 
 import { LANDMARKS, PARKS, THAMES, TUBE_LINES, WORLD, project, type WorldPoint } from './geo';
 import { HUB_POS, MapOverlay } from './overlay';
+import type { MapProjection } from './mapProjection';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from './scene';
 import type { HubId } from './types';
 
@@ -42,7 +43,7 @@ const PARK_POLYS = PARKS.map((p) => ({
 const TUBE_PATHS = TUBE_LINES.map((l) => ({ ...l, pts: l.points.map(project) }));
 const LANDMARK_PTS = LANDMARKS.map((l) => ({ ...l, at: project(l.at) }));
 
-export class MapRenderer implements IMapRenderer {
+export class MapRenderer implements IMapRenderer, MapProjection {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private cam: Camera = { x: WORLD.width / 2, y: WORLD.height / 2, zoom: 4 };
@@ -168,14 +169,14 @@ export class MapRenderer implements IMapRenderer {
     this.cam.y = Math.min(WORLD.height + my, Math.max(-my, this.cam.y));
   }
 
-  private worldToScreen(p: WorldPoint): { x: number; y: number } {
+  worldToScreen(p: WorldPoint): { x: number; y: number } {
     return {
       x: (p.x - this.cam.x) * this.cam.zoom + this.cssW / 2,
       y: (p.y - this.cam.y) * this.cam.zoom + this.cssH / 2,
     };
   }
 
-  private screenToWorld(sx: number, sy: number): WorldPoint {
+  screenToWorld(sx: number, sy: number): WorldPoint {
     return {
       x: (sx - this.cssW / 2) / this.cam.zoom + this.cam.x,
       y: (sy - this.cssH / 2) / this.cam.zoom + this.cam.y,

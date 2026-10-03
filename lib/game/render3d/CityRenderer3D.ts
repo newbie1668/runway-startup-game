@@ -24,6 +24,7 @@ import {
   type LandmarkKind,
 } from '../geo';
 import { HUB_POS, MapOverlay } from '../overlay';
+import type { MapProjection } from '../mapProjection';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
 import { CameraRig, FIT_PITCH_SIN } from './cameraRig';
@@ -167,7 +168,7 @@ function viewParam(): string | null {
 
 type BuildJob = { id: string; kind: BuildJobKind; essential: boolean; run: () => void };
 
-export class CityRenderer3D implements IMapRenderer {
+export class CityRenderer3D implements IMapRenderer, MapProjection {
   private readonly cityCanvas: HTMLCanvasElement;
   private readonly overlayCanvas: HTMLCanvasElement;
   private readonly overlayCtx: CanvasRenderingContext2D;
@@ -1034,6 +1035,14 @@ export class CityRenderer3D implements IMapRenderer {
 
   getCamera(): CameraState {
     return { ...this.cam };
+  }
+
+  worldToScreen(p: { x: number; y: number }): { x: number; y: number } | null {
+    return this.rig.worldToScreen(p);
+  }
+
+  screenToWorld(sx: number, sy: number): { x: number; y: number } {
+    return this.rig.groundUnproject(sx, sy);
   }
 
   setCamera(c: CameraState): void {
