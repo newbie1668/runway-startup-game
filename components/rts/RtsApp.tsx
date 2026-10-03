@@ -721,7 +721,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               {me.name} · week {week} · {STAGES[me.stageIndex].name} · {fmtUsers(me.users)} users · you own {pct(me.equity)}
             </p>
             <p className="mt-1 text-slate-400">
-              Founder payout: <b className="text-amber-300">{fmtMoney(me.equity * me.valuation)}</b>
+              Founder payout: <b className="text-amber-300">{fmtMoney(s.phase === 'won' ? me.equity * me.valuation : 0)}</b>
             </p>
             <div className="mt-5 flex gap-2">
               <button onClick={onRestart} className="flex-1 rounded-lg bg-amber-400 py-2 font-black text-slate-900">
