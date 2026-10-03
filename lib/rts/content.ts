@@ -11,7 +11,7 @@ export const JOURNAL_HYPE = 2;
 /** Real coordinates for every place (lng, lat). Replaces the hub-offset positions. */
 export const PLACE_AT: Record<string, LngLat> = {
   'ucl-careers': [-0.1340, 51.5246],
-  'silicon-roundabout': [-0.0815, 51.5262],
+  'silicon-roundabout': [-0.0862, 51.5229],
   'soho-studios': [-0.1324, 51.5155],
   'wharf-alumni': [-0.0235, 51.5058],
   'old-street': [-0.0877, 51.5256],

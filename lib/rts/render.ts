@@ -19,6 +19,25 @@ export type RtsHit =
   | { type: 'place'; id: string }
   | { type: 'office'; id: string };
 
+type LabelCategory = 'office' | 'investor' | 'lead' | 'place' | 'person';
+
+interface LabelCandidate {
+  category: LabelCategory;
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  hovered: boolean;
+  selected: boolean;
+}
+
+interface LabelRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
 export const HUB_WORLD: Record<HubId, WorldPoint> = Object.fromEntries(
   HUBS.map((h) => [h.id, project([h.lng, h.lat])]),
 ) as Record<HubId, WorldPoint>;
@@ -205,8 +224,19 @@ export class RtsRenderer {
   }
 
   private isFocused(h: RtsHit) {
-    const eq = (a: RtsHit | null) => !!a && a.type === h.type && a.id === h.id;
-    return eq(this.focus) || eq(this.hover);
+    return this.isSelected(h) || this.isHovered(h);
+  }
+
+  private isSelected(h: RtsHit) {
+    return this.matchesHit(this.focus, h);
+  }
+
+  private isHovered(h: RtsHit) {
+    return this.matchesHit(this.hover, h);
+  }
+
+  private matchesHit(a: RtsHit | null, b: RtsHit) {
+    return !!a && a.type === b.type && a.id === b.id;
   }
 
   // --- fx -------------------------------------------------------------------
@@ -269,6 +299,26 @@ export class RtsRenderer {
     const showLabels = this.zoom() > 6;
     const player = s.companies.player;
     const open = new Set(unlockedSegments(player));
+    const labels: LabelCandidate[] = [];
+    const addLabel = (
+      category: LabelCategory,
+      hit: RtsHit,
+      x: number,
+      y: number,
+      text: string,
+      color: string,
+      selected = false,
+    ) => {
+      labels.push({
+        category,
+        x,
+        y,
+        text,
+        color,
+        hovered: this.isHovered(hit),
+        selected: selected || this.isSelected(hit),
+      });
+    };
 
     // Places
     for (const place of s.places) {
@@ -288,7 +338,14 @@ export class RtsRenderer {
         ctx.fillRect(q.x - 14, q.y + 3, 28 * k, 4);
       }
       if (showLabels || focused) {
-        this.label(q.x, q.y + (place.kind === 'customers' ? 17 : 13), place.name, locked ? '#94a3b8' : '#e2e8f0');
+        addLabel(
+          place.kind === 'investor' ? 'investor' : 'place',
+          hit,
+          q.x,
+          q.y + (place.kind === 'customers' ? 17 : 13),
+          place.name,
+          locked ? '#94a3b8' : '#e2e8f0',
+        );
       }
       if (focused && locked) {
         const f = featureForSegment(place.segment);
@@ -304,10 +361,15 @@ export class RtsRenderer {
       if (!q) continue;
       const focused = this.isFocused({ type: 'office', id: office.id });
       this.drawOffice(q.x, q.y, c.color, office.level, focused, office.company === 'player');
-      if (office.company === 'player' && (showLabels || focused)) {
-        this.label(q.x, q.y + 13, `${c.name} · ${OFFICE_LEVELS[office.level].name}`, '#fde68a');
-      } else if (focused) {
-        this.label(q.x, q.y + 13, `${c.name} · ${OFFICE_LEVELS[office.level].name}`, '#e2e8f0');
+      if (showLabels || focused) {
+        addLabel(
+          'office',
+          { type: 'office', id: office.id },
+          q.x,
+          q.y + 13,
+          `${c.name} · ${OFFICE_LEVELS[office.level].name}`,
+          office.company === 'player' ? '#fde68a' : '#e2e8f0',
+        );
       }
     }
 
@@ -316,6 +378,8 @@ export class RtsRenderer {
       const q = this.w2s(lead);
       if (!q) continue;
       const st = LEAD_STYLE[lead.kind];
+      const hit: RtsHit = { type: 'lead', id: lead.id };
+      const focused = this.isFocused(hit);
       const life = Math.max(1e-6, lead.expiresDay - lead.spawnDay);
       const left = Math.max(0, Math.min(1, (lead.expiresDay - s.day) / life));
       const pulse = 0.5 + 0.5 * Math.sin(t * 0.005 + q.x);
@@ -334,8 +398,12 @@ export class RtsRenderer {
       ctx.lineWidth = 3;
       ctx.stroke();
       this.emoji(st.icon, q.x, q.y, 13);
-      if (this.isFocused({ type: 'lead', id: lead.id })) {
-        this.tooltip(q.x, q.y - 22, `${st.label}: ${lead.name} · ${Math.max(0, lead.expiresDay - s.day).toFixed(1)}d left`);
+      if (showLabels || focused) {
+        const text =
+          focused || !showLabels
+            ? `${st.label}: ${lead.name} · ${Math.max(0, lead.expiresDay - s.day).toFixed(1)}d left`
+            : `${st.label}: ${lead.name}`;
+        addLabel('lead', hit, q.x, q.y - 22, text, st.color);
       }
     }
 
@@ -399,11 +467,17 @@ export class RtsRenderer {
       ctx.lineWidth = mine ? 3 : 2;
       ctx.stroke();
       this.emoji(ROLE_ICON[p.role], q.x, q.y + 0.5, p.role === 'founder' ? 13 : 11.5);
-      if (hov) {
-        this.tooltip(q.x, q.y - 16, `${p.name} (${c.name} ${ROLE_LABEL[p.role].toLowerCase()}) · ${act.text}`);
+      if (showLabels || sel || hov) {
+        const text = hov
+          ? `${p.name} (${c.name} ${ROLE_LABEL[p.role].toLowerCase()}) · ${act.text}`
+          : sel
+            ? `${p.name} · ${act.text}`
+            : p.name;
+        addLabel('person', { type: 'person', id: p.id }, q.x, q.y - 16, text, mine ? '#e2e8f0' : '#cbd5e1', sel);
       }
     }
 
+    this.drawLabels(labels);
     this.stepParticles(dt);
 
     if (this.box) {
@@ -492,6 +566,44 @@ export class RtsRenderer {
     ctx.strokeText(text, x, y);
     ctx.fillStyle = this.atmosphere === 'day' ? '#0f172a' : color;
     ctx.fillText(text, x, y);
+  }
+
+  private drawLabels(labels: LabelCandidate[]) {
+    const ctx = this.ctx;
+    const categoryPriority: Record<LabelCategory, number> = {
+      office: 0,
+      investor: 1,
+      lead: 2,
+      place: 3,
+      person: 4,
+    };
+    const priority = (label: LabelCandidate) =>
+      label.hovered ? 0 : label.selected ? 1 : 2 + categoryPriority[label.category];
+    labels.sort((a, b) => priority(a) - priority(b));
+
+    ctx.font = '700 10.5px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    const accepted: LabelRect[] = [];
+    for (const label of labels) {
+      const metrics = ctx.measureText(label.text);
+      const padding = 4;
+      const rect: LabelRect = {
+        left: label.x - metrics.width / 2 - padding,
+        right: label.x + metrics.width / 2 + padding,
+        top: label.y - (metrics.actualBoundingBoxAscent || 10.5) - padding,
+        bottom: label.y + (metrics.actualBoundingBoxDescent || 3) + padding,
+      };
+      const overlaps = accepted.some(
+        (other) =>
+          rect.left < other.right &&
+          rect.right > other.left &&
+          rect.top < other.bottom &&
+          rect.bottom > other.top,
+      );
+      if (overlaps && !label.hovered) continue;
+      this.label(label.x, label.y, label.text, label.color);
+      accepted.push(rect);
+    }
   }
 
   private tooltip(x: number, y: number, text: string) {
