@@ -43,6 +43,7 @@ import {
   type RtsHit,
 } from '@/lib/rts/render';
 import {
+  autoCommands,
   canResearch,
   campaignStatus,
   hire,
@@ -241,6 +242,8 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
 // ---------------------------------------------------------------------------
 
 function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () => void; onNewSetup: () => void }) {
+  const autoplay =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('autoplay') === '1';
   const cityCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -510,6 +513,37 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   );
 
   useEffect(() => {
+    if (!autoplay || !showHelp || !mapReady) return;
+    const timer = window.setTimeout(() => startAtSpeed(4), 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, mapReady, showHelp, startAtSpeed]);
+
+  useEffect(() => {
+    if (!autoplay || briefingIndex === null) return;
+    const timer = window.setTimeout(() => {
+      campaignModalOpenRef.current = false;
+      setBriefingIndex(null);
+      setSpeed(briefingResumeSpeedRef.current || 4);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, briefingIndex, setSpeed]);
+
+  useEffect(() => {
+    if (!autoplay || !completedChapter) return;
+    const timer = window.setTimeout(() => {
+      setCompletedChapter(null);
+      openBriefing(true, completedResumeSpeedRef.current || 4);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, completedChapter, openBriefing]);
+
+  useEffect(() => {
+    if (!autoplay || ui.phase !== 'dilemma') return;
+    const timer = window.setTimeout(() => run((state) => resolveDilemma(state, 0)), 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, run, ui.phase]);
+
+  useEffect(() => {
     const r = rendererRef.current;
     selectionRef.current = selection;
     if (!r) return;
@@ -569,6 +603,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     let ambientFrames = 0;
     let ambientUpdateTotalMs = 0;
     let ambientDrawTotalMs = 0;
+    let nextAutoplayDay = stateRef.current.day + 0.5;
     const keys = new Set<string>();
     const mapScene: Scene = {
       mode: 'play',
@@ -629,7 +664,20 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           ? dt * speedRef.current * DAYS_PER_SECOND
           : 0;
       if (gameDays > 0) {
-        const res = tick(before, gameDays);
+        let res = tick(before, gameDays);
+        if (
+          autoplay &&
+          res.state.phase === 'playing' &&
+          res.state.day + 1e-8 >= nextAutoplayDay
+        ) {
+          while (nextAutoplayDay <= res.state.day + 1e-8) nextAutoplayDay += 0.5;
+          const commands = autoCommands(res.state, 'player');
+          res = {
+            ...res,
+            state: commands.state,
+            fx: [...res.fx, ...commands.fx],
+          };
+        }
         stateRef.current = res.state;
         handleFx(res);
       }
@@ -1289,7 +1337,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <button
             onClick={() => {
               setShowHelp(false);
-              startAtSpeed(1);
+              startAtSpeed(autoplay ? 4 : 1);
             }}
             disabled={!mapReady}
             className="mt-4 w-full rounded-lg bg-amber-400 py-2 font-black text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
