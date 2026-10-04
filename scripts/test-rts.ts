@@ -4,6 +4,7 @@ import { LANDMARKS, WORLD, project } from '@/lib/game/geo';
 import { MapRenderer } from '@/lib/game/render';
 import { hasProjection } from '@/lib/game/mapProjection';
 import { advanceAmbient, createAmbient } from '@/lib/rts/ambient';
+import { fmtRtsMoney } from '@/lib/rts/format';
 import {
   DILEMMAS,
   CHAPTERS,
@@ -866,6 +867,12 @@ check('founder first-customer, first-hire, and launch moments emit once', () => 
   );
 });
 
+check('RTS money formatting rounds pounds and uses compact amounts', () => {
+  assert.equal(fmtRtsMoney(500_000), '£500k');
+  assert.equal(fmtRtsMoney(3_065_576.159), '£3.1M');
+  assert.equal(fmtRtsMoney(-1_234.56), '-£1.2k');
+});
+
 check('every successful player raise emits a round-closed moment', () => {
   const state = game('round-closed-moment');
   const founder = state.people.find(
@@ -890,7 +897,10 @@ check('every successful player raise emits a round-closed moment', () => {
   const moment = raised.fx.find((effect) => effect.kind === 'moment' && effect.moment === 'round-closed');
   assert.ok(moment?.kind === 'moment');
   assert.equal(moment.title, `${STAGES[1]!.name} closed`);
-  assert.match(moment.text, /£[\d,]+ raised at £[\d,]+ valuation/);
+  assert.equal(
+    moment.text,
+    `${fmtRtsMoney(STAGES[1]!.raise)} raised at ${fmtRtsMoney(raised.state.companies.player.valuation)} valuation`,
+  );
 });
 
 check('rival claims emit a bad moment when they beat an ordered player person', () => {

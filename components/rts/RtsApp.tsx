@@ -84,9 +84,13 @@ const DAYS_PER_SECOND = 0.35;
 const SPEEDS = [0, 1, 2, 4] as const;
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const COMPANY_ORDER: CompanyId[] = ['player', 'rival1', 'rival2', 'rival3'];
+const MOMENT_DURATION_MS = 3700;
+const MOMENT_HOLD_MS = 3200;
+const MOMENT_MAX_AGE_DAYS = 20;
 type MomentFx = Extract<RtsFx, { kind: 'moment' }>;
 interface QueuedMoment {
   id: number;
+  day: number;
   fx: MomentFx;
 }
 
@@ -278,6 +282,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const activeMomentRef = useRef<QueuedMoment | null>(null);
   const momentQueueRef = useRef<QueuedMoment[]>([]);
   const momentIdRef = useRef(0);
+  const momentElapsedMsRef = useRef(0);
   const [momentPhase, setMomentPhase] = useState<'enter' | 'hold' | 'exit'>('enter');
   const [showHelp, setShowHelp] = useState(true);
   const [showRoadmap, setShowRoadmap] = useState(false);
@@ -287,18 +292,34 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const briefingSeenRef = useRef(false);
   const campaignModalOpenRef = useRef(false);
   const modalOpenRef = useRef(true);
+  const momentQueuePaused =
+    briefingIndex !== null ||
+    completedChapter !== null ||
+    ['dilemma', 'won', 'bankrupt'].includes(ui.phase);
+  const momentQueuePausedRef = useRef(momentQueuePaused);
   const briefingResumeSpeedRef = useRef(1);
   const completedResumeSpeedRef = useRef(1);
 
-  const enqueueMoment = useCallback((fx: MomentFx) => {
-    const moment = { id: ++momentIdRef.current, fx };
-    if (!activeMomentRef.current) {
+  const dequeueFreshMoment = useCallback(() => {
+    const queue = momentQueueRef.current;
+    const day = stateRef.current.day;
+    while (queue.length > 0 && day - queue[0]!.day > MOMENT_MAX_AGE_DAYS)
+      queue.shift();
+    return queue.shift() ?? null;
+  }, []);
+
+  const enqueueMoment = useCallback((fx: MomentFx, day: number) => {
+    const moment = { id: ++momentIdRef.current, day, fx };
+    if (!activeMomentRef.current && !momentQueuePausedRef.current) {
+      momentElapsedMsRef.current = 0;
       activeMomentRef.current = moment;
       setMomentPhase('enter');
       setActiveMoment(moment);
       return;
     }
     const queue = momentQueueRef.current;
+    while (queue.length > 0 && day - queue[0]!.day > MOMENT_MAX_AGE_DAYS)
+      queue.shift();
     queue.push(moment);
     if (queue.length > 3) queue.splice(0, queue.length - 3);
   }, []);
@@ -314,21 +335,64 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   }, [showHelp, showRoadmap, showJournal, briefingIndex, completedChapter, ui.phase]);
 
   useEffect(() => {
-    if (!activeMoment) return;
+    momentQueuePausedRef.current = momentQueuePaused;
+  }, [momentQueuePaused]);
+
+  useEffect(() => {
+    if (momentQueuePaused) return;
+    const expired =
+      activeMoment !== null &&
+      stateRef.current.day - activeMoment.day > MOMENT_MAX_AGE_DAYS;
+    if (expired || (!activeMoment && momentQueueRef.current.length > 0)) {
+      const frame = window.requestAnimationFrame(() => {
+        if (momentQueuePausedRef.current) return;
+        const current = activeMomentRef.current;
+        if (
+          current &&
+          stateRef.current.day - current.day <= MOMENT_MAX_AGE_DAYS
+        )
+          return;
+        const next = dequeueFreshMoment();
+        activeMomentRef.current = next;
+        momentElapsedMsRef.current = 0;
+        setMomentPhase('enter');
+        setActiveMoment(next);
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+    if (!activeMoment) {
+      activeMomentRef.current = null;
+      momentElapsedMsRef.current = 0;
+      return;
+    }
+    const elapsedAtStart = momentElapsedMsRef.current;
+    const remainingMs = Math.max(0, MOMENT_DURATION_MS - elapsedAtStart);
+    const startedAt = performance.now();
+    let finished = false;
     const entrance = window.requestAnimationFrame(() => setMomentPhase('hold'));
-    const exit = window.setTimeout(() => setMomentPhase('exit'), 3200);
+    const exitDelay = MOMENT_HOLD_MS - elapsedAtStart;
+    const exit =
+      exitDelay > 0 ? window.setTimeout(() => setMomentPhase('exit'), exitDelay) : null;
     const dismiss = window.setTimeout(() => {
-      const next = momentQueueRef.current.shift() ?? null;
+      if (momentQueuePausedRef.current) return;
+      finished = true;
+      const next = dequeueFreshMoment();
       activeMomentRef.current = next;
-      if (next) setMomentPhase('enter');
+      momentElapsedMsRef.current = 0;
+      setMomentPhase('enter');
       setActiveMoment(next);
-    }, 3700);
+    }, remainingMs);
     return () => {
       window.cancelAnimationFrame(entrance);
-      window.clearTimeout(exit);
+      if (exit !== null) window.clearTimeout(exit);
       window.clearTimeout(dismiss);
+      if (!finished)
+        momentElapsedMsRef.current = Math.min(
+          MOMENT_DURATION_MS,
+          elapsedAtStart + performance.now() - startedAt,
+        );
     };
-  }, [activeMoment]);
+  }, [activeMoment, dequeueFreshMoment, momentQueuePaused]);
 
   const setRideAlong = useCallback((id: string | null) => {
     ridingIdRef.current = id;
@@ -364,6 +428,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       if (!chapter) return;
       briefingSeenRef.current = true;
       campaignModalOpenRef.current = true;
+      momentQueuePausedRef.current = true;
       briefingResumeSpeedRef.current = resumeSpeed ?? (speedRef.current || 1);
       setBriefingIndex(index);
       setShowHelp(false);
@@ -413,6 +478,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         (effect) => effect.kind === 'chapter' && effect.index < CHAPTERS.length - 1,
       );
       const phaseWillOpenModal = ['dilemma', 'won', 'bankrupt'].includes(res.state.phase);
+      if (chapterWillOpen || phaseWillOpenModal) momentQueuePausedRef.current = true;
       r?.applyFx(res.fx);
       for (const f of res.fx) {
         if (f.kind === 'focus') {
@@ -446,7 +512,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
             !phaseWillOpenModal
           )
             mapRef.current?.lookAt(f.x, f.y, 10);
-          enqueueMoment(f);
+          enqueueMoment(f, res.state.day);
         } else if (f.kind === 'chapter') {
           const hq =
             res.state.offices.find(
@@ -962,15 +1028,11 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           </p>
         </div>
       )}
-      {activeMoment && (
+      {activeMoment && !momentQueuePaused && (
         <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden" aria-live="polite">
           <div
-            className="absolute inset-x-0 top-0 h-9 bg-black/70 transition-transform duration-500 ease-in-out"
+            className="absolute inset-x-0 top-[60px] h-9 bg-black/70 transition-transform duration-500 ease-in-out"
             style={{ transform: momentPhase === 'hold' ? 'translateY(0)' : 'translateY(-100%)' }}
-          />
-          <div
-            className="absolute inset-x-0 bottom-0 h-9 bg-black/70 transition-transform duration-500 ease-in-out"
-            style={{ transform: momentPhase === 'hold' ? 'translateY(0)' : 'translateY(100%)' }}
           />
           <div
             className="absolute top-[110px] w-[min(700px,calc(100vw-2rem))] rounded-xl border bg-[#0b1226]/95 px-6 py-4 text-center shadow-2xl transition-all duration-500 ease-out"
@@ -1376,6 +1438,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
             <button
               onClick={() => {
                 campaignModalOpenRef.current = false;
+                momentQueuePausedRef.current = false;
                 setBriefingIndex(null);
                 setSpeed(briefingResumeSpeedRef.current || 1);
               }}

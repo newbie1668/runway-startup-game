@@ -2,6 +2,7 @@ import type { HubId, SectorId } from '@/lib/game/types';
 import { HUBS, STAGES, generateCompanyName, hubById, sectorById } from '@/lib/game/content';
 import { LANDMARKS, project } from '@/lib/game/geo';
 import { Dice, seedFromString } from '@/lib/game/rng';
+import { fmtRtsMoney } from './format';
 import {
   BASE_ARPU,
   BASE_BURN_WEEK,
@@ -559,7 +560,7 @@ function pitchAt(state: RtsState, company: Company, place: Place, fx: RtsFx[]): 
       kind: 'moment',
       moment: 'round-closed',
       title: `${nextStage.name} closed`,
-      text: `£${nextStage.raise.toLocaleString('en-GB')} raised at £${company.valuation.toLocaleString('en-GB')} valuation`,
+      text: `${fmtRtsMoney(nextStage.raise)} raised at ${fmtRtsMoney(company.valuation)} valuation`,
       x: place.x,
       y: place.y,
       tone: 'good',
