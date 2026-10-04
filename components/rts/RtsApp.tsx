@@ -936,8 +936,14 @@ function Live({
           weekRunRef.current = result.run;
           stateRef.current = result.state;
           if (result.fx.length > 0) handleFx({ state: result.state, fx: result.fx });
-          if (result.done) {
+          if (
+            result.run.index !== activeRun.index ||
+            result.run.step !== activeRun.step ||
+            result.run.log.length !== activeRun.log.length ||
+            result.done
+          )
             setWeekRun(result.run);
+          if (result.done) {
             setSkipPlayback(false);
             skipPlaybackRef.current = false;
             setTurnPhaseNow('recap');

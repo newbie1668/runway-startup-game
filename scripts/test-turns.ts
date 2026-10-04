@@ -21,7 +21,7 @@ import {
   type PlanStop,
   type WeekRun,
 } from '@/lib/rts/turns';
-import type { Lead, MoveTarget, RtsState } from '@/lib/rts/types';
+import type { Lead, MoveTarget, RtsFx, RtsState } from '@/lib/rts/types';
 import { polylineLength, streetPath } from '@/lib/rts/walk';
 
 let checks = 0;
@@ -49,13 +49,17 @@ function quiet(state: RtsState): RtsState {
   return state;
 }
 
-function runWeek(state: RtsState, stops: PlanStop[]): { state: RtsState; run: WeekRun } {
+function runWeek(
+  state: RtsState,
+  stops: PlanStop[],
+): { state: RtsState; run: WeekRun; fx: RtsFx[] } {
   const begun = beginWeek(state, stops);
   assert.equal(begun.error, undefined);
   let current = begun.state;
   let run = begun.run;
   let done = false;
   let steps = 0;
+  const fx: RtsFx[] = [];
   while (!done && steps++ < 2_000) {
     if (current.phase === 'dilemma') {
       current = resolveDilemma(current, 0).state;
@@ -64,10 +68,11 @@ function runWeek(state: RtsState, stops: PlanStop[]): { state: RtsState; run: We
     const advanced = advanceWeek(current, run, 0.25);
     current = advanced.state;
     run = advanced.run;
+    fx.push(...advanced.fx);
     done = advanced.done;
   }
   assert.ok(done, 'weekly run should finish');
-  return { state: current, run };
+  return { state: current, run, fx };
 }
 
 function pointDistanceToPath(point: { x: number; y: number }, path: number[]): number {
@@ -189,6 +194,44 @@ function clueSearchState(seed: string): { state: RtsState; lead: Lead; founderId
   };
   state.leads = [lead];
   return { state, lead, founderId: founder.id };
+}
+
+function routeClueSearchState(seed: string): { state: RtsState; lead: Lead; stop: PlanStop } {
+  const state = quiet(game(seed));
+  const founder = state.people.find((person) => person.company === 'player' && person.role === 'founder')!;
+  const destination = state.places
+    .filter((place) => place.kind === 'customers')
+    .map((place) => ({
+      place,
+      path: streetPath(founder.x, founder.y, place.x, place.y),
+    }))
+    .filter((item) => polylineLength(item.path) > 100 * METERS_TO_WORLD)
+    .sort((left, right) => polylineLength(left.path) - polylineLength(right.path))[0]!;
+  const lead: Lead = {
+    id: 'route-search-target',
+    kind: 'angel',
+    name: 'Angel at route destination',
+    venue: 'Route Cafe',
+    hubId: 'shoreditch',
+    x: destination.place.x,
+    y: destination.place.y,
+    spawnDay: state.day,
+    expiresDay: 5,
+    takenBy: ['founder'],
+    clue: {
+      x: destination.place.x,
+      y: destination.place.y,
+      radius: 300 * METERS_TO_WORLD,
+      hint: 'An angel investor is having coffee near Route Cafe — this week only',
+    },
+  };
+  state.leads = [lead];
+  state.leadHistory = {};
+  return {
+    state,
+    lead,
+    stop: defaultStop(state, { kind: 'lead', id: lead.id }),
+  };
 }
 
 function closeEnough(actual: number, expected: number, tolerance = 0.1): void {
@@ -322,6 +365,31 @@ check('a clue search routes to its centre and finds the lead within its radius',
   assert.equal(result.state.leads.some((item) => item.id === lead.id), false);
   assert.ok(result.fx.some((item) => item.kind === 'focus' && item.x === lead.x && item.y === lead.y));
   assert.ok(result.fx.some((item) => item.kind === 'float' && item.x === lead.x && item.y === lead.y));
+
+  const week = runWeek(state, [stop]);
+  assert.deepEqual(
+    week.run.log.filter((line) => line.startsWith('Found the ')),
+    ['Found the angel investor near Brick Lane'],
+  );
+});
+
+check('a clue search found along the route logs and cues the lead once', () => {
+  const { state, lead, stop } = routeClueSearchState('route-search-passby');
+  const summary = summarizePlan(state, [stop]);
+  assert.equal(summary.error, undefined);
+  assert.ok(
+    pointDistanceToPath({ x: lead.x, y: lead.y }, summary.legs[0]!.path) <=
+      120 * METERS_TO_WORLD,
+  );
+
+  const week = runWeek(state, [stop]);
+  assert.equal(week.state.stats.leadsWon, 1);
+  assert.equal(week.state.leadHistory?.[lead.id]?.claimedBy, 'player');
+  assert.deepEqual(
+    week.run.log.filter((line) => line.startsWith('Found the ')),
+    ['Found the angel investor near Route Cafe'],
+  );
+  assert.ok(week.fx.some((item) => item.kind === 'float' && item.text.startsWith('Found')));
 });
 
 check('a rival can take a clue lead before arrival and the search failure is logged', () => {

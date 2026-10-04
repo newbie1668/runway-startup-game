@@ -799,11 +799,24 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   fx.push({ kind: 'sparkle', ...point });
 }
 
-function leadKindName(kind: Lead['kind']): string {
+export function leadKindName(kind: Lead['kind']): string {
   if (kind === 'angel') return 'angel investor';
   if (kind === 'candidate') return 'candidate';
   if (kind === 'journalist') return 'journalist';
   return 'startup meetup';
+}
+
+function addFoundLeadFx(fx: RtsFx[], lead: Lead): void {
+  fx.push(
+    { kind: 'focus', x: lead.x, y: lead.y },
+    {
+      kind: 'float',
+      x: lead.x,
+      y: lead.y,
+      text: `Found ${leadKindName(lead.kind)}`,
+      color: '#34d399',
+    },
+  );
 }
 
 export function searchForLead(state: RtsState, personId: string, leadId: string): RtsResult {
@@ -852,10 +865,7 @@ export function searchForLead(state: RtsState, personId: string, leadId: string)
       fx: [],
       error: `Searched near ${lead.venue}, but the ${leadKindName(lead.kind)} had already gone.`,
     };
-  fx.push(
-    { kind: 'focus', x: lead.x, y: lead.y },
-    { kind: 'float', x: lead.x, y: lead.y, text: `Found ${leadKindName(lead.kind)}`, color: '#34d399' },
-  );
+  addFoundLeadFx(fx, lead);
   return result(next, fx);
 }
 
@@ -1390,7 +1400,9 @@ function claimNearbyClueLeads(
         distanceToSegmentSquared(lead.clue, start, person) > radiusSquared
       )
         continue;
+      const leadsWonBefore = state.stats.leadsWon;
       claimLead(state, person, lead, fx);
+      if (state.stats.leadsWon > leadsWonBefore) addFoundLeadFx(fx, lead);
     }
   }
 }

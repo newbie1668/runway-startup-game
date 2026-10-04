@@ -1,5 +1,5 @@
 import { HUBS } from '@/lib/game/content';
-import { hire, movePeople, pitch, searchForLead, tick, travelDays } from './sim';
+import { hire, leadKindName, movePeople, pitch, searchForLead, tick, travelDays } from './sim';
 import type { MoveTarget, Person, RtsFx, RtsState } from './types';
 import { streetPath } from './walk';
 
@@ -78,6 +78,13 @@ function targetLabel(state: RtsState, target: MoveTarget): string {
 
 function founderOf(state: RtsState): Person | undefined {
   return state.people.find((person) => person.company === 'player' && person.role === 'founder');
+}
+
+function logNewPlayerLeadWins(before: RtsState, after: RtsState, run: WeekRun): void {
+  for (const [id, lead] of Object.entries(after.leadHistory ?? {})) {
+    if (lead.claimedBy !== 'player' || before.leadHistory?.[id]?.claimedBy === 'player') continue;
+    run.log.push(`Found the ${leadKindName(lead.kind)} near ${lead.venue}`);
+  }
 }
 
 export function defaultStop(state: RtsState, target: MoveTarget): PlanStop {
@@ -251,6 +258,7 @@ function applyStopAction(
     const result = searchForLead(state, founder.id, stop.leadId);
     if (result.error) run.log.push(result.error);
     else fx.push(...result.fx);
+    logNewPlayerLeadWins(state, result.state, run);
     return result.state;
   }
   return state;
@@ -365,8 +373,10 @@ export function advanceWeek(
     if (dt <= EPSILON) break;
     const dayBeforeTick = next.day;
     const leadsWonBefore = next.stats.leadsWon;
+    const beforeTick = next;
     const result = tick(next, dt);
     next = result.state;
+    logNewPlayerLeadWins(beforeTick, next, nextRun);
     fx.push(...result.fx);
     remaining = Math.max(0, remaining - (next.day - dayBeforeTick));
     const leadClaimedDuringTick = next.stats.leadsWon > leadsWonBefore;
