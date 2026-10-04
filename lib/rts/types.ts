@@ -165,7 +165,8 @@ export type Place = TalentPlace | CustomerPlace | InvestorPlace;
 export type MoveTarget =
   | { kind: 'place'; id: string }
   | { kind: 'office'; id: string }
-  | { kind: 'lead'; id: string };
+  | { kind: 'lead'; id: string }
+  | { kind: 'point'; x: number; y: number; label: string };
 
 export interface MoveOrder {
   target: MoveTarget;
@@ -215,6 +216,7 @@ export interface Lead {
   spawnDay: number;
   expiresDay: number;
   takenBy: Role[];
+  clue?: { x: number; y: number; radius: number; hint: string };
 }
 
 export interface DilemmaOptionRts {
@@ -255,7 +257,7 @@ export type RtsFx =
   | { kind: 'confetti'; x: number; y: number }
   | { kind: 'sparkle'; x: number; y: number }
   | { kind: 'focus'; x: number; y: number }
-  | { kind: 'postcard'; landmark: LandmarkKind; x: number; y: number }
+  | { kind: 'postcard'; landmark: LandmarkKind; x: number; y: number; perk?: string }
   | { kind: 'bonus'; label: string }
   | { kind: 'chapter'; index: number; stars: number }
   | {
@@ -271,6 +273,8 @@ export type RtsFx =
 export interface RtsState {
   seed: string;
   rng: RngState;
+  /** Omitted for the existing real-time game. */
+  mode?: 'turns';
   /** In-game days since founding (float). Week = floor(day / 7) + 1. */
   day: number;
   phase: RtsPhase;
@@ -302,6 +306,7 @@ export interface NewRtsConfig {
   companyName: string;
   sectorId: SectorId;
   hqHub: HubId;
+  mode?: 'realtime' | 'turns';
 }
 
 /** Result of every sim call. `error` is a player-facing reason a command was refused. */

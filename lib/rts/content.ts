@@ -86,6 +86,41 @@ export const LANDMARK_FACTS: Record<LandmarkKind, string> = {
   lcy: 'Its short runway means jets come in on a steep 5.5° approach.',
 };
 
+export const DEFAULT_LANDMARK_PERK: {
+  label: string;
+  hype?: number;
+  users?: number;
+  cash?: number;
+  product?: number;
+} = { label: '+4 hype', hype: 4 };
+
+export const LANDMARK_PERKS: Partial<
+  Record<LandmarkKind, { label: string; hype?: number; users?: number; cash?: number; product?: number }>
+> = {
+  ...Object.fromEntries(
+    (Object.keys(LANDMARK_FACTS) as LandmarkKind[])
+      .filter((kind) => kind.endsWith('br'))
+      .map((kind) => [kind, { label: 'Bridge crossing: +3 hype', hype: 3 }]),
+  ),
+  eye: { label: 'Photo op: +8 hype', hype: 8 },
+  bigben: { label: 'Photo op: +8 hype', hype: 8 },
+  abbey: { label: 'Photo op: +8 hype', hype: 8 },
+  towerbridge: { label: 'Photo op: +8 hype', hype: 8 },
+  stpauls: { label: 'Photo op: +8 hype', hype: 8 },
+  o2: { label: 'Photo op: +8 hype', hype: 8 },
+  shard: { label: 'A landmark moment: +10 hype', hype: 10 },
+  gherkin: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  walkie: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  grater: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  bishop: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  heron: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  tower42: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  canadasq: { label: 'Chance meeting with an angel: +£10k', cash: 10_000 },
+  oldstreet: { label: 'Silicon Roundabout buzz: +200 users', users: 200 },
+  battersea: { label: 'Local buzz: +300 users', users: 300 },
+  bttower: { label: 'Inspiration: +3 product', product: 3 },
+};
+
 /** Real venues where pop-up leads appear. Replaces hub-centre lead positions. */
 export const LEAD_VENUES: readonly { name: string; at: LngLat; hubId: HubId }[] = [
   { name: 'Tate Modern Turbine Hall', at: [-0.0993, 51.5077], hubId: 'londonbridge' },

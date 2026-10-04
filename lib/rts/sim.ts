@@ -1,6 +1,6 @@
 import type { HubId, SectorId } from '@/lib/game/types';
 import { HUBS, STAGES, generateCompanyName, hubById, sectorById } from '@/lib/game/content';
-import { LANDMARKS, project } from '@/lib/game/geo';
+import { LANDMARKS, METERS_TO_WORLD, project } from '@/lib/game/geo';
 import { Dice, seedFromString } from '@/lib/game/rng';
 import { fmtRtsMoney } from './format';
 import {
@@ -9,6 +9,7 @@ import {
   BUILD_POINTS_PER_DAY,
   CHAPTERS,
   DILEMMAS,
+  DEFAULT_LANDMARK_PERK,
   ENGINEER_HIRE_FEE,
   ENGINEER_SALARY_WEEK,
   FEATURES,
@@ -16,6 +17,7 @@ import {
   GROWTH_SALARY_WEEK,
   JOURNAL_HYPE,
   JOURNAL_RADIUS,
+  LANDMARK_PERKS,
   MARKET_GROWTH_BY_STAGE,
   OFFICE_LEVELS,
   OFFICE_OPEN_COST,
@@ -72,6 +74,7 @@ const NEWS_LIMIT = 60;
 const HYPE_DECAY_PER_DAY = 0.015;
 const MAX_HYPE = 100;
 const MAX_PRODUCT = 100;
+const LEAD_FIND_RADIUS = 120 * METERS_TO_WORLD;
 const TRAVEL_CACHE_LIMIT = 20_000;
 const travelDayCache = new Map<string, number>();
 
@@ -340,6 +343,7 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
     nextLeadDay: 0,
     nextDilemmaDay: 0,
     nextAiDay: 0.5,
+    ...(cfg.mode === 'turns' ? { mode: 'turns' as const } : {}),
   };
   companies.player = makeCompany('player', cfg.companyName, cfg.sectorId, cfg.hqHub, PLAYER_COLOR);
   for (let index = 0; index < RIVAL_IDS.length; index++) {
@@ -604,6 +608,7 @@ function pitchAt(state: RtsState, company: Company, place: Place, fx: RtsFx[]): 
 }
 
 function targetPosition(state: RtsState, target: MoveTarget): { x: number; y: number } | null {
+  if (target.kind === 'point') return { x: target.x, y: target.y };
   if (target.kind === 'place') {
     const place = findPlace(state, target.id);
     return place ? { x: place.x, y: place.y } : null;
@@ -617,6 +622,7 @@ function targetPosition(state: RtsState, target: MoveTarget): { x: number; y: nu
 }
 
 function targetName(state: RtsState, target: MoveTarget): string {
+  if (target.kind === 'point') return target.label;
   if (target.kind === 'place') return findPlace(state, target.id)?.name ?? 'place';
   if (target.kind === 'office') {
     const office = findOffice(state, target.id);
@@ -626,7 +632,11 @@ function targetName(state: RtsState, target: MoveTarget): string {
 }
 
 function sameTarget(left: MoveTarget, right: MoveTarget): boolean {
-  return left.kind === right.kind && left.id === right.id;
+  if (left.kind !== right.kind) return false;
+  if (left.kind === 'point' && right.kind === 'point')
+    return left.x === right.x && left.y === right.y && left.label === right.label;
+  if (left.kind !== 'point' && right.kind !== 'point') return left.id === right.id;
+  return false;
 }
 
 function movePerson(
@@ -637,7 +647,7 @@ function movePerson(
 ): void {
   const point = targetPosition(state, target);
   if (!point) return;
-  if (person.at === target.id && !person.order) return;
+  if (target.kind !== 'point' && person.at === target.id && !person.order) return;
   if (
     person.order &&
     sameTarget(person.order.target, target) &&
@@ -805,6 +815,8 @@ function advanceMovement(state: RtsState, dt: number, fx: RtsFx[]): void {
       person.at = null;
       const lead = state.leads.find((item) => item.id === target.id);
       if (lead) claimLead(state, person, lead, fx);
+    } else if (target.kind === 'point') {
+      person.at = null;
     } else if (target.kind === 'place' && findPlace(state, target.id)) {
       person.at = target.id;
     } else if (target.kind === 'office' && findOffice(state, target.id)) {
@@ -994,6 +1006,30 @@ function spawnLead(state: RtsState, dice: Dice): void {
           ? 'journalist'
           : 'angel';
   const details = generateLeadDetails(dice);
+  const expiresDay = state.day + dice.int(4, 7);
+  let clue: Lead['clue'];
+  if (state.mode === 'turns') {
+    const radius = 300 * METERS_TO_WORLD;
+    const angle = dice.float() * Math.PI * 2;
+    const distance = Math.sqrt(dice.float()) * radius * 0.6;
+    const weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][
+      Math.floor(expiresDay % 7)
+    ];
+    const opener =
+      kind === 'angel'
+        ? 'An angel investor is having coffee somewhere near'
+        : kind === 'candidate'
+          ? 'A promising candidate is meeting founders somewhere near'
+          : kind === 'journalist'
+            ? 'A tech journalist is looking for a story somewhere near'
+            : 'Startup founders are networking somewhere near';
+    clue = {
+      x: details.x + Math.cos(angle) * distance,
+      y: details.y + Math.sin(angle) * distance,
+      radius,
+      hint: `${opener} ${details.venue} — until ${weekday}`,
+    };
+  }
   const lead: Lead = {
     id: nextId(state, 'lead'),
     kind,
@@ -1003,13 +1039,14 @@ function spawnLead(state: RtsState, dice: Dice): void {
     x: details.x,
     y: details.y,
     spawnDay: state.day,
-    expiresDay: state.day + dice.int(4, 7),
+    expiresDay,
     takenBy:
       kind === 'journalist'
         ? ['founder', 'growth']
         : kind === 'angel'
           ? ['founder']
           : ['founder', 'engineer', 'growth'],
+    ...(clue ? { clue } : {}),
   };
   state.leads.push(lead);
   addNews(state, `${lead.name} is happening at ${lead.venue}.`, 'neutral', lead.hubId);
@@ -1246,6 +1283,29 @@ function distanceToSegmentSquared(
   return (point.x - nearestX) ** 2 + (point.y - nearestY) ** 2;
 }
 
+function claimNearbyClueLeads(
+  state: RtsState,
+  previous: Map<string, { x: number; y: number }>,
+  fx: RtsFx[],
+): void {
+  if (state.mode !== 'turns') return;
+  const radiusSquared = LEAD_FIND_RADIUS * LEAD_FIND_RADIUS;
+  for (const person of state.people) {
+    if (person.company !== 'player') continue;
+    const start = previous.get(person.id) ?? person;
+    for (const lead of [...state.leads]) {
+      if (
+        !lead.clue ||
+        lead.expiresDay <= state.day ||
+        !lead.takenBy.includes(person.role) ||
+        distanceToSegmentSquared(lead.clue, start, person) > radiusSquared
+      )
+        continue;
+      claimLead(state, person, lead, fx);
+    }
+  }
+}
+
 function stampNearbyLandmarks(
   state: RtsState,
   previous: Map<string, { x: number; y: number }>,
@@ -1262,9 +1322,26 @@ function stampNearbyLandmarks(
       const point = project(landmark.at);
       if (distanceToSegmentSquared(point, start, person) > radiusSquared) continue;
       state.journal[landmark.kind] = state.day;
-      player.hype = clamp(player.hype + JOURNAL_HYPE, 0, MAX_HYPE);
-      addNews(state, `📮 Discovered ${landmark.name}`, 'good');
-      fx.push({ kind: 'postcard', landmark: landmark.kind, x: point.x, y: point.y });
+      const perk =
+        state.mode === 'turns'
+          ? (LANDMARK_PERKS[landmark.kind] ?? DEFAULT_LANDMARK_PERK)
+          : undefined;
+      player.hype = clamp(player.hype + JOURNAL_HYPE + (perk?.hype ?? 0), 0, MAX_HYPE);
+      player.users += perk?.users ?? 0;
+      player.cash += perk?.cash ?? 0;
+      player.product = clamp(player.product + (perk?.product ?? 0), 0, MAX_PRODUCT);
+      addNews(
+        state,
+        `📮 Discovered ${landmark.name}${perk ? ` · ${perk.label}` : ''}`,
+        'good',
+      );
+      fx.push({
+        kind: 'postcard',
+        landmark: landmark.kind,
+        x: point.x,
+        y: point.y,
+        ...(perk ? { perk: perk.label } : {}),
+      });
     }
   }
 }
@@ -1284,6 +1361,7 @@ export function tick(state: RtsState, dtDays: number): RtsResult {
     );
     advanceMovement(next, dt, fx);
     stampNearbyLandmarks(next, previous, fx);
+    claimNearbyClueLeads(next, previous, fx);
     performWork(next, dt, fx);
     applyEconomy(next, dt);
     decayHype(next, dt);

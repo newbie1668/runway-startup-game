@@ -65,6 +65,15 @@ import {
   weeklyBurn,
   weeklyRevenue,
 } from '@/lib/rts/sim';
+import {
+  advanceWeek,
+  beginWeek,
+  defaultStop,
+  SLOT_DAYS,
+  SLOTS_PER_WEEK,
+  summarizePlan,
+} from '@/lib/rts/turns';
+import type { PlanStop, StopAction, WeekRun } from '@/lib/rts/turns';
 import type {
   CompanyId,
   Feature,
@@ -84,6 +93,14 @@ const DAYS_PER_SECOND = 0.35;
 const SPEEDS = [0, 1, 2, 4] as const;
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const COMPANY_ORDER: CompanyId[] = ['player', 'rival1', 'rival2', 'rival3'];
+const STOP_ACTION_LABEL: Record<StopAction, string> = {
+  build: 'Build',
+  growth: 'Chase growth',
+  'hire-engineer': 'Hire engineer',
+  'hire-growth': 'Hire growth',
+  pitch: 'Pitch',
+  visit: 'Visit',
+};
 const MOMENT_DURATION_MS = 3700;
 const MOMENT_HOLD_MS = 3200;
 const MOMENT_MAX_AGE_DAYS = 20;
@@ -104,6 +121,8 @@ const LEAD_REWARD: Record<Lead['kind'], string> = {
 const hubName = (id: HubId) => HUBS.find((h) => h.id === id)!.name;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const featureById = (id: FeatureId) => FEATURES.find((f) => f.id === id)!;
+const signedChange = (value: number, format: (amount: number) => string) =>
+  `${value >= 0 ? '+' : '−'}${format(Math.abs(value))}`;
 
 interface SetupChoice {
   name: string;
@@ -112,13 +131,17 @@ interface SetupChoice {
   seed: string;
 }
 
-export function RtsApp() {
+type RtsMode = 'realtime' | 'turns';
+type TurnPhase = 'planning' | 'playback' | 'recap';
+
+export function RtsApp({ mode = 'realtime' }: { mode?: RtsMode }) {
   const [setup, setSetup] = useState<SetupChoice | null>(null);
   const [game, setGame] = useState<{ cfg: SetupChoice; key: number } | null>(null);
 
   if (!game) {
     return (
       <SetupScreen
+        mode={mode}
         initial={setup}
         onStart={(cfg) => {
           setSetup(cfg);
@@ -131,6 +154,7 @@ export function RtsApp() {
     <Live
       key={game.key}
       cfg={game.cfg}
+      mode={mode}
       onRestart={() => setGame({ cfg: game.cfg, key: Date.now() })}
       onNewSetup={() => setGame(null)}
     />
@@ -141,7 +165,15 @@ export function RtsApp() {
 // Setup
 // ---------------------------------------------------------------------------
 
-function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStart: (c: SetupChoice) => void }) {
+function SetupScreen({
+  initial,
+  mode,
+  onStart,
+}: {
+  initial: SetupChoice | null;
+  mode: RtsMode;
+  onStart: (c: SetupChoice) => void;
+}) {
   const [name, setName] = useState(
     () => initial?.name ?? generateCompanyName(new Dice(seedFromString('runway-live'))),
   );
@@ -157,9 +189,9 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
           London Live
         </h1>
         <p className="mt-3 max-w-2xl text-slate-300">
-          Run your startup on the map. Send your founder, engineers and growth people around London — ship
-          the roadmap at your office, sign customers across town, recruit at meetups and pitch investors in
-          person. Rivals are doing the same. Reach unicorn before the cash runs out.
+          {mode === 'turns'
+            ? 'Plan up to ten half-day slots each week, then watch your founder travel across a fully discoverable London. Hire, build, grow and pitch while rival startups make their moves.'
+            : 'Run your startup on the map. Send your founder, engineers and growth people around London — ship the roadmap at your office, sign customers across town, recruit at meetups and pitch investors in person. Rivals are doing the same. Reach unicorn before the cash runs out.'}
         </p>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -245,9 +277,21 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
 // Live game
 // ---------------------------------------------------------------------------
 
-function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () => void; onNewSetup: () => void }) {
+function Live({
+  cfg,
+  mode,
+  onRestart,
+  onNewSetup,
+}: {
+  cfg: SetupChoice;
+  mode: RtsMode;
+  onRestart: () => void;
+  onNewSetup: () => void;
+}) {
   const autoplay =
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('autoplay') === '1';
+    mode === 'realtime' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('autoplay') === '1';
   const cityCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -259,17 +303,38 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [initial] = useState(() =>
-    newRtsGame({ seed: cfg.seed, companyName: cfg.name, sectorId: cfg.sectorId, hqHub: cfg.hqHub }),
+    newRtsGame({
+      seed: cfg.seed,
+      companyName: cfg.name,
+      sectorId: cfg.sectorId,
+      hqHub: cfg.hqHub,
+      mode,
+    }),
   );
   const stateRef = useRef<RtsState>(initial);
   const speedRef = useRef(0);
   const [ui, setUi] = useState<RtsState>(initial);
   const [speed, setSpeedState] = useState(0);
+  const [turnPhase, setTurnPhase] = useState<TurnPhase>('planning');
+  const turnPhaseRef = useRef<TurnPhase>('planning');
+  const [planStops, setPlanStops] = useState<PlanStop[]>([]);
+  const planStopsRef = useRef(planStops);
+  useEffect(() => {
+    planStopsRef.current = planStops;
+  }, [planStops]);
+  const [weekRun, setWeekRun] = useState<WeekRun | null>(null);
+  const weekRunRef = useRef<WeekRun | null>(null);
+  const [weekStart, setWeekStart] = useState<RtsState | null>(null);
+  const weekStartRef = useRef<RtsState | null>(null);
+  const [skipPlayback, setSkipPlayback] = useState(false);
+  const skipPlaybackRef = useRef(false);
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>([]);
   const [ridingId, setRidingIdState] = useState<string | null>(null);
   const ridingIdRef = useRef<string | null>(null);
-  const [postcards, setPostcards] = useState<{ id: number; landmark: LandmarkKind }[]>([]);
+  const [postcards, setPostcards] = useState<
+    { id: number; landmark: LandmarkKind; perk?: string }[]
+  >([]);
   const postcardIdRef = useRef(0);
   const [focus, setFocus] = useState<RtsHit | null>(() => {
     const hq = initial.offices.find((o) => o.company === 'player');
@@ -420,6 +485,10 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     speedRef.current = v;
     setSpeedState(v);
   }, []);
+  const setTurnPhaseNow = useCallback((phase: TurnPhase) => {
+    turnPhaseRef.current = phase;
+    setTurnPhase(phase);
+  }, []);
 
   const openBriefing = useCallback(
     (pause = true, resumeSpeed?: number) => {
@@ -530,7 +599,9 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         }
       }
       const found = res.fx.flatMap((f) =>
-        f.kind === 'postcard' ? [{ id: ++postcardIdRef.current, landmark: f.landmark }] : [],
+        f.kind === 'postcard'
+          ? [{ id: ++postcardIdRef.current, landmark: f.landmark, perk: f.perk }]
+          : [],
       );
       if (found.length > 0) setPostcards((queue) => [...queue, ...found]);
     },
@@ -576,6 +647,78 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       return true;
     },
     [flash, handleFx],
+  );
+
+  const appendPlanStop = useCallback((target: MoveTarget) => {
+    setPlanStops((stops) => [...stops, defaultStop(stateRef.current, target)]);
+  }, []);
+
+  const beginTurnWeek = useCallback(() => {
+    if (
+      mode !== 'turns' ||
+      !mapReadyRef.current ||
+      turnPhaseRef.current !== 'planning' ||
+      modalOpenRef.current
+    )
+      return;
+    if (!briefingSeenRef.current) {
+      openBriefing(false);
+      return;
+    }
+    const start = stateRef.current;
+    const result = beginWeek(start, planStopsRef.current);
+    if (result.error) {
+      flash(result.error);
+      return;
+    }
+    weekStartRef.current = start;
+    setWeekStart(start);
+    weekRunRef.current = result.run;
+    setWeekRun(result.run);
+    stateRef.current = result.state;
+    handleFx({ state: result.state, fx: result.fx });
+    setUi(result.state);
+    skipPlaybackRef.current = false;
+    setSkipPlayback(false);
+    const founder = result.state.people.find(
+      (person) => person.company === 'player' && person.role === 'founder',
+    );
+    setRideAlong(founder?.id ?? null);
+    setTurnPhaseNow('playback');
+  }, [flash, handleFx, mode, openBriefing, setRideAlong, setTurnPhaseNow]);
+
+  const planNextWeek = useCallback(() => {
+    setPlanStops([]);
+    setWeekRun(null);
+    weekRunRef.current = null;
+    setWeekStart(null);
+    weekStartRef.current = null;
+    setSkipPlayback(false);
+    skipPlaybackRef.current = false;
+    setRideAlong(null);
+    setTurnPhaseNow('planning');
+  }, [setRideAlong, setTurnPhaseNow]);
+
+  const appendHitToPlan = useCallback(
+    (hit: RtsHit) => {
+      const s = stateRef.current;
+      let target: MoveTarget | null = null;
+      if (hit.type === 'place') target = { kind: 'place', id: hit.id };
+      else if (hit.type === 'office') {
+        const office = s.offices.find((item) => item.id === hit.id);
+        if (office?.company === 'player') target = { kind: 'office', id: office.id };
+      } else if (hit.type === 'lead' && s.leads.some((lead) => lead.id === hit.id))
+        target = { kind: 'lead', id: hit.id };
+      else if (hit.type === 'landmark') {
+        const landmark = LANDMARKS.find((item) => item.kind === hit.id);
+        if (landmark) {
+          const point = project(landmark.at);
+          target = { kind: 'point', x: point.x, y: point.y, label: landmark.name };
+        }
+      }
+      if (target) appendPlanStop(target);
+    },
+    [appendPlanStop],
   );
 
   useEffect(() => {
@@ -627,11 +770,29 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       let target: MoveTarget | null = null;
       if (hit.type === 'place') target = { kind: 'place', id: hit.id };
       else if (hit.type === 'office') target = { kind: 'office', id: hit.id };
+      else if (hit.type === 'landmark') {
+        const landmark = LANDMARKS.find((item) => item.kind === hit.id);
+        if (landmark) {
+          const point = project(landmark.at);
+          target = { kind: 'point', x: point.x, y: point.y, label: landmark.name };
+        }
+      }
       else if (hit.type === 'lead') {
         const lead = s.leads.find((l) => l.id === hit.id)!;
         const able = mine.filter((p) => lead.takenBy.includes(p.role));
         if (able.length === 0) {
           flash(`Only ${lead.takenBy.map((k) => ROLE_LABEL[k].toLowerCase()).join(' / ')} can take this one`);
+          return;
+        }
+        if (mode === 'turns' && lead.clue) {
+          run((st) =>
+            movePeople(st, able.map((person) => person.id), {
+              kind: 'point',
+              x: lead.clue!.x,
+              y: lead.clue!.y,
+              label: 'Opportunity clue',
+            }),
+          );
           return;
         }
         run((st) => movePeople(st, [able[0].id], { kind: 'lead', id: lead.id }));
@@ -651,7 +812,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         run((st) => movePeople(st, mine.map((p) => p.id), target!));
       }
     },
-    [flash, run],
+    [flash, mode, run],
   );
 
   // Renderer + loop + input
@@ -726,7 +887,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       last = t;
       const before = stateRef.current;
       const gameDays =
-        speedRef.current > 0 && before.phase === 'playing'
+        mode === 'realtime' && speedRef.current > 0 && before.phase === 'playing'
           ? dt * speedRef.current * DAYS_PER_SECOND
           : 0;
       if (gameDays > 0) {
@@ -747,9 +908,33 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         stateRef.current = res.state;
         handleFx(res);
       }
+      let playbackDays = 0;
+      const activeRun = weekRunRef.current;
+      if (
+        mode === 'turns' &&
+        turnPhaseRef.current === 'playback' &&
+        activeRun &&
+        !modalOpenRef.current &&
+        !activeMomentRef.current
+      ) {
+        playbackDays = dt * (7 / 12) * (skipPlaybackRef.current ? 8 : 1);
+        if (playbackDays > 0) {
+          const result = advanceWeek(stateRef.current, activeRun, playbackDays);
+          weekRunRef.current = result.run;
+          stateRef.current = result.state;
+          if (result.fx.length > 0) handleFx({ state: result.state, fx: result.fx });
+          if (result.done) {
+            setWeekRun(result.run);
+            setSkipPlayback(false);
+            skipPlaybackRef.current = false;
+            setTurnPhaseNow('recap');
+          }
+        }
+      }
       const measureAmbient = profileAmbient && gameDays > 0 && ambientFrames < 300;
       const ambientStarted = measureAmbient ? performance.now() : 0;
-      if (gameDays > 0 && ambientRef.current) advanceAmbient(ambientRef.current, gameDays);
+      const ambientDays = gameDays + playbackDays;
+      if (ambientDays > 0 && ambientRef.current) advanceAmbient(ambientRef.current, ambientDays);
       const ambientUpdateMs = measureAmbient ? performance.now() - ambientStarted : 0;
       const map = mapRef.current;
       if (map) {
@@ -810,12 +995,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       onReady: fireReady,
       diagnostics: createMapDiagnostics(1, () => performance.now()),
       hudInsetBottom: 150,
-    }).then(({ renderer, mode }) => {
+    }).then(({ renderer, mode: rendererMode }) => {
       if (cancelled) {
         renderer.dispose();
         return;
       }
-      if (mode === '3d' && activeMode === '2d') {
+      if (rendererMode === '3d' && activeMode === '2d') {
         renderer.dispose();
         return;
       }
@@ -826,10 +1011,10 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       const hqOffice = stateRef.current.offices.find((office) => office.company === 'player');
       if (hqOffice) renderer.lookAt(hqOffice.x, hqOffice.y, 25);
       mapRef.current = renderer;
-      activeMode = mode;
+      activeMode = rendererMode;
       ambientRef.current = createAmbient();
       r = new RtsRenderer(canvas, renderer);
-      r.atmosphere = mode === '3d' ? 'day' : 'night';
+      r.atmosphere = rendererMode === '3d' ? 'day' : 'night';
       r.ambient = ambientRef.current;
       r.profileAmbient = profileAmbient;
       rendererRef.current = r;
@@ -886,6 +1071,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         }
         selectPeople([]);
         setFocus(hit);
+        if (
+          mode === 'turns' &&
+          turnPhaseRef.current === 'planning' &&
+          ['place', 'office', 'lead', 'landmark'].includes(hit.type)
+        )
+          appendHitToPlan(hit);
       };
       const onContext = (e: MouseEvent) => {
         e.preventDefault();
@@ -894,8 +1085,24 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           flash('Select someone first (click a person, or Shift-drag a box)');
           return;
         }
+        if (mode === 'turns' && turnPhaseRef.current !== 'planning') {
+          flash('Staff orders are set during planning.');
+          return;
+        }
         const p = pos(e);
-        sendTo(r!.hitTest(p.x, p.y), ids);
+        const selectedIds =
+          mode === 'turns'
+            ? ids.filter((id) =>
+                stateRef.current.people.some(
+                  (person) => person.id === id && person.role !== 'founder',
+                ),
+              )
+            : ids;
+        if (selectedIds.length === 0) {
+          flash('Right-click orders are for engineers and growth people during planning.');
+          return;
+        }
+        sendTo(r!.hitTest(p.x, p.y), selectedIds);
       };
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
@@ -907,14 +1114,26 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
         if (campaignModalOpenRef.current) return;
         const k = e.key.toLowerCase();
+        if (mode === 'turns' && k === 'enter') {
+          if (!modalOpenRef.current) beginTurnWeek();
+          return;
+        }
         if (k === ' ') {
           e.preventDefault();
-          startAtSpeed(speedRef.current === 0 ? 1 : 0);
-        } else if (k === '1' || k === '2' || k === '3') startAtSpeed(SPEEDS[Number(k)]);
+          if (mode === 'realtime') startAtSpeed(speedRef.current === 0 ? 1 : 0);
+        } else if ((k === '1' || k === '2' || k === '3') && mode === 'realtime')
+          startAtSpeed(SPEEDS[Number(k)]);
         else if (k === 'j') setShowJournal((value) => !value);
         else if (k === 'v') {
-          const ids = selectionRef.current;
-          if (ids.length === 1) setRideAlong(ridingIdRef.current === ids[0] ? null : ids[0]!);
+          if (mode === 'turns' && turnPhaseRef.current === 'playback') {
+            const founder = stateRef.current.people.find(
+              (person) => person.company === 'player' && person.role === 'founder',
+            );
+            if (founder) setRideAlong(ridingIdRef.current === founder.id ? null : founder.id);
+          } else {
+            const ids = selectionRef.current;
+            if (ids.length === 1) setRideAlong(ridingIdRef.current === ids[0] ? null : ids[0]!);
+          }
         }
         else if (k === 'f') {
           const f = stateRef.current.people.find((p) => p.company === 'player' && p.role === 'founder');
@@ -1002,6 +1221,23 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     completedResult.stars > 1 + Number(completedResult.days <= completedChapterSpec.parDays);
   const totalStars = s.campaign.results.reduce((total, result) => total + result.stars, 0);
   const researching = me.researching ? featureById(me.researching) : null;
+  const planSummary =
+    mode === 'turns' && turnPhase === 'planning' ? summarizePlan(s, planStops) : null;
+  const recapStart = weekStart ?? s;
+  const recapWeek = Math.floor(recapStart.day / 7) + 1;
+  const recapLandmarks = LANDMARKS.filter(
+    (landmark) => recapStart.journal[landmark.kind] === undefined && s.journal[landmark.kind] !== undefined,
+  );
+  const previousNews = new Set(recapStart.news.map((item) => `${item.day}:${item.text}`));
+  const recapRivalNews = s.news.filter(
+    (item) => item.tone === 'rival' && !previousNews.has(`${item.day}:${item.text}`),
+  );
+
+  useEffect(() => {
+    if (rendererRef.current)
+      rendererRef.current.plannedLegs =
+        mode === 'turns' && turnPhase === 'planning' ? planSummary?.legs ?? [] : [];
+  }, [mode, planSummary, turnPhase]);
 
   const onMini = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = rendererRef.current;
@@ -1103,22 +1339,47 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           📮 Journal {journal.found}/{journal.total}
         </button>
         <div className="ml-auto flex items-center gap-3">
-          <span className="font-mono text-slate-300">
-            Week {week} · {dayName}
-          </span>
-          <div className="flex overflow-hidden rounded-lg border border-slate-700">
-            {SPEEDS.map((v, i) => (
-              <button
-                key={v}
-          onClick={() => startAtSpeed(v)}
-                disabled={!mapReady || briefingIndex !== null || completedChapter !== null}
-                className={`px-2.5 py-1 text-xs font-bold ${speed === v ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
-                title={i === 0 ? 'Pause (Space)' : `Speed ${v}× (${i})`}
-              >
-                {i === 0 ? '❚❚' : `${v}×`}
-              </button>
-            ))}
-          </div>
+          {mode === 'turns' ? (
+            <>
+              <span className="font-mono text-slate-300">
+                WEEK {week} · {turnPhase.toUpperCase()}
+              </span>
+              {turnPhase === 'playback' && (
+                <button
+                  onClick={() => {
+                    skipPlaybackRef.current = !skipPlaybackRef.current;
+                    setSkipPlayback(skipPlaybackRef.current);
+                  }}
+                  className={`rounded-lg border px-3 py-1 text-xs font-bold ${
+                    skipPlayback
+                      ? 'border-amber-300 bg-amber-300 text-slate-950'
+                      : 'border-amber-400/50 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20'
+                  }`}
+                >
+                  {skipPlayback ? 'Fast-forwarding · 8×' : 'Skip ▶▶'}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="font-mono text-slate-300">
+                Week {week} · {dayName}
+              </span>
+              <div className="flex overflow-hidden rounded-lg border border-slate-700">
+                {SPEEDS.map((v, i) => (
+                  <button
+                    key={v}
+                    onClick={() => startAtSpeed(v)}
+                    disabled={!mapReady || briefingIndex !== null || completedChapter !== null}
+                    className={`px-2.5 py-1 text-xs font-bold ${speed === v ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
+                    title={i === 0 ? 'Pause (Space)' : `Speed ${v}× (${i})`}
+                  >
+                    {i === 0 ? '❚❚' : `${v}×`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <button
             onClick={() => {
               if (!campaignModalOpenRef.current) setShowHelp((value) => !value);
@@ -1307,7 +1568,179 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       {/* Bottom panel + minimap */}
       <footer className="absolute inset-x-3 bottom-3 flex items-end gap-3">
         <div className="min-h-[156px] flex-1 rounded-xl border border-slate-700/70 bg-[#0b1226]/95 p-3 text-sm shadow-2xl">
-          {selectedPeople.length > 0 ? (
+          {mode === 'turns' && turnPhase === 'planning' ? (
+            <div className="flex h-full min-h-[156px] flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-black tracking-wide text-amber-300">WEEK {week} · PLAN</h2>
+                  <p className="text-[10px] text-slate-400">Click places, clue circles and landmark badges to add founder stops.</p>
+                </div>
+                <div className="text-right text-xs font-bold text-amber-100">
+                  {Math.max(0, planSummary?.slotsLeft ?? SLOTS_PER_WEEK)} slots left
+                  <span className="ml-1 font-normal text-slate-500">· {SLOT_DAYS} days each</span>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-10 gap-1" aria-label="Weekly travel and action slots">
+                {Array.from({ length: SLOTS_PER_WEEK }, (_, slot) => {
+                  const leg = planSummary?.legs.find(
+                    (item) => slot >= item.startSlot && slot < item.endSlot,
+                  );
+                  const kind = leg
+                    ? slot < leg.startSlot + leg.travelSlots
+                      ? 'travel'
+                      : 'action'
+                    : 'empty';
+                  return (
+                    <div
+                      key={slot}
+                      title={kind === 'travel' ? 'Travel slot' : kind === 'action' ? 'Action slot' : 'Free slot'}
+                      className={`h-2 rounded-sm ${
+                        kind === 'travel'
+                          ? 'bg-sky-400'
+                          : kind === 'action'
+                            ? 'bg-amber-300'
+                            : 'bg-slate-800'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="mt-2 max-h-[100px] space-y-1 overflow-y-auto pr-1">
+                {planSummary?.legs.map((leg, index) => {
+                  const stop = leg.stop;
+                  const placeTarget = stop.target.kind === 'place' ? stop.target : null;
+                  const investor = placeTarget
+                    ? s.places.find((place) => place.id === placeTarget.id && place.kind === 'investor')
+                    : undefined;
+                  const preview = stop.action === 'pitch' ? pitchPreview(s, 'player') : undefined;
+                  const pitchDetail = preview
+                    ? preview.eligible
+                      ? `${preview.nextStageName} · ${pct(preview.odds)} odds`
+                      : preview.blockers.join(' · ')
+                    : null;
+                  return (
+                    <div
+                      key={`${index}-${leg.label}`}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-md bg-slate-900/80 px-2 py-1 text-xs"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="font-mono font-bold text-amber-300">{index + 1}.</span>
+                        <span className="truncate font-bold text-slate-100">{leg.label}</span>
+                        <span className="shrink-0 text-slate-400">{STOP_ACTION_LABEL[stop.action]}</span>
+                        {pitchDetail && (
+                          <span className={`min-w-0 truncate ${preview?.eligible ? 'text-emerald-300' : 'text-rose-300'}`}>
+                            {pitchDetail}
+                          </span>
+                        )}
+                        <span className="ml-auto shrink-0 font-mono text-slate-500">
+                          {leg.travelSlots} travel + {stop.actionSlots} action
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {stop.action === 'hire-engineer' || stop.action === 'hire-growth' ? (
+                          <button
+                            onClick={() =>
+                              setPlanStops((items) =>
+                                items.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...item,
+                                        action:
+                                          item.action === 'hire-engineer'
+                                            ? 'hire-growth'
+                                            : 'hire-engineer',
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300 hover:border-amber-300"
+                            title="Toggle between hiring an engineer and growth person"
+                          >
+                            {stop.action === 'hire-engineer' ? 'Engineer ↔ Growth' : 'Growth ↔ Engineer'}
+                          </button>
+                        ) : (stop.action === 'build' || stop.action === 'growth') ? (
+                          <>
+                            <button
+                              onClick={() =>
+                                setPlanStops((items) =>
+                                  items.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, actionSlots: Math.max(1, item.actionSlots - 1) }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              disabled={stop.actionSlots <= 1}
+                              className="h-5 w-5 rounded border border-slate-600 text-slate-300 disabled:opacity-30"
+                              aria-label="Use one fewer action slot"
+                            >
+                              −
+                            </button>
+                            <span className="w-4 text-center font-mono">{stop.actionSlots}</span>
+                            <button
+                              onClick={() =>
+                                setPlanStops((items) =>
+                                  items.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, actionSlots: Math.min(6, item.actionSlots + 1) }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              disabled={stop.actionSlots >= 6}
+                              className="h-5 w-5 rounded border border-slate-600 text-slate-300 disabled:opacity-30"
+                              aria-label="Use one more action slot"
+                            >
+                              +
+                            </button>
+                          </>
+                        ) : null}
+                        <button
+                          onClick={() => setPlanStops((items) => items.filter((_, itemIndex) => itemIndex !== index))}
+                          className="ml-1 rounded px-1 text-slate-400 hover:bg-rose-400/10 hover:text-rose-300"
+                          aria-label={`Remove ${leg.label} stop`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {investor && pitchDetail && (
+                        <span className="col-span-2 ml-5 text-[10px] text-slate-500">
+                          {preview?.eligible ? `Raise ${fmtMoney(preview.raise)} · dilution ${pct(preview.dilution)}` : 'Requirements may change before arrival.'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                {planStops.length === 0 && (
+                  <p className="py-2 text-center text-xs text-slate-500">No stops yet · build your route across London.</p>
+                )}
+              </div>
+              <div className="mt-auto flex items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                  <span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-sky-400" />Travel</span>
+                  <span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-amber-300" />Action</span>
+                  {planSummary?.error && <span className="font-bold text-rose-300">{planSummary.error}</span>}
+                </div>
+                <button
+                  onClick={beginTurnWeek}
+                  disabled={
+                    !mapReady ||
+                    Boolean(planSummary?.error) ||
+                    turnPhase !== 'planning' ||
+                    showHelp ||
+                    showRoadmap ||
+                    showJournal ||
+                    briefingIndex !== null ||
+                    completedChapter !== null
+                  }
+                  className="rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  End week ▶
+                </button>
+              </div>
+            </div>
+          ) : selectedPeople.length > 0 ? (
             <PeoplePanel
               people={selectedPeople}
               state={s}
@@ -1336,7 +1769,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               onSelectHere={selectPeople}
             />
           ) : focusedLead ? (
-            <LeadPanel lead={focusedLead} state={s} onSend={(p) => sendTo({ type: 'lead', id: focusedLead.id }, [p.id])} />
+            <LeadPanel
+              lead={focusedLead}
+              state={s}
+              turnsMode={mode === 'turns'}
+              onSend={(p) => sendTo({ type: 'lead', id: focusedLead.id }, [p.id])}
+            />
           ) : (
             <p className="text-slate-400">Click a person to select them, or a place to see what you can do there.</p>
           )}
@@ -1345,6 +1783,91 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <canvas ref={miniRef} onClick={onMini} className="block h-[150px] w-[260px] cursor-crosshair rounded-lg" aria-label="Minimap" />
         </div>
       </footer>
+
+      {mode === 'turns' && turnPhase === 'recap' && weekStart && weekRun && (
+        <section className="absolute bottom-[178px] left-1/2 z-30 max-h-[calc(100vh-12rem)] w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-amber-300/40 bg-[#0b1226]/97 p-5 shadow-2xl">
+          <header className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-extrabold tracking-[0.28em] text-amber-300">WEEKLY RECAP</p>
+              <h2 className="mt-1 text-xl font-black">FRIDAY · Week {recapWeek}</h2>
+            </div>
+            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold text-emerald-200">
+              Week complete
+            </span>
+          </header>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              {
+                label: 'Users',
+                value: signedChange(me.users - recapStart.companies.player.users, fmtUsers),
+              },
+              {
+                label: 'Cash',
+                value: signedChange(me.cash - recapStart.companies.player.cash, fmtMoney),
+              },
+              {
+                label: 'Product',
+                value: signedChange(me.product - recapStart.companies.player.product, (amount) =>
+                  Math.round(amount).toLocaleString(),
+                ),
+              },
+              {
+                label: 'Hype',
+                value: signedChange(me.hype - recapStart.companies.player.hype, (amount) =>
+                  Math.round(amount).toLocaleString(),
+                ),
+              },
+              {
+                label: 'Leads won',
+                value: signedChange(s.stats.leadsWon - recapStart.stats.leadsWon, (amount) =>
+                  Math.round(amount).toLocaleString(),
+                ),
+              },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{item.label}</p>
+                <p className="mt-0.5 font-black text-slate-100">{item.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 rounded-lg bg-violet-400/10 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200">
+              Landmarks found · {recapLandmarks.length}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-300">
+              {recapLandmarks.length ? recapLandmarks.map((landmark) => landmark.name).join(', ') : 'None this week'}
+            </p>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Your week</h3>
+              <ul className="mt-1 space-y-1 text-xs text-slate-300">
+                {weekRun.log.length ? (
+                  weekRun.log.map((line, index) => <li key={`${index}-${line}`}>· {line}</li>)
+                ) : (
+                  <li className="text-slate-500">A quiet week around London.</li>
+                )}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rival news</h3>
+              <ul className="mt-1 space-y-1 text-xs text-slate-300">
+                {recapRivalNews.length ? (
+                  recapRivalNews.slice(0, 4).map((item) => <li key={`${item.day}-${item.text}`}>· {item.text}</li>)
+                ) : (
+                  <li className="text-slate-500">No rival headlines this week.</li>
+                )}
+              </ul>
+            </div>
+          </div>
+          <button
+            onClick={planNextWeek}
+            className="mt-4 w-full rounded-lg bg-amber-400 py-2.5 text-sm font-black text-slate-950 hover:bg-amber-300"
+          >
+            Plan week {recapWeek + 1} →
+          </button>
+        </section>
+      )}
 
       {toast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 rounded-lg border border-amber-400/40 bg-[#0b1226] px-4 py-2 text-sm shadow-xl">
@@ -1364,6 +1887,9 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <div className="text-[10px] font-bold tracking-widest text-violet-300">📮 New in your London journal</div>
           <h3 className="mt-1 font-black">{postcardLandmark.name}</h3>
           <p className="mt-1 text-xs text-slate-300">{LANDMARK_FACTS[postcardLandmark.kind]}</p>
+          {visiblePostcard.perk && (
+            <p className="mt-2 text-xs font-bold text-amber-200">{visiblePostcard.perk}</p>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               onClick={() => {
@@ -1436,30 +1962,40 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
       {showHelp && s.phase === 'playing' && (
         <div className="absolute top-1/2 left-1/2 w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-amber-400/30 bg-[#0b1226]/97 p-5 text-sm shadow-2xl">
-          <h3 className="text-lg font-black text-amber-300">How it works</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
-            <li>
-              <b>Click</b> a person to select (Shift-click to add, Shift-drag to box-select, <b>F</b> founder, <b>Q</b> everyone).
-              <b> Right-click</b> (two-finger click) a place to send them.
-            </li>
-            <li>Work only happens at places:</li>
-            <li className="ml-4 list-none">🧑‍💻 Engineers at your 🏠 office build the roadmap (<b>R</b>).</li>
-            <li className="ml-4 list-none">📣 Growth people at ✨🛍️🏪⌨️🏦 customer spots sign users. Spots run dry — rivals share them.</li>
-            <li className="ml-4 list-none">🎓 Anyone at a talent spot can recruit. 🧑‍💼 Founder pitches at 💷 investors.</li>
-            <li>Pop-up pins expire. First person there wins.</li>
-            <li>
-              Drag / WASD to pan, scroll to zoom. <b>Space</b> pause, <b>1–3</b> speed.
-            </li>
-          </ul>
+          <h3 className="text-lg font-black text-amber-300">
+            {mode === 'turns' ? 'Plan your week' : 'How it works'}
+          </h3>
+          {mode === 'turns' ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
+              <li>London is open from the start. Click places, clue circles and landmark badges to add founder stops.</li>
+              <li>Each week has ten half-day slots. Travel and actions use slots; adjust build or growth time before ending the week.</li>
+              <li>Select engineers or growth people and right-click a place to set their standing orders.</li>
+              <li>The founder works while at an office or customer spot. Walk to an investor to pitch.</li>
+              <li>Drag / WASD to pan and scroll to zoom. Press <b>Enter</b> to end the planned week.</li>
+            </ul>
+          ) : (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
+              <li>
+                <b>Click</b> a person to select (Shift-click to add, Shift-drag to box-select, <b>F</b> founder, <b>Q</b> everyone).
+                <b> Right-click</b> (two-finger click) a place to send them.
+              </li>
+              <li>Work only happens at places:</li>
+              <li className="ml-4 list-none">🧑‍💻 Engineers at your 🏠 office build the roadmap (<b>R</b>).</li>
+              <li className="ml-4 list-none">📣 Growth people at ✨🛍️🏪⌨️🏦 customer spots sign users. Spots run dry — rivals share them.</li>
+              <li className="ml-4 list-none">🎓 Anyone at a talent spot can recruit. 🧑‍💼 Founder pitches at 💷 investors.</li>
+              <li>Pop-up pins expire. First person there wins.</li>
+              <li>Drag / WASD to pan, scroll to zoom. <b>Space</b> pause, <b>1–3</b> speed.</li>
+            </ul>
+          )}
           <button
             onClick={() => {
               setShowHelp(false);
-              startAtSpeed(autoplay ? 4 : 1);
+              if (mode === 'realtime') startAtSpeed(autoplay ? 4 : 1);
             }}
             disabled={!mapReady}
             className="mt-4 w-full rounded-lg bg-amber-400 py-2 font-black text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {mapReady ? 'Start the clock' : 'Loading London…'}
+            {mapReady ? (mode === 'turns' ? 'Start planning' : 'Start the clock') : 'Loading London…'}
           </button>
         </div>
       )}
@@ -1495,7 +2031,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
                 campaignModalOpenRef.current = false;
                 momentQueuePausedRef.current = false;
                 setBriefingIndex(null);
-                setSpeed(briefingResumeSpeedRef.current || 1);
+                setSpeed(mode === 'turns' ? 0 : briefingResumeSpeedRef.current || 1);
               }}
               className="mt-5 w-full rounded-lg bg-amber-400 py-2.5 font-black text-slate-950"
             >
@@ -1925,7 +2461,17 @@ function OfficePanel({
   );
 }
 
-function LeadPanel({ lead, state, onSend }: { lead: Lead; state: RtsState; onSend: (p: Person) => void }) {
+function LeadPanel({
+  lead,
+  state,
+  turnsMode,
+  onSend,
+}: {
+  lead: Lead;
+  state: RtsState;
+  turnsMode: boolean;
+  onSend: (p: Person) => void;
+}) {
   const st = LEAD_STYLE[lead.kind];
   const nearest = state.people
     .filter((p) => p.company === 'player' && lead.takenBy.includes(p.role))
@@ -1936,18 +2482,26 @@ function LeadPanel({ lead, state, onSend }: { lead: Lead; state: RtsState; onSen
       <p className="text-[10px] font-bold tracking-widest" style={{ color: st.color }}>
         {st.icon} {st.label.toUpperCase()} · {hubName(lead.hubId).toUpperCase()}
       </p>
-      <h3 className="text-lg font-black">{lead.name}</h3>
+      <h3 className="text-lg font-black">
+        {turnsMode && lead.clue ? 'Unidentified opportunity' : lead.name}
+      </h3>
       <p className="text-xs text-slate-400">
-        {lead.venue} · gone in {Math.max(0, lead.expiresDay - state.day).toFixed(1)} days · {LEAD_REWARD[lead.kind]}
+        {turnsMode && lead.clue
+          ? `${lead.clue.hint} · ${LEAD_REWARD[lead.kind]}`
+          : `${lead.venue} · gone in ${Math.max(0, lead.expiresDay - state.day).toFixed(1)} days · ${LEAD_REWARD[lead.kind]}`}
       </p>
       <p className="text-xs text-slate-500">
         Who can take it: {lead.takenBy.map((k) => ROLE_LABEL[k]).join(', ')}. First one there wins — rivals are racing too.
       </p>
-      {nearest && (
+      {turnsMode && lead.clue ? (
+        <p className="mt-2 text-xs font-medium text-amber-200">
+          Add this clue to your week plan by clicking its circle.
+        </p>
+      ) : nearest ? (
         <ActionButton className="mt-2" onClick={() => onSend(nearest.p)}>
           Send {nearest.p.name} ({ROLE_LABEL[nearest.p.role].toLowerCase()})
         </ActionButton>
-      )}
+      ) : null}
     </div>
   );
 }

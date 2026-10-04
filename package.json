@@ -11,6 +11,7 @@
     "format:check": "prettier --check .",
     "test:game": "tsx scripts/test-game.ts && tsx scripts/test-osm-colour.ts && tsx scripts/test-noticed.ts && tsx scripts/test-landmarks.ts && tsx scripts/test-city-read.ts && tsx scripts/test-rts.ts",
     "test:rts": "tsx scripts/test-rts.ts",
+    "test:turns": "tsx scripts/test-turns.ts",
     "test:ui": "tsx scripts/test-ui.tsx",
     "test:map:browser": "node scripts/test-map-browser.mjs",
     "check:desktop": "node scripts/check-desktop.mjs",
