@@ -16,6 +16,7 @@ import {
   GROWTH_SALARY_WEEK,
   JOURNAL_HYPE,
   JOURNAL_RADIUS,
+  MARKET_GROWTH_BY_STAGE,
   OFFICE_LEVELS,
   OFFICE_OPEN_COST,
   OFFICE_SITES,
@@ -140,6 +141,32 @@ function addNews(
 ) {
   state.news.unshift({ day: state.day, text, tone, hubId });
   state.news.length = Math.min(state.news.length, NEWS_LIMIT);
+}
+
+export function expandMarkets(state: RtsState, fx: RtsFx[]): void {
+  const player = state.companies.player;
+  const multiplier = MARKET_GROWTH_BY_STAGE[player.stageIndex];
+  if (multiplier === undefined) return;
+  let totalAdded = 0;
+  for (const place of state.places) {
+    if (place.kind !== 'customers') continue;
+    const basePlace = PLACES.find((candidate) => candidate.id === place.id);
+    if (!basePlace || basePlace.kind !== 'customers') continue;
+    const target = Math.round(basePlace.poolMax * multiplier);
+    if (target <= place.poolMax) continue;
+    const added = target - place.poolMax;
+    place.pool += added;
+    place.poolMax = target;
+    totalAdded += added;
+    fx.push({ kind: 'sparkle', x: place.x, y: place.y });
+  }
+  if (totalAdded > 0)
+    addNews(
+      state,
+      `London's market grows: +${totalAdded.toLocaleString('en-GB')} potential customers across the city`,
+      'good',
+      player.hqHub,
+    );
 }
 
 function addMoment(
@@ -545,6 +572,7 @@ function pitchAt(state: RtsState, company: Company, place: Place, fx: RtsFx[]): 
       (company.product - nextStage.minProduct) * 0.001,
   );
   company.stageIndex += 1;
+  if (company.id === 'player') expandMarkets(state, fx);
   company.cash += nextStage.raise;
   company.valuation = nextStage.valuation * (1 + Math.min(0.35, overshoot));
   company.equity *= 1 - pitchDilution(odds);

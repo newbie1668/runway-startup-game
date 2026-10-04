@@ -126,6 +126,7 @@ export const BUILD_POINTS_PER_DAY = 5;
 export const POLISH_POINTS_PER_DAY = 0.45;
 export const SIGNUPS_PER_SKILL_DAY = 68;
 export const POOL_REFILL_PER_DAY = 0.02;
+export const MARKET_GROWTH_BY_STAGE: readonly number[] = [1, 1, 1, 1, 1.3, 1.8, 1.8];
 export const USERS_CHURN_PER_WEEK = 0.005;
 export const TRAVEL_SPEED = 22;
 // Mean street/straight ratio across 1,558 ordered pairs of 18 places, 8 hub centres, and 14 lead venues.
@@ -264,7 +265,7 @@ export const CHAPTERS: ChapterSpec[] = [
       { kind: 'stage', atLeast: 1, label: 'Raise Pre-Seed' },
     ],
     bonus: { kind: 'journal', count: 3, label: 'Discover 3 London landmarks' },
-    parDays: 70,
+    parDays: 10,
     bonusReward: { cash: 5_000, hype: 6 },
   },
   {
@@ -272,15 +273,15 @@ export const CHAPTERS: ChapterSpec[] = [
     title: 'Chapter 2 · Silicon Roundabout',
     focus: { kind: 'landmark', landmark: 'oldstreet' },
     briefing:
-      'You have money and a deadline. Move off the kitchen table, ship what customers keep asking for, and get to 1,600 users before the Seed funds lose interest.',
+      'You have money and a deadline. Move off the kitchen table, ship what customers keep asking for, build a real team and close a Series A before the money runs out.',
     objectives: [
       { kind: 'officeLevel', atLeast: 1, label: 'Move into co-working desks' },
       { kind: 'shipped', count: 3, label: 'Ship 3 features' },
-      { kind: 'users', atLeast: 1_600, label: 'Reach 1,600 users' },
-      { kind: 'stage', atLeast: 2, label: 'Raise Seed' },
+      { kind: 'team', count: 6, label: 'Grow the team to 6' },
+      { kind: 'stage', atLeast: 3, label: 'Raise Series A' },
     ],
     bonus: { kind: 'leadsWon', count: 2, label: 'Win 2 pop-up opportunities' },
-    parDays: 90,
+    parDays: 18,
     bonusReward: { cash: 20_000, hype: 8 },
   },
   {
@@ -288,15 +289,14 @@ export const CHAPTERS: ChapterSpec[] = [
     title: "Chapter 3 · King's Cross",
     focus: { kind: 'landmark', landmark: 'stpancras' },
     briefing:
-      "Google is next door and every engineer in London has three offers. Build a team of six, plant a second office, and prove you can sell beyond early adopters.",
+      'Google is next door and every engineer in London has three offers. Plant a second office, grow past early adopters and raise a Series B.',
     objectives: [
-      { kind: 'team', count: 6, label: 'Grow the team to 6' },
       { kind: 'offices', count: 2, label: 'Open a second office' },
-      { kind: 'users', atLeast: 9_000, label: 'Reach 9,000 users' },
-      { kind: 'stage', atLeast: 3, label: 'Raise Series A' },
+      { kind: 'users', atLeast: 40_000, label: 'Reach 40,000 users' },
+      { kind: 'stage', atLeast: 4, label: 'Raise Series B' },
     ],
-    bonus: { kind: 'journal', count: 10, label: 'Discover 10 London landmarks' },
-    parDays: 110,
+    bonus: { kind: 'shipped', count: 6, label: 'Ship 6 features' },
+    parDays: 14,
     bonusReward: { cash: 100_000, hype: 8 },
   },
   {
@@ -304,15 +304,14 @@ export const CHAPTERS: ChapterSpec[] = [
     title: 'Chapter 4 · Across the River',
     focus: { kind: 'landmark', landmark: 'shard' },
     briefing:
-      'The view from the Shard is all banks and big companies. Take your own floor, win enterprise customers, and get to 40,000 users.',
+      'The view from the Shard is all banks and big companies. Take your own floor, win enterprise customers and close a Series C.',
     objectives: [
       { kind: 'officeLevel', atLeast: 2, label: 'Take your own floor' },
       { kind: 'segment', id: 'enterprise', label: 'Unlock enterprise customers' },
-      { kind: 'users', atLeast: 40_000, label: 'Reach 40,000 users' },
-      { kind: 'stage', atLeast: 4, label: 'Raise Series B' },
+      { kind: 'stage', atLeast: 5, label: 'Raise Series C' },
     ],
-    bonus: { kind: 'shipped', count: 6, label: 'Ship 6 features' },
-    parDays: 130,
+    bonus: { kind: 'journal', count: 10, label: 'Discover 10 London landmarks' },
+    parDays: 30,
     bonusReward: { cash: 300_000, hype: 10 },
   },
   {
@@ -320,14 +319,13 @@ export const CHAPTERS: ChapterSpec[] = [
     title: 'Chapter 5 · The Billion',
     focus: { kind: 'landmark', landmark: 'canadasq' },
     briefing:
-      'Canary Wharf is where the big money lives. Move into an HQ building, close Series C, and become the next London unicorn before a rival does.',
+      'Canary Wharf is where the big money lives. Move into an HQ building and become the next London unicorn before a rival does.',
     objectives: [
       { kind: 'officeLevel', atLeast: 3, label: 'Move into an HQ building' },
-      { kind: 'stage', atLeast: 5, label: 'Raise Series C' },
       { kind: 'stage', atLeast: 6, label: 'Reach Unicorn' },
     ],
     bonus: { kind: 'journal', count: 20, label: 'Discover 20 London landmarks' },
-    parDays: 160,
+    parDays: 100,
     bonusReward: { cash: 500_000, hype: 10 },
   },
 ];

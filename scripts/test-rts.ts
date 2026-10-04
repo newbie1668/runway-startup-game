@@ -12,6 +12,7 @@ import {
   JOURNAL_HYPE,
   LEAD_VENUES,
   LANDMARK_FACTS,
+  MARKET_GROWTH_BY_STAGE,
   OFFICE_LEVELS,
   OFFICE_SITES,
   PLACE_AT,
@@ -22,6 +23,7 @@ import {
   autoCommands,
   canResearch,
   campaignStatus,
+  expandMarkets,
   hire,
   journalProgress,
   movePeople,
@@ -40,7 +42,7 @@ import {
   unlockedSegments,
 } from '@/lib/rts/sim';
 import { polylineLength, streetPath } from '@/lib/rts/walk';
-import type { CompanyId, Lead, ObjectiveSpec, Person, RtsState } from '@/lib/rts/types';
+import type { CompanyId, Lead, ObjectiveSpec, Person, RtsFx, RtsState } from '@/lib/rts/types';
 
 let checks = 0;
 
@@ -999,14 +1001,59 @@ check('same seed and bot commands produce identical states', () => {
   assert.equal(JSON.stringify(left), JSON.stringify(right));
 });
 
-check('200-seed bot balance reaches the requested win-rate and timing window', () => {
+check('player market expansion scales once, ignores rival stages, and stays wired to raises', () => {
+  const state = game('market-expansion');
+  state.companies.player.stageIndex = 4;
+  assert.equal(MARKET_GROWTH_BY_STAGE[4], 1.3);
+  const previousPools = new Map<string, { pool: number; poolMax: number }>();
+  for (const place of state.places) {
+    if (place.kind === 'customers')
+      previousPools.set(place.id, { pool: place.pool, poolMax: place.poolMax });
+  }
+  const newsBefore = state.news.length;
+  const fx: RtsFx[] = [];
+  expandMarkets(state, fx);
+  for (const basePlace of PLACES) {
+    if (basePlace.kind !== 'customers') continue;
+    const place = state.places.find((candidate) => candidate.id === basePlace.id);
+    assert.ok(place?.kind === 'customers');
+    const previous = previousPools.get(basePlace.id);
+    assert.ok(previous);
+    const expectedMax = Math.round(basePlace.poolMax * MARKET_GROWTH_BY_STAGE[4]!);
+    assert.equal(place.poolMax, expectedMax);
+    assert.equal(place.pool, previous.pool + expectedMax - previous.poolMax);
+  }
+  assert.equal(state.news.length, newsBefore + 1);
+  assert.match(state.news[0]!.text, /London's market grows/);
+
+  const expandedState = snapshot(state);
+  const expandedNewsCount = state.news.length;
+  const expandedFxCount = fx.length;
+  expandMarkets(state, fx);
+  assert.deepEqual(state, expandedState);
+  assert.equal(state.news.length, expandedNewsCount);
+  assert.equal(fx.length, expandedFxCount);
+
+  const rivalOnly = game('rival-market-expansion');
+  rivalOnly.companies.player.stageIndex = 0;
+  rivalOnly.companies.rival1.stageIndex = 5;
+  const rivalBefore = snapshot(rivalOnly);
+  const rivalFx: RtsFx[] = [];
+  expandMarkets(rivalOnly, rivalFx);
+  assert.deepEqual(rivalOnly, rivalBefore);
+  assert.deepEqual(rivalFx, []);
+});
+
+check('200-seed bot balance reaches the requested win-rate and pacing window', () => {
   const wins: number[] = [];
+  const chapterFiveDurations: number[] = [];
   let bankruptCount = 0;
   let featuresAtWin = 0;
   let unicornWins = 0;
   let totalChaptersCompleted = 0;
   let totalStars = 0;
   let winsCompletingCampaign = 0;
+  let finalMarketExpansionInWonGame = false;
   const chapterCompletions = CHAPTERS.map(() => 0);
   for (let seed = 0; seed < 200; seed++) {
     const { state, winDay } = simulateBot(seed);
@@ -1021,13 +1068,32 @@ check('200-seed bot balance reaches the requested win-rate and timing window', (
       featuresAtWin += state.companies.player.shipped.length;
       if (state.companies.player.stageIndex === STAGES.length - 1) unicornWins += 1;
       if (state.campaign.results.length === CHAPTERS.length) winsCompletingCampaign += 1;
+      const chapterFive = state.campaign.results.find(
+        (result) => result.chapterId === CHAPTERS[4]!.id,
+      );
+      if (chapterFive) chapterFiveDurations.push(chapterFive.days);
+      if (
+        state.places.some((place) => {
+          if (place.kind !== 'customers') return false;
+          const basePlace = PLACES.find((candidate) => candidate.id === place.id);
+          return (
+            basePlace?.kind === 'customers' &&
+            place.poolMax === Math.round(basePlace.poolMax * 1.8)
+          );
+        })
+      )
+        finalMarketExpansionInWonGame = true;
     }
     if (state.phase === 'bankrupt') bankruptCount += 1;
   }
-  const sorted = [...wins].sort((a, b) => a - b);
-  const medianDays = sorted.length
-    ? (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.ceil((sorted.length - 1) / 2)]) / 2
-    : Number.NaN;
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted.length
+      ? (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.ceil((sorted.length - 1) / 2)]) / 2
+      : Number.NaN;
+  };
+  const medianDays = median(wins);
+  const chapterFiveMedianDays = median(chapterFiveDurations);
   const winRate = wins.length / 200;
   const meanFeaturesAtWin = wins.length ? featuresAtWin / wins.length : 0;
   const meanChaptersCompleted = totalChaptersCompleted / 200;
@@ -1046,15 +1112,28 @@ check('200-seed bot balance reaches the requested win-rate and timing window', (
       `${chapterCompletionRates}, wins completing all five ${winningCampaignRate.toFixed(1)}%, ` +
       `mean stars per bot game ${meanStars.toFixed(2)}`,
   );
-  // Bots follow chapter objectives, which guide toward a second office and team growth.
-  assert.ok(winRate >= 0.35 && winRate <= 0.9, `win rate ${winRate.toFixed(3)} outside 35–90%`);
+  console.log(
+    `campaign pacing: chapter 5 median duration ${chapterFiveMedianDays.toFixed(1)} days, ` +
+      `limit ${(medianDays * 0.65).toFixed(1)} days`,
+  );
+  // Bot win rate measures pacing, not human difficulty.
+  assert.ok(winRate >= 0.6, `win rate ${winRate.toFixed(3)} below 60%`);
   assert.ok(
-    medianDays >= 90 && medianDays <= 260,
-    `median win day ${medianDays.toFixed(1)} outside 90–260`,
+    medianDays >= 90 && medianDays <= 170,
+    `median win day ${medianDays.toFixed(1)} outside 90–170`,
+  );
+  assert.equal(
+    winsCompletingCampaign,
+    wins.length,
+    `only ${winsCompletingCampaign}/${wins.length} bot wins completed all five chapters`,
   );
   assert.ok(
-    winsCompletingCampaign >= Math.ceil(wins.length * 0.5),
-    `only ${winsCompletingCampaign}/${wins.length} bot wins completed all five chapters`,
+    chapterFiveMedianDays <= medianDays * 0.65,
+    `chapter 5 median duration ${chapterFiveMedianDays.toFixed(1)} exceeds 65% of median win day`,
+  );
+  assert.ok(
+    finalMarketExpansionInWonGame,
+    'no won game has a customer pool expanded to the final 1.8x market size',
   );
 });
 
