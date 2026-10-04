@@ -303,31 +303,35 @@ export class RtsRenderer {
   }
 
   private drawAmbient(width: number, height: number): void {
-    if (!this.ambient || this.zoom() < 16) return;
+    const zoom = this.zoom();
+    if (!this.ambient || zoom < 7) return;
     const white: { x: number; y: number }[] = [];
     const amber: { x: number; y: number }[] = [];
-    for (const commuter of this.ambient.commuters) {
+    const step = zoom < 14 ? 2 : 1;
+    for (let index = 0; index < this.ambient.commuters.length; index += step) {
+      const commuter = this.ambient.commuters[index]!;
       const point = this.w2s(commuter);
       if (!point || point.x < 0 || point.y < 0 || point.x > width || point.y > height) continue;
       (commuter.cyclist ? amber : white).push(point);
     }
     const ctx = this.ctx;
     ctx.save();
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    for (const point of white) {
-      ctx.moveTo(point.x + 1.1, point.y);
-      ctx.arc(point.x, point.y, 1.1, 0, Math.PI * 2);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(15,23,42,0.55)';
+    ctx.lineWidth = 1;
+    for (const [points, color] of [
+      [white, '#f8fafc'],
+      [amber, '#fbbf24'],
+    ] as const) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (const point of points) {
+        ctx.moveTo(point.x + 2, point.y);
+        ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
     }
-    ctx.fill();
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    for (const point of amber) {
-      ctx.moveTo(point.x + 1.1, point.y);
-      ctx.arc(point.x, point.y, 1.1, 0, Math.PI * 2);
-    }
-    ctx.fill();
     ctx.restore();
   }
 

@@ -1,31 +1,42 @@
 import { HUBS } from '@/lib/game/content';
 import { project } from '@/lib/game/geo';
 import { nextFloat, seedFromString } from '@/lib/game/rng';
-import type { HubId } from '@/lib/game/types';
-import { TRAVEL_SPEED } from './content';
+import { PLACE_AT, TRAVEL_SPEED } from './content';
 import { polylineLength, streetPath } from './walk';
 import graph from './walkGraph.json';
 
-const COMMUTER_COUNT = 220;
-const HUB_RADIUS_SQUARED = 25 * 25;
+const COMMUTER_COUNT = 650;
+const HUB_RADIUS_SQUARED = 20 * 20;
+const ANCHOR_RADIUS_SQUARED = 6 * 6;
 const WALK_SPEED = TRAVEL_SPEED * 1.5;
-const hubNodes = new Map<HubId, number[]>();
 const hubCenters = HUBS.map((hub) => ({
-  id: hub.id,
   point: project([hub.lng, hub.lat]),
 }));
-
-for (const hub of HUBS) hubNodes.set(hub.id, []);
+const anchorPoints = [
+  ...Object.values(PLACE_AT).map((point) => project(point)),
+  ...hubCenters.map(({ point }) => point),
+];
+const visibleNodeGroups = anchorPoints.map(() => [] as number[]);
+const hubNodes: number[] = [];
 for (let node = 0; node < graph.nodes.length / 2; node++) {
   const x = graph.nodes[node * 2]!;
   const y = graph.nodes[node * 2 + 1]!;
-  for (const hub of hubCenters)
-    if ((x - hub.point.x) ** 2 + (y - hub.point.y) ** 2 <= HUB_RADIUS_SQUARED)
-      hubNodes.get(hub.id)!.push(node);
+  if (
+    hubCenters.some(
+      ({ point }) => (x - point.x) ** 2 + (y - point.y) ** 2 <= HUB_RADIUS_SQUARED,
+    )
+  )
+    hubNodes.push(node);
+  for (let anchor = 0; anchor < anchorPoints.length; anchor++) {
+    const point = anchorPoints[anchor]!;
+    if ((x - point.x) ** 2 + (y - point.y) ** 2 <= ANCHOR_RADIUS_SQUARED)
+      visibleNodeGroups[anchor]!.push(node);
+  }
 }
+const visibleAnchors = visibleNodeGroups.filter((nodes) => nodes.length > 0);
+const endpointNodes = [...new Set([...hubNodes, ...visibleAnchors.flat()])];
 
 export interface AmbientCommuter {
-  hubId: HubId;
   path: number[];
   cumulative: number[];
   length: number;
@@ -49,6 +60,14 @@ function random(state: AmbientState): number {
 
 function pointForNode(node: number): { x: number; y: number } {
   return { x: graph.nodes[node * 2]!, y: graph.nodes[node * 2 + 1]! };
+}
+
+function pickEndpointNode(state: AmbientState): number {
+  const candidates =
+    random(state) < 0.7
+      ? visibleAnchors[Math.floor(random(state) * visibleAnchors.length)]!
+      : hubNodes;
+  return candidates[Math.floor(random(state) * candidates.length)]!;
 }
 
 function routeLengths(path: number[]): number[] {
@@ -88,22 +107,18 @@ function setPosition(commuter: AmbientCommuter): void {
     (commuter.path[startOffset + 3]! - commuter.path[startOffset + 1]!) * amount;
 }
 
-function setRoute(
-  state: AmbientState,
-  commuter: AmbientCommuter,
-  candidates: number[],
-): void {
-  let endNode = candidates[Math.floor(random(state) * candidates.length)]!;
+function setRoute(state: AmbientState, commuter: AmbientCommuter): void {
   const startX = commuter.x;
   const startY = commuter.y;
-  const separation = (node: number) => {
+  const isTooClose = (node: number) => {
     const point = pointForNode(node);
-    return Math.hypot(point.x - startX, point.y - startY);
+    return (point.x - startX) ** 2 + (point.y - startY) ** 2 < 0.01;
   };
-  for (let tries = 0; tries < 8 && separation(endNode) < 0.1; tries++)
-    endNode = candidates[Math.floor(random(state) * candidates.length)]!;
-  if (separation(endNode) < 0.1) {
-    const alternatives = candidates.filter((node) => separation(node) >= 0.1);
+  let endNode = pickEndpointNode(state);
+  for (let tries = 0; tries < 16 && isTooClose(endNode); tries++)
+    endNode = pickEndpointNode(state);
+  if (isTooClose(endNode)) {
+    const alternatives = endpointNodes.filter((node) => !isTooClose(node));
     if (alternatives.length > 0)
       endNode = alternatives[Math.floor(random(state) * alternatives.length)]!;
   }
@@ -120,14 +135,10 @@ function setRoute(
 
 export function createAmbient(seed = 'london-live-commuters-v1'): AmbientState {
   const state: AmbientState = { rng: seedFromString(seed), commuters: [] };
-  const eligibleHubs = HUBS.filter((hub) => (hubNodes.get(hub.id)?.length ?? 0) > 1);
   for (let index = 0; index < COMMUTER_COUNT; index++) {
-    const hub = eligibleHubs[Math.floor(random(state) * eligibleHubs.length)]!;
-    const candidates = hubNodes.get(hub.id)!;
-    const startNode = candidates[Math.floor(random(state) * candidates.length)]!;
+    const startNode = pickEndpointNode(state);
     const start = pointForNode(startNode);
     const commuter: AmbientCommuter = {
-      hubId: hub.id,
       path: [start.x, start.y, start.x, start.y],
       cumulative: [0, 0],
       length: 0,
@@ -137,7 +148,7 @@ export function createAmbient(seed = 'london-live-commuters-v1'): AmbientState {
       y: start.y,
       cyclist: random(state) < 0.15,
     };
-    setRoute(state, commuter, candidates);
+    setRoute(state, commuter);
     commuter.distance = random(state) * commuter.length;
     setPosition(commuter);
     state.commuters.push(commuter);
@@ -149,11 +160,10 @@ export function advanceAmbient(state: AmbientState, gameDays: number): void {
   if (!Number.isFinite(gameDays) || gameDays <= 0) return;
   for (const commuter of state.commuters) {
     let remaining = gameDays * WALK_SPEED;
-    const candidates = hubNodes.get(commuter.hubId)!;
     while (remaining > 1e-9) {
       const routeRemaining = commuter.length - commuter.distance;
       if (routeRemaining <= 1e-9) {
-        setRoute(state, commuter, candidates);
+        setRoute(state, commuter);
         continue;
       }
       const moved = Math.min(remaining, routeRemaining);
@@ -163,7 +173,7 @@ export function advanceAmbient(state: AmbientState, gameDays: number): void {
       if (commuter.distance >= commuter.length - 1e-9) {
         commuter.distance = commuter.length;
         setPosition(commuter);
-        setRoute(state, commuter, candidates);
+        setRoute(state, commuter);
       }
     }
   }

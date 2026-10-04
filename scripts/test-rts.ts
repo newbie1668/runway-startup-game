@@ -961,7 +961,7 @@ check('ambient commuters are deterministic for matching seeds and game-time step
     advanceAmbient(left, days);
     advanceAmbient(right, days);
   }
-  assert.equal(left.commuters.length, 220);
+  assert.equal(left.commuters.length, 650);
   assert.ok(
     left.commuters.some((commuter, index) => {
       const start = initial[index]!;

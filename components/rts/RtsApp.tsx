@@ -1086,9 +1086,31 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               })}
             </ul>
             {campaign.bonus && (
-              <p className="mt-2 text-amber-300">
-                {campaign.bonus.done ? '✓' : '◇'} Bonus: {campaign.bonus.spec.label}
-              </p>
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className={campaign.bonus.done ? 'text-amber-300' : 'text-slate-500'}>
+                  {campaign.bonus.done ? '✓' : '◇'}
+                </span>
+                <span className="min-w-0 flex-1 text-amber-300">Bonus: {campaign.bonus.spec.label}</span>
+                {campaign.bonus.target > 1 && (
+                  <>
+                    <span className="text-[10px] text-amber-200/80">
+                      {Math.floor(campaign.bonus.value).toLocaleString()}/
+                      {Math.floor(campaign.bonus.target).toLocaleString()}
+                    </span>
+                    <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
+                      <span
+                        className="block h-1 rounded bg-amber-300"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (campaign.bonus.value / campaign.bonus.target) * 100,
+                          )}%`,
+                        }}
+                      />
+                    </span>
+                  </>
+                )}
+              </div>
             )}
             <p className="mt-1 text-[10px] text-slate-400">
               Day {Math.floor(campaign.daysElapsed)} / par {campaign.chapter.parDays}
