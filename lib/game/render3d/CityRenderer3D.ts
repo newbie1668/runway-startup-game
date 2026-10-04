@@ -28,6 +28,7 @@ import type { MapProjection } from '../mapProjection';
 import type { CameraState, HitTarget, IMapRenderer, Scene } from '../scene';
 import type { HubId } from '../types';
 import { CameraRig, FIT_PITCH_SIN } from './cameraRig';
+import { createDioramaLook, dioramaRequested, type DioramaLook } from './dioramaLook';
 import {
   buildGround,
   buildHubGlows,
@@ -244,6 +245,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
   private readonly buildingMeshes: THREE.Object3D[] = [];
 
   private disposed = false;
+  private diorama: DioramaLook | null = null;
   private contextLostTimer: ReturnType<typeof setTimeout> | null = null;
   private debugContextLoss: (() => void) | null = null;
 
@@ -355,6 +357,16 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
       core.renderOrder = 13;
       this.beamGroup.add(beam, core);
       this.scene3d.add(this.beamGroup);
+      if (dioramaRequested())
+        this.diorama = createDioramaLook(
+          this.renderer,
+          this.scene3d,
+          this.rig.camera,
+          this.sun,
+          this.sunTarget,
+          this.hemi,
+          SUN_DIR,
+        );
       retainSceneResources(this.resources, this.beamGroup);
       this.geometryTracker.trackTree(this.scene3d);
 
@@ -477,6 +489,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
       },
       () => this.scene3d.clear(),
       () => this.resources.dispose(),
+      () => this.diorama?.dispose(),
       () => this.renderer.dispose(),
       () => this.geometryTracker.clear(),
       () => {
@@ -960,6 +973,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
     this.cssH = rect.height;
     if (this.cssW === 0 || this.cssH === 0) return;
     this.renderer.setSize(this.cssW, this.cssH, false);
+    this.diorama?.setSize(this.cssW, this.cssH);
     const overlayDpr = Math.min(2, window.devicePixelRatio || 1);
     this.overlayCanvas.width = Math.round(this.cssW * overlayDpr);
     this.overlayCanvas.height = Math.round(this.cssH * overlayDpr);
@@ -1153,7 +1167,8 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
     }
 
     this.stockDrawnThisFrame = false;
-    this.renderer.render(this.scene3d, this.rig.camera);
+    if (this.diorama) this.diorama.render(this.cam, this.cssW, this.cssH);
+    else this.renderer.render(this.scene3d, this.rig.camera);
 
     this.overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
     this.overlay.drawAreaLabels(this.overlayCtx, this.cam.zoom);
