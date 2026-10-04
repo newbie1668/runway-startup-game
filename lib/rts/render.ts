@@ -17,10 +17,10 @@ import {
   SEGMENT_INFO,
 } from './content';
 import type { AmbientState } from './ambient';
-import { personActivity, unlockedSegments } from './sim';
+import { personActivity, pitchPreview, unlockedSegments } from './sim';
 import { fmtRtsMoney } from './format';
-import type { PlannedLeg } from './turns';
-import type { CompanyId, Lead, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
+import { defaultStop, summarizePlan, type PlannedLeg, type PlanStop } from './turns';
+import type { CompanyId, Lead, MoveTarget, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
 
 export type RtsHit =
   | { type: 'person'; id: string }
@@ -119,6 +119,13 @@ export class RtsRenderer {
   /** Screen-space selection box while shift-dragging. */
   box: { x0: number; y0: number; x1: number; y1: number } | null = null;
   plannedLegs: PlannedLeg[] = [];
+  planningTooltip: {
+    point: WorldPoint;
+    title: string;
+    travelSlots: number;
+    actionSlots: number;
+    detail: string;
+  } | null = null;
   private particles: Particle[] = [];
   private personScreen = new Map<string, { x: number; y: number }>();
 
@@ -138,6 +145,9 @@ export class RtsRenderer {
   zoom(): number {
     return this.map.getCamera().zoom;
   }
+  viewHeight(): number {
+    return this.zoom() > 0 ? this.cssH / this.zoom() : Number.POSITIVE_INFINITY;
+  }
   w2s(p: WorldPoint) {
     return this.map.worldToScreen(p);
   }
@@ -151,6 +161,64 @@ export class RtsRenderer {
       this.map.screenToWorld(this.cssW, this.cssH),
       this.map.screenToWorld(0, this.cssH),
     ];
+  }
+
+  updatePlanningTooltip(hit: RtsHit | null, state: RtsState, stops: PlanStop[]): void {
+    if (!hit || state.mode !== 'turns' || hit.type === 'person') {
+      this.planningTooltip = null;
+      return;
+    }
+    this.planningTooltip = null;
+    let target: MoveTarget | null = null;
+    let detail = '';
+    if (hit.type === 'place') {
+      const place = state.places.find((item) => item.id === hit.id);
+      if (!place) return;
+      target = { kind: 'place', id: place.id };
+      if (place.kind === 'customers')
+        detail = `+${Math.floor(place.pool).toLocaleString()} users available`;
+      else if (place.kind === 'talent') detail = 'Hire an engineer';
+      else {
+        const preview = pitchPreview(state, 'player');
+        detail = preview.eligible
+          ? `Pitch: ${preview.nextStageName} · ${Math.round(preview.odds * 100)}% odds`
+          : `Pitch: ${preview.blockers.join(' · ')}`;
+      }
+    } else if (hit.type === 'office') {
+      const office = state.offices.find((item) => item.id === hit.id);
+      if (!office) return;
+      target = { kind: 'office', id: office.id };
+      detail = 'Build at your office';
+    } else if (hit.type === 'lead') {
+      const lead = state.leads.find((item) => item.id === hit.id);
+      if (!lead) return;
+      target = { kind: 'lead', id: lead.id };
+      detail = lead.clue ? 'Search this clue' : 'Visit this opportunity';
+    } else {
+      const landmark = LANDMARKS.find((item) => item.kind === hit.id);
+      if (!landmark) return;
+      const point = project(landmark.at);
+      target = { kind: 'point', x: point.x, y: point.y, label: landmark.name };
+      detail = this.landmarkBadgeLabel(landmark.kind);
+    }
+    if (!target) return;
+    const candidate = defaultStop(state, target);
+    const summary = summarizePlan(state, [...stops, candidate]);
+    const leg = summary.legs[summary.legs.length - 1];
+    if (!leg || leg.path.length < 2) {
+      this.planningTooltip = null;
+      return;
+    }
+    this.planningTooltip = {
+      point: {
+        x: leg.path[leg.path.length - 2]!,
+        y: leg.path[leg.path.length - 1]!,
+      },
+      title: leg.label,
+      travelSlots: leg.travelSlots,
+      actionSlots: candidate.actionSlots,
+      detail,
+    };
   }
 
   private anchorOf(id: string): WorldPoint | null {
@@ -229,6 +297,10 @@ export class RtsRenderer {
         if (s.journal[landmark.kind] !== undefined) continue;
         const q = this.w2s(project(landmark.at));
         if (!q) continue;
+        if (this.viewHeight() > 12) {
+          if (near(q.x, q.y, 8)) return { type: 'landmark', id: landmark.kind };
+          continue;
+        }
         const label = this.landmarkBadgeLabel(landmark.kind);
         const width = Math.max(24, label.length * 5.8 + 12);
         if (near(q.x + 18, q.y - 20, width / 2 + 3))
@@ -403,6 +475,7 @@ export class RtsRenderer {
     };
 
     if (s.mode === 'turns') {
+      const showLandmarkBadges = this.viewHeight() <= 12;
       for (const landmark of LANDMARKS) {
         if (s.journal[landmark.kind] !== undefined) continue;
         const q = this.w2s(project(landmark.at));
@@ -415,6 +488,7 @@ export class RtsRenderer {
         ctx.arc(q.x, q.y, focused ? 5 : 3.5, 0, Math.PI * 2);
         ctx.fillStyle = focused ? '#fef3c7' : '#fbbf24';
         ctx.fill();
+        if (!showLandmarkBadges) continue;
         ctx.save();
         ctx.font = '700 9px ui-sans-serif, system-ui';
         ctx.textAlign = 'center';
@@ -673,6 +747,15 @@ export class RtsRenderer {
     }
 
     this.drawLabels(labels);
+    if (s.mode === 'turns' && this.planningTooltip) {
+      const point = this.w2s(this.planningTooltip.point);
+      if (point)
+        this.drawPlanningTooltip(point.x, point.y - 10, [
+          this.planningTooltip.title,
+          `${this.planningTooltip.travelSlots} travel + ${this.planningTooltip.actionSlots} action slots`,
+          this.planningTooltip.detail,
+        ]);
+    }
     this.stepParticles(dt);
 
     if (this.box) {
@@ -824,6 +907,33 @@ export class RtsRenderer {
     ctx.textAlign = 'left';
     ctx.fillText(text, bx + 7, y - 3);
     ctx.textAlign = 'center';
+  }
+
+  private drawPlanningTooltip(x: number, y: number, lines: string[]): void {
+    const ctx = this.ctx;
+    const lineHeight = 14;
+    const padding = 7;
+    ctx.font = '700 11px ui-sans-serif, system-ui';
+    const maxTextWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const width = Math.min(this.cssW - 12, maxTextWidth + padding * 2);
+    const height = lineHeight * lines.length + padding * 2;
+    const bx = Math.min(Math.max(x - width / 2, 6), this.cssW - width - 6);
+    const by = Math.min(Math.max(y - height - 8, 6), this.cssH - height - 6);
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,17,36,0.97)';
+    ctx.strokeStyle = 'rgba(125,211,252,0.65)';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, width, height, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    lines.forEach((line, index) => {
+      ctx.font = index === 0 ? '800 11px ui-sans-serif, system-ui' : '600 10px ui-sans-serif, system-ui';
+      ctx.fillStyle = index === 0 ? '#f8fafc' : index === 1 ? '#bae6fd' : '#fde68a';
+      ctx.fillText(line, bx + padding, by + padding + index * lineHeight, width - padding * 2);
+    });
+    ctx.restore();
   }
 
   private stepParticles(dt: number) {

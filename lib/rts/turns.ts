@@ -1,5 +1,14 @@
 import { HUBS } from '@/lib/game/content';
-import { hire, leadKindName, movePeople, pitch, searchForLead, tick, travelDays } from './sim';
+import {
+  hire,
+  leadKindName,
+  movePeople,
+  pitch,
+  pitchPreview,
+  searchForLead,
+  tick,
+  travelDays,
+} from './sim';
 import type { MoveTarget, Person, RtsFx, RtsState } from './types';
 import { streetPath } from './walk';
 
@@ -37,6 +46,10 @@ export interface PlanSummary {
   slotsLeft: number;
   error?: string;
 }
+
+export type AddStopResult =
+  | { ok: true; stops: PlanStop[]; summary: PlanSummary }
+  | { ok: false; error: string };
 
 export interface WeekRun {
   stops: PlanStop[];
@@ -172,6 +185,43 @@ export function summarizePlan(state: RtsState, stops: PlanStop[]): PlanSummary {
     slotsLeft: Math.max(0, SLOTS_PER_WEEK - slotsUsed),
     ...(error ? { error } : {}),
   };
+}
+
+function samePlanTarget(a: MoveTarget, b: MoveTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'point' && b.kind === 'point') return a.x === b.x && a.y === b.y;
+  return 'id' in a && 'id' in b && a.id === b.id;
+}
+
+export function tryAddStop(
+  state: RtsState,
+  stops: PlanStop[],
+  target: MoveTarget,
+): AddStopResult {
+  const stop = defaultStop(state, target);
+  const previousStop = stops[stops.length - 1];
+  const label = targetLabel(state, stop.target);
+  if (previousStop && samePlanTarget(previousStop.target, stop.target))
+    return { ok: false, error: `Already going to ${label}` };
+
+  const preview = stop.action === 'pitch' ? pitchPreview(state, 'player') : undefined;
+  if (preview && !preview.eligible)
+    return {
+      ok: false,
+      error: `${label} won't see you yet: ${preview.blockers.join(' · ')}`,
+    };
+
+  const existing = summarizePlan(state, stops);
+  const nextStops = [...stops, stop];
+  const summary = summarizePlan(state, nextStops);
+  const leg = summary.legs[summary.legs.length - 1];
+  if (summary.error === PLAN_OVER_BUDGET)
+    return {
+      ok: false,
+      error: `${leg?.label ?? label} needs ${(leg?.travelSlots ?? 0) + stop.actionSlots} slots, you have ${existing.slotsLeft} left — remove a stop or end the week`,
+    };
+  if (summary.error) return { ok: false, error: summary.error };
+  return { ok: true, stops: nextStops, summary };
 }
 
 function cloneRun(run: WeekRun): WeekRun {

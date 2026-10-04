@@ -68,10 +68,10 @@ import {
 import {
   advanceWeek,
   beginWeek,
-  defaultStop,
   SLOT_DAYS,
   SLOTS_PER_WEEK,
   summarizePlan,
+  tryAddStop,
 } from '@/lib/rts/turns';
 import type { PlanStop, StopAction, WeekRun } from '@/lib/rts/turns';
 import type {
@@ -312,6 +312,7 @@ function Live({
   const rendererRef = useRef<RtsRenderer | null>(null);
   const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   const mapRef = useRef<ProjectedMapRenderer | null>(null);
+  const cameraTargetRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const mapReadyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -330,11 +331,26 @@ function Live({
   const [speed, setSpeedState] = useState(0);
   const [turnPhase, setTurnPhase] = useState<TurnPhase>('planning');
   const turnPhaseRef = useRef<TurnPhase>('planning');
+  const [overview, setOverview] = useState(false);
+  const overviewRef = useRef(false);
   const [planStops, setPlanStops] = useState<PlanStop[]>([]);
   const planStopsRef = useRef(planStops);
+  const planListRef = useRef<HTMLDivElement>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const planErrorTimerRef = useRef<number | null>(null);
   useEffect(() => {
     planStopsRef.current = planStops;
   }, [planStops]);
+  useEffect(
+    () => () => {
+      if (planErrorTimerRef.current !== null) window.clearTimeout(planErrorTimerRef.current);
+    },
+    [],
+  );
+  useEffect(() => {
+    const list = planListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [planStops.length]);
   const [weekRun, setWeekRun] = useState<WeekRun | null>(null);
   const weekRunRef = useRef<WeekRun | null>(null);
   const [weekStart, setWeekStart] = useState<RtsState | null>(null);
@@ -498,6 +514,11 @@ function Live({
     speedRef.current = v;
     setSpeedState(v);
   }, []);
+  const flyCameraTo = useCallback((point: { x: number; y: number }, viewH: number) => {
+    const height = canvasRef.current?.getBoundingClientRect().height ?? 0;
+    if (!mapRef.current || height <= 0 || viewH <= 0) return;
+    cameraTargetRef.current = { x: point.x, y: point.y, zoom: height / viewH };
+  }, []);
   const setTurnPhaseNow = useCallback((phase: TurnPhase) => {
     turnPhaseRef.current = phase;
     setTurnPhase(phase);
@@ -552,6 +573,20 @@ function Live({
     setToast(msg);
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2800);
   }, []);
+
+  const flashPlanError = useCallback(
+    (message: string) => {
+      flash(message);
+      setPlanError(message);
+      if (planErrorTimerRef.current !== null)
+        window.clearTimeout(planErrorTimerRef.current);
+      planErrorTimerRef.current = window.setTimeout(() => {
+        setPlanError((current) => (current === message ? null : current));
+        planErrorTimerRef.current = null;
+      }, 4000);
+    },
+    [flash],
+  );
 
   const handleFx = useCallback(
     (res: RtsResult) => {
@@ -662,9 +697,79 @@ function Live({
     [flash, handleFx],
   );
 
-  const appendPlanStop = useCallback((target: MoveTarget) => {
-    setPlanStops((stops) => [...stops, defaultStop(stateRef.current, target)]);
-  }, []);
+  const updatePlanStops = useCallback(
+    (next: PlanStop[] | ((previous: PlanStop[]) => PlanStop[])) => {
+      const stops = typeof next === 'function' ? next(planStopsRef.current) : next;
+      planStopsRef.current = stops;
+      setPlanStops(stops);
+    },
+    [],
+  );
+
+  const appendPlanStop = useCallback(
+    (target: MoveTarget) => {
+      const result = tryAddStop(stateRef.current, planStopsRef.current, target);
+      if (!result.ok) {
+        flashPlanError(result.error);
+        return;
+      }
+      updatePlanStops(result.stops);
+      const lastLeg = result.summary.legs[result.summary.legs.length - 1];
+      if (lastLeg && lastLeg.path.length >= 2) {
+        overviewRef.current = false;
+        setOverview(false);
+        flyCameraTo(
+          { x: lastLeg.path[lastLeg.path.length - 2]!, y: lastLeg.path[lastLeg.path.length - 1]! },
+          8,
+        );
+      }
+    },
+    [flashPlanError, flyCameraTo, updatePlanStops],
+  );
+
+  const togglePlanOverview = useCallback(() => {
+    if (mode !== 'turns' || turnPhaseRef.current !== 'planning') return;
+    const state = stateRef.current;
+    const founder = state.people.find(
+      (person) => person.company === 'player' && person.role === 'founder',
+    );
+    if (!founder) return;
+    const summary = summarizePlan(state, planStopsRef.current);
+    if (!overviewRef.current) {
+      const points = [
+        { x: founder.x, y: founder.y },
+        ...summary.legs.flatMap((leg) =>
+          leg.path.length >= 2
+            ? [{ x: leg.path[leg.path.length - 2]!, y: leg.path[leg.path.length - 1]! }]
+            : [],
+        ),
+      ];
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const width = canvasRef.current?.getBoundingClientRect().width ?? 1;
+      const height = canvasRef.current?.getBoundingClientRect().height ?? 1;
+      const spanX = Math.max(...xs) - Math.min(...xs);
+      const spanY = Math.max(...ys) - Math.min(...ys);
+      const viewH = Math.max(8, Math.max(spanY, spanX / Math.max(0.1, width / height)) * 1.3);
+      overviewRef.current = true;
+      setOverview(true);
+      flyCameraTo(
+        { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 },
+        viewH,
+      );
+      return;
+    }
+
+    overviewRef.current = false;
+    setOverview(false);
+    const lastLeg = summary.legs[summary.legs.length - 1];
+    flyCameraTo(
+      lastLeg && lastLeg.path.length >= 2
+        ? { x: lastLeg.path[lastLeg.path.length - 2]!, y: lastLeg.path[lastLeg.path.length - 1]! }
+        : { x: founder.x, y: founder.y },
+      8,
+    );
+  }, [flyCameraTo, mode]);
 
   const beginTurnWeek = useCallback(() => {
     if (
@@ -697,11 +802,13 @@ function Live({
       (person) => person.company === 'player' && person.role === 'founder',
     );
     setRideAlong(founder?.id ?? null);
+    cameraTargetRef.current = null;
     setTurnPhaseNow('playback');
   }, [flash, handleFx, mode, openBriefing, setRideAlong, setTurnPhaseNow]);
 
   const planNextWeek = useCallback(() => {
-    setPlanStops([]);
+    updatePlanStops([]);
+    setPlanError(null);
     setWeekRun(null);
     weekRunRef.current = null;
     setWeekStart(null);
@@ -709,8 +816,14 @@ function Live({
     setSkipPlayback(false);
     skipPlaybackRef.current = false;
     setRideAlong(null);
+    overviewRef.current = false;
+    setOverview(false);
     setTurnPhaseNow('planning');
-  }, [setRideAlong, setTurnPhaseNow]);
+    const founder = stateRef.current.people.find(
+      (person) => person.company === 'player' && person.role === 'founder',
+    );
+    if (founder) flyCameraTo(founder, 8);
+  }, [flyCameraTo, setRideAlong, setTurnPhaseNow, updatePlanStops]);
 
   const appendHitToPlan = useCallback(
     (hit: RtsHit) => {
@@ -887,6 +1000,7 @@ function Live({
     ro.observe(canvas);
 
     let drag: { x: number; y: number; moved: number; box: boolean; button: number } | null = null;
+    let hoverKey: string | null = null;
 
     const pos = (e: PointerEvent | MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -979,6 +1093,32 @@ function Live({
             });
           }
         }
+        const cameraTarget = cameraTargetRef.current;
+        if (
+          cameraTarget &&
+          mode === 'turns' &&
+          turnPhaseRef.current === 'planning' &&
+          !followId
+        ) {
+          const camera = map.getCamera();
+          const easing = Math.min(1, dt * 4);
+          const next = {
+            ...camera,
+            x: camera.x + (cameraTarget.x - camera.x) * easing,
+            y: camera.y + (cameraTarget.y - camera.y) * easing,
+            zoom: camera.zoom + (cameraTarget.zoom - camera.zoom) * easing,
+          };
+          if (
+            Math.abs(next.x - cameraTarget.x) < 0.02 &&
+            Math.abs(next.y - cameraTarget.y) < 0.02 &&
+            Math.abs(next.zoom - cameraTarget.zoom) < 0.05
+          ) {
+            map.setCamera(cameraTarget);
+            cameraTargetRef.current = null;
+          } else {
+            map.setCamera(next);
+          }
+        }
         try {
           map.frame(t, dt);
         } catch (error) {
@@ -1028,7 +1168,12 @@ function Live({
       renderer.scene = mapScene;
       renderer.resize();
       const hqOffice = stateRef.current.offices.find((office) => office.company === 'player');
-      if (hqOffice) renderer.lookAt(hqOffice.x, hqOffice.y, 25);
+      const founder = stateRef.current.people.find(
+        (person) => person.company === 'player' && person.role === 'founder',
+      );
+      const startingPoint = mode === 'turns' ? founder : hqOffice;
+      if (startingPoint)
+        renderer.lookAt(startingPoint.x, startingPoint.y, mode === 'turns' ? 8 : 25);
       mapRef.current = renderer;
       activeMode = rendererMode;
       ambientRef.current = createAmbient();
@@ -1049,13 +1194,26 @@ function Live({
         const p = pos(e);
         if (drag) {
           drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
-          if (drag.moved > 0) setRideAlong(null);
+          if (drag.moved > 0) {
+            setRideAlong(null);
+            cameraTargetRef.current = null;
+            r!.planningTooltip = null;
+            r!.hover = null;
+            hoverKey = null;
+          }
           if (drag.box) r!.box = { x0: drag.x, y0: drag.y, x1: p.x, y1: p.y };
           else if (drag.button === 0 || drag.button === 1) {
             mapRef.current?.pan(e.movementX, e.movementY);
           }
         } else {
           r!.hover = r!.hitTest(p.x, p.y);
+          const nextHoverKey = r!.hover ? `${r!.hover.type}:${r!.hover.id}` : null;
+          if (nextHoverKey !== hoverKey) {
+            hoverKey = nextHoverKey;
+            if (mode === 'turns' && turnPhaseRef.current === 'planning')
+              r!.updatePlanningTooltip(r!.hover, stateRef.current, planStopsRef.current);
+            else r!.planningTooltip = null;
+          }
           canvas.style.cursor = r!.hover ? 'pointer' : 'default';
         }
       };
@@ -1126,13 +1284,33 @@ function Live({
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
         setRideAlong(null);
+        cameraTargetRef.current = null;
         const p = pos(e);
         mapRef.current?.zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0016));
       };
       const onKeyDown = (e: KeyboardEvent) => {
-        if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+        const keyTarget = e.target as HTMLElement | null;
+        if (
+          keyTarget?.tagName === 'INPUT' ||
+          (mode === 'turns' &&
+            (keyTarget?.tagName === 'TEXTAREA' || keyTarget?.isContentEditable))
+        )
+          return;
         if (campaignModalOpenRef.current) return;
         const k = e.key.toLowerCase();
+        if (mode === 'turns' && turnPhaseRef.current === 'planning' && k === 'o') {
+          togglePlanOverview();
+          return;
+        }
+        if (
+          mode === 'turns' &&
+          turnPhaseRef.current === 'planning' &&
+          (k === 'backspace' || ((e.metaKey || e.ctrlKey) && k === 'z'))
+        ) {
+          e.preventDefault();
+          updatePlanStops((items) => items.slice(0, -1));
+          return;
+        }
         if (mode === 'turns' && k === 'enter') {
           if (!modalOpenRef.current) beginTurnWeek();
           return;
@@ -1168,7 +1346,10 @@ function Live({
           setShowJournal(false);
           setShowRoadmap(false);
         } else {
-          if (['w', 'a', 's', 'd'].includes(k)) setRideAlong(null);
+          if (['w', 'a', 's', 'd'].includes(k)) {
+            setRideAlong(null);
+            cameraTargetRef.current = null;
+          }
           keys.add(k);
         }
       };
@@ -1264,9 +1445,18 @@ function Live({
         mode === 'turns' && turnPhase === 'planning' ? planSummary?.legs ?? [] : [];
   }, [mode, planSummary, turnPhase]);
 
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    if (mode === 'turns' && turnPhase === 'planning')
+      renderer.updatePlanningTooltip(renderer.hover, s, planStops);
+    else renderer.planningTooltip = null;
+  }, [mode, planStops, s, turnPhase]);
+
   const onMini = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = rendererRef.current;
     if (!r || !miniRef.current) return;
+    cameraTargetRef.current = null;
     const rect = miniRef.current.getBoundingClientRect();
     r.centerOn(r.minimapToWorld(miniRef.current, e.clientX - rect.left, e.clientY - rect.top));
   };
@@ -1611,8 +1801,17 @@ function Live({
             <div className="flex h-full min-h-[156px] flex-col">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-black tracking-wide text-amber-300">WEEK {week} · PLAN</h2>
-                  <p className="text-[10px] text-slate-400">Click places, clue circles and landmark badges to add founder stops.</p>
+                  <h2 className="font-black tracking-wide text-amber-300">
+                    WEEK {week} · PLAN <span className="ml-1 text-xs font-semibold text-slate-400">· {planStops.length} stops</span>
+                  </h2>
+                  <p aria-live="polite" className={planError ? 'text-[10px] text-rose-300' : 'text-[10px] text-slate-400'}>
+                    {planError ??
+                      (planStops.length === 0
+                        ? 'Click a place on the map to send your founder there.'
+                        : (planSummary?.slotsLeft ?? 0) > 0
+                          ? `${planSummary?.slotsLeft ?? 0} slots left — add another stop, or End week ▶`
+                          : 'Week is full — End week ▶ or Undo')}
+                  </p>
                 </div>
                 <div className="text-right text-xs font-bold text-amber-100">
                   {Math.max(0, planSummary?.slotsLeft ?? SLOTS_PER_WEEK)} slots left
@@ -1644,7 +1843,11 @@ function Live({
                   );
                 })}
               </div>
-              <div className="mt-2 max-h-[100px] space-y-1 overflow-y-auto pr-1">
+              <div
+                ref={planListRef}
+                className="mt-2 max-h-[300px] space-y-1 overflow-y-scroll pr-1"
+                style={{ scrollbarWidth: 'thin', scrollbarColor: '#64748b #0f172a' }}
+              >
                 {planSummary?.legs.map((leg, index) => {
                   const stop = leg.stop;
                   const placeTarget = stop.target.kind === 'place' ? stop.target : null;
@@ -1679,7 +1882,7 @@ function Live({
                         {stop.action === 'hire-engineer' || stop.action === 'hire-growth' ? (
                           <button
                             onClick={() =>
-                              setPlanStops((items) =>
+                              updatePlanStops((items) =>
                                 items.map((item, itemIndex) =>
                                   itemIndex === index
                                     ? {
@@ -1702,7 +1905,7 @@ function Live({
                           <>
                             <button
                               onClick={() =>
-                                setPlanStops((items) =>
+                                updatePlanStops((items) =>
                                   items.map((item, itemIndex) =>
                                     itemIndex === index
                                       ? { ...item, actionSlots: Math.max(1, item.actionSlots - 1) }
@@ -1719,15 +1922,16 @@ function Live({
                             <span className="w-4 text-center font-mono">{stop.actionSlots}</span>
                             <button
                               onClick={() =>
-                                setPlanStops((items) =>
-                                  items.map((item, itemIndex) =>
+                                updatePlanStops((items) => {
+                                  const next = items.map((item, itemIndex) =>
                                     itemIndex === index
                                       ? { ...item, actionSlots: Math.min(6, item.actionSlots + 1) }
                                       : item,
-                                  ),
-                                )
+                                  );
+                                  return summarizePlan(stateRef.current, next).error ? items : next;
+                                })
                               }
-                              disabled={stop.actionSlots >= 6}
+                              disabled={stop.actionSlots >= 6 || (planSummary?.slotsLeft ?? 0) <= 0}
                               className="h-5 w-5 rounded border border-slate-600 text-slate-300 disabled:opacity-30"
                               aria-label="Use one more action slot"
                             >
@@ -1736,11 +1940,15 @@ function Live({
                           </>
                         ) : null}
                         <button
-                          onClick={() => setPlanStops((items) => items.filter((_, itemIndex) => itemIndex !== index))}
-                          className="ml-1 rounded px-1 text-slate-400 hover:bg-rose-400/10 hover:text-rose-300"
+                          onClick={() =>
+                            updatePlanStops((items) =>
+                              items.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                          className="ml-1 rounded border border-rose-400/50 px-2 py-0.5 text-[10px] font-bold text-rose-200 hover:border-rose-300 hover:bg-rose-400/10"
                           aria-label={`Remove ${leg.label} stop`}
                         >
-                          ×
+                          Remove
                         </button>
                       </div>
                       {investor && pitchDetail && (
@@ -1751,9 +1959,6 @@ function Live({
                     </div>
                   );
                 })}
-                {planStops.length === 0 && (
-                  <p className="py-2 text-center text-xs text-slate-500">No stops yet · build your route across London.</p>
-                )}
               </div>
               <div className="mt-auto flex items-center justify-between gap-3 pt-2">
                 <div className="flex items-center gap-3 text-[10px] text-slate-500">
@@ -1761,22 +1966,49 @@ function Live({
                   <span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-amber-300" />Action</span>
                   {planSummary?.error && <span className="font-bold text-rose-300">{planSummary.error}</span>}
                 </div>
-                <button
-                  onClick={beginTurnWeek}
-                  disabled={
-                    !mapReady ||
-                    Boolean(planSummary?.error) ||
-                    turnPhase !== 'planning' ||
-                    showHelp ||
-                    showRoadmap ||
-                    showJournal ||
-                    briefingIndex !== null ||
-                    completedChapter !== null
-                  }
-                  className="rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  End week ▶
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    onClick={() => updatePlanStops((items) => items.slice(0, -1))}
+                    disabled={planStops.length === 0}
+                    className="rounded-lg border border-slate-600 px-2.5 py-2 text-xs font-bold text-slate-200 hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Undo
+                  </button>
+                  <button
+                    onClick={() => updatePlanStops([])}
+                    disabled={planStops.length === 0}
+                    className="rounded-lg border border-slate-600 px-2.5 py-2 text-xs font-bold text-slate-200 hover:border-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={togglePlanOverview}
+                    className={`rounded-lg border px-2.5 py-2 text-xs font-bold ${
+                      overview
+                        ? 'border-sky-300 bg-sky-300/10 text-sky-100'
+                        : 'border-slate-600 text-slate-200 hover:border-sky-300'
+                    }`}
+                    aria-pressed={overview}
+                  >
+                    {overview ? 'Street view' : 'Overview'}
+                  </button>
+                  <button
+                    onClick={beginTurnWeek}
+                    disabled={
+                      !mapReady ||
+                      Boolean(planSummary?.error) ||
+                      turnPhase !== 'planning' ||
+                      showHelp ||
+                      showRoadmap ||
+                      showJournal ||
+                      briefingIndex !== null ||
+                      completedChapter !== null
+                    }
+                    className="rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    End week ▶
+                  </button>
+                </div>
               </div>
             </div>
           ) : mode === 'turns' && (turnPhase === 'playback' || turnPhase === 'recap') && weekRun ? (
@@ -2052,6 +2284,7 @@ function Live({
               <li>Select engineers or growth people and right-click a place to set their standing orders.</li>
               <li>The founder works while at an office or customer spot. Walk to an investor to pitch.</li>
               <li>Drag / WASD to pan and scroll to zoom. Press <b>Enter</b> to end the planned week.</li>
+              <li><b>Backspace</b> or <b>Cmd/Ctrl+Z</b> undo the last stop; <b>Clear</b> resets the plan; <b>O</b> toggles the map overview.</li>
             </ul>
           ) : (
             <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">

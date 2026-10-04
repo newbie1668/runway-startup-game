@@ -18,6 +18,7 @@ import {
   beginWeek,
   defaultStop,
   summarizePlan,
+  tryAddStop,
   type PlanStop,
   type WeekRun,
 } from '@/lib/rts/turns';
@@ -269,6 +270,59 @@ check('weekly slot math, current-location zero travel, and over-budget refusal',
   assert.equal(summarizePlan(state, tooLong).slotsUsed, SLOTS_PER_WEEK + 2);
   assert.equal(summarizePlan(state, tooLong).error, 'Not enough time this week');
   assert.equal(beginWeek(state, tooLong).error, 'Not enough time this week');
+});
+
+check('safe plan additions reject over-budget, ineligible, and duplicate stops', () => {
+  const state = game('safe-plan-additions');
+  const founder = state.people.find((person) => person.company === 'player' && person.role === 'founder')!;
+  const longAction: PlanStop = {
+    target: { kind: 'point', x: founder.x, y: founder.y, label: 'Here' },
+    action: 'build',
+    actionSlots: 6,
+  };
+  const farPlace = state.places
+    .filter((place) => place.kind === 'customers')
+    .map((place) => ({
+      place,
+      travelSlots: Math.ceil(
+        travelDays(founder.x, founder.y, place.x, place.y) / SLOT_DAYS - 1e-9,
+      ),
+    }))
+    .sort((left, right) => right.travelSlots - left.travelSlots)
+    .find((item) => item.travelSlots + 2 > 4)?.place;
+  assert.ok(farPlace, 'a customer place should require more than four total slots after the base action');
+  const overBudget = tryAddStop(state, [longAction], { kind: 'place', id: farPlace.id });
+  assert.equal(overBudget.ok, false);
+  if (!overBudget.ok) assert.match(overBudget.error, /slots, you have/);
+
+  const investor = state.places.find((place) => place.kind === 'investor')!;
+  const pitch = tryAddStop(state, [], { kind: 'place', id: investor.id });
+  assert.equal(pitch.ok, false);
+  if (!pitch.ok) {
+    assert.match(pitch.error, /won't see you yet/);
+    assert.match(pitch.error, /150 users/);
+    assert.match(pitch.error, /product 15/);
+  }
+
+  const customer = state.places.find((place) => place.kind === 'customers')!;
+  const existing = defaultStop(state, { kind: 'place', id: customer.id });
+  const duplicate = tryAddStop(state, [existing], { kind: 'place', id: customer.id });
+  assert.deepEqual(duplicate, { ok: false, error: `Already going to ${customer.name}` });
+});
+
+check('safe plan additions accept a normal stop and empty weeks finish on Friday', () => {
+  const state = quiet(game('safe-plan-acceptance'));
+  const customer = state.places.find((place) => place.kind === 'customers')!;
+  const accepted = tryAddStop(state, [], { kind: 'place', id: customer.id });
+  assert.equal(accepted.ok, true);
+  if (accepted.ok) {
+    assert.equal(accepted.stops.length, 1);
+    assert.equal(accepted.summary.legs.length, 1);
+  }
+
+  const emptyWeek = runWeek(quiet(game('empty-week')), []);
+  assert.equal(emptyWeek.state.day, 7);
+  assert.equal(emptyWeek.state.day % 7, 0);
 });
 
 check('a weekly hire, build, and growth route completes on Friday in order', () => {
