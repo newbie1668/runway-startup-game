@@ -120,6 +120,8 @@ export const SIGNUPS_PER_SKILL_DAY = 68;
 export const POOL_REFILL_PER_DAY = 0.02;
 export const USERS_CHURN_PER_WEEK = 0.005;
 export const TRAVEL_SPEED = 22;
+// Mean street/straight ratio across 1,558 ordered pairs of 18 places, 8 hub centres, and 14 lead venues.
+export const STREET_DETOUR = 1.3978461974933534;
 export const PLAYER_COLOR = '#f8c33a';
 export const RIVAL_COLORS = ['#f87171', '#60a5fa', '#c084fc'] as const;
 export const PERSON_NAMES = [

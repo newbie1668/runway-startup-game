@@ -498,6 +498,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       onFatal,
       onReady: fireReady,
       diagnostics: createMapDiagnostics(1, () => performance.now()),
+      hudInsetBottom: 150,
     }).then(({ renderer, mode }) => {
       if (cancelled) {
         renderer.dispose();

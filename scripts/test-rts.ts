@@ -32,6 +32,7 @@ import {
   upgradeOffice,
   unlockedSegments,
 } from '@/lib/rts/sim';
+import { polylineLength, streetPath } from '@/lib/rts/walk';
 import type { CompanyId, Person, RtsState } from '@/lib/rts/types';
 
 let checks = 0;
@@ -203,6 +204,39 @@ check('all authored places use their real projected coordinates within the map b
   }
 });
 
+check('street paths follow the London road graph deterministically', () => {
+  const oldStreet = PLACES.find((place) => place.id === 'old-street')!;
+  const borough = PLACES.find((place) => place.id === 'borough-traders')!;
+  const path = streetPath(oldStreet.x, oldStreet.y, borough.x, borough.y);
+  const straight = Math.hypot(borough.x - oldStreet.x, borough.y - oldStreet.y);
+  const length = polylineLength(path);
+  assert.ok(path.length / 2 > 4, 'expected a route with more than four points');
+  assert.deepEqual(path.slice(0, 2), [oldStreet.x, oldStreet.y]);
+  assert.deepEqual(path.slice(-2), [borough.x, borough.y]);
+  assert.ok(length >= straight, `route length ${length} is shorter than straight distance ${straight}`);
+  assert.ok(length <= straight * 2.2, `route detour ${length / straight} exceeds 2.2×`);
+  assert.deepEqual(streetPath(oldStreet.x, oldStreet.y, borough.x, borough.y), path);
+});
+
+check('people follow stored street routes and arrive at their target', () => {
+  const state = game('street-move');
+  const founder = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const target = state.places.find((place) => place.id === 'old-street')!;
+  const moved = movePeople(state, [founder.id], { kind: 'place', id: target.id });
+  const movingFounder = moved.state.people.find((person) => person.id === founder.id)!;
+  const order = movingFounder.order!;
+  assert.deepEqual(order.path.slice(-2), [target.x, target.y]);
+  assert.equal(order.length, polylineLength(order.path));
+  const arrived = tick(moved.state, order.durationDays).state.people.find(
+    (person) => person.id === founder.id,
+  )!;
+  assert.equal(arrived.order, null);
+  assert.equal(arrived.at, target.id);
+  assert.deepEqual([arrived.x, arrived.y], [target.x, target.y]);
+});
+
 check('MapRenderer exposes the additive projection contract on a stub canvas', () => {
   const canvas = { getContext: () => ({}) } as unknown as HTMLCanvasElement;
   const renderer = new MapRenderer(canvas);
@@ -280,6 +314,8 @@ check('landmark discovery uses the movement segment and ignores rival people', (
     fromY: point.y,
     toX: point.x + 5,
     toY: point.y,
+    path: [point.x - 5, point.y, point.x + 5, point.y],
+    length: 10,
     progress: 0,
     durationDays: 0.01,
   };

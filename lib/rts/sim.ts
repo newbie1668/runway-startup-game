@@ -26,6 +26,7 @@ import {
   SECTOR_REVENUE_MULT,
   SIGNUPS_PER_SKILL_DAY,
   STARTING_CASH,
+  STREET_DETOUR,
   TRAVEL_SPEED,
   USERS_CHURN_PER_WEEK,
   generateLeadDetails,
@@ -49,6 +50,7 @@ import type {
   Segment,
   NewRtsConfig,
 } from './types';
+import { polylineLength, streetPath } from './walk';
 
 const COMPANY_IDS: CompanyId[] = ['player', 'rival1', 'rival2', 'rival3'];
 const RIVAL_IDS: CompanyId[] = ['rival1', 'rival2', 'rival3'];
@@ -64,6 +66,8 @@ const NEWS_LIMIT = 60;
 const HYPE_DECAY_PER_DAY = 0.015;
 const MAX_HYPE = 100;
 const MAX_PRODUCT = 100;
+const TRAVEL_CACHE_LIMIT = 20_000;
+const travelDayCache = new Map<string, number>();
 
 function clone(state: RtsState): RtsState {
   return structuredClone(state);
@@ -269,7 +273,13 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
 }
 
 export function travelDays(x0: number, y0: number, x1: number, y1: number): number {
-  return Math.hypot(x1 - x0, y1 - y0) / TRAVEL_SPEED;
+  const key = `${x0},${y0},${x1},${y1}`;
+  const cached = travelDayCache.get(key);
+  if (cached !== undefined) return cached;
+  const days = polylineLength(streetPath(x0, y0, x1, y1)) / (TRAVEL_SPEED * STREET_DETOUR);
+  if (travelDayCache.size >= TRAVEL_CACHE_LIMIT) travelDayCache.clear();
+  travelDayCache.set(key, days);
+  return days;
 }
 
 export function teamCap(state: RtsState, companyId: CompanyId): number {
@@ -499,7 +509,9 @@ function movePerson(
     Boolean(person.order.pitchOnArrival) === pitchOnArrival
   )
     return;
-  const duration = travelDays(person.x, person.y, point.x, point.y);
+  const path = streetPath(person.x, person.y, point.x, point.y);
+  const length = polylineLength(path);
+  const duration = length / (TRAVEL_SPEED * STREET_DETOUR);
   person.at = null;
   person.order = {
     target,
@@ -507,6 +519,8 @@ function movePerson(
     fromY: person.y,
     toX: point.x,
     toY: point.y,
+    path,
+    length,
     progress: 0,
     durationDays: Math.max(duration, 0.001),
     ...(pitchOnArrival ? { pitchOnArrival: true } : {}),
@@ -583,13 +597,32 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   fx.push({ kind: 'sparkle', ...point });
 }
 
+function pointOnPath(path: number[], length: number, progress: number): { x: number; y: number } {
+  const distance = clamp(length * progress, 0, length);
+  let traversed = 0;
+  for (let i = 2; i < path.length; i += 2) {
+    const x0 = path[i - 2]!;
+    const y0 = path[i - 1]!;
+    const x1 = path[i]!;
+    const y1 = path[i + 1]!;
+    const segmentLength = Math.hypot(x1 - x0, y1 - y0);
+    if (segmentLength > 0 && distance <= traversed + segmentLength) {
+      const t = clamp((distance - traversed) / segmentLength, 0, 1);
+      return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t };
+    }
+    traversed += segmentLength;
+  }
+  return { x: path[path.length - 2] ?? 0, y: path[path.length - 1] ?? 0 };
+}
+
 function advanceMovement(state: RtsState, dt: number, fx: RtsFx[]): void {
   for (const person of state.people) {
     const order = person.order;
     if (!order) continue;
     order.progress = clamp(order.progress + dt / order.durationDays, 0, 1);
-    person.x = order.fromX + (order.toX - order.fromX) * order.progress;
-    person.y = order.fromY + (order.toY - order.fromY) * order.progress;
+    const point = pointOnPath(order.path, order.length, order.progress);
+    person.x = point.x;
+    person.y = point.y;
     if (order.progress < 1) continue;
     const target = order.target;
     const shouldPitch = order.pitchOnArrival === true;

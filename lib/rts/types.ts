@@ -144,7 +144,11 @@ export interface MoveOrder {
   fromY: number;
   toX: number;
   toY: number;
-  /** 0..1 along the straight line. */
+  /** Street route as flat x/y pairs, including the start and end. */
+  path: number[];
+  /** Street-route arc length in world units. */
+  length: number;
+  /** 0..1 along the street route. */
   progress: number;
   durationDays: number;
   /** Founder only: pitch this investor on arrival. */

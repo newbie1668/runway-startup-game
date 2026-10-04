@@ -410,23 +410,37 @@ export class RtsRenderer {
     // Move paths (player people)
     for (const p of s.people) {
       if (!p.order || p.company !== 'player') continue;
-      const a = this.w2s(p);
-      const b = this.w2s({ x: p.order.toX, y: p.order.toY });
-      if (!a || !b) continue;
+      const order = p.order;
+      const route: WorldPoint[] = [{ x: p.x, y: p.y }];
+      let travelled = 0;
+      for (let i = 2; i < order.path.length; i += 2) {
+        travelled += Math.hypot(order.path[i]! - order.path[i - 2]!, order.path[i + 1]! - order.path[i - 1]!);
+        if (travelled > order.length * order.progress) {
+          route.push({ x: order.path[i]!, y: order.path[i + 1]! });
+        }
+      }
       ctx.save();
       ctx.setLineDash([6, 6]);
       ctx.lineDashOffset = -(t * 0.03) % 12;
       ctx.strokeStyle = this.selected.has(p.id) ? 'rgba(74,222,128,0.95)' : 'rgba(248,195,58,0.6)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      for (let i = 1; i < route.length; i++) {
+        const a = this.w2s(route[i - 1]!);
+        const b = this.w2s(route[i]!);
+        if (!a || !b) continue;
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
       ctx.stroke();
       ctx.restore();
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(248,195,58,0.85)';
-      ctx.fill();
+      const destination = this.w2s({ x: order.toX, y: order.toY });
+      if (destination) {
+        ctx.beginPath();
+        ctx.arc(destination.x, destination.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(248,195,58,0.85)';
+        ctx.fill();
+      }
     }
 
     // People
