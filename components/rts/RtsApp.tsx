@@ -1278,7 +1278,11 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
             </p>
             {investorStage && (
               <p className="mt-2 text-slate-400">
-                The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).
+                {me.users >= investorStage.minTraction && me.product >= investorStage.minProduct ? (
+                  <>The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                ) : (
+                  <>Hit the {investorStage.name} requirements above, then walk your founder to a 💷 investor.</>
+                )}
               </p>
             )}
           </Panel>
