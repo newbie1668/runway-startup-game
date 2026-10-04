@@ -90,7 +90,7 @@ export function createDioramaLook(
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = dioramaParam('exposure', 1.3);
   renderer.shadowMap.enabled = dioramaParam('shadows', 1) > 0;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   sun.color.setHex(0xffd9a8);
   sun.intensity = dioramaParam('sun', 2.8);

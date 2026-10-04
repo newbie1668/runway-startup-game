@@ -310,6 +310,7 @@ function Live({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RtsRenderer | null>(null);
+  const hoverKeyRef = useRef<string | null>(null);
   const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   const mapRef = useRef<ProjectedMapRenderer | null>(null);
   const cameraTargetRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
@@ -515,6 +516,14 @@ function Live({
     if (v > 0 && !mapReadyRef.current) return;
     speedRef.current = v;
     setSpeedState(v);
+  }, []);
+  const clearPlanningHover = useCallback(() => {
+    const renderer = rendererRef.current;
+    if (renderer) {
+      renderer.planningTooltip = null;
+      renderer.hover = null;
+    }
+    hoverKeyRef.current = null;
   }, []);
   const cancelCameraTarget = useCallback(() => {
     if (cameraFlyFrameRef.current !== null)
@@ -844,10 +853,21 @@ function Live({
     );
     setRideAlong(founder?.id ?? null);
     cancelCameraTarget();
+    clearPlanningHover();
     setTurnPhaseNow('playback');
-  }, [cancelCameraTarget, flash, handleFx, mode, openBriefing, setRideAlong, setTurnPhaseNow]);
+  }, [
+    cancelCameraTarget,
+    clearPlanningHover,
+    flash,
+    handleFx,
+    mode,
+    openBriefing,
+    setRideAlong,
+    setTurnPhaseNow,
+  ]);
 
   const planNextWeek = useCallback(() => {
+    clearPlanningHover();
     updatePlanStops([]);
     setPlanError(null);
     setWeekRun(null);
@@ -864,7 +884,7 @@ function Live({
       (person) => person.company === 'player' && person.role === 'founder',
     );
     if (founder) flyCameraTo(founder, 8);
-  }, [flyCameraTo, setRideAlong, setTurnPhaseNow, updatePlanStops]);
+  }, [clearPlanningHover, flyCameraTo, setRideAlong, setTurnPhaseNow, updatePlanStops]);
 
   const appendHitToPlan = useCallback(
     (hit: RtsHit) => {
@@ -1041,7 +1061,6 @@ function Live({
     ro.observe(canvas);
 
     let drag: { x: number; y: number; moved: number; box: boolean; button: number } | null = null;
-    let hoverKey: string | null = null;
 
     const pos = (e: PointerEvent | MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -1242,7 +1261,7 @@ function Live({
             cancelCameraTarget();
             r!.planningTooltip = null;
             r!.hover = null;
-            hoverKey = null;
+            hoverKeyRef.current = null;
           }
           if (drag.box) r!.box = { x0: drag.x, y0: drag.y, x1: p.x, y1: p.y };
           else if (drag.button === 0 || drag.button === 1) {
@@ -1251,8 +1270,8 @@ function Live({
         } else {
           r!.hover = r!.hitTest(p.x, p.y);
           const nextHoverKey = r!.hover ? `${r!.hover.type}:${r!.hover.id}` : null;
-          if (nextHoverKey !== hoverKey) {
-            hoverKey = nextHoverKey;
+          if (nextHoverKey !== hoverKeyRef.current) {
+            hoverKeyRef.current = nextHoverKey;
             if (mode === 'turns' && turnPhaseRef.current === 'planning')
               r!.updatePlanningTooltip(r!.hover, stateRef.current, planStopsRef.current);
             else r!.planningTooltip = null;
