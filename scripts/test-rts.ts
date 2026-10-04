@@ -3,13 +3,18 @@ import { HUBS, SECTORS, STAGES } from '@/lib/game/content';
 import { LANDMARKS, WORLD, project } from '@/lib/game/geo';
 import { MapRenderer } from '@/lib/game/render';
 import { hasProjection } from '@/lib/game/mapProjection';
+import { advanceAmbient, createAmbient } from '@/lib/rts/ambient';
+import { fmtRtsMoney } from '@/lib/rts/format';
 import {
   DILEMMAS,
+  CHAPTERS,
   FEATURES,
   JOURNAL_HYPE,
   LEAD_VENUES,
   LANDMARK_FACTS,
+  MARKET_GROWTH_BY_STAGE,
   OFFICE_LEVELS,
+  OFFICE_SITES,
   PLACE_AT,
   PLACE_RENAME,
   PLACES,
@@ -17,10 +22,13 @@ import {
 import {
   autoCommands,
   canResearch,
+  campaignStatus,
+  expandMarkets,
   hire,
   journalProgress,
   movePeople,
   newRtsGame,
+  objectiveProgress,
   openOffice,
   personActivity,
   pitch,
@@ -29,10 +37,12 @@ import {
   setResearch,
   teamCap,
   tick,
+  travelDays,
   upgradeOffice,
   unlockedSegments,
 } from '@/lib/rts/sim';
-import type { CompanyId, Person, RtsState } from '@/lib/rts/types';
+import { polylineLength, streetPath } from '@/lib/rts/walk';
+import type { CompanyId, Lead, ObjectiveSpec, Person, RtsFx, RtsState } from '@/lib/rts/types';
 
 let checks = 0;
 
@@ -52,15 +62,23 @@ function game(seed = 'rts-test'): RtsState {
 }
 
 function assertSane(state: RtsState): void {
-  const walk = (value: unknown, path: string): void => {
-    if (typeof value === 'number')
-      assert.ok(Number.isFinite(value), `${path} must be finite, got ${value}`);
-    else if (Array.isArray(value)) value.forEach((item, index) => walk(item, `${path}[${index}]`));
-    else if (value && typeof value === 'object') {
-      for (const [key, child] of Object.entries(value)) walk(child, `${path}.${key}`);
+  const pending: unknown[] = [state];
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        if (typeof child === 'number') assert.ok(Number.isFinite(child), 'state value must be finite');
+        else if (child && typeof child === 'object') pending.push(child);
+      }
+    } else if (value && typeof value === 'object') {
+      for (const key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+        const child = (value as Record<string, unknown>)[key];
+        if (typeof child === 'number') assert.ok(Number.isFinite(child), 'state value must be finite');
+        else if (child && typeof child === 'object') pending.push(child);
+      }
     }
-  };
-  walk(state, 'state');
+  }
   for (const company of Object.values(state.companies)) {
     assert.ok(company.product >= 0 && company.product <= 100, `${company.id} product out of range`);
     assert.ok(company.hype >= 0 && company.hype <= 100, `${company.id} hype out of range`);
@@ -203,6 +221,39 @@ check('all authored places use their real projected coordinates within the map b
   }
 });
 
+check('street paths follow the London road graph deterministically', () => {
+  const oldStreet = PLACES.find((place) => place.id === 'old-street')!;
+  const borough = PLACES.find((place) => place.id === 'borough-traders')!;
+  const path = streetPath(oldStreet.x, oldStreet.y, borough.x, borough.y);
+  const straight = Math.hypot(borough.x - oldStreet.x, borough.y - oldStreet.y);
+  const length = polylineLength(path);
+  assert.ok(path.length / 2 > 4, 'expected a route with more than four points');
+  assert.deepEqual(path.slice(0, 2), [oldStreet.x, oldStreet.y]);
+  assert.deepEqual(path.slice(-2), [borough.x, borough.y]);
+  assert.ok(length >= straight, `route length ${length} is shorter than straight distance ${straight}`);
+  assert.ok(length <= straight * 2.2, `route detour ${length / straight} exceeds 2.2×`);
+  assert.deepEqual(streetPath(oldStreet.x, oldStreet.y, borough.x, borough.y), path);
+});
+
+check('people follow stored street routes and arrive at their target', () => {
+  const state = game('street-move');
+  const founder = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const target = state.places.find((place) => place.id === 'old-street')!;
+  const moved = movePeople(state, [founder.id], { kind: 'place', id: target.id });
+  const movingFounder = moved.state.people.find((person) => person.id === founder.id)!;
+  const order = movingFounder.order!;
+  assert.deepEqual(order.path.slice(-2), [target.x, target.y]);
+  assert.equal(order.length, polylineLength(order.path));
+  const arrived = tick(moved.state, order.durationDays).state.people.find(
+    (person) => person.id === founder.id,
+  )!;
+  assert.equal(arrived.order, null);
+  assert.equal(arrived.at, target.id);
+  assert.deepEqual([arrived.x, arrived.y], [target.x, target.y]);
+});
+
 check('MapRenderer exposes the additive projection contract on a stub canvas', () => {
   const canvas = { getContext: () => ({}) } as unknown as HTMLCanvasElement;
   const renderer = new MapRenderer(canvas);
@@ -280,6 +331,8 @@ check('landmark discovery uses the movement segment and ignores rival people', (
     fromY: point.y,
     toX: point.x + 5,
     toY: point.y,
+    path: [point.x - 5, point.y, point.x + 5, point.y],
+    length: 10,
     progress: 0,
     durationDays: 0.01,
   };
@@ -298,6 +351,182 @@ check('landmark discovery uses the movement segment and ignores rival people', (
   rival.at = null;
   rival.order = null;
   assert.equal(tick(rivalState, 0.01).state.journal[rivalLandmark.kind], undefined);
+});
+
+check('objective progress covers every authored kind and campaign status', () => {
+  const state = game('objective-progress');
+  const company = state.companies.player;
+  company.stageIndex = 2;
+  company.users = 1_500;
+  company.shipped = ['mvp', 'onboarding', 'payments'];
+  const office = state.offices.find((item) => item.company === 'player')!;
+  office.level = 2;
+  state.offices.push({
+    ...office,
+    id: 'test-second-office',
+    hubId: 'soho',
+    level: 1,
+  });
+  addWorkerAtPlace(state, 'player', 'growth', office.id);
+  state.journal = Object.fromEntries(
+    LANDMARKS.slice(0, 2).map((landmark) => [landmark.kind, 0]),
+  ) as RtsState['journal'];
+  state.stats.leadsWon = 3;
+  const specs: ObjectiveSpec[] = [
+    { kind: 'stage', atLeast: 2, label: 'stage' },
+    { kind: 'users', atLeast: 1_500, label: 'users' },
+    { kind: 'shipped', count: 3, label: 'shipped' },
+    { kind: 'feature', id: 'payments', label: 'feature' },
+    { kind: 'segment', id: 'earlyAdopters', label: 'segment' },
+    { kind: 'officeLevel', atLeast: 2, label: 'office level' },
+    { kind: 'offices', count: 2, label: 'offices' },
+    { kind: 'team', count: 3, label: 'team' },
+    { kind: 'journal', count: 2, label: 'journal' },
+    { kind: 'leadsWon', count: 3, label: 'leads' },
+  ];
+  for (const spec of specs) {
+    const progress = objectiveProgress(state, spec);
+    assert.ok(progress.done, `${spec.kind} objective should be done`);
+    assert.ok(progress.value >= progress.target, `${spec.kind} progress should meet its target`);
+  }
+  assert.deepEqual(objectiveProgress(state, specs[3]!), { value: 1, target: 1, done: true });
+  assert.deepEqual(objectiveProgress(state, specs[4]!), { value: 1, target: 1, done: true });
+  const status = campaignStatus(state);
+  assert.equal(status.chapter?.id, CHAPTERS[0]!.id);
+  assert.equal(status.complete, false);
+  assert.equal(status.daysElapsed, state.day - state.campaign.chapterStartDay);
+  assert.equal(status.objectives.length, CHAPTERS[0]!.objectives.length);
+  assert.equal(status.bonus?.value, 2);
+  assert.equal(status.bonus?.target, 3);
+  assert.equal(status.bonus?.done, false);
+});
+
+check('campaign progression awards bonuses once, advances chapters, stars, and stays deterministic', () => {
+  const readyForChapterOne = (journalCount: number): RtsState => {
+    const state = game('campaign-progression');
+    const company = state.companies.player;
+    company.stageIndex = 1;
+    company.shipped = ['mvp'];
+    company.users = 200;
+    company.cash = 250_000;
+    company.hype = 40;
+    state.journal = Object.fromEntries(
+      LANDMARKS.slice(0, journalCount).map((landmark) => [landmark.kind, 0]),
+    ) as RtsState['journal'];
+    for (const person of state.people) {
+      if (person.company !== 'player') continue;
+      person.x = 0;
+      person.y = 0;
+      person.at = null;
+      person.order = null;
+    }
+    return state;
+  };
+  const bonusInput = readyForChapterOne(3);
+  const noBonusInput = readyForChapterOne(2);
+  const bonus = tick(bonusInput, 0.1);
+  const noBonus = tick(noBonusInput, 0.1);
+  assert.equal(bonus.state.campaign.results.length, 1);
+  assert.equal(bonus.state.campaign.results[0]!.chapterId, CHAPTERS[0]!.id);
+  assert.equal(bonus.state.campaign.results[0]!.days, bonus.state.day - bonusInput.day);
+  assert.equal(bonus.state.campaign.results[0]!.stars, 3);
+  assert.equal(noBonus.state.campaign.results[0]!.stars, 2);
+  assert.equal(bonus.state.campaign.chapter, 1);
+  assert.equal(bonus.state.campaign.bonusDone, false);
+  assert.equal(bonus.fx.filter((effect) => effect.kind === 'bonus').length, 1);
+  assert.equal(bonus.fx.filter((effect) => effect.kind === 'chapter').length, 1);
+  assert.equal(noBonus.fx.filter((effect) => effect.kind === 'bonus').length, 0);
+  assert.equal(
+    Math.round(bonus.state.companies.player.cash - noBonus.state.companies.player.cash),
+    CHAPTERS[0]!.bonusReward.cash,
+  );
+  assert.equal(
+    Math.round(bonus.state.companies.player.hype - noBonus.state.companies.player.hype),
+    CHAPTERS[0]!.bonusReward.hype,
+  );
+  assert.ok(bonus.state.companies.player.hype <= 100);
+  const cappedHype = readyForChapterOne(3);
+  cappedHype.companies.player.hype = 98;
+  assert.equal(tick(cappedHype, 0.1).state.companies.player.hype, 100);
+
+  const secondBonusStep = tick(bonus.state, 0.1);
+  const secondNoBonusStep = tick(noBonus.state, 0.1);
+  assert.equal(secondBonusStep.fx.filter((effect) => effect.kind === 'bonus').length, 0);
+  assert.equal(secondBonusStep.state.campaign.results.length, 1);
+  assert.equal(
+    Math.round(
+      secondBonusStep.state.companies.player.cash - secondNoBonusStep.state.companies.player.cash,
+    ),
+    CHAPTERS[0]!.bonusReward.cash,
+  );
+  assert.deepEqual(tick(readyForChapterOne(3), 0.2), tick(readyForChapterOne(3), 0.2));
+
+  const readyForTwoChapters = readyForChapterOne(3);
+  readyForTwoChapters.companies.player.stageIndex = 2;
+  readyForTwoChapters.companies.player.shipped = ['mvp', 'onboarding', 'payments'];
+  readyForTwoChapters.companies.player.users = 1_700;
+  readyForTwoChapters.offices.find((office) => office.company === 'player')!.level = 1;
+  const oneChapterStep = tick(readyForTwoChapters, 0.1);
+  assert.equal(oneChapterStep.state.campaign.results.length, 1);
+  assert.equal(oneChapterStep.state.campaign.chapter, 1);
+});
+
+check('the final chapter records before a Unicorn end condition', () => {
+  const state = game('final-chapter');
+  state.campaign.chapter = CHAPTERS.length - 1;
+  state.campaign.chapterStartDay = state.day;
+  state.companies.player.stageIndex = STAGES.length - 1;
+  state.offices.find((office) => office.company === 'player')!.level = 3;
+  const completed = tick(state, 0.1);
+  assert.equal(completed.state.phase, 'won');
+  assert.equal(completed.state.campaign.results.length, 1);
+  assert.equal(completed.state.campaign.results[0]!.chapterId, CHAPTERS[4]!.id);
+  assert.ok(completed.fx.some((effect) => effect.kind === 'chapter' && effect.index === 4));
+  assert.equal(campaignStatus(completed.state).complete, true);
+});
+
+check('only player people increment the cumulative leads-won statistic', () => {
+  const playerState = game('player-lead-claim');
+  const player = playerState.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const lead: Lead = {
+    id: 'player-test-lead',
+    kind: 'meetup',
+    name: 'Test meetup',
+    venue: 'Old Street',
+    hubId: 'shoreditch',
+    x: player.x,
+    y: player.y,
+    spawnDay: 0,
+    expiresDay: 10,
+    takenBy: ['founder'],
+  };
+  playerState.leads.push(lead);
+  const moving = movePeople(playerState, [player.id], { kind: 'lead', id: lead.id });
+  const claimed = tick(moving.state, 0.001).state;
+  assert.equal(claimed.stats.leadsWon, 1);
+
+  const rivalState = game('rival-lead-claim');
+  const rival = rivalState.people.find(
+    (person) => person.company === 'rival1' && person.role === 'founder',
+  )!;
+  const rivalLead = { ...lead, id: 'rival-test-lead', x: rival.x, y: rival.y };
+  rivalState.leads.push(rivalLead);
+  rival.at = null;
+  rival.order = {
+    target: { kind: 'lead', id: rivalLead.id },
+    fromX: rival.x,
+    fromY: rival.y,
+    toX: rival.x,
+    toY: rival.y,
+    path: [rival.x, rival.y, rival.x, rival.y],
+    length: 0,
+    progress: 0,
+    durationDays: 0.001,
+  };
+  const rivalClaimed = tick(rivalState, 0.001).state;
+  assert.equal(rivalClaimed.stats.leadsWon, 0);
 });
 
 check('every exported command leaves its input unchanged', () => {
@@ -506,11 +735,254 @@ check('shipping near-cost research adds product quality and unlocks its segment'
 check('upgrading a player office increases team capacity', () => {
   const state = game('office-upgrade');
   const office = state.offices.find((item) => item.company === 'player')!;
+  const teammate = state.people.find((person) => person.company === 'player')!;
+  teammate.x = office.x;
+  teammate.y = office.y;
+  teammate.at = office.id;
+  teammate.order = null;
   const before = teamCap(state, 'player');
   const upgraded = upgradeOffice(state, office.id);
   assert.equal(upgraded.error, undefined);
-  assert.equal(upgraded.state.offices.find((item) => item.id === office.id)!.level, 1);
+  const upgradedOffice = upgraded.state.offices.find((item) => item.id === office.id)!;
+  const site = OFFICE_SITES[office.hubId][1]!;
+  const point = project(site.at);
+  assert.equal(upgradedOffice.level, 1);
+  assert.equal(upgradedOffice.siteName, site.name);
+  assert.deepEqual([upgradedOffice.x, upgradedOffice.y], [point.x, point.y]);
+  const movedTeammate = upgraded.state.people.find((person) => person.id === teammate.id)!;
+  assert.equal(movedTeammate.order?.target.kind, 'office');
+  assert.equal(movedTeammate.order?.target.id, office.id);
+  assert.deepEqual([movedTeammate.order?.toX, movedTeammate.order?.toY], [point.x, point.y]);
+  assert.ok(upgraded.fx.some((effect) => effect.kind === 'focus' && effect.x === point.x && effect.y === point.y));
+  assert.ok(upgraded.fx.some((effect) => effect.kind === 'moment' && effect.moment === 'office-move'));
   assert.ok(teamCap(upgraded.state, 'player') > before);
+});
+
+check('shared AI expands toward its strongest customer hub and campaign goals', () => {
+  const state = game('bot-office-expansion');
+  const company = state.companies.player;
+  company.stageIndex = 2;
+  company.cash = 10_000_000;
+  const customer = state.places.find(
+    (place) =>
+      place.kind === 'customers' &&
+      unlockedSegments(company).includes(place.segment),
+  );
+  assert.ok(customer && customer.kind === 'customers');
+  customer.userSignups!.player = 500;
+  const expectedHub = HUBS.filter((hub) => hub.id !== company.hqHub)
+    .slice()
+    .sort((a, b) => {
+      const aPoint = project([a.lng, a.lat]);
+      const bPoint = project([b.lng, b.lat]);
+      return (
+        travelDays(aPoint.x, aPoint.y, customer.x, customer.y) -
+        travelDays(bPoint.x, bPoint.y, customer.x, customer.y)
+      );
+    })[0]!;
+  const expanded = autoCommands(state, 'player').state;
+  assert.equal(expanded.offices.filter((office) => office.company === 'player').length, 2);
+  assert.equal(
+    expanded.offices.find((office) => office.company === 'player' && office.hubId !== company.hqHub)?.hubId,
+    expectedHub.id,
+  );
+
+  const chapterPriority = game('chapter-office-priority');
+  chapterPriority.companies.player.cash = 10_000_000;
+  chapterPriority.companies.player.stageIndex = 1;
+  chapterPriority.campaign.chapter = 1;
+  const prioritized = autoCommands(chapterPriority, 'player').state;
+  assert.equal(prioritized.offices.filter((office) => office.company === 'player').length, 2);
+});
+
+check('founder first-customer, first-hire, and launch moments emit once', () => {
+  const customerState = game('first-customer-moment');
+  customerState.companies.player.users = 0;
+  const customerPlace = customerState.places.find(
+    (place) =>
+      place.kind === 'customers' &&
+      unlockedSegments(customerState.companies.player).includes(place.segment),
+  )!;
+  const founderAtCustomer = customerState.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  setPersonAtPlace(customerState, founderAtCustomer, customerPlace.id);
+  const firstCustomers = tick(customerState, 0.1);
+  const firstCustomerMoments = firstCustomers.fx.filter(
+    (effect) => effect.kind === 'moment' && effect.moment === 'first-customer',
+  );
+  assert.equal(firstCustomerMoments.length, 1);
+  assert.equal(firstCustomerMoments[0]?.kind === 'moment' ? firstCustomerMoments[0].title : '', 'First customer!');
+  assert.equal(firstCustomers.state.milestones['first-customer'], true);
+  const moreCustomers = tick(firstCustomers.state, 0.1);
+  assert.equal(
+    moreCustomers.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'first-customer').length,
+    0,
+  );
+
+  const hiring = game('first-hire-moment');
+  const recruiter = hiring.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const talent = hiring.places.find((place) => place.kind === 'talent')!;
+  setPersonAtPlace(hiring, recruiter, talent.id);
+  const firstHire = hire(hiring, 'engineer', talent.id);
+  assert.equal(firstHire.error, undefined);
+  assert.equal(
+    firstHire.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'first-hire').length,
+    1,
+  );
+  const upgraded = upgradeOffice(
+    firstHire.state,
+    firstHire.state.offices.find((office) => office.company === 'player')!.id,
+  );
+  const secondHire = hire(upgraded.state, 'growth', talent.id);
+  assert.equal(secondHire.error, undefined);
+  assert.equal(
+    secondHire.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'first-hire').length,
+    0,
+  );
+  assert.equal(secondHire.state.milestones['first-hire'], true);
+
+  const launchState = game('launch-day-moment');
+  launchState.companies.player.researchProgress = FEATURES.find(
+    (feature) => feature.id === 'mvp',
+  )!.cost;
+  const launch = tick(launchState, 0.1);
+  assert.equal(launch.state.companies.player.shipped[0], 'mvp');
+  assert.equal(
+    launch.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'launch-day').length,
+    1,
+  );
+  const afterLaunch = tick(launch.state, 0.1);
+  assert.equal(
+    afterLaunch.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'launch-day').length,
+    0,
+  );
+  const onboarding = FEATURES.find((feature) => feature.id === 'onboarding')!;
+  afterLaunch.state.companies.player.researching = onboarding.id;
+  afterLaunch.state.companies.player.researchProgress = onboarding.cost;
+  const feature = tick(afterLaunch.state, 0.1);
+  assert.equal(
+    feature.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'feature-shipped').length,
+    1,
+  );
+});
+
+check('RTS money formatting rounds pounds and uses compact amounts', () => {
+  assert.equal(fmtRtsMoney(500_000), '£500k');
+  assert.equal(fmtRtsMoney(3_065_576.159), '£3.1M');
+  assert.equal(fmtRtsMoney(-1_234.56), '-£1.2k');
+});
+
+check('every successful player raise emits a round-closed moment', () => {
+  const state = game('round-closed-moment');
+  const founder = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const investor = state.places.find((place) => place.kind === 'investor')!;
+  const company = state.companies.player;
+  company.product = 100;
+  company.users = 1_000_000;
+  company.hype = 100;
+  founder.x = investor.x;
+  founder.y = investor.y;
+  founder.at = investor.id;
+  founder.order = null;
+  let raised: ReturnType<typeof pitch> | null = null;
+  for (let seed = 1; seed <= 30 && !raised; seed++) {
+    state.rng = seed;
+    const attempt = pitch(state, investor.id);
+    if (attempt.state.companies.player.stageIndex > 0) raised = attempt;
+  }
+  assert.ok(raised);
+  const moment = raised.fx.find((effect) => effect.kind === 'moment' && effect.moment === 'round-closed');
+  assert.ok(moment?.kind === 'moment');
+  assert.equal(moment.title, `${STAGES[1]!.name} closed`);
+  assert.equal(
+    moment.text,
+    `${fmtRtsMoney(STAGES[1]!.raise)} raised at ${fmtRtsMoney(raised.state.companies.player.valuation)} valuation`,
+  );
+});
+
+check('rival claims emit a bad moment when they beat an ordered player person', () => {
+  const state = game('rival-steal-moment');
+  const point = project([-0.0877, 51.5256]);
+  const lead: Lead = {
+    id: 'moment-test-lead',
+    kind: 'meetup',
+    name: 'Founder breakfast',
+    venue: 'Old Street',
+    hubId: 'shoreditch',
+    x: point.x,
+    y: point.y,
+    spawnDay: 0,
+    expiresDay: 100,
+    takenBy: ['founder'],
+  };
+  state.leads.push(lead);
+  const player = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const rival = state.people.find(
+    (person) => person.company === 'rival1' && person.role === 'founder',
+  )!;
+  player.x = lead.x + 20;
+  player.y = lead.y;
+  player.at = null;
+  player.order = {
+    target: { kind: 'lead', id: lead.id },
+    fromX: player.x,
+    fromY: player.y,
+    toX: lead.x,
+    toY: lead.y,
+    path: [player.x, player.y, lead.x, lead.y],
+    length: 20,
+    progress: 0,
+    durationDays: 20,
+  };
+  rival.x = lead.x;
+  rival.y = lead.y;
+  rival.at = null;
+  rival.order = {
+    target: { kind: 'lead', id: lead.id },
+    fromX: lead.x,
+    fromY: lead.y,
+    toX: lead.x,
+    toY: lead.y,
+    path: [lead.x, lead.y, lead.x, lead.y],
+    length: 0,
+    progress: 0,
+    durationDays: 0.001,
+  };
+  const result = tick(state, 0.1);
+  const moment = result.fx.find(
+    (effect) => effect.kind === 'moment' && effect.moment === 'rival-steal',
+  );
+  assert.ok(moment?.kind === 'moment');
+  assert.equal(moment.tone, 'bad');
+  assert.equal(moment.title, `${state.companies.rival1.name} got there first`);
+  assert.match(moment.text, /grabbed Founder breakfast before .+ arrived/);
+});
+
+check('ambient commuters are deterministic for matching seeds and game-time steps', () => {
+  const left = createAmbient('ambient-test');
+  const right = createAmbient('ambient-test');
+  const initial = left.commuters.map(({ x, y }) => [x, y]);
+  for (const days of [0.03, 0.12, 0.4, 0.01, 1.25]) {
+    advanceAmbient(left, days);
+    advanceAmbient(right, days);
+  }
+  assert.equal(left.routes.length, 240);
+  assert.equal(left.routes, right.routes);
+  assert.equal(left.commuters.length, 650);
+  assert.ok(
+    left.commuters.some((commuter, index) => {
+      const start = initial[index]!;
+      return commuter.x !== start[0] || commuter.y !== start[1];
+    }),
+  );
+  assert.deepEqual(left, right);
 });
 
 check('an idle player does not win within 200 days', () => {
@@ -529,35 +1001,139 @@ check('same seed and bot commands produce identical states', () => {
   assert.equal(JSON.stringify(left), JSON.stringify(right));
 });
 
-check('200-seed bot balance reaches the requested win-rate and timing window', () => {
+check('player market expansion scales once, ignores rival stages, and stays wired to raises', () => {
+  const state = game('market-expansion');
+  state.companies.player.stageIndex = 4;
+  assert.equal(MARKET_GROWTH_BY_STAGE[4], 1.3);
+  const previousPools = new Map<string, { pool: number; poolMax: number }>();
+  for (const place of state.places) {
+    if (place.kind === 'customers')
+      previousPools.set(place.id, { pool: place.pool, poolMax: place.poolMax });
+  }
+  const newsBefore = state.news.length;
+  const fx: RtsFx[] = [];
+  expandMarkets(state, fx);
+  for (const basePlace of PLACES) {
+    if (basePlace.kind !== 'customers') continue;
+    const place = state.places.find((candidate) => candidate.id === basePlace.id);
+    assert.ok(place?.kind === 'customers');
+    const previous = previousPools.get(basePlace.id);
+    assert.ok(previous);
+    const expectedMax = Math.round(basePlace.poolMax * MARKET_GROWTH_BY_STAGE[4]!);
+    assert.equal(place.poolMax, expectedMax);
+    assert.equal(place.pool, previous.pool + expectedMax - previous.poolMax);
+  }
+  assert.equal(state.news.length, newsBefore + 1);
+  assert.match(state.news[0]!.text, /London's market grows/);
+
+  const expandedState = snapshot(state);
+  const expandedNewsCount = state.news.length;
+  const expandedFxCount = fx.length;
+  expandMarkets(state, fx);
+  assert.deepEqual(state, expandedState);
+  assert.equal(state.news.length, expandedNewsCount);
+  assert.equal(fx.length, expandedFxCount);
+
+  const rivalOnly = game('rival-market-expansion');
+  rivalOnly.companies.player.stageIndex = 0;
+  rivalOnly.companies.rival1.stageIndex = 5;
+  const rivalBefore = snapshot(rivalOnly);
+  const rivalFx: RtsFx[] = [];
+  expandMarkets(rivalOnly, rivalFx);
+  assert.deepEqual(rivalOnly, rivalBefore);
+  assert.deepEqual(rivalFx, []);
+});
+
+check('200-seed bot balance reaches the requested win-rate and pacing window', () => {
   const wins: number[] = [];
+  const chapterFiveDurations: number[] = [];
   let bankruptCount = 0;
   let featuresAtWin = 0;
   let unicornWins = 0;
+  let totalChaptersCompleted = 0;
+  let totalStars = 0;
+  let winsCompletingCampaign = 0;
+  let finalMarketExpansionInWonGame = false;
+  const chapterCompletions = CHAPTERS.map(() => 0);
   for (let seed = 0; seed < 200; seed++) {
     const { state, winDay } = simulateBot(seed);
+    totalChaptersCompleted += state.campaign.results.length;
+    totalStars += state.campaign.results.reduce((total, result) => total + result.stars, 0);
+    for (let index = 0; index < CHAPTERS.length; index++) {
+      if (state.campaign.results.some((result) => result.chapterId === CHAPTERS[index]!.id))
+        chapterCompletions[index] += 1;
+    }
     if (winDay !== null) {
       wins.push(winDay);
       featuresAtWin += state.companies.player.shipped.length;
       if (state.companies.player.stageIndex === STAGES.length - 1) unicornWins += 1;
+      if (state.campaign.results.length === CHAPTERS.length) winsCompletingCampaign += 1;
+      const chapterFive = state.campaign.results.find(
+        (result) => result.chapterId === CHAPTERS[4]!.id,
+      );
+      if (chapterFive) chapterFiveDurations.push(chapterFive.days);
+      if (
+        state.places.some((place) => {
+          if (place.kind !== 'customers') return false;
+          const basePlace = PLACES.find((candidate) => candidate.id === place.id);
+          return (
+            basePlace?.kind === 'customers' &&
+            place.poolMax === Math.round(basePlace.poolMax * 1.8)
+          );
+        })
+      )
+        finalMarketExpansionInWonGame = true;
     }
     if (state.phase === 'bankrupt') bankruptCount += 1;
   }
-  const sorted = [...wins].sort((a, b) => a - b);
-  const medianDays = sorted.length
-    ? (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.ceil((sorted.length - 1) / 2)]) / 2
-    : Number.NaN;
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted.length
+      ? (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.ceil((sorted.length - 1) / 2)]) / 2
+      : Number.NaN;
+  };
+  const medianDays = median(wins);
+  const chapterFiveMedianDays = median(chapterFiveDurations);
   const winRate = wins.length / 200;
   const meanFeaturesAtWin = wins.length ? featuresAtWin / wins.length : 0;
+  const meanChaptersCompleted = totalChaptersCompleted / 200;
+  const meanStars = totalStars / 200;
+  const chapterCompletionRates = chapterCompletions
+    .map((count, index) => `chapter ${index + 1} ${(count / 200 * 100).toFixed(1)}%`)
+    .join(', ');
+  const winningCampaignRate = wins.length ? (winsCompletingCampaign / wins.length) * 100 : 0;
   console.log(
     `bot stats: win rate ${(winRate * 100).toFixed(1)}%, median win day ${medianDays.toFixed(1)}, ` +
       `wins unicorn ${unicornWins} / other ${wins.length - unicornWins}, bankrupt ${bankruptCount}, ` +
       `mean features at win ${meanFeaturesAtWin.toFixed(1)}`,
   );
-  assert.ok(winRate >= 0.35 && winRate <= 0.75, `win rate ${winRate.toFixed(3)} outside 35–75%`);
+  console.log(
+    `campaign stats: mean chapters completed ${meanChaptersCompleted.toFixed(2)}, ` +
+      `${chapterCompletionRates}, wins completing all five ${winningCampaignRate.toFixed(1)}%, ` +
+      `mean stars per bot game ${meanStars.toFixed(2)}`,
+  );
+  console.log(
+    `campaign pacing: chapter 5 median duration ${chapterFiveMedianDays.toFixed(1)} days, ` +
+      `limit ${(medianDays * 0.65).toFixed(1)} days`,
+  );
+  // Bot win rate measures pacing, not human difficulty.
+  assert.ok(winRate >= 0.6, `win rate ${winRate.toFixed(3)} below 60%`);
   assert.ok(
-    medianDays >= 90 && medianDays <= 260,
-    `median win day ${medianDays.toFixed(1)} outside 90–260`,
+    medianDays >= 90 && medianDays <= 170,
+    `median win day ${medianDays.toFixed(1)} outside 90–170`,
+  );
+  assert.equal(
+    winsCompletingCampaign,
+    wins.length,
+    `only ${winsCompletingCampaign}/${wins.length} bot wins completed all five chapters`,
+  );
+  assert.ok(
+    chapterFiveMedianDays <= medianDays * 0.65,
+    `chapter 5 median duration ${chapterFiveMedianDays.toFixed(1)} exceeds 65% of median win day`,
+  );
+  assert.ok(
+    finalMarketExpansionInWonGame,
+    'no won game has a customer pool expanded to the final 1.8x market size',
   );
 });
 

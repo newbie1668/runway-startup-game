@@ -10,6 +10,7 @@ import { project, THAMES, WORLD, type WorldPoint } from '@/lib/game/geo';
 import type { ProjectedMapRenderer } from '@/lib/game/mapProjection';
 import type { HubId } from '@/lib/game/types';
 import { FEATURES, OFFICE_LEVELS, SEGMENT_INFO } from './content';
+import type { AmbientState } from './ambient';
 import { personActivity, unlockedSegments } from './sim';
 import type { CompanyId, Lead, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
 
@@ -79,7 +80,7 @@ export function placeIcon(place: Place): string {
 }
 
 interface Particle {
-  kind: 'float' | 'confetti' | 'spark';
+  kind: 'float' | 'confetti' | 'spark' | 'ring';
   wx: number;
   wy: number;
   ox: number;
@@ -99,6 +100,9 @@ export class RtsRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   state: RtsState | null = null;
+  ambient: AmbientState | null = null;
+  profileAmbient = false;
+  ambientDrawMs = 0;
   selected = new Set<string>();
   /** Selected place/office/lead (highlighted). */
   focus: RtsHit | null = null;
@@ -282,6 +286,55 @@ export class RtsRenderer {
     }
   }
 
+  applyMomentPulse(x: number, y: number): void {
+    this.particles.push({
+      kind: 'ring',
+      wx: x,
+      wy: y,
+      ox: 0,
+      oy: 0,
+      vx: 0,
+      vy: 0,
+      age: 0,
+      ttl: 1.1,
+      color: '#ef4444',
+      size: 8,
+    });
+  }
+
+  private drawAmbient(width: number, height: number): void {
+    const zoom = this.zoom();
+    if (!this.ambient || zoom < 7) return;
+    const white: { x: number; y: number }[] = [];
+    const amber: { x: number; y: number }[] = [];
+    const step = zoom < 14 ? 2 : 1;
+    for (let index = 0; index < this.ambient.commuters.length; index += step) {
+      const commuter = this.ambient.commuters[index]!;
+      const point = this.w2s(commuter);
+      if (!point || point.x < 0 || point.y < 0 || point.x > width || point.y > height) continue;
+      (commuter.cyclist ? amber : white).push(point);
+    }
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(15,23,42,0.55)';
+    ctx.lineWidth = 1;
+    for (const [points, color] of [
+      [white, '#f8fafc'],
+      [amber, '#fbbf24'],
+    ] as const) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (const point of points) {
+        ctx.moveTo(point.x + 2, point.y);
+        ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // --- frame ----------------------------------------------------------------
   frame(t: number, dt: number) {
     const rect = this.canvas.getBoundingClientRect();
@@ -295,6 +348,14 @@ export class RtsRenderer {
     const s = this.state;
     if (!s) return;
     const ctx = this.ctx;
+    if (this.profileAmbient) {
+      const started = performance.now();
+      this.drawAmbient(rect.width, rect.height);
+      this.ambientDrawMs = performance.now() - started;
+    } else {
+      this.drawAmbient(rect.width, rect.height);
+      this.ambientDrawMs = 0;
+    }
     this.layoutPeople();
     const showLabels = this.zoom() > 6;
     const player = s.companies.player;
@@ -367,7 +428,7 @@ export class RtsRenderer {
           { type: 'office', id: office.id },
           q.x,
           q.y + 13,
-          `${c.name} · ${OFFICE_LEVELS[office.level].name}`,
+          `${c.name} · ${office.siteName ?? OFFICE_LEVELS[office.level].name}`,
           office.company === 'player' ? '#fde68a' : '#e2e8f0',
         );
       }
@@ -410,23 +471,37 @@ export class RtsRenderer {
     // Move paths (player people)
     for (const p of s.people) {
       if (!p.order || p.company !== 'player') continue;
-      const a = this.w2s(p);
-      const b = this.w2s({ x: p.order.toX, y: p.order.toY });
-      if (!a || !b) continue;
+      const order = p.order;
+      const route: WorldPoint[] = [{ x: p.x, y: p.y }];
+      let travelled = 0;
+      for (let i = 2; i < order.path.length; i += 2) {
+        travelled += Math.hypot(order.path[i]! - order.path[i - 2]!, order.path[i + 1]! - order.path[i - 1]!);
+        if (travelled > order.length * order.progress) {
+          route.push({ x: order.path[i]!, y: order.path[i + 1]! });
+        }
+      }
       ctx.save();
       ctx.setLineDash([6, 6]);
       ctx.lineDashOffset = -(t * 0.03) % 12;
       ctx.strokeStyle = this.selected.has(p.id) ? 'rgba(74,222,128,0.95)' : 'rgba(248,195,58,0.6)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      for (let i = 1; i < route.length; i++) {
+        const a = this.w2s(route[i - 1]!);
+        const b = this.w2s(route[i]!);
+        if (!a || !b) continue;
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
       ctx.stroke();
       ctx.restore();
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(248,195,58,0.85)';
-      ctx.fill();
+      const destination = this.w2s({ x: order.toX, y: order.toY });
+      if (destination) {
+        ctx.beginPath();
+        ctx.arc(destination.x, destination.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(248,195,58,0.85)';
+        ctx.fill();
+      }
     }
 
     // People
@@ -467,7 +542,7 @@ export class RtsRenderer {
       ctx.lineWidth = mine ? 3 : 2;
       ctx.stroke();
       this.emoji(ROLE_ICON[p.role], q.x, q.y + 0.5, p.role === 'founder' ? 13 : 11.5);
-      if (showLabels || sel || hov) {
+      if (mine ? showLabels || sel || hov : hov) {
         const text = hov
           ? `${p.name} (${c.name} ${ROLE_LABEL[p.role].toLowerCase()}) · ${act.text}`
           : sel
@@ -657,6 +732,13 @@ export class RtsRenderer {
         ctx.arc(x, y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
         ctx.fill();
+      } else if (p.kind === 'ring') {
+        const progress = p.age / p.ttl;
+        ctx.beginPath();
+        ctx.arc(x, y, p.size + progress * 34, 0, Math.PI * 2);
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 3 * (1 - progress);
+        ctx.stroke();
       } else {
         ctx.fillStyle = p.color;
         ctx.fillRect(x - p.size / 2, y - p.size / 4, p.size, p.size / 2);

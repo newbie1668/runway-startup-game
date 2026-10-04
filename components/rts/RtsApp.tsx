@@ -19,9 +19,11 @@ import { hasProjection, type ProjectedMapRenderer } from '@/lib/game/mapProjecti
 import { createMapRenderer } from '@/lib/game/render3d/factory';
 import type { Scene } from '@/lib/game/scene';
 import type { HubId, SectorId } from '@/lib/game/types';
+import { advanceAmbient, createAmbient } from '@/lib/rts/ambient';
 import {
   ENGINEER_HIRE_FEE,
   ENGINEER_WEEKLY_SALARY,
+  CHAPTERS,
   FEATURES,
   GROWTH_HIRE_FEE,
   GROWTH_WEEKLY_SALARY,
@@ -41,10 +43,13 @@ import {
   type RtsHit,
 } from '@/lib/rts/render';
 import {
+  autoCommands,
   canResearch,
+  campaignStatus,
   hire,
   movePeople,
   newRtsGame,
+  objectiveProgress,
   journalProgress,
   openOffice,
   personActivity,
@@ -69,6 +74,7 @@ import type {
   Office,
   Person,
   Place,
+  RtsFx,
   RtsResult,
   RtsState,
 } from '@/lib/rts/types';
@@ -78,6 +84,15 @@ const DAYS_PER_SECOND = 0.35;
 const SPEEDS = [0, 1, 2, 4] as const;
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const COMPANY_ORDER: CompanyId[] = ['player', 'rival1', 'rival2', 'rival3'];
+const MOMENT_DURATION_MS = 3700;
+const MOMENT_HOLD_MS = 3200;
+const MOMENT_MAX_AGE_DAYS = 20;
+type MomentFx = Extract<RtsFx, { kind: 'moment' }>;
+interface QueuedMoment {
+  id: number;
+  day: number;
+  fx: MomentFx;
+}
 
 const LEAD_REWARD: Record<Lead['kind'], string> = {
   meetup: 'Hype and a few hundred users',
@@ -231,11 +246,14 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
 // ---------------------------------------------------------------------------
 
 function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () => void; onNewSetup: () => void }) {
+  const autoplay =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('autoplay') === '1';
   const cityCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RtsRenderer | null>(null);
+  const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   const mapRef = useRef<ProjectedMapRenderer | null>(null);
   const mapReadyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
@@ -258,9 +276,123 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     return hq ? { type: 'office', id: hq.id } : null;
   });
   const [toast, setToast] = useState<string | null>(null);
+  const [bonusToast, setBonusToast] = useState<{ id: number; label: string } | null>(null);
+  const bonusToastIdRef = useRef(0);
+  const [activeMoment, setActiveMoment] = useState<QueuedMoment | null>(null);
+  const activeMomentRef = useRef<QueuedMoment | null>(null);
+  const momentQueueRef = useRef<QueuedMoment[]>([]);
+  const momentIdRef = useRef(0);
+  const momentElapsedMsRef = useRef(0);
+  const [momentPhase, setMomentPhase] = useState<'enter' | 'hold' | 'exit'>('enter');
   const [showHelp, setShowHelp] = useState(true);
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showJournal, setShowJournal] = useState(false);
+  const [briefingIndex, setBriefingIndex] = useState<number | null>(null);
+  const [completedChapter, setCompletedChapter] = useState<{ index: number; stars: number } | null>(null);
+  const briefingSeenRef = useRef(false);
+  const campaignModalOpenRef = useRef(false);
+  const modalOpenRef = useRef(true);
+  const momentQueuePaused =
+    briefingIndex !== null ||
+    completedChapter !== null ||
+    ['dilemma', 'won', 'bankrupt'].includes(ui.phase);
+  const momentQueuePausedRef = useRef(momentQueuePaused);
+  const briefingResumeSpeedRef = useRef(1);
+  const completedResumeSpeedRef = useRef(1);
+
+  const dequeueFreshMoment = useCallback(() => {
+    const queue = momentQueueRef.current;
+    const day = stateRef.current.day;
+    while (queue.length > 0 && day - queue[0]!.day > MOMENT_MAX_AGE_DAYS)
+      queue.shift();
+    return queue.shift() ?? null;
+  }, []);
+
+  const enqueueMoment = useCallback((fx: MomentFx, day: number) => {
+    const moment = { id: ++momentIdRef.current, day, fx };
+    if (!activeMomentRef.current && !momentQueuePausedRef.current) {
+      momentElapsedMsRef.current = 0;
+      activeMomentRef.current = moment;
+      setMomentPhase('enter');
+      setActiveMoment(moment);
+      return;
+    }
+    const queue = momentQueueRef.current;
+    while (queue.length > 0 && day - queue[0]!.day > MOMENT_MAX_AGE_DAYS)
+      queue.shift();
+    queue.push(moment);
+    if (queue.length > 3) queue.splice(0, queue.length - 3);
+  }, []);
+
+  useEffect(() => {
+    modalOpenRef.current =
+      showHelp ||
+      showRoadmap ||
+      showJournal ||
+      briefingIndex !== null ||
+      completedChapter !== null ||
+      ['dilemma', 'won', 'bankrupt'].includes(stateRef.current.phase);
+  }, [showHelp, showRoadmap, showJournal, briefingIndex, completedChapter, ui.phase]);
+
+  useEffect(() => {
+    momentQueuePausedRef.current = momentQueuePaused;
+  }, [momentQueuePaused]);
+
+  useEffect(() => {
+    if (momentQueuePaused) return;
+    const expired =
+      activeMoment !== null &&
+      stateRef.current.day - activeMoment.day > MOMENT_MAX_AGE_DAYS;
+    if (expired || (!activeMoment && momentQueueRef.current.length > 0)) {
+      const frame = window.requestAnimationFrame(() => {
+        if (momentQueuePausedRef.current) return;
+        const current = activeMomentRef.current;
+        if (
+          current &&
+          stateRef.current.day - current.day <= MOMENT_MAX_AGE_DAYS
+        )
+          return;
+        const next = dequeueFreshMoment();
+        activeMomentRef.current = next;
+        momentElapsedMsRef.current = 0;
+        setMomentPhase('enter');
+        setActiveMoment(next);
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+    if (!activeMoment) {
+      activeMomentRef.current = null;
+      momentElapsedMsRef.current = 0;
+      return;
+    }
+    const elapsedAtStart = momentElapsedMsRef.current;
+    const remainingMs = Math.max(0, MOMENT_DURATION_MS - elapsedAtStart);
+    const startedAt = performance.now();
+    let finished = false;
+    const entrance = window.requestAnimationFrame(() => setMomentPhase('hold'));
+    const exitDelay = MOMENT_HOLD_MS - elapsedAtStart;
+    const exit =
+      exitDelay > 0 ? window.setTimeout(() => setMomentPhase('exit'), exitDelay) : null;
+    const dismiss = window.setTimeout(() => {
+      if (momentQueuePausedRef.current) return;
+      finished = true;
+      const next = dequeueFreshMoment();
+      activeMomentRef.current = next;
+      momentElapsedMsRef.current = 0;
+      setMomentPhase('enter');
+      setActiveMoment(next);
+    }, remainingMs);
+    return () => {
+      window.cancelAnimationFrame(entrance);
+      if (exit !== null) window.clearTimeout(exit);
+      window.clearTimeout(dismiss);
+      if (!finished)
+        momentElapsedMsRef.current = Math.min(
+          MOMENT_DURATION_MS,
+          elapsedAtStart + performance.now() - startedAt,
+        );
+    };
+  }, [activeMoment, dequeueFreshMoment, momentQueuePaused]);
 
   const setRideAlong = useCallback((id: string | null) => {
     ridingIdRef.current = id;
@@ -289,20 +421,121 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     setSpeedState(v);
   }, []);
 
+  const openBriefing = useCallback(
+    (pause = true, resumeSpeed?: number) => {
+      const index = stateRef.current.campaign.chapter;
+      const chapter = CHAPTERS[index];
+      if (!chapter) return;
+      briefingSeenRef.current = true;
+      campaignModalOpenRef.current = true;
+      momentQueuePausedRef.current = true;
+      briefingResumeSpeedRef.current = resumeSpeed ?? (speedRef.current || 1);
+      setBriefingIndex(index);
+      setShowHelp(false);
+      if (pause) setSpeed(0);
+      if (chapter.focus.kind === 'hq') {
+        const hq = stateRef.current.offices.find(
+          (office) =>
+            office.company === 'player' &&
+            office.hubId === stateRef.current.companies.player.hqHub,
+        );
+        if (hq) mapRef.current?.lookAt(hq.x, hq.y, 25);
+      } else {
+        const landmarkKind = chapter.focus.landmark;
+        const landmark = LANDMARKS.find((item) => item.kind === landmarkKind);
+        if (landmark) {
+          const point = project(landmark.at);
+          mapRef.current?.lookAt(point.x, point.y, 12);
+        }
+      }
+    },
+    [setSpeed],
+  );
+
+  const startAtSpeed = useCallback(
+    (value: number) => {
+      if (value > 0 && !mapReadyRef.current) return;
+      if (value > 0 && !briefingSeenRef.current) {
+        briefingSeenRef.current = true;
+        setShowHelp(false);
+        openBriefing(true, value);
+      } else {
+        setSpeed(value);
+      }
+    },
+    [openBriefing, setSpeed],
+  );
+
   const flash = useCallback((msg: string) => {
     setToast(msg);
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2800);
   }, []);
 
-  const handleFx = useCallback((res: RtsResult) => {
-    const r = rendererRef.current;
-    r?.applyFx(res.fx);
-    for (const f of res.fx) if (f.kind === 'focus') r?.centerOn(f);
-    const found = res.fx.flatMap((f) =>
-      f.kind === 'postcard' ? [{ id: ++postcardIdRef.current, landmark: f.landmark }] : [],
-    );
-    if (found.length > 0) setPostcards((queue) => [...queue, ...found]);
-  }, []);
+  const handleFx = useCallback(
+    (res: RtsResult) => {
+      const r = rendererRef.current;
+      const chapterWillOpen = res.fx.some(
+        (effect) => effect.kind === 'chapter' && effect.index < CHAPTERS.length - 1,
+      );
+      const phaseWillOpenModal = ['dilemma', 'won', 'bankrupt'].includes(res.state.phase);
+      if (chapterWillOpen || phaseWillOpenModal) momentQueuePausedRef.current = true;
+      r?.applyFx(res.fx);
+      for (const f of res.fx) {
+        if (f.kind === 'focus') {
+          const pairedWithMoment = res.fx.some(
+            (effect) => effect.kind === 'moment' && effect.x === f.x && effect.y === f.y,
+          );
+          if (
+            !pairedWithMoment ||
+            (!ridingIdRef.current &&
+              !modalOpenRef.current &&
+              !campaignModalOpenRef.current &&
+              !chapterWillOpen &&
+              !phaseWillOpenModal)
+          )
+            r?.centerOn(f);
+        } else if (f.kind === 'bonus')
+          setBonusToast({ id: ++bonusToastIdRef.current, label: f.label });
+        else if (f.kind === 'moment') {
+          if (f.tone === 'good') {
+            const hasConfetti = res.fx.some(
+              (effect) =>
+                effect.kind === 'confetti' && effect.x === f.x && effect.y === f.y,
+            );
+            if (!hasConfetti) r?.applyFx([{ kind: 'confetti', x: f.x, y: f.y }]);
+          } else r?.applyMomentPulse(f.x, f.y);
+          if (
+            !ridingIdRef.current &&
+            !modalOpenRef.current &&
+            !campaignModalOpenRef.current &&
+            !chapterWillOpen &&
+            !phaseWillOpenModal
+          )
+            mapRef.current?.lookAt(f.x, f.y, 10);
+          enqueueMoment(f, res.state.day);
+        } else if (f.kind === 'chapter') {
+          const hq =
+            res.state.offices.find(
+              (office) =>
+                office.company === 'player' &&
+                office.hubId === res.state.companies.player.hqHub,
+            ) ?? res.state.offices.find((office) => office.company === 'player');
+          if (hq) r?.applyFx([{ kind: 'confetti', x: hq.x, y: hq.y }]);
+          if (f.index < CHAPTERS.length - 1) {
+            completedResumeSpeedRef.current = speedRef.current || 1;
+            campaignModalOpenRef.current = true;
+            setSpeed(0);
+            setCompletedChapter({ index: f.index, stars: f.stars });
+          }
+        }
+      }
+      const found = res.fx.flatMap((f) =>
+        f.kind === 'postcard' ? [{ id: ++postcardIdRef.current, landmark: f.landmark }] : [],
+      );
+      if (found.length > 0) setPostcards((queue) => [...queue, ...found]);
+    },
+    [enqueueMoment, setSpeed],
+  );
 
   const currentPostcardId = postcards[0]?.id ?? null;
   useEffect(() => {
@@ -312,6 +545,15 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     }, 7000);
     return () => window.clearTimeout(timer);
   }, [currentPostcardId]);
+
+  useEffect(() => {
+    if (!bonusToast) return;
+    const id = bonusToast.id;
+    const timer = window.setTimeout(() => {
+      setBonusToast((current) => (current?.id === id ? null : current));
+    }, 7000);
+    return () => window.clearTimeout(timer);
+  }, [bonusToast]);
 
   const flyToLandmark = useCallback((kind: LandmarkKind) => {
     const landmark = LANDMARKS.find((item) => item.kind === kind);
@@ -335,6 +577,37 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     },
     [flash, handleFx],
   );
+
+  useEffect(() => {
+    if (!autoplay || !showHelp || !mapReady) return;
+    const timer = window.setTimeout(() => startAtSpeed(4), 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, mapReady, showHelp, startAtSpeed]);
+
+  useEffect(() => {
+    if (!autoplay || briefingIndex === null) return;
+    const timer = window.setTimeout(() => {
+      campaignModalOpenRef.current = false;
+      setBriefingIndex(null);
+      setSpeed(briefingResumeSpeedRef.current || 4);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, briefingIndex, setSpeed]);
+
+  useEffect(() => {
+    if (!autoplay || !completedChapter) return;
+    const timer = window.setTimeout(() => {
+      setCompletedChapter(null);
+      openBriefing(true, completedResumeSpeedRef.current || 4);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, completedChapter, openBriefing]);
+
+  useEffect(() => {
+    if (!autoplay || ui.phase !== 'dilemma') return;
+    const timer = window.setTimeout(() => run((state) => resolveDilemma(state, 0)), 2500);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, run, ui.phase]);
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -386,12 +659,17 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     const cityCanvas = cityCanvasRef.current!;
     const overlayCanvas = overlayCanvasRef.current!;
     const canvas = canvasRef.current!;
+    const profileAmbient = new URLSearchParams(window.location.search).get('ambientPerf') === '1';
     let r: RtsRenderer | null = null;
     let raf = 0;
     let last = performance.now();
     let lastUi = 0;
     let activeMode: '2d' | '3d' | 'pending' = 'pending';
     let cancelled = false;
+    let ambientFrames = 0;
+    let ambientUpdateTotalMs = 0;
+    let ambientDrawTotalMs = 0;
+    let nextAutoplayDay = stateRef.current.day + 0.5;
     const keys = new Set<string>();
     const mapScene: Scene = {
       mode: 'play',
@@ -447,11 +725,32 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       const dt = Math.min(0.05, (t - last) / 1000);
       last = t;
       const before = stateRef.current;
-      if (speedRef.current > 0 && before.phase === 'playing') {
-        const res = tick(before, dt * speedRef.current * DAYS_PER_SECOND);
+      const gameDays =
+        speedRef.current > 0 && before.phase === 'playing'
+          ? dt * speedRef.current * DAYS_PER_SECOND
+          : 0;
+      if (gameDays > 0) {
+        let res = tick(before, gameDays);
+        if (
+          autoplay &&
+          res.state.phase === 'playing' &&
+          res.state.day + 1e-8 >= nextAutoplayDay
+        ) {
+          while (nextAutoplayDay <= res.state.day + 1e-8) nextAutoplayDay += 0.5;
+          const commands = autoCommands(res.state, 'player');
+          res = {
+            ...res,
+            state: commands.state,
+            fx: [...res.fx, ...commands.fx],
+          };
+        }
         stateRef.current = res.state;
         handleFx(res);
       }
+      const measureAmbient = profileAmbient && gameDays > 0 && ambientFrames < 300;
+      const ambientStarted = measureAmbient ? performance.now() : 0;
+      if (gameDays > 0 && ambientRef.current) advanceAmbient(ambientRef.current, gameDays);
+      const ambientUpdateMs = measureAmbient ? performance.now() - ambientStarted : 0;
       const map = mapRef.current;
       if (map) {
         const pan = 520 * dt;
@@ -486,6 +785,18 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       }
       r.state = stateRef.current;
       r.frame(t, dt);
+      if (measureAmbient) {
+        ambientFrames += 1;
+        ambientUpdateTotalMs += ambientUpdateMs;
+        ambientDrawTotalMs += r.ambientDrawMs;
+        if (ambientFrames === 300) {
+          console.info('Ambient update + draw over 300 active frames', {
+            averageMs: Number(((ambientUpdateTotalMs + ambientDrawTotalMs) / ambientFrames).toFixed(4)),
+            updateAverageMs: Number((ambientUpdateTotalMs / ambientFrames).toFixed(4)),
+            drawAverageMs: Number((ambientDrawTotalMs / ambientFrames).toFixed(4)),
+          });
+        }
+      }
       if (miniRef.current) r.drawMinimap(miniRef.current);
       if (t - lastUi > 120 || stateRef.current.phase !== before.phase) {
         lastUi = t;
@@ -498,6 +809,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       onFatal,
       onReady: fireReady,
       diagnostics: createMapDiagnostics(1, () => performance.now()),
+      hudInsetBottom: 150,
     }).then(({ renderer, mode }) => {
       if (cancelled) {
         renderer.dispose();
@@ -515,8 +827,11 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       if (hqOffice) renderer.lookAt(hqOffice.x, hqOffice.y, 25);
       mapRef.current = renderer;
       activeMode = mode;
+      ambientRef.current = createAmbient();
       r = new RtsRenderer(canvas, renderer);
       r.atmosphere = mode === '3d' ? 'day' : 'night';
+      r.ambient = ambientRef.current;
+      r.profileAmbient = profileAmbient;
       rendererRef.current = r;
       r.state = stateRef.current;
       raf = requestAnimationFrame(loop);
@@ -590,11 +905,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       };
       const onKeyDown = (e: KeyboardEvent) => {
         if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+        if (campaignModalOpenRef.current) return;
         const k = e.key.toLowerCase();
         if (k === ' ') {
           e.preventDefault();
-          setSpeed(speedRef.current === 0 ? 1 : 0);
-        } else if (k === '1' || k === '2' || k === '3') setSpeed(SPEEDS[Number(k)]);
+          startAtSpeed(speedRef.current === 0 ? 1 : 0);
+        } else if (k === '1' || k === '2' || k === '3') startAtSpeed(SPEEDS[Number(k)]);
         else if (k === 'j') setShowJournal((value) => !value);
         else if (k === 'v') {
           const ids = selectionRef.current;
@@ -649,6 +965,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       mapRef.current?.dispose();
       mapRef.current = null;
       rendererRef.current = null;
+      ambientRef.current = null;
       mapReadyRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -669,7 +986,21 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     : undefined;
   const week = Math.floor(s.day / 7) + 1;
   const dayName = DAY_NAMES[Math.floor(s.day) % 7];
-  const nextStage = STAGES[Math.min(STAGES.length - 1, me.stageIndex + 1)];
+  const campaign = campaignStatus(s);
+  const firstUnmetObjective = campaign.objectives.find((objective) => !objective.done);
+  const investorStage =
+    firstUnmetObjective?.spec.kind === 'stage' ? STAGES[firstUnmetObjective.spec.atLeast] : undefined;
+  const briefingSpec = briefingIndex === null ? undefined : CHAPTERS[briefingIndex];
+  const completedChapterSpec =
+    completedChapter === null ? undefined : CHAPTERS[completedChapter.index];
+  const completedResult = completedChapterSpec
+    ? s.campaign.results.find((result) => result.chapterId === completedChapterSpec.id)
+    : undefined;
+  const completedBonus =
+    completedChapterSpec !== undefined &&
+    completedResult !== undefined &&
+    completedResult.stars > 1 + Number(completedResult.days <= completedChapterSpec.parDays);
+  const totalStars = s.campaign.results.reduce((total, result) => total + result.stars, 0);
   const researching = me.researching ? featureById(me.researching) : null;
 
   const onMini = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -695,6 +1026,42 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <p className="rounded-xl border border-slate-600/60 bg-[#0b1226]/95 px-5 py-3 text-lg font-bold shadow-xl">
             {mapError ?? 'Loading London…'}
           </p>
+        </div>
+      )}
+      {activeMoment && !momentQueuePaused && (
+        <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden" aria-live="polite">
+          <div
+            className="absolute inset-x-0 top-[60px] h-9 bg-black/70 transition-transform duration-500 ease-in-out"
+            style={{ transform: momentPhase === 'hold' ? 'translateY(0)' : 'translateY(-100%)' }}
+          />
+          <div
+            className="absolute top-[110px] w-[min(700px,calc(100vw-2rem))] rounded-xl border bg-[#0b1226]/95 px-6 py-4 text-center shadow-2xl transition-all duration-500 ease-out"
+            style={{
+              left: '50%',
+              transform:
+                momentPhase === 'hold'
+                  ? 'translate(-50%, 0)'
+                  : 'translate(-50%, -8px)',
+              opacity: momentPhase === 'hold' ? 1 : 0,
+              borderColor: activeMoment.fx.tone === 'bad' ? 'rgba(248,113,113,.5)' : 'rgba(251,191,36,.45)',
+            }}
+          >
+            <div
+              className={`text-[10px] font-extrabold tracking-[0.35em] ${
+                activeMoment.fx.tone === 'bad' ? 'text-rose-300' : 'text-amber-300'
+              }`}
+            >
+              {activeMoment.fx.tone === 'bad' ? 'RIVAL MOVE' : 'FOUNDER MOMENT'}
+            </div>
+            <h2
+              className={`mt-1 text-2xl font-black ${
+                activeMoment.fx.tone === 'bad' ? 'text-rose-100' : 'text-white'
+              }`}
+            >
+              {activeMoment.fx.title}
+            </h2>
+            <p className="mt-1 truncate text-sm text-slate-300">{activeMoment.fx.text}</p>
+          </div>
         </div>
       )}
 
@@ -743,8 +1110,8 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
             {SPEEDS.map((v, i) => (
               <button
                 key={v}
-                onClick={() => setSpeed(v)}
-                disabled={!mapReady}
+          onClick={() => startAtSpeed(v)}
+                disabled={!mapReady || briefingIndex !== null || completedChapter !== null}
                 className={`px-2.5 py-1 text-xs font-bold ${speed === v ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
                 title={i === 0 ? 'Pause (Space)' : `Speed ${v}× (${i})`}
               >
@@ -752,7 +1119,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               </button>
             ))}
           </div>
-          <button onClick={() => setShowHelp((v) => !v)} className="rounded-lg border border-slate-700 px-2 py-1 text-xs">
+          <button
+            onClick={() => {
+              if (!campaignModalOpenRef.current) setShowHelp((value) => !value);
+            }}
+            className="rounded-lg border border-slate-700 px-2 py-1 text-xs"
+          >
             ?
           </button>
         </div>
@@ -790,19 +1162,131 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
       {/* Goal + rivals */}
       <aside className="absolute top-16 right-3 w-72 space-y-2 text-xs">
-        <Panel title="NEXT ROUND">
-          <Progress label="Users" value={me.users} target={nextStage.minTraction} fmt={fmtUsers} />
-          <Progress label="Product" value={me.product} target={nextStage.minProduct} fmt={(v) => `${Math.round(v)}`} />
-          <p className="mt-1.5 text-slate-400">
-            Hit both, then walk your founder to a 💷 investor for {nextStage.name} ({fmtMoney(nextStage.raise)}).
-          </p>
-          <div className="mt-2 flex gap-0.5">
-            {STAGES.slice(1).map((st, i) => (
-              <div key={st.id} title={st.name} className={`h-1.5 flex-1 rounded ${i < me.stageIndex ? 'bg-amber-400' : 'bg-slate-700'}`} />
-            ))}
-          </div>
-          <p className="mt-1 text-[10px] text-slate-500">Bootstrapped → 🦄 Unicorn</p>
-        </Panel>
+        {campaign.chapter && (
+          <Panel title="CHAPTER" onClick={() => openBriefing(false)}>
+            <div className="mb-2 font-black text-slate-100">{campaign.chapter.title}</div>
+            <ul className="space-y-1">
+              {campaign.objectives.map((objective) => {
+                const value =
+                  objective.spec.kind === 'users'
+                    ? fmtUsers(objective.value)
+                    : Math.floor(objective.value).toLocaleString();
+                const target =
+                  objective.spec.kind === 'users'
+                    ? fmtUsers(objective.target)
+                    : Math.floor(objective.target).toLocaleString();
+                const percent = Math.min(100, (objective.value / Math.max(1, objective.target)) * 100);
+                const nextRound =
+                  !objective.done &&
+                  objective.spec.kind === 'stage' &&
+                  objective.spec.atLeast === me.stageIndex + 1
+                    ? STAGES[objective.spec.atLeast]
+                    : undefined;
+                const usersMet = nextRound !== undefined && me.users >= nextRound.minTraction;
+                const productMet = nextRound !== undefined && me.product >= nextRound.minProduct;
+                return (
+                  <li key={objective.spec.label} className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={objective.done ? 'text-emerald-400' : 'text-slate-500'}>
+                        {objective.done ? '✓' : '○'}
+                      </span>
+                      <span className="min-w-0 flex-1">{objective.spec.label}</span>
+                      {objective.target > 1 && (
+                        <span className="text-[10px] text-slate-400">
+                          {value}/{target}
+                        </span>
+                      )}
+                      {objective.target > 1 && (
+                        <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
+                          <span
+                            className={`block h-1 rounded ${objective.done ? 'bg-emerald-400' : 'bg-sky-400'}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </span>
+                      )}
+                    </div>
+                    {nextRound && (
+                      <ul className="ml-4 space-y-0.5 text-[10px] text-slate-500">
+                        <li className="flex items-center gap-1.5">
+                          <span className={usersMet ? 'text-emerald-400' : 'text-slate-600'}>
+                            {usersMet ? '✓' : '○'}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            Users {fmtUsers(me.users)} / {fmtUsers(nextRound.minTraction)}
+                          </span>
+                          <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
+                            <span
+                              className={`block h-1 rounded ${usersMet ? 'bg-emerald-400' : 'bg-sky-400'}`}
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  (me.users / Math.max(1, nextRound.minTraction)) * 100,
+                                )}%`,
+                              }}
+                            />
+                          </span>
+                        </li>
+                        <li className="flex items-center gap-1.5">
+                          <span className={productMet ? 'text-emerald-400' : 'text-slate-600'}>
+                            {productMet ? '✓' : '○'}
+                          </span>
+                          <span>
+                            Product {Math.floor(me.product).toLocaleString()} /{' '}
+                            {nextRound.minProduct.toLocaleString()}
+                          </span>
+                        </li>
+                        {usersMet && productMet && (
+                          <li className="ml-4 text-[10px] font-medium text-amber-300">
+                            Walk your founder to an investor to pitch
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {campaign.bonus && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className={campaign.bonus.done ? 'text-amber-300' : 'text-slate-500'}>
+                  {campaign.bonus.done ? '✓' : '◇'}
+                </span>
+                <span className="min-w-0 flex-1 text-amber-300">Bonus: {campaign.bonus.spec.label}</span>
+                {campaign.bonus.target > 1 && (
+                  <>
+                    <span className="text-[10px] text-amber-200/80">
+                      {Math.floor(campaign.bonus.value).toLocaleString()}/
+                      {Math.floor(campaign.bonus.target).toLocaleString()}
+                    </span>
+                    <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
+                      <span
+                        className="block h-1 rounded bg-amber-300"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (campaign.bonus.value / campaign.bonus.target) * 100,
+                          )}%`,
+                        }}
+                      />
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+            <p className="mt-1 text-[10px] text-slate-400">
+              Day {Math.floor(campaign.daysElapsed)} / par {campaign.chapter.parDays}
+            </p>
+            {investorStage && (
+              <p className="mt-2 text-slate-400">
+                {me.users >= investorStage.minTraction && me.product >= investorStage.minProduct ? (
+                  <>The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                ) : (
+                  <>Hit the {investorStage.name} requirements above, then walk your founder to a 💷 investor.</>
+                )}
+              </p>
+            )}
+          </Panel>
+        )}
         <Panel title="LEADERBOARD">
           {COMPANY_ORDER.map((id) => s.companies[id])
             .sort((a, b) => b.users - a.users)
@@ -868,8 +1352,15 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         </div>
       )}
 
+      {bonusToast && (
+        <div className="pointer-events-none absolute bottom-[180px] left-3 z-20 w-80 rounded-xl border border-amber-400/40 bg-[#0b1226]/95 p-3 shadow-2xl">
+          <div className="text-[10px] font-bold tracking-widest text-amber-300">✨ Chapter bonus</div>
+          <p className="mt-1 font-black">{bonusToast.label}</p>
+        </div>
+      )}
+
       {visiblePostcard && postcardLandmark && (
-        <div className="absolute bottom-[180px] left-3 z-20 w-80 rounded-xl border border-violet-400/40 bg-[#0b1226]/95 p-3 shadow-2xl">
+        <div className={`absolute bottom-[180px] ${bonusToast ? 'left-[340px]' : 'left-3'} z-20 w-80 rounded-xl border border-violet-400/40 bg-[#0b1226]/95 p-3 shadow-2xl`}>
           <div className="text-[10px] font-bold tracking-widest text-violet-300">📮 New in your London journal</div>
           <h3 className="mt-1 font-black">{postcardLandmark.name}</h3>
           <p className="mt-1 text-xs text-slate-300">{LANDMARK_FACTS[postcardLandmark.kind]}</p>
@@ -963,13 +1454,90 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <button
             onClick={() => {
               setShowHelp(false);
-              setSpeed(1);
+              startAtSpeed(autoplay ? 4 : 1);
             }}
             disabled={!mapReady}
             className="mt-4 w-full rounded-lg bg-amber-400 py-2 font-black text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {mapReady ? 'Start the clock' : 'Loading London…'}
           </button>
+        </div>
+      )}
+
+      {briefingSpec && s.phase === 'playing' && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-[min(620px,95vw)] rounded-2xl border border-amber-400/40 bg-[#0b1226] p-6 shadow-2xl">
+            <p className="text-[10px] font-bold tracking-[0.25em] text-amber-300">
+              CHAPTER {briefingIndex! + 1}
+            </p>
+            <h2 className="mt-1 text-2xl font-black">{briefingSpec.title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-300">{briefingSpec.briefing}</p>
+            <h3 className="mt-5 text-[10px] font-bold tracking-widest text-slate-500">OBJECTIVES</h3>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              {briefingSpec.objectives.map((objective) => {
+                const progress = objectiveProgress(s, objective);
+                return (
+                  <li key={objective.label} className="flex gap-2">
+                    <span className={progress.done ? 'text-emerald-400' : 'text-slate-500'}>
+                      {progress.done ? '✓' : '○'}
+                    </span>
+                    {objective.label}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-4 rounded-lg bg-amber-400/10 p-3 text-sm text-amber-200">
+              Bonus: {briefingSpec.bonus.label} · {fmtMoney(briefingSpec.bonusReward.cash)} + {briefingSpec.bonusReward.hype} hype
+            </p>
+            <p className="mt-3 text-xs text-slate-400">Par: {briefingSpec.parDays} days</p>
+            <button
+              onClick={() => {
+                campaignModalOpenRef.current = false;
+                momentQueuePausedRef.current = false;
+                setBriefingIndex(null);
+                setSpeed(briefingResumeSpeedRef.current || 1);
+              }}
+              className="mt-5 w-full rounded-lg bg-amber-400 py-2.5 font-black text-slate-950"
+            >
+              Begin
+            </button>
+          </div>
+        </div>
+      )}
+
+      {completedChapterSpec && completedResult && s.phase === 'playing' && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-[min(560px,95vw)] rounded-2xl border border-amber-400/40 bg-[#0b1226] p-6 shadow-2xl">
+            <p className="text-[10px] font-bold tracking-[0.25em] text-amber-300">CHAPTER COMPLETE</p>
+            <h2 className="mt-1 text-2xl font-black">{completedChapterSpec.title}</h2>
+            <div className="mt-3 text-center text-4xl tracking-widest">
+              {Array.from({ length: 3 }, (_, index) => (
+                <span key={index} className={index < completedResult.stars ? 'text-amber-300' : 'text-slate-600'}>
+                  {index < completedResult.stars ? '★' : '☆'}
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-center text-sm text-slate-300">
+              Finished in {completedResult.days.toFixed(1)} days (par {completedChapterSpec.parDays})
+            </p>
+            <ul className="mt-5 space-y-1.5 text-sm">
+              {completedChapterSpec.objectives.map((objective) => (
+                <li key={objective.label} className="text-emerald-300">✓ {objective.label}</li>
+              ))}
+              <li className={completedBonus ? 'text-amber-300' : 'text-slate-500'}>
+                {completedBonus ? '✓' : '○'} Bonus: {completedChapterSpec.bonus.label}
+              </li>
+            </ul>
+            <button
+              onClick={() => {
+                setCompletedChapter(null);
+                openBriefing(true, completedResumeSpeedRef.current);
+              }}
+              className="mt-5 w-full rounded-lg bg-amber-400 py-2.5 font-black text-slate-950"
+            >
+              Next chapter →
+            </button>
+          </div>
         </div>
       )}
 
@@ -996,8 +1564,8 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       )}
 
       {(s.phase === 'won' || s.phase === 'bankrupt') && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/55">
-          <div className="w-[460px] rounded-2xl border border-amber-400/40 bg-[#0d1530] p-6 text-center shadow-2xl">
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4">
+          <div className="max-h-[90vh] w-[min(560px,95vw)] overflow-y-auto rounded-2xl border border-amber-400/40 bg-[#0d1530] p-6 text-center shadow-2xl">
             <p className="text-5xl">{s.phase === 'won' ? '🦄' : '💸'}</p>
             <h3 className="mt-2 text-2xl font-black text-amber-300">{s.phase === 'won' ? 'Unicorn!' : 'Out of runway'}</h3>
             <p className="mt-2 text-slate-300">
@@ -1006,6 +1574,35 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
             <p className="mt-1 text-slate-400">
               Founder payout: <b className="text-amber-300">{fmtMoney(s.phase === 'won' ? me.equity * me.valuation : 0)}</b>
             </p>
+            <div className="mt-5 rounded-lg border border-slate-700/70 bg-slate-900/50 p-3 text-left">
+              <h4 className="text-[10px] font-bold tracking-widest text-amber-300">CHAPTER RESULTS</h4>
+              {s.campaign.results.length > 0 ? (
+                <table className="mt-2 w-full text-xs">
+                  <thead className="text-slate-500">
+                    <tr>
+                      <th className="text-left font-normal">Chapter</th>
+                      <th className="text-right font-normal">Days</th>
+                      <th className="text-right font-normal">Stars</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {s.campaign.results.map((result) => {
+                      const chapter = CHAPTERS.find((item) => item.id === result.chapterId);
+                      return (
+                        <tr key={result.chapterId} className="border-t border-slate-800">
+                          <td className="py-1.5 pr-2">{chapter?.title ?? result.chapterId}</td>
+                          <td className="py-1.5 text-right text-slate-300">{result.days.toFixed(1)}</td>
+                          <td className="py-1.5 text-right text-amber-300">{'★'.repeat(result.stars)}{'☆'.repeat(3 - result.stars)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">No chapters completed.</p>
+              )}
+              <p className="mt-2 text-right text-xs font-bold text-amber-300">Total ★ {totalStars}/15</p>
+            </div>
             <div className="mt-5 flex gap-2">
               <button onClick={onRestart} className="flex-1 rounded-lg bg-amber-400 py-2 font-black text-slate-900">
                 Play again (same seed)
@@ -1034,28 +1631,34 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'go
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  children,
+  onClick,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
   return (
-    <div className="rounded-xl border border-slate-700/70 bg-[#0b1226]/92 p-2.5 shadow-lg">
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`rounded-xl border border-slate-700/70 bg-[#0b1226]/92 p-2.5 shadow-lg ${onClick ? 'cursor-pointer hover:border-amber-400/40' : ''}`}
+    >
       <div className="mb-1.5 text-[10px] font-bold tracking-[0.2em] text-amber-300/80">{title}</div>
       {children}
-    </div>
-  );
-}
-
-function Progress({ label, value, target, fmt }: { label: string; value: number; target: number; fmt: (v: number) => string }) {
-  const k = target > 0 ? Math.min(1, value / target) : 1;
-  return (
-    <div className="mb-1">
-      <div className="flex justify-between">
-        <span>{label}</span>
-        <span className={k >= 1 ? 'text-emerald-400' : 'text-slate-400'}>
-          {fmt(value)} / {fmt(target)}
-        </span>
-      </div>
-      <div className="mt-0.5 h-1.5 rounded bg-slate-800">
-        <div className={`h-1.5 rounded ${k >= 1 ? 'bg-emerald-400' : 'bg-sky-400'}`} style={{ width: pct(k) }} />
-      </div>
     </div>
   );
 }
@@ -1292,7 +1895,7 @@ function OfficePanel({
         <p className="text-[10px] font-bold tracking-widest" style={{ color: c.color }}>
           {mine ? 'YOUR OFFICE' : `${c.name.toUpperCase()} OFFICE`} · {hub.name.toUpperCase()}
         </p>
-        <h3 className="text-lg font-black">🏠 {level.name}</h3>
+        <h3 className="text-lg font-black">🏠 {office.siteName ?? level.name}</h3>
         <p className="text-xs text-slate-400">
           Room for {level.capacity} · rent {fmtMoney(hub.rent * level.rentMult)}/wk
         </p>

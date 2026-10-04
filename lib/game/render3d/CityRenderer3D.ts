@@ -174,6 +174,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
   private readonly overlayCtx: CanvasRenderingContext2D;
   private readonly onFatal: (reason?: string) => void;
   private readonly onReady: () => void;
+  private readonly hudInsetBottom: number;
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly diagnostics: MapDiagnosticsReporter;
@@ -253,12 +254,14 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
       onFatal: (reason?: string) => void;
       onReady?: () => void;
       diagnostics?: MapDiagnosticsReporter;
+      hudInsetBottom?: number;
     },
   ) {
     this.cityCanvas = cityCanvas;
     this.overlayCanvas = overlayCanvas;
     this.overlayCtx = overlayCanvas.getContext('2d')!;
     this.onFatal = opts.onFatal;
+    this.hudInsetBottom = opts.hudInsetBottom ?? 0;
     this.ownsDiagnostics = opts.diagnostics === undefined;
     this.diagnostics = opts.diagnostics ?? createMapDiagnostics(0, () => performance.now());
     this.onReady = opts.onReady ?? (() => undefined);
@@ -872,7 +875,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
     const bw = Math.max(w0, pillW) + 24;
     const bh = 88 + (nearby.length ? 22 : 0);
     const bx = 14;
-    const by = this.cssH - bh - 48;
+    const by = this.cssH - bh - 48 - this.hudInsetBottom;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
     ctx.lineWidth = 1;

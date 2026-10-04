@@ -14,6 +14,7 @@
     "test:ui": "tsx scripts/test-ui.tsx",
     "test:map:browser": "node scripts/test-map-browser.mjs",
     "check:desktop": "node scripts/check-desktop.mjs",
+    "bake:walk": "tsx scripts/bake-walk-graph.ts",
     "bake:landmarks": "tsx scripts/bake-landmarks.ts",
     "bake:noticed": "tsx scripts/bake-noticed.ts",
     "bake:poultry": "tsx scripts/bake-poultry-noticed.ts"

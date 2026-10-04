@@ -28,7 +28,12 @@ function make2d(
 export async function createMapRenderer(
   cityCanvas: HTMLCanvasElement,
   overlayCanvas: HTMLCanvasElement,
-  opts: { onFatal: (reason?: string) => void; onReady?: () => void; diagnostics: MapDiagnosticsReporter },
+  opts: {
+    onFatal: (reason?: string) => void;
+    onReady?: () => void;
+    diagnostics: MapDiagnosticsReporter;
+    hudInsetBottom?: number;
+  },
 ): Promise<{ renderer: IMapRenderer; mode: RendererMode }> {
   const mapParam = new URLSearchParams(window.location.search).get('map');
 
