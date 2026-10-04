@@ -7,6 +7,7 @@ import {
   newRtsGame,
   pitchPreview,
   resolveDilemma,
+  searchForLead,
   tick,
   travelDays,
 } from '@/lib/rts/sim';
@@ -165,6 +166,31 @@ function shardState(mode: 'turns' | 'realtime'): RtsState {
   return state;
 }
 
+function clueSearchState(seed: string): { state: RtsState; lead: Lead; founderId: string } {
+  const state = quiet(game(seed));
+  const founder = state.people.find((person) => person.company === 'player' && person.role === 'founder')!;
+  const lead: Lead = {
+    id: 'search-target',
+    kind: 'angel',
+    name: 'Angel at Brick Lane',
+    venue: 'Brick Lane',
+    hubId: 'shoreditch',
+    x: founder.x + 180 * METERS_TO_WORLD,
+    y: founder.y,
+    spawnDay: state.day,
+    expiresDay: 5,
+    takenBy: ['founder'],
+    clue: {
+      x: founder.x,
+      y: founder.y,
+      radius: 300 * METERS_TO_WORLD,
+      hint: 'An angel investor is having coffee somewhere near Brick Lane — this week only',
+    },
+  };
+  state.leads = [lead];
+  return { state, lead, founderId: founder.id };
+}
+
 function closeEnough(actual: number, expected: number, tolerance = 0.1): void {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} should be within ${tolerance} of ${expected}`);
 }
@@ -273,11 +299,92 @@ check('turn-mode clue discovery uses the route while a 400m miss does not', () =
   assert.ok(spawned.leads.every((lead) => lead.clue === undefined));
 });
 
+check('a clue search routes to its centre and finds the lead within its radius', () => {
+  const { state, lead, founderId } = clueSearchState('clue-search');
+  const stop = defaultStop(state, { kind: 'lead', id: lead.id });
+  assert.equal(stop.action, 'search');
+  assert.equal(stop.actionSlots, 1);
+  assert.equal(stop.leadId, lead.id);
+  assert.equal(stop.target.kind, 'point');
+  if (stop.target.kind !== 'point') return;
+  closeEnough(stop.target.x, lead.clue!.x, 1e-8);
+  closeEnough(stop.target.y, lead.clue!.y, 1e-8);
+
+  const summary = summarizePlan(state, [stop]);
+  const path = summary.legs[0]!.path;
+  closeEnough(path[path.length - 2]!, lead.clue!.x, 1e-8);
+  closeEnough(path[path.length - 1]!, lead.clue!.y, 1e-8);
+  assert.ok(Math.hypot(path[path.length - 2]! - lead.x, path[path.length - 1]! - lead.y) > 100 * METERS_TO_WORLD);
+
+  const result = searchForLead(state, founderId, lead.id);
+  assert.equal(result.error, undefined);
+  assert.equal(result.state.stats.leadsWon, 1);
+  assert.equal(result.state.leads.some((item) => item.id === lead.id), false);
+  assert.ok(result.fx.some((item) => item.kind === 'focus' && item.x === lead.x && item.y === lead.y));
+  assert.ok(result.fx.some((item) => item.kind === 'float' && item.x === lead.x && item.y === lead.y));
+});
+
+check('a rival can take a clue lead before arrival and the search failure is logged', () => {
+  const { state, lead } = clueSearchState('clue-search-rival');
+  const stop = defaultStop(state, { kind: 'lead', id: lead.id });
+  const rival = state.people.find((person) => person.company !== 'player' && person.role === 'founder')!;
+  rival.x = lead.x;
+  rival.y = lead.y;
+  rival.at = null;
+  const begun = beginWeek(state, [stop]);
+  assert.equal(begun.error, undefined);
+  const rivalInRun = begun.state.people.find((person) => person.id === rival.id)!;
+  const rivalPath = streetPath(rivalInRun.x, rivalInRun.y, lead.x, lead.y);
+  rivalInRun.order = {
+    target: { kind: 'lead', id: lead.id },
+    fromX: rivalInRun.x,
+    fromY: rivalInRun.y,
+    toX: lead.x,
+    toY: lead.y,
+    path: rivalPath,
+    length: polylineLength(rivalPath),
+    progress: 0,
+    durationDays: 0.001,
+  };
+  const advanced = advanceWeek(begun.state, begun.run, 0.1);
+  const rivalName = advanced.state.companies[rival.company].name;
+  assert.equal(advanced.state.stats.leadsWon, 0);
+  assert.equal(advanced.state.leads.some((item) => item.id === lead.id), false);
+  assert.ok(advanced.run.log.some((line) => line.includes('Searched near Brick Lane') && line.includes(`${rivalName} got there first`)));
+});
+
+check('turns mode spawns clue batches at day zero and weekly boundaries only', () => {
+  const state = quiet(game('weekly-lead-batches'));
+  for (const person of state.people.filter((item) => item.company === 'player')) {
+    person.x = 1_000_000;
+    person.y = 1_000_000;
+    person.at = null;
+    person.order = null;
+  }
+  assert.equal(state.day, 0);
+  assert.equal(state.leads.length, 3);
+  assert.ok(state.leads.every((lead) => lead.expiresDay === 5 && lead.clue?.hint.endsWith('— this week only')));
+
+  const midweek = tick(state, 3).state;
+  assert.equal(midweek.leads.length, 3);
+  const weekTwo = runWeek(midweek, []).state;
+  assert.equal(weekTwo.day, 7);
+  assert.equal(weekTwo.leads.length, 3);
+  assert.ok(weekTwo.leads.every((lead) => Math.abs(lead.spawnDay - 7) < 1e-9 && lead.expiresDay === 12));
+
+  const realtime = quiet(game('realtime-lead-timing', 'realtime'));
+  realtime.nextLeadDay = 0;
+  const firstRealtimeLead = tick(realtime, 0.1).state.leads[0];
+  assert.ok(firstRealtimeLead);
+  assert.ok(firstRealtimeLead.spawnDay >= 0);
+  assert.equal(firstRealtimeLead.clue, undefined);
+});
+
 check('Shard landmark perk applies once in turns and not in real time', () => {
   const turns = shardState('turns');
   const before = turns.companies.player.hype;
   const first = tick(turns, 1e-7).state;
-  closeEnough(first.companies.player.hype - before, JOURNAL_HYPE + 10, 0.1);
+  closeEnough(first.companies.player.hype - before, JOURNAL_HYPE + 6, 0.1);
   assert.equal(first.journal.shard !== undefined, true);
   const second = tick(first, 1e-7).state;
   assert.ok(second.companies.player.hype < first.companies.player.hype);
@@ -287,6 +394,36 @@ check('Shard landmark perk applies once in turns and not in real time', () => {
   const realtimeBefore = realtime.companies.player.hype;
   const discovered = tick(realtime, 1e-7).state;
   closeEnough(discovered.companies.player.hype - realtimeBefore, JOURNAL_HYPE, 0.1);
+});
+
+check('turn landmark perks use the reduced user, cash, product, and hype values', () => {
+  const cases = [
+    { kind: 'eye', field: 'hype', amount: 5 },
+    { kind: 'shard', field: 'hype', amount: 6 },
+    { kind: 'westminsterbr', field: 'hype', amount: 2 },
+    { kind: 'monument', field: 'hype', amount: 3 },
+    { kind: 'gherkin', field: 'cash', amount: 1_500 },
+    { kind: 'oldstreet', field: 'users', amount: 40 },
+    { kind: 'battersea', field: 'users', amount: 60 },
+    { kind: 'bttower', field: 'product', amount: 2 },
+  ] as const;
+  for (const { kind, field, amount } of cases) {
+    const state = quiet(game(`perk-${kind}`));
+    const landmark = LANDMARKS.find((item) => item.kind === kind)!;
+    const point = project(landmark.at);
+    for (const item of LANDMARKS) {
+      if (item.kind !== kind) state.journal[item.kind] = 0;
+    }
+    state.campaign.bonusDone = true;
+    const founder = state.people.find((person) => person.company === 'player' && person.role === 'founder')!;
+    founder.x = point.x;
+    founder.y = point.y;
+    founder.at = null;
+    const before = state.companies.player[field];
+    const discovered = tick(state, 1e-7).state;
+    const expected = amount + (field === 'hype' ? JOURNAL_HYPE : 0);
+    closeEnough(discovered.companies.player[field] - before, expected, 0.1);
+  }
 });
 
 check('the same seed and weekly plans replay identically for three weeks', () => {

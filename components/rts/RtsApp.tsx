@@ -99,6 +99,7 @@ const STOP_ACTION_LABEL: Record<StopAction, string> = {
   'hire-engineer': 'Hire engineer',
   'hire-growth': 'Hire growth',
   pitch: 'Pitch',
+  search: 'Search clue',
   visit: 'Visit',
 };
 const MOMENT_DURATION_MS = 3700;
@@ -121,6 +122,18 @@ const LEAD_REWARD: Record<Lead['kind'], string> = {
 const hubName = (id: HubId) => HUBS.find((h) => h.id === id)!.name;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const featureById = (id: FeatureId) => FEATURES.find((f) => f.id === id)!;
+function planStopName(state: RtsState, stop: PlanStop): string {
+  const target = stop.target;
+  if (target.kind === 'point') return target.label;
+  if (target.kind === 'place')
+    return state.places.find((place) => place.id === target.id)?.name ?? 'Place';
+  if (target.kind === 'office') {
+    const office = state.offices.find((item) => item.id === target.id);
+    return office?.siteName ?? (office ? `${hubName(office.hubId)} office` : 'Office');
+  }
+  const lead = state.leads.find((item) => item.id === target.id);
+  return lead?.clue?.hint ?? lead?.name ?? 'Opportunity';
+}
 const signedChange = (value: number, format: (amount: number) => string) =>
   `${value >= 0 ? '+' : '−'}${format(Math.abs(value))}`;
 
@@ -1228,10 +1241,16 @@ function Live({
   const recapLandmarks = LANDMARKS.filter(
     (landmark) => recapStart.journal[landmark.kind] === undefined && s.journal[landmark.kind] !== undefined,
   );
-  const previousNews = new Set(recapStart.news.map((item) => `${item.day}:${item.text}`));
-  const recapRivalNews = s.news.filter(
-    (item) => item.tone === 'rival' && !previousNews.has(`${item.day}:${item.text}`),
-  );
+  const rivalNames = COMPANY_ORDER.filter((id) => id !== 'player').map((id) => s.companies[id].name);
+  const recapRivalNews =
+    weekStart && weekRun
+      ? s.news.filter(
+          (item) =>
+            item.day >= weekStart.day &&
+            item.day < weekRun.weekEndDay &&
+            (item.tone === 'rival' || rivalNames.some((name) => item.text.startsWith(name))),
+        )
+      : [];
 
   useEffect(() => {
     if (rendererRef.current)
@@ -1342,7 +1361,11 @@ function Live({
           {mode === 'turns' ? (
             <>
               <span className="font-mono text-slate-300">
-                WEEK {week} · {turnPhase.toUpperCase()}
+                WEEK{' '}
+                {(turnPhase === 'playback' || turnPhase === 'recap') && weekRun
+                  ? Math.max(1, Math.floor((weekRun.weekEndDay - 1e-9) / 7) + 1)
+                  : week}{' '}
+                · {turnPhase.toUpperCase()}
               </span>
               {turnPhase === 'playback' && (
                 <button
@@ -1498,7 +1521,9 @@ function Live({
                         </li>
                         {usersMet && productMet && (
                           <li className="ml-4 text-[10px] font-medium text-amber-300">
-                            Walk your founder to an investor to pitch
+                            {mode === 'turns'
+                              ? "Add a 💷 investor to this week's plan"
+                              : 'Walk your founder to an investor to pitch'}
                           </li>
                         )}
                       </ul>
@@ -1540,9 +1565,17 @@ function Live({
             {investorStage && (
               <p className="mt-2 text-slate-400">
                 {me.users >= investorStage.minTraction && me.product >= investorStage.minProduct ? (
-                  <>The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                  mode === 'turns' ? (
+                    <>The other goals are met; add a 💷 investor to this week&apos;s plan for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                  ) : (
+                    <>The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                  )
                 ) : (
-                  <>Hit the {investorStage.name} requirements above, then walk your founder to a 💷 investor.</>
+                  mode === 'turns' ? (
+                    <>Hit the {investorStage.name} requirements above, then add a 💷 investor to this week&apos;s plan.</>
+                  ) : (
+                    <>Hit the {investorStage.name} requirements above, then walk your founder to a 💷 investor.</>
+                  )
                 )}
               </p>
             )}
@@ -1740,6 +1773,47 @@ function Live({
                 </button>
               </div>
             </div>
+          ) : mode === 'turns' && (turnPhase === 'playback' || turnPhase === 'recap') && weekRun ? (
+            <div className="flex h-full min-h-[156px] gap-3">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <h2 className="font-black tracking-wide text-amber-300">
+                  WEEK {Math.max(1, Math.floor((weekRun.weekEndDay - 1e-9) / 7) + 1)} · ITINERARY
+                </h2>
+                <ul className="mt-2 max-h-[108px] space-y-1 overflow-y-auto pr-1">
+                  {weekRun.stops.map((stop, index) => {
+                    const done = turnPhase === 'recap' || index < weekRun.index;
+                    const current = turnPhase === 'playback' && index === weekRun.index;
+                    return (
+                      <li
+                        key={`${index}-${planStopName(s, stop)}`}
+                        className="flex min-w-0 items-center gap-2 rounded bg-slate-900/80 px-2 py-1 text-xs"
+                      >
+                        <span className={`w-4 shrink-0 text-center font-black ${done ? 'text-emerald-300' : current ? 'text-amber-300' : 'text-slate-600'}`}>
+                          {done ? '✓' : current ? '▶' : '·'}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-slate-100" title={planStopName(s, stop)}>
+                          {planStopName(s, stop)}
+                        </span>
+                        <span className="shrink-0 text-slate-400">{STOP_ACTION_LABEL[stop.action]}</span>
+                      </li>
+                    );
+                  })}
+                  {weekRun.stops.length === 0 && (
+                    <li className="text-xs text-slate-500">No founder stops planned this week.</li>
+                  )}
+                </ul>
+              </div>
+              <div className="w-[42%] shrink-0 overflow-y-auto rounded-lg bg-slate-900/70 px-3 py-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Week log</h3>
+                <ul className="mt-1 space-y-1 text-[11px] text-slate-300">
+                  {weekRun.log.length ? (
+                    weekRun.log.map((line, index) => <li key={`${index}-${line}`}>· {line}</li>)
+                  ) : (
+                    <li className="text-slate-500">No events yet.</li>
+                  )}
+                </ul>
+              </div>
+            </div>
           ) : selectedPeople.length > 0 ? (
             <PeoplePanel
               people={selectedPeople}
@@ -1853,7 +1927,7 @@ function Live({
               <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rival news</h3>
               <ul className="mt-1 space-y-1 text-xs text-slate-300">
                 {recapRivalNews.length ? (
-                  recapRivalNews.slice(0, 4).map((item) => <li key={`${item.day}-${item.text}`}>· {item.text}</li>)
+                  recapRivalNews.slice(0, 5).map((item) => <li key={`${item.day}-${item.text}`}>· {item.text}</li>)
                 ) : (
                   <li className="text-slate-500">No rival headlines this week.</li>
                 )}

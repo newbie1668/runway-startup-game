@@ -283,6 +283,10 @@ export interface RtsState {
   offices: Office[];
   places: Place[];
   leads: Lead[];
+  leadHistory?: Record<
+    string,
+    { kind: LeadKind; venue: string; x: number; y: number; claimedBy?: CompanyId }
+  >;
   milestones: Record<string, true>;
   journal: Partial<Record<LandmarkKind, number>>;
   campaign: {

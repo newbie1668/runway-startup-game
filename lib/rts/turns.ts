@@ -1,5 +1,5 @@
 import { HUBS } from '@/lib/game/content';
-import { hire, movePeople, pitch, tick, travelDays } from './sim';
+import { hire, movePeople, pitch, searchForLead, tick, travelDays } from './sim';
 import type { MoveTarget, Person, RtsFx, RtsState } from './types';
 import { streetPath } from './walk';
 
@@ -12,12 +12,14 @@ export type StopAction =
   | 'hire-engineer'
   | 'hire-growth'
   | 'pitch'
+  | 'search'
   | 'visit';
 
 export interface PlanStop {
   target: MoveTarget;
   action: StopAction;
   actionSlots: number;
+  leadId?: string;
 }
 
 export interface PlannedLeg {
@@ -59,6 +61,7 @@ function targetPosition(state: RtsState, target: MoveTarget): { x: number; y: nu
     return office ? { x: office.x, y: office.y } : null;
   }
   const lead = state.leads.find((item) => item.id === target.id);
+  if (state.mode === 'turns' && lead?.clue) return { x: lead.clue.x, y: lead.clue.y };
   return lead ? { x: lead.x, y: lead.y } : null;
 }
 
@@ -79,6 +82,21 @@ function founderOf(state: RtsState): Person | undefined {
 
 export function defaultStop(state: RtsState, target: MoveTarget): PlanStop {
   if (target.kind === 'office') return { target: { ...target }, action: 'build', actionSlots: 2 };
+  if (target.kind === 'lead') {
+    const lead = state.leads.find((item) => item.id === target.id);
+    if (state.mode === 'turns' && lead?.clue)
+      return {
+        target: {
+          kind: 'point',
+          x: lead.clue.x,
+          y: lead.clue.y,
+          label: lead.clue.hint,
+        },
+        action: 'search',
+        actionSlots: 1,
+        leadId: lead.id,
+      };
+  }
   if (target.kind === 'place') {
     const place = state.places.find((item) => item.id === target.id);
     if (place?.kind === 'customers')
@@ -91,6 +109,20 @@ export function defaultStop(state: RtsState, target: MoveTarget): PlanStop {
   return { target: { ...target }, action: 'visit', actionSlots: 0 };
 }
 
+function normalizeStop(state: RtsState, stop: PlanStop): PlanStop {
+  const target = stop.target;
+  if (state.mode !== 'turns' || target.kind !== 'lead') return stop;
+  const lead = state.leads.find((item) => item.id === target.id);
+  if (!lead?.clue) return stop;
+  return {
+    ...stop,
+    target: { kind: 'point', x: lead.clue.x, y: lead.clue.y, label: lead.clue.hint },
+    action: 'search',
+    actionSlots: 1,
+    leadId: lead.id,
+  };
+}
+
 export function summarizePlan(state: RtsState, stops: PlanStop[]): PlanSummary {
   const founder = founderOf(state);
   if (!founder) return { legs: [], slotsUsed: 0, slotsLeft: SLOTS_PER_WEEK, error: 'Founder not found' };
@@ -101,7 +133,8 @@ export function summarizePlan(state: RtsState, stops: PlanStop[]): PlanSummary {
   let slotsUsed = 0;
   let error: string | undefined;
 
-  for (const stop of stops) {
+  for (const requestedStop of stops) {
+    const stop = normalizeStop(state, requestedStop);
     const destination = targetPosition(state, stop.target);
     if (!destination) {
       error = 'A planned stop no longer exists';
@@ -168,11 +201,13 @@ export function beginWeek(
   const summary = summarizePlan(state, stops);
   if (summary.error) return { state, run, fx: [], error: summary.error };
   if (stops.length === 0) return { state, run, fx: [] };
+  const plannedStops = summary.legs.map((leg) => leg.stop);
+  const plannedRun = initialRun(state, plannedStops);
   const founder = founderOf(state);
   if (!founder) return { state, run, fx: [], error: 'Founder not found' };
-  const movement = movePeople(state, [founder.id], stops[0]!.target);
-  if (movement.error) return { state, run, fx: [], error: movement.error };
-  return { state: movement.state, run, fx: movement.fx };
+  const movement = movePeople(state, [founder.id], plannedStops[0]!.target);
+  if (movement.error) return { state, run: plannedRun, fx: [], error: movement.error };
+  return { state: movement.state, run: plannedRun, fx: movement.fx };
 }
 
 function applyStopAction(
@@ -207,6 +242,16 @@ function applyStopAction(
       fx.push(...result.fx);
       return result.state;
     }
+  } else if (stop.action === 'search') {
+    const founder = founderOf(state);
+    if (!founder || !stop.leadId) {
+      run.log.push(`Could not search near ${targetLabel(state, stop.target)}: the clue is unavailable.`);
+      return state;
+    }
+    const result = searchForLead(state, founder.id, stop.leadId);
+    if (result.error) run.log.push(result.error);
+    else fx.push(...result.fx);
+    return result.state;
   }
   return state;
 }

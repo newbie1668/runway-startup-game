@@ -18,6 +18,7 @@ import {
 } from './content';
 import type { AmbientState } from './ambient';
 import { personActivity, unlockedSegments } from './sim';
+import { fmtRtsMoney } from './format';
 import type { PlannedLeg } from './turns';
 import type { CompanyId, Lead, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
 
@@ -696,7 +697,7 @@ export class RtsRenderer {
 
   private landmarkBadgeLabel(kind: LandmarkKind): string {
     const perk = LANDMARK_PERKS[kind] ?? DEFAULT_LANDMARK_PERK;
-    if (perk.cash) return `+£${Math.round(perk.cash / 1000)}k`;
+    if (perk.cash) return `+${fmtRtsMoney(perk.cash)}`;
     if (perk.users) return `+${perk.users} users`;
     if (perk.product) return `+${perk.product} product`;
     return `+${perk.hype ?? DEFAULT_LANDMARK_PERK.hype} hype`;
