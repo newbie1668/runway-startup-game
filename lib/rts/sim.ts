@@ -96,9 +96,12 @@ function clone(state: RtsState): RtsState {
     places: state.places.map((place) =>
       place.kind === 'investor'
         ? { ...place, cooldownUntil: { ...place.cooldownUntil } }
-        : { ...place },
+        : place.kind === 'customers'
+          ? { ...place, userSignups: { ...place.userSignups } }
+          : { ...place },
     ),
     leads: state.leads.map((lead) => ({ ...lead, takenBy: [...lead.takenBy] })),
+    milestones: { ...state.milestones },
     journal: { ...state.journal },
     campaign: {
       ...state.campaign,
@@ -136,6 +139,57 @@ function addNews(
 ) {
   state.news.unshift({ day: state.day, text, tone, hubId });
   state.news.length = Math.min(state.news.length, NEWS_LIMIT);
+}
+
+function addMoment(
+  fx: RtsFx[],
+  moment: Extract<RtsFx, { kind: 'moment' }>,
+): void {
+  fx.push(moment);
+}
+
+function addFirstCustomerMoment(
+  state: RtsState,
+  fx: RtsFx[],
+  place: CustomerPlace | undefined,
+  wasAtZero: boolean,
+): void {
+  if (
+    !wasAtZero ||
+    state.companies.player.users <= 0 ||
+    state.milestones['first-customer'] ||
+    !place
+  )
+    return;
+  state.milestones['first-customer'] = true;
+  addMoment(fx, {
+    kind: 'moment',
+    moment: 'first-customer',
+    title: 'First customer!',
+    text: 'Someone believes in what you are building.',
+    x: place.x,
+    y: place.y,
+    tone: 'good',
+  });
+}
+
+function addFirstHireMoment(
+  state: RtsState,
+  fx: RtsFx[],
+  person: Person,
+  place: Extract<Place, { kind: 'talent' }> | undefined,
+): void {
+  if (person.company !== 'player' || state.milestones['first-hire'] || !place) return;
+  state.milestones['first-hire'] = true;
+  addMoment(fx, {
+    kind: 'moment',
+    moment: 'first-hire',
+    title: 'First hire',
+    text: `${person.name} joins as ${person.role}`,
+    x: place.x,
+    y: place.y,
+    tone: 'good',
+  });
 }
 
 function companyPeople(state: RtsState, companyId: CompanyId): Person[] {
@@ -243,11 +297,12 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
     people: [],
     offices: [],
     places: PLACES.map((place) => {
-      if (place.kind === 'customers') return { ...place };
+      if (place.kind === 'customers') return { ...place, userSignups: {} };
       if (place.kind === 'investor') return { ...place, cooldownUntil: {} };
       return { ...place };
     }),
     leads: [],
+    milestones: {},
     journal: {},
     campaign: { chapter: 0, chapterStartDay: 0, bonusDone: false, results: [] },
     stats: { leadsWon: 0 },
@@ -499,6 +554,16 @@ function pitchAt(state: RtsState, company: Company, place: Place, fx: RtsFx[]): 
     place.hubId,
   );
   fx.push({ kind: 'confetti', x: place.x, y: place.y });
+  if (company.id === 'player')
+    addMoment(fx, {
+      kind: 'moment',
+      moment: 'round-closed',
+      title: `${nextStage.name} closed`,
+      text: `£${nextStage.raise.toLocaleString('en-GB')} raised at £${company.valuation.toLocaleString('en-GB')} valuation`,
+      x: place.x,
+      y: place.y,
+      tone: 'good',
+    });
   fx.push({
     kind: 'float',
     x: place.x,
@@ -573,13 +638,42 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   if (leadIndex < 0 || lead.expiresDay <= state.day || !lead.takenBy.includes(person.role)) return;
   const company = state.companies[person.company];
   if (!company?.alive) return;
+  if (person.company !== 'player') {
+    const playerPerson = state.people.find(
+      (item) =>
+        item.company === 'player' &&
+        item.order?.target.kind === 'lead' &&
+        item.order.target.id === lead.id,
+    );
+    if (playerPerson)
+      addMoment(fx, {
+        kind: 'moment',
+        moment: 'rival-steal',
+        title: `${company.name} got there first`,
+        text: `${company.name} grabbed ${lead.name} before ${playerPerson.name} arrived`,
+        x: lead.x,
+        y: lead.y,
+        tone: 'bad',
+      });
+  }
   if (person.company === 'player') state.stats.leadsWon += 1;
   state.leads.splice(leadIndex, 1);
   const point = { x: lead.x, y: lead.y };
   const dice = new Dice(state.rng);
   if (lead.kind === 'meetup') {
     company.hype = clamp(company.hype + 8, 0, MAX_HYPE);
+    const wasAtZero = person.company === 'player' && company.users <= 0;
     company.users += 350;
+    if (person.company === 'player') {
+      const customerPlace = state.places
+        .filter((place): place is CustomerPlace => place.kind === 'customers')
+        .slice()
+        .sort(
+          (a, b) =>
+            travelDays(lead.x, lead.y, a.x, a.y) - travelDays(lead.x, lead.y, b.x, b.y),
+        )[0];
+      addFirstCustomerMoment(state, fx, customerPlace, wasAtZero);
+    }
     addNews(
       state,
       `${company.name} leaves ${lead.name} with a buzz and a few hundred new users.`,
@@ -590,19 +684,26 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   } else if (lead.kind === 'candidate') {
     if (companyPeople(state, company.id).length < teamCap(state, company.id)) {
       const role: Role = company.product < 60 ? 'engineer' : 'growth';
-      state.people.push(
-        createPerson(
-          state,
-          company.id,
-          role,
-          firstName(dice),
-          lead.x,
-          lead.y,
-          null,
-          role === 'engineer' ? ENGINEER_SALARY_WEEK : GROWTH_SALARY_WEEK,
-          1.25,
-        ),
+      const person = createPerson(
+        state,
+        company.id,
+        role,
+        firstName(dice),
+        lead.x,
+        lead.y,
+        null,
+        role === 'engineer' ? ENGINEER_SALARY_WEEK : GROWTH_SALARY_WEEK,
+        1.25,
       );
+      state.people.push(person);
+      const talentPlace = state.places
+        .filter((item): item is Extract<Place, { kind: 'talent' }> => item.kind === 'talent')
+        .slice()
+        .sort(
+          (a, b) =>
+            travelDays(lead.x, lead.y, a.x, a.y) - travelDays(lead.x, lead.y, b.x, b.y),
+        )[0];
+      addFirstHireMoment(state, fx, person, talentPlace);
       addNews(
         state,
         `${company.name} picks up a talented ${role} at ${lead.venue}.`,
@@ -761,6 +862,30 @@ function workAtOffices(state: RtsState, dt: number, fx: RtsFx[]): void {
     );
     fx.push({ kind: 'float', ...point, text: `${feature.name} shipped`, color: '#34d399' });
     fx.push({ kind: 'sparkle', ...point });
+    if (companyId === 'player') {
+      if (feature.id === 'mvp' && !state.milestones['launch-day']) {
+        state.milestones['launch-day'] = true;
+        addMoment(fx, {
+          kind: 'moment',
+          moment: 'launch-day',
+          title: 'Launch day',
+          text: 'Your MVP is live.',
+          x: point.x,
+          y: point.y,
+          tone: 'good',
+        });
+      } else if (feature.id !== 'mvp') {
+        addMoment(fx, {
+          kind: 'moment',
+          moment: 'feature-shipped',
+          title: `${feature.name} shipped`,
+          text: 'A new feature is live for your customers.',
+          x: point.x,
+          y: point.y,
+          tone: 'good',
+        });
+      }
+    }
   }
 
   for (const { company, amount, office } of polishes) {
@@ -790,7 +915,12 @@ function performWork(state: RtsState, dt: number, fx: RtsFx[]): void {
     if (!company || rate <= 0) continue;
     const signups = Math.min(place.pool, rate * dt);
     place.pool -= signups;
+    const wasAtZero = person.company === 'player' && company.users <= 0;
     company.users += signups;
+    place.userSignups ??= {};
+    place.userSignups[company.id] = (place.userSignups[company.id] ?? 0) + signups;
+    if (person.company === 'player' && signups > 0)
+      addFirstCustomerMoment(state, fx, place, wasAtZero);
   }
 }
 
@@ -901,7 +1031,18 @@ function applyDilemmaEffect(state: RtsState, effect: string, label: string, fx: 
     company.hype = clamp(company.hype - 3, 0, MAX_HYPE);
   } else if (effect === 'press') {
     company.hype = clamp(company.hype + 20, 0, MAX_HYPE);
+    const wasAtZero = company.users <= 0;
     company.users += 1_000;
+    if (wasAtZero) {
+      const customerPlace = state.places
+        .filter((place): place is CustomerPlace => place.kind === 'customers')
+        .slice()
+        .sort(
+          (a, b) =>
+            travelDays(point.x, point.y, a.x, a.y) - travelDays(point.x, point.y, b.x, b.y),
+        )[0];
+      addFirstCustomerMoment(state, fx, customerPlace, true);
+    }
   } else if (effect === 'quiet') {
     company.cash += 5_000;
   } else if (effect === 'specialist') {
@@ -1166,6 +1307,7 @@ function hireAt(
   companyId: CompanyId,
   role: 'engineer' | 'growth',
   placeId: string,
+  fx: RtsFx[],
 ): string | undefined {
   const place = findPlace(state, placeId);
   if (!place || place.kind !== 'talent') return 'Choose a talent place to hire from.';
@@ -1181,21 +1323,21 @@ function hireAt(
   const dice = new Dice(state.rng);
   const skill = (0.85 + dice.float() * 0.3) * hubById(place.hubId).hireQualityMult * place.quality;
   company.cash -= fee;
-  state.people.push(
-    createPerson(
-      state,
-      companyId,
-      role,
-      firstName(dice),
-      place.x,
-      place.y,
-      place.id,
-      role === 'engineer' ? ENGINEER_SALARY_WEEK : GROWTH_SALARY_WEEK,
-      skill,
-    ),
+  const person = createPerson(
+    state,
+    companyId,
+    role,
+    firstName(dice),
+    place.x,
+    place.y,
+    place.id,
+    role === 'engineer' ? ENGINEER_SALARY_WEEK : GROWTH_SALARY_WEEK,
+    skill,
   );
+  state.people.push(person);
   state.rng = dice.state;
   addNews(state, `${company.name} hires a ${role} at ${place.name}.`, 'good', place.hubId);
+  addFirstHireMoment(state, fx, person, place);
   return undefined;
 }
 
@@ -1206,8 +1348,9 @@ export function hire(
 ): RtsResult {
   if (state.phase !== 'playing') return refused(state, 'The company cannot hire right now.');
   const next = clone(state);
-  const error = hireAt(next, 'player', role, talentPlaceId);
-  return error ? refused(state, error) : result(next);
+  const fx: RtsFx[] = [];
+  const error = hireAt(next, 'player', role, talentPlaceId, fx);
+  return error ? refused(state, error) : result(next, fx);
 }
 
 function placePlayerOfficeAtSite(state: RtsState, office: Office, fx: RtsFx[]): void {
@@ -1227,25 +1370,41 @@ function placePlayerOfficeAtSite(state: RtsState, office: Office, fx: RtsFx[]): 
   }
   addNews(state, `${state.companies.player.name} moves into ${site.name}`, 'good', office.hubId);
   fx.push({ kind: 'focus', ...point });
+  addMoment(fx, {
+    kind: 'moment',
+    moment: 'office-move',
+    title: 'New office',
+    text: site.name,
+    x: point.x,
+    y: point.y,
+    tone: 'good',
+  });
 }
 
-function openOfficeAt(state: RtsState, hubId: HubId, fx: RtsFx[]): string | undefined {
-  const people = companyPeople(state, 'player');
-  const standing = people.some((person) => {
-    if (person.order || !person.at) return false;
-    return findPlace(state, person.at)?.hubId === hubId;
-  });
-  if (!standing) return `Someone from your team must be at a place in ${hubById(hubId).name}.`;
-  if (companyOffices(state, 'player').some((office) => office.hubId === hubId)) {
+function openOfficeAt(
+  state: RtsState,
+  companyId: CompanyId,
+  hubId: HubId,
+  fx: RtsFx[],
+  requirePresence: boolean,
+): string | undefined {
+  const company = state.companies[companyId];
+  if (requirePresence) {
+    const standing = companyPeople(state, companyId).some((person) => {
+      if (person.order || !person.at) return false;
+      return findPlace(state, person.at)?.hubId === hubId;
+    });
+    if (!standing) return `Someone from your team must be at a place in ${hubById(hubId).name}.`;
+  }
+  if (companyOffices(state, companyId).some((office) => office.hubId === hubId)) {
     return 'You already have an office in that hub.';
   }
-  const company = state.companies.player;
   if (company.cash < OFFICE_OPEN_COST)
     return `You need £${OFFICE_OPEN_COST.toLocaleString()} to open an office.`;
   company.cash -= OFFICE_OPEN_COST;
-  const office = createOffice(state, 'player', hubId, 1);
+  const office = createOffice(state, companyId, hubId, 1);
   state.offices.push(office);
-  placePlayerOfficeAtSite(state, office, fx);
+  if (companyId === 'player') placePlayerOfficeAtSite(state, office, fx);
   addNews(
     state,
     `${company.name} opens a ${OFFICE_LEVELS[1].name.toLowerCase()} office in ${hubById(hubId).name}.`,
@@ -1260,7 +1419,7 @@ export function openOffice(state: RtsState, hubId: HubId): RtsResult {
     return refused(state, 'The company cannot open an office right now.');
   const next = clone(state);
   const fx: RtsFx[] = [];
-  const error = openOfficeAt(next, hubId, fx);
+  const error = openOfficeAt(next, 'player', hubId, fx, true);
   return error ? refused(state, error) : result(next, fx);
 }
 
@@ -1407,14 +1566,14 @@ function nearestInvestor(state: RtsState, company: Company, person: Person) {
     )[0];
 }
 
-function dispatchFounder(state: RtsState, company: Company): void {
+function dispatchFounder(state: RtsState, company: Company, fx: RtsFx[]): void {
   const founder = companyPeople(state, company.id).find((person) => person.role === 'founder');
   if (!founder || founder.order) return;
   const preview = pitchPreview(state, company.id);
   if (preview.eligible && preview.odds >= 0.45) {
     const investor = nearestInvestor(state, company, founder);
     if (investor) {
-      if (founder.at === investor.id) pitchAt(state, company, investor, []);
+      if (founder.at === investor.id) pitchAt(state, company, investor, fx);
       else movePerson(state, founder, { kind: 'place', id: investor.id }, true);
       return;
     }
@@ -1523,7 +1682,7 @@ function manageStaffing(state: RtsState, companyId: CompanyId, fx: RtsFx[]): voi
   const talentPlaces = state.places.filter((place) => place.kind === 'talent');
   const atTalent = recruiter.at && talentPlaces.find((place) => place.id === recruiter.at);
   if (atTalent) {
-    hireAt(state, companyId, role, atTalent.id);
+    hireAt(state, companyId, role, atTalent.id, fx);
     return;
   }
   const destination = talentPlaces
@@ -1536,9 +1695,84 @@ function manageStaffing(state: RtsState, companyId: CompanyId, fx: RtsFx[]): voi
   if (destination) movePerson(state, recruiter, { kind: 'place', id: destination.id });
 }
 
-function runCompanyAI(state: RtsState, companyId: CompanyId, fx: RtsFx[]): void {
+function secondOfficeHub(state: RtsState, companyId: CompanyId): HubId | undefined {
+  const company = state.companies[companyId];
+  const offices = companyOffices(state, companyId);
+  if (
+    offices.length !== 1 ||
+    runwayWeeks(state, companyId) <= 24 ||
+    company.cash < OFFICE_LEVELS[1].cost * 3
+  )
+    return undefined;
+
+  const customers = state.places.filter(
+    (place): place is CustomerPlace =>
+      place.kind === 'customers' && unlockedSegments(company).includes(place.segment),
+  );
+  const known = customers
+    .map((place) => ({ place, users: place.userSignups?.[companyId] ?? 0 }))
+    .filter(({ users }) => users > 0)
+    .sort((a, b) => b.users - a.users);
+  const mostUsers = known[0]?.users;
+  const leaders = mostUsers === undefined ? [] : known.filter(({ users }) => users === mostUsers);
+  const hq = hubPoint(company.hqHub);
+  const targetPlace =
+    leaders.length === 1
+      ? leaders[0]!.place
+      : customers
+          .slice()
+          .sort(
+            (a, b) =>
+              travelDays(hq.x, hq.y, a.x, a.y) - travelDays(hq.x, hq.y, b.x, b.y),
+          )[0];
+  if (!targetPlace) return undefined;
+
+  return HUBS.filter(
+    (hub) =>
+      hub.id !== company.hqHub && !offices.some((office) => office.hubId === hub.id),
+  )
+    .slice()
+    .sort((a, b) => {
+      const aPoint = project([a.lng, a.lat]);
+      const bPoint = project([b.lng, b.lat]);
+      return (
+        travelDays(aPoint.x, aPoint.y, targetPlace.x, targetPlace.y) -
+        travelDays(bPoint.x, bPoint.y, targetPlace.x, targetPlace.y)
+      );
+    })[0]?.id;
+}
+
+function chapterNeedsOfficeObjective(state: RtsState): boolean {
+  const chapter = CHAPTERS[state.campaign.chapter];
+  return Boolean(
+    chapter?.objectives.some(
+      (objective) =>
+        !objectiveProgress(state, objective).done &&
+        (objective.kind === 'team' ||
+          objective.kind === 'offices' ||
+          objective.kind === 'officeLevel'),
+    ),
+  );
+}
+
+function openSecondOffice(state: RtsState, companyId: CompanyId, fx: RtsFx[]): boolean {
+  const hubId = secondOfficeHub(state, companyId);
+  if (!hubId) return false;
+  return openOfficeAt(state, companyId, hubId, fx, false) === undefined;
+}
+
+function runCompanyAI(
+  state: RtsState,
+  companyId: CompanyId,
+  fx: RtsFx[],
+  prioritizeChapterOffice = false,
+): void {
   const company = state.companies[companyId];
   if (!company?.alive || state.phase !== 'playing') return;
+  const playerChapterPriority =
+    prioritizeChapterOffice && companyId === 'player' && chapterNeedsOfficeObjective(state);
+  if (playerChapterPriority) openSecondOffice(state, companyId, fx);
+  else if (company.stageIndex >= 2) openSecondOffice(state, companyId, fx);
   if (!company.researching) {
     const nextFeature = chooseNextFeature(company);
     if (nextFeature) {
@@ -1547,7 +1781,7 @@ function runCompanyAI(state: RtsState, companyId: CompanyId, fx: RtsFx[]): void 
     }
   }
   manageStaffing(state, companyId, fx);
-  dispatchFounder(state, company);
+  dispatchFounder(state, company, fx);
   dispatchEngineers(state, companyId);
   dispatchGrowth(state, companyId);
 }
@@ -1555,7 +1789,7 @@ function runCompanyAI(state: RtsState, companyId: CompanyId, fx: RtsFx[]): void 
 export function autoCommands(state: RtsState, companyId: CompanyId): RtsResult {
   const next = clone(state);
   const fx: RtsFx[] = [];
-  if (next.phase === 'playing') runCompanyAI(next, companyId, fx);
+  if (next.phase === 'playing') runCompanyAI(next, companyId, fx, true);
   return result(next, fx);
 }
 

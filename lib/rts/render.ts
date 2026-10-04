@@ -10,6 +10,7 @@ import { project, THAMES, WORLD, type WorldPoint } from '@/lib/game/geo';
 import type { ProjectedMapRenderer } from '@/lib/game/mapProjection';
 import type { HubId } from '@/lib/game/types';
 import { FEATURES, OFFICE_LEVELS, SEGMENT_INFO } from './content';
+import type { AmbientState } from './ambient';
 import { personActivity, unlockedSegments } from './sim';
 import type { CompanyId, Lead, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
 
@@ -79,7 +80,7 @@ export function placeIcon(place: Place): string {
 }
 
 interface Particle {
-  kind: 'float' | 'confetti' | 'spark';
+  kind: 'float' | 'confetti' | 'spark' | 'ring';
   wx: number;
   wy: number;
   ox: number;
@@ -99,6 +100,9 @@ export class RtsRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   state: RtsState | null = null;
+  ambient: AmbientState | null = null;
+  profileAmbient = false;
+  ambientDrawMs = 0;
   selected = new Set<string>();
   /** Selected place/office/lead (highlighted). */
   focus: RtsHit | null = null;
@@ -282,6 +286,51 @@ export class RtsRenderer {
     }
   }
 
+  applyMomentPulse(x: number, y: number): void {
+    this.particles.push({
+      kind: 'ring',
+      wx: x,
+      wy: y,
+      ox: 0,
+      oy: 0,
+      vx: 0,
+      vy: 0,
+      age: 0,
+      ttl: 1.1,
+      color: '#ef4444',
+      size: 8,
+    });
+  }
+
+  private drawAmbient(width: number, height: number): void {
+    if (!this.ambient || this.zoom() < 16) return;
+    const white: { x: number; y: number }[] = [];
+    const amber: { x: number; y: number }[] = [];
+    for (const commuter of this.ambient.commuters) {
+      const point = this.w2s(commuter);
+      if (!point || point.x < 0 || point.y < 0 || point.x > width || point.y > height) continue;
+      (commuter.cyclist ? amber : white).push(point);
+    }
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    for (const point of white) {
+      ctx.moveTo(point.x + 1.1, point.y);
+      ctx.arc(point.x, point.y, 1.1, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    for (const point of amber) {
+      ctx.moveTo(point.x + 1.1, point.y);
+      ctx.arc(point.x, point.y, 1.1, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.restore();
+  }
+
   // --- frame ----------------------------------------------------------------
   frame(t: number, dt: number) {
     const rect = this.canvas.getBoundingClientRect();
@@ -295,6 +344,14 @@ export class RtsRenderer {
     const s = this.state;
     if (!s) return;
     const ctx = this.ctx;
+    if (this.profileAmbient) {
+      const started = performance.now();
+      this.drawAmbient(rect.width, rect.height);
+      this.ambientDrawMs = performance.now() - started;
+    } else {
+      this.drawAmbient(rect.width, rect.height);
+      this.ambientDrawMs = 0;
+    }
     this.layoutPeople();
     const showLabels = this.zoom() > 6;
     const player = s.companies.player;
@@ -671,6 +728,13 @@ export class RtsRenderer {
         ctx.arc(x, y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
         ctx.fill();
+      } else if (p.kind === 'ring') {
+        const progress = p.age / p.ttl;
+        ctx.beginPath();
+        ctx.arc(x, y, p.size + progress * 34, 0, Math.PI * 2);
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 3 * (1 - progress);
+        ctx.stroke();
       } else {
         ctx.fillStyle = p.color;
         ctx.fillRect(x - p.size / 2, y - p.size / 4, p.size, p.size / 2);

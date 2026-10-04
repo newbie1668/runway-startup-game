@@ -265,7 +265,7 @@ export const CHAPTERS: ChapterSpec[] = [
     ],
     bonus: { kind: 'journal', count: 3, label: 'Discover 3 London landmarks' },
     parDays: 70,
-    bonusReward: { cash: 10_000, hype: 6 },
+    bonusReward: { cash: 5_000, hype: 6 },
   },
   {
     id: 'silicon-roundabout',
@@ -281,7 +281,7 @@ export const CHAPTERS: ChapterSpec[] = [
     ],
     bonus: { kind: 'leadsWon', count: 2, label: 'Win 2 pop-up opportunities' },
     parDays: 90,
-    bonusReward: { cash: 40_000, hype: 8 },
+    bonusReward: { cash: 20_000, hype: 8 },
   },
   {
     id: 'kings-cross',
@@ -297,7 +297,7 @@ export const CHAPTERS: ChapterSpec[] = [
     ],
     bonus: { kind: 'journal', count: 10, label: 'Discover 10 London landmarks' },
     parDays: 110,
-    bonusReward: { cash: 250_000, hype: 8 },
+    bonusReward: { cash: 100_000, hype: 8 },
   },
   {
     id: 'london-bridge',
@@ -313,7 +313,7 @@ export const CHAPTERS: ChapterSpec[] = [
     ],
     bonus: { kind: 'shipped', count: 6, label: 'Ship 6 features' },
     parDays: 130,
-    bonusReward: { cash: 1_000_000, hype: 10 },
+    bonusReward: { cash: 300_000, hype: 10 },
   },
   {
     id: 'canary-wharf',
@@ -328,7 +328,7 @@ export const CHAPTERS: ChapterSpec[] = [
     ],
     bonus: { kind: 'journal', count: 20, label: 'Discover 20 London landmarks' },
     parDays: 160,
-    bonusReward: { cash: 2_000_000, hype: 10 },
+    bonusReward: { cash: 500_000, hype: 10 },
   },
 ];
 

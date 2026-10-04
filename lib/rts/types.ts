@@ -148,6 +148,8 @@ export interface CustomerPlace extends PlaceBase {
   segment: Segment;
   pool: number;
   poolMax: number;
+  /** Cumulative gross signups by company, used to identify its strongest customer hub. */
+  userSignups?: Partial<Record<CompanyId, number>>;
 }
 
 /** Pitch here: only your founder, in person. */
@@ -238,6 +240,15 @@ export interface NewsItemRts {
   hubId?: HubId;
 }
 
+export type MomentKind =
+  | 'first-customer'
+  | 'first-hire'
+  | 'launch-day'
+  | 'feature-shipped'
+  | 'round-closed'
+  | 'office-move'
+  | 'rival-steal';
+
 /** Visual/audio side effects for the renderer. Never read back by the sim. */
 export type RtsFx =
   | { kind: 'float'; x: number; y: number; text: string; color?: string }
@@ -246,7 +257,16 @@ export type RtsFx =
   | { kind: 'focus'; x: number; y: number }
   | { kind: 'postcard'; landmark: LandmarkKind; x: number; y: number }
   | { kind: 'bonus'; label: string }
-  | { kind: 'chapter'; index: number; stars: number };
+  | { kind: 'chapter'; index: number; stars: number }
+  | {
+      kind: 'moment';
+      moment: MomentKind;
+      title: string;
+      text: string;
+      x: number;
+      y: number;
+      tone: 'good' | 'bad';
+    };
 
 export interface RtsState {
   seed: string;
@@ -259,6 +279,7 @@ export interface RtsState {
   offices: Office[];
   places: Place[];
   leads: Lead[];
+  milestones: Record<string, true>;
   journal: Partial<Record<LandmarkKind, number>>;
   campaign: {
     chapter: number;

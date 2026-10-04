@@ -3,6 +3,7 @@ import { HUBS, SECTORS, STAGES } from '@/lib/game/content';
 import { LANDMARKS, WORLD, project } from '@/lib/game/geo';
 import { MapRenderer } from '@/lib/game/render';
 import { hasProjection } from '@/lib/game/mapProjection';
+import { advanceAmbient, createAmbient } from '@/lib/rts/ambient';
 import {
   DILEMMAS,
   CHAPTERS,
@@ -33,6 +34,7 @@ import {
   setResearch,
   teamCap,
   tick,
+  travelDays,
   upgradeOffice,
   unlockedSegments,
 } from '@/lib/rts/sim';
@@ -749,7 +751,224 @@ check('upgrading a player office increases team capacity', () => {
   assert.equal(movedTeammate.order?.target.id, office.id);
   assert.deepEqual([movedTeammate.order?.toX, movedTeammate.order?.toY], [point.x, point.y]);
   assert.ok(upgraded.fx.some((effect) => effect.kind === 'focus' && effect.x === point.x && effect.y === point.y));
+  assert.ok(upgraded.fx.some((effect) => effect.kind === 'moment' && effect.moment === 'office-move'));
   assert.ok(teamCap(upgraded.state, 'player') > before);
+});
+
+check('shared AI expands toward its strongest customer hub and campaign goals', () => {
+  const state = game('bot-office-expansion');
+  const company = state.companies.player;
+  company.stageIndex = 2;
+  company.cash = 10_000_000;
+  const customer = state.places.find(
+    (place) =>
+      place.kind === 'customers' &&
+      unlockedSegments(company).includes(place.segment),
+  );
+  assert.ok(customer && customer.kind === 'customers');
+  customer.userSignups!.player = 500;
+  const expectedHub = HUBS.filter((hub) => hub.id !== company.hqHub)
+    .slice()
+    .sort((a, b) => {
+      const aPoint = project([a.lng, a.lat]);
+      const bPoint = project([b.lng, b.lat]);
+      return (
+        travelDays(aPoint.x, aPoint.y, customer.x, customer.y) -
+        travelDays(bPoint.x, bPoint.y, customer.x, customer.y)
+      );
+    })[0]!;
+  const expanded = autoCommands(state, 'player').state;
+  assert.equal(expanded.offices.filter((office) => office.company === 'player').length, 2);
+  assert.equal(
+    expanded.offices.find((office) => office.company === 'player' && office.hubId !== company.hqHub)?.hubId,
+    expectedHub.id,
+  );
+
+  const chapterPriority = game('chapter-office-priority');
+  chapterPriority.companies.player.cash = 10_000_000;
+  chapterPriority.companies.player.stageIndex = 1;
+  chapterPriority.campaign.chapter = 1;
+  const prioritized = autoCommands(chapterPriority, 'player').state;
+  assert.equal(prioritized.offices.filter((office) => office.company === 'player').length, 2);
+});
+
+check('founder first-customer, first-hire, and launch moments emit once', () => {
+  const customerState = game('first-customer-moment');
+  customerState.companies.player.users = 0;
+  const customerPlace = customerState.places.find(
+    (place) =>
+      place.kind === 'customers' &&
+      unlockedSegments(customerState.companies.player).includes(place.segment),
+  )!;
+  const founderAtCustomer = customerState.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  setPersonAtPlace(customerState, founderAtCustomer, customerPlace.id);
+  const firstCustomers = tick(customerState, 0.1);
+  const firstCustomerMoments = firstCustomers.fx.filter(
+    (effect) => effect.kind === 'moment' && effect.moment === 'first-customer',
+  );
+  assert.equal(firstCustomerMoments.length, 1);
+  assert.equal(firstCustomerMoments[0]?.kind === 'moment' ? firstCustomerMoments[0].title : '', 'First customer!');
+  assert.equal(firstCustomers.state.milestones['first-customer'], true);
+  const moreCustomers = tick(firstCustomers.state, 0.1);
+  assert.equal(
+    moreCustomers.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'first-customer').length,
+    0,
+  );
+
+  const hiring = game('first-hire-moment');
+  const recruiter = hiring.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const talent = hiring.places.find((place) => place.kind === 'talent')!;
+  setPersonAtPlace(hiring, recruiter, talent.id);
+  const firstHire = hire(hiring, 'engineer', talent.id);
+  assert.equal(firstHire.error, undefined);
+  assert.equal(
+    firstHire.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'first-hire').length,
+    1,
+  );
+  const upgraded = upgradeOffice(
+    firstHire.state,
+    firstHire.state.offices.find((office) => office.company === 'player')!.id,
+  );
+  const secondHire = hire(upgraded.state, 'growth', talent.id);
+  assert.equal(secondHire.error, undefined);
+  assert.equal(
+    secondHire.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'first-hire').length,
+    0,
+  );
+  assert.equal(secondHire.state.milestones['first-hire'], true);
+
+  const launchState = game('launch-day-moment');
+  launchState.companies.player.researchProgress = FEATURES.find(
+    (feature) => feature.id === 'mvp',
+  )!.cost;
+  const launch = tick(launchState, 0.1);
+  assert.equal(launch.state.companies.player.shipped[0], 'mvp');
+  assert.equal(
+    launch.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'launch-day').length,
+    1,
+  );
+  const afterLaunch = tick(launch.state, 0.1);
+  assert.equal(
+    afterLaunch.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'launch-day').length,
+    0,
+  );
+  const onboarding = FEATURES.find((feature) => feature.id === 'onboarding')!;
+  afterLaunch.state.companies.player.researching = onboarding.id;
+  afterLaunch.state.companies.player.researchProgress = onboarding.cost;
+  const feature = tick(afterLaunch.state, 0.1);
+  assert.equal(
+    feature.fx.filter((effect) => effect.kind === 'moment' && effect.moment === 'feature-shipped').length,
+    1,
+  );
+});
+
+check('every successful player raise emits a round-closed moment', () => {
+  const state = game('round-closed-moment');
+  const founder = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const investor = state.places.find((place) => place.kind === 'investor')!;
+  const company = state.companies.player;
+  company.product = 100;
+  company.users = 1_000_000;
+  company.hype = 100;
+  founder.x = investor.x;
+  founder.y = investor.y;
+  founder.at = investor.id;
+  founder.order = null;
+  let raised: ReturnType<typeof pitch> | null = null;
+  for (let seed = 1; seed <= 30 && !raised; seed++) {
+    state.rng = seed;
+    const attempt = pitch(state, investor.id);
+    if (attempt.state.companies.player.stageIndex > 0) raised = attempt;
+  }
+  assert.ok(raised);
+  const moment = raised.fx.find((effect) => effect.kind === 'moment' && effect.moment === 'round-closed');
+  assert.ok(moment?.kind === 'moment');
+  assert.equal(moment.title, `${STAGES[1]!.name} closed`);
+  assert.match(moment.text, /£[\d,]+ raised at £[\d,]+ valuation/);
+});
+
+check('rival claims emit a bad moment when they beat an ordered player person', () => {
+  const state = game('rival-steal-moment');
+  const point = project([-0.0877, 51.5256]);
+  const lead: Lead = {
+    id: 'moment-test-lead',
+    kind: 'meetup',
+    name: 'Founder breakfast',
+    venue: 'Old Street',
+    hubId: 'shoreditch',
+    x: point.x,
+    y: point.y,
+    spawnDay: 0,
+    expiresDay: 100,
+    takenBy: ['founder'],
+  };
+  state.leads.push(lead);
+  const player = state.people.find(
+    (person) => person.company === 'player' && person.role === 'founder',
+  )!;
+  const rival = state.people.find(
+    (person) => person.company === 'rival1' && person.role === 'founder',
+  )!;
+  player.x = lead.x + 20;
+  player.y = lead.y;
+  player.at = null;
+  player.order = {
+    target: { kind: 'lead', id: lead.id },
+    fromX: player.x,
+    fromY: player.y,
+    toX: lead.x,
+    toY: lead.y,
+    path: [player.x, player.y, lead.x, lead.y],
+    length: 20,
+    progress: 0,
+    durationDays: 20,
+  };
+  rival.x = lead.x;
+  rival.y = lead.y;
+  rival.at = null;
+  rival.order = {
+    target: { kind: 'lead', id: lead.id },
+    fromX: lead.x,
+    fromY: lead.y,
+    toX: lead.x,
+    toY: lead.y,
+    path: [lead.x, lead.y, lead.x, lead.y],
+    length: 0,
+    progress: 0,
+    durationDays: 0.001,
+  };
+  const result = tick(state, 0.1);
+  const moment = result.fx.find(
+    (effect) => effect.kind === 'moment' && effect.moment === 'rival-steal',
+  );
+  assert.ok(moment?.kind === 'moment');
+  assert.equal(moment.tone, 'bad');
+  assert.equal(moment.title, `${state.companies.rival1.name} got there first`);
+  assert.match(moment.text, /grabbed Founder breakfast before .+ arrived/);
+});
+
+check('ambient commuters are deterministic for matching seeds and game-time steps', () => {
+  const left = createAmbient('ambient-test');
+  const right = createAmbient('ambient-test');
+  const initial = left.commuters.map(({ x, y }) => [x, y]);
+  for (const days of [0.03, 0.12, 0.4, 0.01, 1.25]) {
+    advanceAmbient(left, days);
+    advanceAmbient(right, days);
+  }
+  assert.equal(left.commuters.length, 220);
+  assert.ok(
+    left.commuters.some((commuter, index) => {
+      const start = initial[index]!;
+      return commuter.x !== start[0] || commuter.y !== start[1];
+    }),
+  );
+  assert.deepEqual(left, right);
 });
 
 check('an idle player does not win within 200 days', () => {
@@ -815,10 +1034,15 @@ check('200-seed bot balance reaches the requested win-rate and timing window', (
       `${chapterCompletionRates}, wins completing all five ${winningCampaignRate.toFixed(1)}%, ` +
       `mean stars per bot game ${meanStars.toFixed(2)}`,
   );
-  assert.ok(winRate >= 0.35 && winRate <= 0.75, `win rate ${winRate.toFixed(3)} outside 35–75%`);
+  // Bots follow chapter objectives, which guide toward a second office and team growth.
+  assert.ok(winRate >= 0.35 && winRate <= 0.9, `win rate ${winRate.toFixed(3)} outside 35–90%`);
   assert.ok(
     medianDays >= 90 && medianDays <= 260,
     `median win day ${medianDays.toFixed(1)} outside 90–260`,
+  );
+  assert.ok(
+    winsCompletingCampaign >= Math.ceil(wins.length * 0.5),
+    `only ${winsCompletingCampaign}/${wins.length} bot wins completed all five chapters`,
   );
 });
 

@@ -19,6 +19,7 @@ import { hasProjection, type ProjectedMapRenderer } from '@/lib/game/mapProjecti
 import { createMapRenderer } from '@/lib/game/render3d/factory';
 import type { Scene } from '@/lib/game/scene';
 import type { HubId, SectorId } from '@/lib/game/types';
+import { advanceAmbient, createAmbient } from '@/lib/rts/ambient';
 import {
   ENGINEER_HIRE_FEE,
   ENGINEER_WEEKLY_SALARY,
@@ -72,6 +73,7 @@ import type {
   Office,
   Person,
   Place,
+  RtsFx,
   RtsResult,
   RtsState,
 } from '@/lib/rts/types';
@@ -81,6 +83,11 @@ const DAYS_PER_SECOND = 0.35;
 const SPEEDS = [0, 1, 2, 4] as const;
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const COMPANY_ORDER: CompanyId[] = ['player', 'rival1', 'rival2', 'rival3'];
+type MomentFx = Extract<RtsFx, { kind: 'moment' }>;
+interface QueuedMoment {
+  id: number;
+  fx: MomentFx;
+}
 
 const LEAD_REWARD: Record<Lead['kind'], string> = {
   meetup: 'Hype and a few hundred users',
@@ -239,6 +246,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RtsRenderer | null>(null);
+  const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   const mapRef = useRef<ProjectedMapRenderer | null>(null);
   const mapReadyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
@@ -263,6 +271,11 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const [toast, setToast] = useState<string | null>(null);
   const [bonusToast, setBonusToast] = useState<{ id: number; label: string } | null>(null);
   const bonusToastIdRef = useRef(0);
+  const [activeMoment, setActiveMoment] = useState<QueuedMoment | null>(null);
+  const activeMomentRef = useRef<QueuedMoment | null>(null);
+  const momentQueueRef = useRef<QueuedMoment[]>([]);
+  const momentIdRef = useRef(0);
+  const [momentPhase, setMomentPhase] = useState<'enter' | 'hold' | 'exit'>('enter');
   const [showHelp, setShowHelp] = useState(true);
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showJournal, setShowJournal] = useState(false);
@@ -270,8 +283,49 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const [completedChapter, setCompletedChapter] = useState<{ index: number; stars: number } | null>(null);
   const briefingSeenRef = useRef(false);
   const campaignModalOpenRef = useRef(false);
+  const modalOpenRef = useRef(true);
   const briefingResumeSpeedRef = useRef(1);
   const completedResumeSpeedRef = useRef(1);
+
+  const enqueueMoment = useCallback((fx: MomentFx) => {
+    const moment = { id: ++momentIdRef.current, fx };
+    if (!activeMomentRef.current) {
+      activeMomentRef.current = moment;
+      setMomentPhase('enter');
+      setActiveMoment(moment);
+      return;
+    }
+    const queue = momentQueueRef.current;
+    queue.push(moment);
+    if (queue.length > 3) queue.splice(0, queue.length - 3);
+  }, []);
+
+  useEffect(() => {
+    modalOpenRef.current =
+      showHelp ||
+      showRoadmap ||
+      showJournal ||
+      briefingIndex !== null ||
+      completedChapter !== null ||
+      ['dilemma', 'won', 'bankrupt'].includes(stateRef.current.phase);
+  }, [showHelp, showRoadmap, showJournal, briefingIndex, completedChapter, ui.phase]);
+
+  useEffect(() => {
+    if (!activeMoment) return;
+    const entrance = window.requestAnimationFrame(() => setMomentPhase('hold'));
+    const exit = window.setTimeout(() => setMomentPhase('exit'), 3200);
+    const dismiss = window.setTimeout(() => {
+      const next = momentQueueRef.current.shift() ?? null;
+      activeMomentRef.current = next;
+      if (next) setMomentPhase('enter');
+      setActiveMoment(next);
+    }, 3700);
+    return () => {
+      window.cancelAnimationFrame(entrance);
+      window.clearTimeout(exit);
+      window.clearTimeout(dismiss);
+    };
+  }, [activeMoment]);
 
   const setRideAlong = useCallback((id: string | null) => {
     ridingIdRef.current = id;
@@ -352,12 +406,45 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
   const handleFx = useCallback(
     (res: RtsResult) => {
       const r = rendererRef.current;
+      const chapterWillOpen = res.fx.some(
+        (effect) => effect.kind === 'chapter' && effect.index < CHAPTERS.length - 1,
+      );
+      const phaseWillOpenModal = ['dilemma', 'won', 'bankrupt'].includes(res.state.phase);
       r?.applyFx(res.fx);
       for (const f of res.fx) {
-        if (f.kind === 'focus') r?.centerOn(f);
-        else if (f.kind === 'bonus')
+        if (f.kind === 'focus') {
+          const pairedWithMoment = res.fx.some(
+            (effect) => effect.kind === 'moment' && effect.x === f.x && effect.y === f.y,
+          );
+          if (
+            !pairedWithMoment ||
+            (!ridingIdRef.current &&
+              !modalOpenRef.current &&
+              !campaignModalOpenRef.current &&
+              !chapterWillOpen &&
+              !phaseWillOpenModal)
+          )
+            r?.centerOn(f);
+        } else if (f.kind === 'bonus')
           setBonusToast({ id: ++bonusToastIdRef.current, label: f.label });
-        else if (f.kind === 'chapter') {
+        else if (f.kind === 'moment') {
+          if (f.tone === 'good') {
+            const hasConfetti = res.fx.some(
+              (effect) =>
+                effect.kind === 'confetti' && effect.x === f.x && effect.y === f.y,
+            );
+            if (!hasConfetti) r?.applyFx([{ kind: 'confetti', x: f.x, y: f.y }]);
+          } else r?.applyMomentPulse(f.x, f.y);
+          if (
+            !ridingIdRef.current &&
+            !modalOpenRef.current &&
+            !campaignModalOpenRef.current &&
+            !chapterWillOpen &&
+            !phaseWillOpenModal
+          )
+            mapRef.current?.lookAt(f.x, f.y, 10);
+          enqueueMoment(f);
+        } else if (f.kind === 'chapter') {
           const hq =
             res.state.offices.find(
               (office) =>
@@ -378,7 +465,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       );
       if (found.length > 0) setPostcards((queue) => [...queue, ...found]);
     },
-    [setSpeed],
+    [enqueueMoment, setSpeed],
   );
 
   const currentPostcardId = postcards[0]?.id ?? null;
@@ -472,12 +559,16 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     const cityCanvas = cityCanvasRef.current!;
     const overlayCanvas = overlayCanvasRef.current!;
     const canvas = canvasRef.current!;
+    const profileAmbient = new URLSearchParams(window.location.search).get('ambientPerf') === '1';
     let r: RtsRenderer | null = null;
     let raf = 0;
     let last = performance.now();
     let lastUi = 0;
     let activeMode: '2d' | '3d' | 'pending' = 'pending';
     let cancelled = false;
+    let ambientFrames = 0;
+    let ambientUpdateTotalMs = 0;
+    let ambientDrawTotalMs = 0;
     const keys = new Set<string>();
     const mapScene: Scene = {
       mode: 'play',
@@ -533,11 +624,19 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       const dt = Math.min(0.05, (t - last) / 1000);
       last = t;
       const before = stateRef.current;
-      if (speedRef.current > 0 && before.phase === 'playing') {
-        const res = tick(before, dt * speedRef.current * DAYS_PER_SECOND);
+      const gameDays =
+        speedRef.current > 0 && before.phase === 'playing'
+          ? dt * speedRef.current * DAYS_PER_SECOND
+          : 0;
+      if (gameDays > 0) {
+        const res = tick(before, gameDays);
         stateRef.current = res.state;
         handleFx(res);
       }
+      const measureAmbient = profileAmbient && gameDays > 0 && ambientFrames < 300;
+      const ambientStarted = measureAmbient ? performance.now() : 0;
+      if (gameDays > 0 && ambientRef.current) advanceAmbient(ambientRef.current, gameDays);
+      const ambientUpdateMs = measureAmbient ? performance.now() - ambientStarted : 0;
       const map = mapRef.current;
       if (map) {
         const pan = 520 * dt;
@@ -572,6 +671,18 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       }
       r.state = stateRef.current;
       r.frame(t, dt);
+      if (measureAmbient) {
+        ambientFrames += 1;
+        ambientUpdateTotalMs += ambientUpdateMs;
+        ambientDrawTotalMs += r.ambientDrawMs;
+        if (ambientFrames === 300) {
+          console.info('Ambient update + draw over 300 active frames', {
+            averageMs: Number(((ambientUpdateTotalMs + ambientDrawTotalMs) / ambientFrames).toFixed(4)),
+            updateAverageMs: Number((ambientUpdateTotalMs / ambientFrames).toFixed(4)),
+            drawAverageMs: Number((ambientDrawTotalMs / ambientFrames).toFixed(4)),
+          });
+        }
+      }
       if (miniRef.current) r.drawMinimap(miniRef.current);
       if (t - lastUi > 120 || stateRef.current.phase !== before.phase) {
         lastUi = t;
@@ -602,8 +713,11 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       if (hqOffice) renderer.lookAt(hqOffice.x, hqOffice.y, 25);
       mapRef.current = renderer;
       activeMode = mode;
+      ambientRef.current = createAmbient();
       r = new RtsRenderer(canvas, renderer);
       r.atmosphere = mode === '3d' ? 'day' : 'night';
+      r.ambient = ambientRef.current;
+      r.profileAmbient = profileAmbient;
       rendererRef.current = r;
       r.state = stateRef.current;
       raf = requestAnimationFrame(loop);
@@ -737,6 +851,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       mapRef.current?.dispose();
       mapRef.current = null;
       rendererRef.current = null;
+      ambientRef.current = null;
       mapReadyRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -797,6 +912,46 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <p className="rounded-xl border border-slate-600/60 bg-[#0b1226]/95 px-5 py-3 text-lg font-bold shadow-xl">
             {mapError ?? 'Loading London…'}
           </p>
+        </div>
+      )}
+      {activeMoment && (
+        <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden" aria-live="polite">
+          <div
+            className="absolute inset-x-0 top-0 h-9 bg-black/70 transition-transform duration-500 ease-in-out"
+            style={{ transform: momentPhase === 'hold' ? 'translateY(0)' : 'translateY(-100%)' }}
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 h-9 bg-black/70 transition-transform duration-500 ease-in-out"
+            style={{ transform: momentPhase === 'hold' ? 'translateY(0)' : 'translateY(100%)' }}
+          />
+          <div
+            className="absolute top-[110px] w-[min(700px,calc(100vw-2rem))] rounded-xl border bg-[#0b1226]/95 px-6 py-4 text-center shadow-2xl transition-all duration-500 ease-out"
+            style={{
+              left: '50%',
+              transform:
+                momentPhase === 'hold'
+                  ? 'translate(-50%, 0)'
+                  : 'translate(-50%, -8px)',
+              opacity: momentPhase === 'hold' ? 1 : 0,
+              borderColor: activeMoment.fx.tone === 'bad' ? 'rgba(248,113,113,.5)' : 'rgba(251,191,36,.45)',
+            }}
+          >
+            <div
+              className={`text-[10px] font-extrabold tracking-[0.35em] ${
+                activeMoment.fx.tone === 'bad' ? 'text-rose-300' : 'text-amber-300'
+              }`}
+            >
+              {activeMoment.fx.tone === 'bad' ? 'RIVAL MOVE' : 'FOUNDER MOMENT'}
+            </div>
+            <h2
+              className={`mt-1 text-2xl font-black ${
+                activeMoment.fx.tone === 'bad' ? 'text-rose-100' : 'text-white'
+              }`}
+            >
+              {activeMoment.fx.title}
+            </h2>
+            <p className="mt-1 truncate text-sm text-slate-300">{activeMoment.fx.text}</p>
+          </div>
         </div>
       )}
 
