@@ -1176,20 +1176,71 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
                     ? fmtUsers(objective.target)
                     : Math.floor(objective.target).toLocaleString();
                 const percent = Math.min(100, (objective.value / Math.max(1, objective.target)) * 100);
+                const nextRound =
+                  !objective.done &&
+                  objective.spec.kind === 'stage' &&
+                  objective.spec.atLeast === me.stageIndex + 1
+                    ? STAGES[objective.spec.atLeast]
+                    : undefined;
+                const usersMet = nextRound !== undefined && me.users >= nextRound.minTraction;
+                const productMet = nextRound !== undefined && me.product >= nextRound.minProduct;
                 return (
-                  <li key={objective.spec.label} className="flex items-center gap-1.5">
-                    <span className={objective.done ? 'text-emerald-400' : 'text-slate-500'}>
-                      {objective.done ? '✓' : '○'}
-                    </span>
-                    <span className="min-w-0 flex-1">{objective.spec.label}</span>
-                    {objective.target > 1 && <span className="text-[10px] text-slate-400">{value}/{target}</span>}
-                    {objective.target > 1 && (
-                      <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
-                        <span
-                          className={`block h-1 rounded ${objective.done ? 'bg-emerald-400' : 'bg-sky-400'}`}
-                          style={{ width: `${percent}%` }}
-                        />
+                  <li key={objective.spec.label} className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={objective.done ? 'text-emerald-400' : 'text-slate-500'}>
+                        {objective.done ? '✓' : '○'}
                       </span>
+                      <span className="min-w-0 flex-1">{objective.spec.label}</span>
+                      {objective.target > 1 && (
+                        <span className="text-[10px] text-slate-400">
+                          {value}/{target}
+                        </span>
+                      )}
+                      {objective.target > 1 && (
+                        <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
+                          <span
+                            className={`block h-1 rounded ${objective.done ? 'bg-emerald-400' : 'bg-sky-400'}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </span>
+                      )}
+                    </div>
+                    {nextRound && (
+                      <ul className="ml-4 space-y-0.5 text-[10px] text-slate-500">
+                        <li className="flex items-center gap-1.5">
+                          <span className={usersMet ? 'text-emerald-400' : 'text-slate-600'}>
+                            {usersMet ? '✓' : '○'}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            Users {fmtUsers(me.users)} / {fmtUsers(nextRound.minTraction)}
+                          </span>
+                          <span className="h-1 w-10 shrink-0 rounded bg-slate-800">
+                            <span
+                              className={`block h-1 rounded ${usersMet ? 'bg-emerald-400' : 'bg-sky-400'}`}
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  (me.users / Math.max(1, nextRound.minTraction)) * 100,
+                                )}%`,
+                              }}
+                            />
+                          </span>
+                        </li>
+                        <li className="flex items-center gap-1.5">
+                          <span className={productMet ? 'text-emerald-400' : 'text-slate-600'}>
+                            {productMet ? '✓' : '○'}
+                          </span>
+                          <span>
+                            Product {Math.floor(me.product).toLocaleString()} /{' '}
+                            {nextRound.minProduct.toLocaleString()}
+                          </span>
+                        </li>
+                        {usersMet && productMet && (
+                          <li className="ml-4 text-[10px] font-medium text-amber-300">
+                            Walk your founder to an investor to pitch
+                          </li>
+                        )}
+                      </ul>
                     )}
                   </li>
                 );
