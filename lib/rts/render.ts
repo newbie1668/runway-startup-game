@@ -88,6 +88,12 @@ export function placeIcon(place: Place): string {
   return SEGMENT_ICON[place.segment];
 }
 
+function samePlanTarget(a: MoveTarget, b: MoveTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'point' && b.kind === 'point') return a.x === b.x && a.y === b.y;
+  return 'id' in a && 'id' in b && a.id === b.id;
+}
+
 interface Particle {
   kind: 'float' | 'confetti' | 'spark' | 'ring';
   wx: number;
@@ -203,6 +209,9 @@ export class RtsRenderer {
     }
     if (!target) return;
     const candidate = defaultStop(state, target);
+    const previousStop = stops[stops.length - 1];
+    const alreadyPlanned = previousStop && samePlanTarget(previousStop.target, candidate.target);
+    if (alreadyPlanned) detail = 'Already in your plan';
     const summary = summarizePlan(state, [...stops, candidate]);
     const leg = summary.legs[summary.legs.length - 1];
     if (!leg || leg.path.length < 2) {
@@ -292,6 +301,16 @@ export class RtsRenderer {
       if (!q) continue;
       if (near(q.x, q.y, 16)) return { type: 'lead', id: lead.id };
     }
+    for (const place of s.places) {
+      const q = this.w2s(place);
+      if (!q) continue;
+      if (near(q.x, q.y - 12, 17)) return { type: 'place', id: place.id };
+    }
+    for (const office of s.offices) {
+      const q = this.w2s(office);
+      if (!q) continue;
+      if (near(q.x, q.y - 10, 18)) return { type: 'office', id: office.id };
+    }
     if (s.mode === 'turns') {
       for (const landmark of LANDMARKS) {
         if (s.journal[landmark.kind] !== undefined) continue;
@@ -306,16 +325,6 @@ export class RtsRenderer {
         if (near(q.x + 18, q.y - 20, width / 2 + 3))
           return { type: 'landmark', id: landmark.kind };
       }
-    }
-    for (const place of s.places) {
-      const q = this.w2s(place);
-      if (!q) continue;
-      if (near(q.x, q.y - 12, 17)) return { type: 'place', id: place.id };
-    }
-    for (const office of s.offices) {
-      const q = this.w2s(office);
-      if (!q) continue;
-      if (near(q.x, q.y - 10, 18)) return { type: 'office', id: office.id };
     }
     return null;
   }
@@ -749,11 +758,14 @@ export class RtsRenderer {
     this.drawLabels(labels);
     if (s.mode === 'turns' && this.planningTooltip) {
       const point = this.w2s(this.planningTooltip.point);
+      const alreadyPlanned = this.planningTooltip.detail === 'Already in your plan';
       if (point)
         this.drawPlanningTooltip(point.x, point.y - 10, [
           this.planningTooltip.title,
-          `${this.planningTooltip.travelSlots} travel + ${this.planningTooltip.actionSlots} action slots`,
-          this.planningTooltip.detail,
+          alreadyPlanned
+            ? this.planningTooltip.detail
+            : `${this.planningTooltip.travelSlots} travel + ${this.planningTooltip.actionSlots} action slots`,
+          ...(alreadyPlanned ? [] : [this.planningTooltip.detail]),
         ]);
     }
     this.stepParticles(dt);

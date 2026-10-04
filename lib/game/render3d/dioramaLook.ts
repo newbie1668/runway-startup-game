@@ -12,9 +12,11 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { CameraState } from '../scene';
 
-export function dioramaRequested(): boolean {
+export function dioramaRequested(look?: 'flat' | 'diorama'): boolean {
   if (typeof window === 'undefined') return false;
-  return new URLSearchParams(window.location.search).get('style') === 'diorama';
+  const style = new URLSearchParams(window.location.search).get('style');
+  if (style === 'flat') return false;
+  return style === 'diorama' || look === 'diorama';
 }
 
 function dioramaParam(name: string, fallback: number): number {
@@ -86,12 +88,12 @@ export function createDioramaLook(
   sunDir: THREE.Vector3,
 ): DioramaLook {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = dioramaParam('exposure', 1.05);
+  renderer.toneMappingExposure = dioramaParam('exposure', 1.3);
   renderer.shadowMap.enabled = dioramaParam('shadows', 1) > 0;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   sun.color.setHex(0xffd9a8);
-  sun.intensity = dioramaParam('sun', 2.4);
+  sun.intensity = dioramaParam('sun', 2.8);
   sun.castShadow = renderer.shadowMap.enabled;
   const shadowSize = dioramaParam('shadowmap', 2048);
   sun.shadow.mapSize.set(shadowSize, shadowSize);

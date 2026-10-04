@@ -9,6 +9,8 @@
  *
  * Look: daytime SFSIM — matte Lambert, one warm sun, no projected
  * shadows, solid-colour façades, locked isometric orthographic camera.
+ * The optional diorama look is enabled explicitly through renderer options or
+ * `?style=diorama`.
  */
 
 import * as THREE from 'three';
@@ -257,6 +259,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
       onReady?: () => void;
       diagnostics?: MapDiagnosticsReporter;
       hudInsetBottom?: number;
+      look?: 'flat' | 'diorama';
     },
   ) {
     this.cityCanvas = cityCanvas;
@@ -357,7 +360,7 @@ export class CityRenderer3D implements IMapRenderer, MapProjection {
       core.renderOrder = 13;
       this.beamGroup.add(beam, core);
       this.scene3d.add(this.beamGroup);
-      if (dioramaRequested())
+      if (dioramaRequested(opts.look))
         this.diorama = createDioramaLook(
           this.renderer,
           this.scene3d,

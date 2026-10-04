@@ -313,6 +313,7 @@ function Live({
   const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   const mapRef = useRef<ProjectedMapRenderer | null>(null);
   const cameraTargetRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  const cameraFlyFrameRef = useRef<number | null>(null);
   const mapReadyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -336,6 +337,7 @@ function Live({
   const [planStops, setPlanStops] = useState<PlanStop[]>([]);
   const planStopsRef = useRef(planStops);
   const planListRef = useRef<HTMLDivElement>(null);
+  const planPanelRef = useRef<HTMLDivElement>(null);
   const [planError, setPlanError] = useState<string | null>(null);
   const planErrorTimerRef = useRef<number | null>(null);
   useEffect(() => {
@@ -514,10 +516,39 @@ function Live({
     speedRef.current = v;
     setSpeedState(v);
   }, []);
+  const cancelCameraTarget = useCallback(() => {
+    if (cameraFlyFrameRef.current !== null)
+      cancelAnimationFrame(cameraFlyFrameRef.current);
+    cameraFlyFrameRef.current = null;
+    cameraTargetRef.current = null;
+  }, []);
   const flyCameraTo = useCallback((point: { x: number; y: number }, viewH: number) => {
-    const height = canvasRef.current?.getBoundingClientRect().height ?? 0;
-    if (!mapRef.current || height <= 0 || viewH <= 0) return;
-    cameraTargetRef.current = { x: point.x, y: point.y, zoom: height / viewH };
+    if (cameraFlyFrameRef.current !== null)
+      cancelAnimationFrame(cameraFlyFrameRef.current);
+    cameraTargetRef.current = null;
+    cameraFlyFrameRef.current = requestAnimationFrame(() => {
+      cameraFlyFrameRef.current = null;
+      const map = mapRef.current;
+      const canvas = canvasRef.current?.getBoundingClientRect();
+      if (!map || !canvas || canvas.height <= 0 || canvas.width <= 0 || viewH <= 0) return;
+
+      const camera = map.getCamera();
+      map.lookAt(camera.x, camera.y, viewH);
+      const targetZoom = map.getCamera().zoom;
+      const panelTop = planPanelRef.current?.getBoundingClientRect().top;
+      const visibleBottom = Math.max(
+        0,
+        Math.min(canvas.height, (panelTop ?? canvas.bottom) - canvas.top),
+      );
+      const center = map.screenToWorld(canvas.width / 2, canvas.height / 2);
+      const visibleCenter = map.screenToWorld(canvas.width / 2, visibleBottom / 2);
+      map.setCamera(camera);
+      cameraTargetRef.current = {
+        x: point.x + center.x - visibleCenter.x,
+        y: point.y + center.y - visibleCenter.y,
+        zoom: targetZoom,
+      };
+    });
   }, []);
   const setTurnPhaseNow = useCallback((phase: TurnPhase) => {
     turnPhaseRef.current = phase;
@@ -746,11 +777,21 @@ function Live({
       ];
       const xs = points.map((point) => point.x);
       const ys = points.map((point) => point.y);
-      const width = canvasRef.current?.getBoundingClientRect().width ?? 1;
-      const height = canvasRef.current?.getBoundingClientRect().height ?? 1;
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      const panelTop = planPanelRef.current?.getBoundingClientRect().top;
+      const width = canvasRect?.width ?? 1;
+      const height = canvasRect
+        ? Math.max(
+            1,
+            Math.min(canvasRect.height, (panelTop ?? canvasRect.bottom) - canvasRect.top),
+          )
+        : 1;
       const spanX = Math.max(...xs) - Math.min(...xs);
       const spanY = Math.max(...ys) - Math.min(...ys);
-      const viewH = Math.max(8, Math.max(spanY, spanX / Math.max(0.1, width / height)) * 1.3);
+      const viewH = Math.max(
+        planStopsRef.current.length === 0 ? 25 : 14,
+        Math.max(spanY, spanX / Math.max(0.1, width / height)) * 1.3,
+      );
       overviewRef.current = true;
       setOverview(true);
       flyCameraTo(
@@ -802,9 +843,9 @@ function Live({
       (person) => person.company === 'player' && person.role === 'founder',
     );
     setRideAlong(founder?.id ?? null);
-    cameraTargetRef.current = null;
+    cancelCameraTarget();
     setTurnPhaseNow('playback');
-  }, [flash, handleFx, mode, openBriefing, setRideAlong, setTurnPhaseNow]);
+  }, [cancelCameraTarget, flash, handleFx, mode, openBriefing, setRideAlong, setTurnPhaseNow]);
 
   const planNextWeek = useCallback(() => {
     updatePlanStops([]);
@@ -1154,6 +1195,7 @@ function Live({
       onReady: fireReady,
       diagnostics: createMapDiagnostics(1, () => performance.now()),
       hudInsetBottom: 150,
+      look: mode === 'turns' ? 'diorama' : undefined,
     }).then(({ renderer, mode: rendererMode }) => {
       if (cancelled) {
         renderer.dispose();
@@ -1175,6 +1217,7 @@ function Live({
       if (startingPoint)
         renderer.lookAt(startingPoint.x, startingPoint.y, mode === 'turns' ? 8 : 25);
       mapRef.current = renderer;
+      if (mode === 'turns' && startingPoint) flyCameraTo(startingPoint, 8);
       activeMode = rendererMode;
       ambientRef.current = createAmbient();
       r = new RtsRenderer(canvas, renderer);
@@ -1196,7 +1239,7 @@ function Live({
           drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
           if (drag.moved > 0) {
             setRideAlong(null);
-            cameraTargetRef.current = null;
+            cancelCameraTarget();
             r!.planningTooltip = null;
             r!.hover = null;
             hoverKey = null;
@@ -1284,7 +1327,7 @@ function Live({
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
         setRideAlong(null);
-        cameraTargetRef.current = null;
+        cancelCameraTarget();
         const p = pos(e);
         mapRef.current?.zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0016));
       };
@@ -1348,7 +1391,7 @@ function Live({
         } else {
           if (['w', 'a', 's', 'd'].includes(k)) {
             setRideAlong(null);
-            cameraTargetRef.current = null;
+            cancelCameraTarget();
           }
           keys.add(k);
         }
@@ -1386,6 +1429,10 @@ function Live({
       rendererRef.current = null;
       ambientRef.current = null;
       mapReadyRef.current = false;
+      if (cameraFlyFrameRef.current !== null)
+        cancelAnimationFrame(cameraFlyFrameRef.current);
+      cameraFlyFrameRef.current = null;
+      cameraTargetRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1456,7 +1503,7 @@ function Live({
   const onMini = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = rendererRef.current;
     if (!r || !miniRef.current) return;
-    cameraTargetRef.current = null;
+    cancelCameraTarget();
     const rect = miniRef.current.getBoundingClientRect();
     r.centerOn(r.minimapToWorld(miniRef.current, e.clientX - rect.left, e.clientY - rect.top));
   };
@@ -1796,15 +1843,23 @@ function Live({
 
       {/* Bottom panel + minimap */}
       <footer className="absolute inset-x-3 bottom-3 flex items-end gap-3">
-        <div className="min-h-[156px] flex-1 rounded-xl border border-slate-700/70 bg-[#0b1226]/95 p-3 text-sm shadow-2xl">
+        <div
+          ref={planPanelRef}
+          className={`flex-1 rounded-xl border border-slate-700/70 bg-[#0b1226]/95 p-3 text-sm shadow-2xl ${
+            mode === 'turns' && turnPhase === 'planning' ? 'min-h-0' : 'min-h-[156px]'
+          }`}
+        >
           {mode === 'turns' && turnPhase === 'planning' ? (
-            <div className="flex h-full min-h-[156px] flex-col">
+            <div className="flex flex-col">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="font-black tracking-wide text-amber-300">
                     WEEK {week} · PLAN <span className="ml-1 text-xs font-semibold text-slate-400">· {planStops.length} stops</span>
                   </h2>
-                  <p aria-live="polite" className={planError ? 'text-[10px] text-rose-300' : 'text-[10px] text-slate-400'}>
+                  <p
+                    aria-live="polite"
+                    className={`text-xs font-semibold ${planError ? 'text-rose-300' : 'text-amber-100'}`}
+                  >
                     {planError ??
                       (planStops.length === 0
                         ? 'Click a place on the map to send your founder there.'
@@ -1845,7 +1900,11 @@ function Live({
               </div>
               <div
                 ref={planListRef}
-                className="mt-2 max-h-[300px] space-y-1 overflow-y-scroll pr-1"
+                className={
+                  planSummary?.legs.length
+                    ? 'mt-2 max-h-[300px] space-y-1 overflow-y-scroll pr-1'
+                    : 'hidden'
+                }
                 style={{ scrollbarWidth: 'thin', scrollbarColor: '#64748b #0f172a' }}
               >
                 {planSummary?.legs.map((leg, index) => {
