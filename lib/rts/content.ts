@@ -1,9 +1,17 @@
 import type { HubId, SectorId } from '@/lib/game/types';
 import { EVENT_TEMPLATES } from '@/lib/game/content';
 import { METERS_TO_WORLD, project, type LandmarkKind } from '@/lib/game/geo';
-import type { CustomerPlace, Feature, InvestorPlace, Place, Segment, TalentPlace } from './types';
+import type {
+  ChapterSpec,
+  CustomerPlace,
+  Feature,
+  InvestorPlace,
+  Place,
+  Segment,
+  TalentPlace,
+} from './types';
 
-type LngLat = readonly [number, number];
+type LngLat = [number, number];
 
 export const JOURNAL_RADIUS = 250 * METERS_TO_WORLD;
 export const JOURNAL_HYPE = 2;
@@ -242,6 +250,126 @@ export const OFFICE_LEVELS = [
   { name: 'Own floor', capacity: 12, rentMult: 1, cost: 60_000 },
   { name: 'HQ building', capacity: 24, rentMult: 2.5, cost: 400_000 },
 ] as const;
+
+export const CHAPTERS: ChapterSpec[] = [
+  {
+    id: 'kitchen-table',
+    title: 'Chapter 1 · The Kitchen Table',
+    focus: { kind: 'hq' },
+    briefing:
+      "It's you, a laptop and one engineer. Ship something people want, find your first 150 users, then walk into an investor's office and ask for money.",
+    objectives: [
+      { kind: 'feature', id: 'mvp', label: 'Ship the MVP' },
+      { kind: 'users', atLeast: 150, label: 'Sign up 150 users' },
+      { kind: 'stage', atLeast: 1, label: 'Raise Pre-Seed' },
+    ],
+    bonus: { kind: 'journal', count: 3, label: 'Discover 3 London landmarks' },
+    parDays: 70,
+    bonusReward: { cash: 10_000, hype: 6 },
+  },
+  {
+    id: 'silicon-roundabout',
+    title: 'Chapter 2 · Silicon Roundabout',
+    focus: { kind: 'landmark', landmark: 'oldstreet' },
+    briefing:
+      'You have money and a deadline. Move off the kitchen table, ship what customers keep asking for, and get to 1,600 users before the Seed funds lose interest.',
+    objectives: [
+      { kind: 'officeLevel', atLeast: 1, label: 'Move into co-working desks' },
+      { kind: 'shipped', count: 3, label: 'Ship 3 features' },
+      { kind: 'users', atLeast: 1_600, label: 'Reach 1,600 users' },
+      { kind: 'stage', atLeast: 2, label: 'Raise Seed' },
+    ],
+    bonus: { kind: 'leadsWon', count: 2, label: 'Win 2 pop-up opportunities' },
+    parDays: 90,
+    bonusReward: { cash: 40_000, hype: 8 },
+  },
+  {
+    id: 'kings-cross',
+    title: "Chapter 3 · King's Cross",
+    focus: { kind: 'landmark', landmark: 'stpancras' },
+    briefing:
+      "Google is next door and every engineer in London has three offers. Build a team of six, plant a second office, and prove you can sell beyond early adopters.",
+    objectives: [
+      { kind: 'team', count: 6, label: 'Grow the team to 6' },
+      { kind: 'offices', count: 2, label: 'Open a second office' },
+      { kind: 'users', atLeast: 9_000, label: 'Reach 9,000 users' },
+      { kind: 'stage', atLeast: 3, label: 'Raise Series A' },
+    ],
+    bonus: { kind: 'journal', count: 10, label: 'Discover 10 London landmarks' },
+    parDays: 110,
+    bonusReward: { cash: 250_000, hype: 8 },
+  },
+  {
+    id: 'london-bridge',
+    title: 'Chapter 4 · Across the River',
+    focus: { kind: 'landmark', landmark: 'shard' },
+    briefing:
+      'The view from the Shard is all banks and big companies. Take your own floor, win enterprise customers, and get to 40,000 users.',
+    objectives: [
+      { kind: 'officeLevel', atLeast: 2, label: 'Take your own floor' },
+      { kind: 'segment', id: 'enterprise', label: 'Unlock enterprise customers' },
+      { kind: 'users', atLeast: 40_000, label: 'Reach 40,000 users' },
+      { kind: 'stage', atLeast: 4, label: 'Raise Series B' },
+    ],
+    bonus: { kind: 'shipped', count: 6, label: 'Ship 6 features' },
+    parDays: 130,
+    bonusReward: { cash: 1_000_000, hype: 10 },
+  },
+  {
+    id: 'canary-wharf',
+    title: 'Chapter 5 · The Billion',
+    focus: { kind: 'landmark', landmark: 'canadasq' },
+    briefing:
+      'Canary Wharf is where the big money lives. Move into an HQ building, close Series C, and become the next London unicorn before a rival does.',
+    objectives: [
+      { kind: 'officeLevel', atLeast: 3, label: 'Move into an HQ building' },
+      { kind: 'stage', atLeast: 5, label: 'Raise Series C' },
+      { kind: 'stage', atLeast: 6, label: 'Reach Unicorn' },
+    ],
+    bonus: { kind: 'journal', count: 20, label: 'Discover 20 London landmarks' },
+    parDays: 160,
+    bonusReward: { cash: 2_000_000, hype: 10 },
+  },
+];
+
+/**
+ * Real buildings an office moves into at each level (index 1..3; level 0 = hub centre kitchen table).
+ * Coordinates are approximate (±100 m). Level 3 sites in Farringdon/Camden sit just outside the hub.
+ */
+export const OFFICE_SITES: Record<HubId, [null, { name: string; at: LngLat }, { name: string; at: LngLat }, { name: string; at: LngLat }]> = {
+  shoreditch: [null,
+    { name: 'Tea Building co-working', at: [-0.0770, 51.5236] },
+    { name: 'A floor at Principal Place', at: [-0.0798, 51.5215] },
+    { name: 'The Stage, Shoreditch', at: [-0.0790, 51.5245] }],
+  kingscross: [null,
+    { name: 'Kings Place co-working', at: [-0.1223, 51.5350] },
+    { name: 'A floor on Pancras Square', at: [-0.1250, 51.5338] },
+    { name: "King's Boulevard landscraper", at: [-0.1268, 51.5343] }],
+  soho: [null,
+    { name: 'Golden Square studios', at: [-0.1370, 51.5115] },
+    { name: 'A floor on Soho Square', at: [-0.1318, 51.5157] },
+    { name: 'Centre Point', at: [-0.1300, 51.5160] }],
+  farringdon: [null,
+    { name: 'Clerkenwell Green studios', at: [-0.1050, 51.5236] },
+    { name: 'A floor on Cowcross Street', at: [-0.1040, 51.5205] },
+    { name: 'No 1 Poultry', at: [-0.0909, 51.5134] }],
+  canarywharf: [null,
+    { name: 'Wood Wharf co-working', at: [-0.0130, 51.5025] },
+    { name: 'A floor at 25 Churchill Place', at: [-0.0145, 51.5048] },
+    { name: '8 Canada Square', at: [-0.0175, 51.5054] }],
+  londonbridge: [null,
+    { name: 'Bermondsey Street studios', at: [-0.0815, 51.5000] },
+    { name: "A floor at Hay's Galleria", at: [-0.0838, 51.5063] },
+    { name: 'The Shard', at: [-0.0865, 51.5045] }],
+  camden: [null,
+    { name: 'Camden Collective', at: [-0.1400, 51.5370] },
+    { name: 'A floor at Hawley Wharf', at: [-0.1450, 51.5418] },
+    { name: "Regent's Place", at: [-0.1410, 51.5260] }],
+  battersea: [null,
+    { name: 'Circus West Village co-working', at: [-0.1470, 51.4818] },
+    { name: 'A floor on Electric Boulevard', at: [-0.1450, 51.4805] },
+    { name: 'Battersea Power Station', at: [-0.1446, 51.4815] }],
+};
 
 function placePosition(id: string) {
   return project(PLACE_AT[id]);

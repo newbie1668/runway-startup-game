@@ -367,7 +367,7 @@ export class RtsRenderer {
           { type: 'office', id: office.id },
           q.x,
           q.y + 13,
-          `${c.name} · ${OFFICE_LEVELS[office.level].name}`,
+          `${c.name} · ${office.siteName ?? OFFICE_LEVELS[office.level].name}`,
           office.company === 'player' ? '#fde68a' : '#e2e8f0',
         );
       }
@@ -481,7 +481,7 @@ export class RtsRenderer {
       ctx.lineWidth = mine ? 3 : 2;
       ctx.stroke();
       this.emoji(ROLE_ICON[p.role], q.x, q.y + 0.5, p.role === 'founder' ? 13 : 11.5);
-      if (showLabels || sel || hov) {
+      if (mine ? showLabels || sel || hov : hov) {
         const text = hov
           ? `${p.name} (${c.name} ${ROLE_LABEL[p.role].toLowerCase()}) · ${act.text}`
           : sel

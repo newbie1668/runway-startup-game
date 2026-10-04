@@ -6,6 +6,7 @@ import {
   BASE_ARPU,
   BASE_BURN_WEEK,
   BUILD_POINTS_PER_DAY,
+  CHAPTERS,
   DILEMMAS,
   ENGINEER_HIRE_FEE,
   ENGINEER_SALARY_WEEK,
@@ -16,6 +17,7 @@ import {
   JOURNAL_RADIUS,
   OFFICE_LEVELS,
   OFFICE_OPEN_COST,
+  OFFICE_SITES,
   PERSON_NAMES,
   PLAYER_COLOR,
   PLACES,
@@ -35,10 +37,12 @@ import type {
   ActiveDilemma,
   Company,
   CompanyId,
+  ChapterSpec,
   CustomerPlace,
   FeatureId,
   Lead,
   MoveTarget,
+  ObjectiveSpec,
   Office,
   Person,
   PitchPreview,
@@ -70,7 +74,42 @@ const TRAVEL_CACHE_LIMIT = 20_000;
 const travelDayCache = new Map<string, number>();
 
 function clone(state: RtsState): RtsState {
-  return structuredClone(state);
+  const companies = {} as Record<CompanyId, Company>;
+  for (const id of COMPANY_IDS) {
+    const company = state.companies[id];
+    companies[id] = { ...company, shipped: [...company.shipped] };
+  }
+  return {
+    ...state,
+    companies,
+    people: state.people.map((person) => ({
+      ...person,
+      order: person.order
+        ? {
+            ...person.order,
+            target: { ...person.order.target },
+            path: [...person.order.path],
+          }
+        : null,
+    })),
+    offices: state.offices.map((office) => ({ ...office })),
+    places: state.places.map((place) =>
+      place.kind === 'investor'
+        ? { ...place, cooldownUntil: { ...place.cooldownUntil } }
+        : { ...place },
+    ),
+    leads: state.leads.map((lead) => ({ ...lead, takenBy: [...lead.takenBy] })),
+    journal: { ...state.journal },
+    campaign: {
+      ...state.campaign,
+      results: state.campaign.results.map((item) => ({ ...item })),
+    },
+    stats: { ...state.stats },
+    dilemma: state.dilemma
+      ? { ...state.dilemma, options: state.dilemma.options.map((option) => ({ ...option })) }
+      : null,
+    news: state.news.map((item) => ({ ...item })),
+  };
 }
 
 function result(state: RtsState, fx: RtsFx[] = []): RtsResult {
@@ -210,6 +249,8 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
     }),
     leads: [],
     journal: {},
+    campaign: { chapter: 0, chapterStartDay: 0, bonusDone: false, results: [] },
+    stats: { leadsWon: 0 },
     dilemma: null,
     news: [],
     nextId: 1,
@@ -532,6 +573,7 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   if (leadIndex < 0 || lead.expiresDay <= state.day || !lead.takenBy.includes(person.role)) return;
   const company = state.companies[person.company];
   if (!company?.alive) return;
+  if (person.company === 'player') state.stats.leadsWon += 1;
   state.leads.splice(leadIndex, 1);
   const point = { x: lead.x, y: lead.y };
   const dice = new Dice(state.rng);
@@ -903,7 +945,7 @@ function schedulerStep(state: RtsState, fx: RtsFx[]): void {
 
   while (state.nextAiDay <= state.day + 1e-8 && state.phase === 'playing') {
     state.nextAiDay += 0.5;
-    for (const companyId of RIVAL_IDS) runCompanyAI(state, companyId);
+    for (const companyId of RIVAL_IDS) runCompanyAI(state, companyId, fx);
   }
   state.rng = dice.state;
 }
@@ -921,6 +963,100 @@ function updateEndConditions(state: RtsState): void {
       player.hqHub,
     );
   }
+}
+
+export function objectiveProgress(
+  state: RtsState,
+  spec: ObjectiveSpec,
+): { value: number; target: number; done: boolean } {
+  const company = state.companies.player;
+  let value: number;
+  let target: number;
+  switch (spec.kind) {
+    case 'stage':
+      value = company.stageIndex;
+      target = spec.atLeast;
+      break;
+    case 'users':
+      value = company.users;
+      target = spec.atLeast;
+      break;
+    case 'shipped':
+      value = company.shipped.length;
+      target = spec.count;
+      break;
+    case 'feature':
+      value = Number(company.shipped.includes(spec.id));
+      target = 1;
+      break;
+    case 'segment':
+      value = Number(unlockedSegments(company).includes(spec.id));
+      target = 1;
+      break;
+    case 'officeLevel':
+      value = Math.max(0, ...companyOffices(state, 'player').map((office) => office.level));
+      target = spec.atLeast;
+      break;
+    case 'offices':
+      value = companyOffices(state, 'player').length;
+      target = spec.count;
+      break;
+    case 'team':
+      value = companyPeople(state, 'player').length;
+      target = spec.count;
+      break;
+    case 'journal':
+      value = journalProgress(state).found;
+      target = spec.count;
+      break;
+    case 'leadsWon':
+      value = state.stats.leadsWon;
+      target = spec.count;
+      break;
+  }
+  return { value, target, done: value >= target };
+}
+
+export function campaignStatus(state: RtsState): {
+  chapter: ChapterSpec | null;
+  objectives: { spec: ObjectiveSpec; value: number; target: number; done: boolean }[];
+  bonus: { spec: ObjectiveSpec; value: number; target: number; done: boolean } | null;
+  daysElapsed: number;
+  complete: boolean;
+} {
+  const chapter = CHAPTERS[state.campaign.chapter];
+  if (!chapter) return { chapter: null, objectives: [], bonus: null, daysElapsed: 0, complete: true };
+  return {
+    chapter,
+    objectives: chapter.objectives.map((spec) => ({ spec, ...objectiveProgress(state, spec) })),
+    bonus: { spec: chapter.bonus, ...objectiveProgress(state, chapter.bonus) },
+    daysElapsed: state.day - state.campaign.chapterStartDay,
+    complete: false,
+  };
+}
+
+function campaignStep(state: RtsState, fx: RtsFx[]): void {
+  const campaign = state.campaign;
+  const chapter = CHAPTERS[campaign.chapter];
+  if (!chapter) return;
+
+  const company = state.companies.player;
+  if (!campaign.bonusDone && objectiveProgress(state, chapter.bonus).done) {
+    campaign.bonusDone = true;
+    company.cash += chapter.bonusReward.cash;
+    company.hype = clamp(company.hype + chapter.bonusReward.hype, 0, MAX_HYPE);
+    addNews(state, `${company.name} completes bonus: ${chapter.bonus.label}.`, 'good', company.hqHub);
+    fx.push({ kind: 'bonus', label: chapter.bonus.label });
+  }
+
+  if (!chapter.objectives.every((objective) => objectiveProgress(state, objective).done)) return;
+  const days = state.day - campaign.chapterStartDay;
+  const stars = 1 + Number(campaign.bonusDone) + Number(days <= chapter.parDays);
+  campaign.results.push({ chapterId: chapter.id, days, stars });
+  fx.push({ kind: 'chapter', index: campaign.chapter, stars });
+  campaign.chapter += 1;
+  campaign.chapterStartDay = state.day;
+  campaign.bonusDone = false;
 }
 
 function distanceToSegmentSquared(
@@ -982,6 +1118,7 @@ export function tick(state: RtsState, dtDays: number): RtsResult {
     applyEconomy(next, dt);
     decayHype(next, dt);
     schedulerStep(next, fx);
+    campaignStep(next, fx);
     updateEndConditions(next);
     remaining -= dt;
   }
@@ -1073,7 +1210,26 @@ export function hire(
   return error ? refused(state, error) : result(next);
 }
 
-function openOfficeAt(state: RtsState, hubId: HubId): string | undefined {
+function placePlayerOfficeAtSite(state: RtsState, office: Office, fx: RtsFx[]): void {
+  const site = OFFICE_SITES[office.hubId][office.level];
+  if (!site) return;
+  const point = project(site.at);
+  office.x = point.x;
+  office.y = point.y;
+  office.siteName = site.name;
+  for (const person of state.people) {
+    const walkingToOffice =
+      person.order?.target.kind === 'office' && person.order.target.id === office.id;
+    if (person.company !== 'player' || (person.at !== office.id && !walkingToOffice)) continue;
+    person.at = null;
+    person.order = null;
+    movePerson(state, person, { kind: 'office', id: office.id });
+  }
+  addNews(state, `${state.companies.player.name} moves into ${site.name}`, 'good', office.hubId);
+  fx.push({ kind: 'focus', ...point });
+}
+
+function openOfficeAt(state: RtsState, hubId: HubId, fx: RtsFx[]): string | undefined {
   const people = companyPeople(state, 'player');
   const standing = people.some((person) => {
     if (person.order || !person.at) return false;
@@ -1089,6 +1245,7 @@ function openOfficeAt(state: RtsState, hubId: HubId): string | undefined {
   company.cash -= OFFICE_OPEN_COST;
   const office = createOffice(state, 'player', hubId, 1);
   state.offices.push(office);
+  placePlayerOfficeAtSite(state, office, fx);
   addNews(
     state,
     `${company.name} opens a ${OFFICE_LEVELS[1].name.toLowerCase()} office in ${hubById(hubId).name}.`,
@@ -1102,11 +1259,12 @@ export function openOffice(state: RtsState, hubId: HubId): RtsResult {
   if (state.phase !== 'playing')
     return refused(state, 'The company cannot open an office right now.');
   const next = clone(state);
-  const error = openOfficeAt(next, hubId);
-  return error ? refused(state, error) : result(next);
+  const fx: RtsFx[] = [];
+  const error = openOfficeAt(next, hubId, fx);
+  return error ? refused(state, error) : result(next, fx);
 }
 
-function upgradeOfficeAt(state: RtsState, officeId: string): string | undefined {
+function upgradeOfficeAt(state: RtsState, officeId: string, fx: RtsFx[]): string | undefined {
   const office = findOffice(state, officeId);
   if (!office || office.company !== 'player') return 'That is not one of your offices.';
   const nextLevel = OFFICE_LEVELS[office.level + 1];
@@ -1116,6 +1274,7 @@ function upgradeOfficeAt(state: RtsState, officeId: string): string | undefined 
     return `You need £${nextLevel.cost.toLocaleString()} to upgrade this office.`;
   company.cash -= nextLevel.cost;
   office.level += 1;
+  placePlayerOfficeAtSite(state, office, fx);
   addNews(
     state,
     `${company.name} upgrades its ${hubById(office.hubId).name} office to ${nextLevel.name}.`,
@@ -1129,8 +1288,9 @@ export function upgradeOffice(state: RtsState, officeId: string): RtsResult {
   if (state.phase !== 'playing')
     return refused(state, 'The company cannot upgrade an office right now.');
   const next = clone(state);
-  const error = upgradeOfficeAt(next, officeId);
-  return error ? refused(state, error) : result(next);
+  const fx: RtsFx[] = [];
+  const error = upgradeOfficeAt(next, officeId, fx);
+  return error ? refused(state, error) : result(next, fx);
 }
 
 function setResearchAt(state: RtsState, featureId: FeatureId | null): string | undefined {
@@ -1179,6 +1339,7 @@ export function pitch(state: RtsState, investorPlaceId: string): RtsResult {
   const nextInvestor = findPlace(next, investorPlaceId)!;
   const fx: RtsFx[] = [];
   pitchAt(next, next.companies.player, nextInvestor, fx);
+  if (next.companies.player.stageIndex >= STAGES.length - 1) campaignStep(next, fx);
   updateEndConditions(next);
   return result(next, fx);
 }
@@ -1308,7 +1469,7 @@ function chooseNextFeature(company: Company): FeatureId | null {
     .sort((a, b) => a.score - b.score || a.feature.cost - b.feature.cost)[0].feature.id;
 }
 
-function manageStaffing(state: RtsState, companyId: CompanyId): void {
+function manageStaffing(state: RtsState, companyId: CompanyId, fx: RtsFx[]): void {
   const people = companyPeople(state, companyId);
   const cap = teamCap(state, companyId);
   const company = state.companies[companyId];
@@ -1324,6 +1485,7 @@ function manageStaffing(state: RtsState, companyId: CompanyId): void {
       const nextLevel = OFFICE_LEVELS[upgradeable.level + 1];
       company.cash -= nextLevel.cost;
       upgradeable.level += 1;
+      if (companyId === 'player') placePlayerOfficeAtSite(state, upgradeable, fx);
       addNews(
         state,
         `${company.name} upgrades its ${hubById(upgradeable.hubId).name} office to ${nextLevel.name}.`,
@@ -1374,7 +1536,7 @@ function manageStaffing(state: RtsState, companyId: CompanyId): void {
   if (destination) movePerson(state, recruiter, { kind: 'place', id: destination.id });
 }
 
-function runCompanyAI(state: RtsState, companyId: CompanyId): void {
+function runCompanyAI(state: RtsState, companyId: CompanyId, fx: RtsFx[]): void {
   const company = state.companies[companyId];
   if (!company?.alive || state.phase !== 'playing') return;
   if (!company.researching) {
@@ -1384,7 +1546,7 @@ function runCompanyAI(state: RtsState, companyId: CompanyId): void {
       company.researchProgress = 0;
     }
   }
-  manageStaffing(state, companyId);
+  manageStaffing(state, companyId, fx);
   dispatchFounder(state, company);
   dispatchEngineers(state, companyId);
   dispatchGrowth(state, companyId);
@@ -1392,8 +1554,9 @@ function runCompanyAI(state: RtsState, companyId: CompanyId): void {
 
 export function autoCommands(state: RtsState, companyId: CompanyId): RtsResult {
   const next = clone(state);
-  if (next.phase === 'playing') runCompanyAI(next, companyId);
-  return result(next);
+  const fx: RtsFx[] = [];
+  if (next.phase === 'playing') runCompanyAI(next, companyId, fx);
+  return result(next, fx);
 }
 
 function activityTargetName(state: RtsState, target: MoveTarget): string {

@@ -33,6 +33,32 @@ export type FeatureId =
 /** Customer segments. Each customer spot sells to one; most need a feature first. */
 export type Segment = 'earlyAdopters' | 'consumers' | 'smb' | 'developers' | 'enterprise';
 
+export type ObjectiveSpec =
+  | { kind: 'stage'; atLeast: number; label: string }          // company.stageIndex >= atLeast
+  | { kind: 'users'; atLeast: number; label: string }
+  | { kind: 'shipped'; count: number; label: string }          // company.shipped.length >= count
+  | { kind: 'feature'; id: FeatureId; label: string }
+  | { kind: 'segment'; id: Segment; label: string }            // unlockedSegments(player) includes id
+  | { kind: 'officeLevel'; atLeast: number; label: string }    // any player office level >= atLeast
+  | { kind: 'offices'; count: number; label: string }          // player office count >= count
+  | { kind: 'team'; count: number; label: string }             // player people count >= count
+  | { kind: 'journal'; count: number; label: string }          // journalProgress().found >= count
+  | { kind: 'leadsWon'; count: number; label: string };        // stats.leadsWon >= count (cumulative)
+
+export interface ChapterSpec {
+  id: string;
+  title: string;
+  /** Where the briefing camera flies. 'hq' = player's HQ office. */
+  focus: { kind: 'hq' } | { kind: 'landmark'; landmark: LandmarkKind };
+  briefing: string;
+  objectives: ObjectiveSpec[];
+  bonus: ObjectiveSpec;
+  /** Days from chapter start; finishing within par earns the third star. */
+  parDays: number;
+  /** Applied once when the bonus is completed (while the chapter is active). */
+  bonusReward: { cash: number; hype: number };
+}
+
 export interface Feature {
   id: FeatureId;
   name: string;
@@ -95,6 +121,7 @@ export interface Office {
   hubId: HubId;
   x: number;
   y: number;
+  siteName?: string;
   /** Index into OFFICE_LEVELS. HQ starts at 0 (kitchen table); new offices at 1. */
   level: number;
 }
@@ -217,7 +244,9 @@ export type RtsFx =
   | { kind: 'confetti'; x: number; y: number }
   | { kind: 'sparkle'; x: number; y: number }
   | { kind: 'focus'; x: number; y: number }
-  | { kind: 'postcard'; landmark: LandmarkKind; x: number; y: number };
+  | { kind: 'postcard'; landmark: LandmarkKind; x: number; y: number }
+  | { kind: 'bonus'; label: string }
+  | { kind: 'chapter'; index: number; stars: number };
 
 export interface RtsState {
   seed: string;
@@ -231,6 +260,13 @@ export interface RtsState {
   places: Place[];
   leads: Lead[];
   journal: Partial<Record<LandmarkKind, number>>;
+  campaign: {
+    chapter: number;
+    chapterStartDay: number;
+    bonusDone: boolean;
+    results: { chapterId: string; days: number; stars: number }[];
+  };
+  stats: { leadsWon: number };
   dilemma: ActiveDilemma | null;
   news: NewsItemRts[];
   /** Monotonic id counter for people/offices/leads. */
