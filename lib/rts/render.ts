@@ -6,19 +6,28 @@
  */
 
 import { HUBS } from '@/lib/game/content';
-import { project, THAMES, WORLD, type WorldPoint } from '@/lib/game/geo';
+import { LANDMARKS, project, THAMES, WORLD, type LandmarkKind, type WorldPoint } from '@/lib/game/geo';
 import type { ProjectedMapRenderer } from '@/lib/game/mapProjection';
 import type { HubId } from '@/lib/game/types';
-import { FEATURES, OFFICE_LEVELS, SEGMENT_INFO } from './content';
+import {
+  DEFAULT_LANDMARK_PERK,
+  FEATURES,
+  LANDMARK_PERKS,
+  OFFICE_LEVELS,
+  SEGMENT_INFO,
+} from './content';
 import type { AmbientState } from './ambient';
-import { personActivity, unlockedSegments } from './sim';
-import type { CompanyId, Lead, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
+import { personActivity, pitchPreview, unlockedSegments } from './sim';
+import { fmtRtsMoney } from './format';
+import { defaultStop, summarizePlan, type PlannedLeg, type PlanStop } from './turns';
+import type { CompanyId, Lead, MoveTarget, Person, Place, Role, RtsFx, RtsState, Segment } from './types';
 
 export type RtsHit =
   | { type: 'person'; id: string }
   | { type: 'lead'; id: string }
   | { type: 'place'; id: string }
-  | { type: 'office'; id: string };
+  | { type: 'office'; id: string }
+  | { type: 'landmark'; id: LandmarkKind };
 
 type LabelCategory = 'office' | 'investor' | 'lead' | 'place' | 'person';
 
@@ -79,6 +88,12 @@ export function placeIcon(place: Place): string {
   return SEGMENT_ICON[place.segment];
 }
 
+function samePlanTarget(a: MoveTarget, b: MoveTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'point' && b.kind === 'point') return a.x === b.x && a.y === b.y;
+  return 'id' in a && 'id' in b && a.id === b.id;
+}
+
 interface Particle {
   kind: 'float' | 'confetti' | 'spark' | 'ring';
   wx: number;
@@ -109,6 +124,14 @@ export class RtsRenderer {
   hover: RtsHit | null = null;
   /** Screen-space selection box while shift-dragging. */
   box: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  plannedLegs: PlannedLeg[] = [];
+  planningTooltip: {
+    point: WorldPoint;
+    title: string;
+    travelSlots: number;
+    actionSlots: number;
+    detail: string;
+  } | null = null;
   private particles: Particle[] = [];
   private personScreen = new Map<string, { x: number; y: number }>();
 
@@ -128,6 +151,9 @@ export class RtsRenderer {
   zoom(): number {
     return this.map.getCamera().zoom;
   }
+  viewHeight(): number {
+    return this.zoom() > 0 ? this.cssH / this.zoom() : Number.POSITIVE_INFINITY;
+  }
   w2s(p: WorldPoint) {
     return this.map.worldToScreen(p);
   }
@@ -141,6 +167,67 @@ export class RtsRenderer {
       this.map.screenToWorld(this.cssW, this.cssH),
       this.map.screenToWorld(0, this.cssH),
     ];
+  }
+
+  updatePlanningTooltip(hit: RtsHit | null, state: RtsState, stops: PlanStop[]): void {
+    if (!hit || state.mode !== 'turns' || hit.type === 'person') {
+      this.planningTooltip = null;
+      return;
+    }
+    this.planningTooltip = null;
+    let target: MoveTarget | null = null;
+    let detail = '';
+    if (hit.type === 'place') {
+      const place = state.places.find((item) => item.id === hit.id);
+      if (!place) return;
+      target = { kind: 'place', id: place.id };
+      if (place.kind === 'customers')
+        detail = `+${Math.floor(place.pool).toLocaleString()} users available`;
+      else if (place.kind === 'talent') detail = 'Hire an engineer';
+      else {
+        const preview = pitchPreview(state, 'player');
+        detail = preview.eligible
+          ? `Pitch: ${preview.nextStageName} · ${Math.round(preview.odds * 100)}% odds`
+          : `Pitch: ${preview.blockers.join(' · ')}`;
+      }
+    } else if (hit.type === 'office') {
+      const office = state.offices.find((item) => item.id === hit.id);
+      if (!office) return;
+      target = { kind: 'office', id: office.id };
+      detail = 'Build at your office';
+    } else if (hit.type === 'lead') {
+      const lead = state.leads.find((item) => item.id === hit.id);
+      if (!lead) return;
+      target = { kind: 'lead', id: lead.id };
+      detail = lead.clue ? 'Search this clue' : 'Visit this opportunity';
+    } else {
+      const landmark = LANDMARKS.find((item) => item.kind === hit.id);
+      if (!landmark) return;
+      const point = project(landmark.at);
+      target = { kind: 'point', x: point.x, y: point.y, label: landmark.name };
+      detail = this.landmarkBadgeLabel(landmark.kind);
+    }
+    if (!target) return;
+    const candidate = defaultStop(state, target);
+    const previousStop = stops[stops.length - 1];
+    const alreadyPlanned = previousStop && samePlanTarget(previousStop.target, candidate.target);
+    if (alreadyPlanned) detail = 'Already in your plan';
+    const summary = summarizePlan(state, [...stops, candidate]);
+    const leg = summary.legs[summary.legs.length - 1];
+    if (!leg || leg.path.length < 2) {
+      this.planningTooltip = null;
+      return;
+    }
+    this.planningTooltip = {
+      point: {
+        x: leg.path[leg.path.length - 2]!,
+        y: leg.path[leg.path.length - 1]!,
+      },
+      title: leg.label,
+      travelSlots: leg.travelSlots,
+      actionSlots: candidate.actionSlots,
+      detail,
+    };
   }
 
   private anchorOf(id: string): WorldPoint | null {
@@ -210,7 +297,7 @@ export class RtsRenderer {
       if (q && near(q.x, q.y, PERSON_R + 3)) return { type: 'person', id: s.people[i].id };
     }
     for (const lead of s.leads) {
-      const q = this.w2s(lead);
+      const q = this.w2s(s.mode === 'turns' && lead.clue ? lead.clue : lead);
       if (!q) continue;
       if (near(q.x, q.y, 16)) return { type: 'lead', id: lead.id };
     }
@@ -223,6 +310,21 @@ export class RtsRenderer {
       const q = this.w2s(office);
       if (!q) continue;
       if (near(q.x, q.y - 10, 18)) return { type: 'office', id: office.id };
+    }
+    if (s.mode === 'turns') {
+      for (const landmark of LANDMARKS) {
+        if (s.journal[landmark.kind] !== undefined) continue;
+        const q = this.w2s(project(landmark.at));
+        if (!q) continue;
+        if (this.viewHeight() > 12) {
+          if (near(q.x, q.y, 8)) return { type: 'landmark', id: landmark.kind };
+          continue;
+        }
+        const label = this.landmarkBadgeLabel(landmark.kind);
+        const width = Math.max(24, label.length * 5.8 + 12);
+        if (near(q.x + 18, q.y - 20, width / 2 + 3))
+          return { type: 'landmark', id: landmark.kind };
+      }
     }
     return null;
   }
@@ -381,6 +483,38 @@ export class RtsRenderer {
       });
     };
 
+    if (s.mode === 'turns') {
+      const showLandmarkBadges = this.viewHeight() <= 12;
+      for (const landmark of LANDMARKS) {
+        if (s.journal[landmark.kind] !== undefined) continue;
+        const q = this.w2s(project(landmark.at));
+        if (!q) continue;
+        const hit: RtsHit = { type: 'landmark', id: landmark.kind };
+        const focused = this.isFocused(hit);
+        const label = this.landmarkBadgeLabel(landmark.kind);
+        const width = Math.max(24, label.length * 5.8 + 12);
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, focused ? 5 : 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = focused ? '#fef3c7' : '#fbbf24';
+        ctx.fill();
+        if (!showLandmarkBadges) continue;
+        ctx.save();
+        ctx.font = '700 9px ui-sans-serif, system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(11,18,38,0.95)';
+        ctx.strokeStyle = focused ? '#fef3c7' : 'rgba(251,191,36,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(q.x + 18 - width / 2, q.y - 20 - 8, width, 16, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fde68a';
+        ctx.fillText(label, q.x + 18, q.y - 20);
+        ctx.restore();
+      }
+    }
+
     // Places
     for (const place of s.places) {
       const q = this.w2s(place);
@@ -436,11 +570,39 @@ export class RtsRenderer {
 
     // Leads with countdown rings
     for (const lead of s.leads) {
-      const q = this.w2s(lead);
+      const clue = s.mode === 'turns' ? lead.clue : undefined;
+      const q = this.w2s(clue ?? lead);
       if (!q) continue;
       const st = LEAD_STYLE[lead.kind];
       const hit: RtsHit = { type: 'lead', id: lead.id };
       const focused = this.isFocused(hit);
+      if (clue) {
+        const edge = this.w2s({ x: clue.x + clue.radius, y: clue.y });
+        const radius = edge ? Math.hypot(edge.x - q.x, edge.y - q.y) : 0;
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([7, 5]);
+        ctx.arc(q.x, q.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = hexA(st.color, focused ? 0.95 : 0.65);
+        ctx.lineWidth = focused ? 2.5 : 1.8;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, 13, 0, Math.PI * 2);
+        ctx.fillStyle = '#0b1226';
+        ctx.fill();
+        ctx.strokeStyle = focused ? '#ffffff' : st.color;
+        ctx.lineWidth = focused ? 2.5 : 2;
+        ctx.stroke();
+        ctx.fillStyle = st.color;
+        ctx.font = '900 17px ui-sans-serif, system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', q.x, q.y + 0.5);
+        ctx.restore();
+        if (focused) addLabel('lead', hit, q.x, q.y - radius - 8, clue.hint, st.color);
+        continue;
+      }
       const life = Math.max(1e-6, lead.expiresDay - lead.spawnDay);
       const left = Math.max(0, Math.min(1, (lead.expiresDay - s.day) / life));
       const pulse = 0.5 + 0.5 * Math.sin(t * 0.005 + q.x);
@@ -466,6 +628,47 @@ export class RtsRenderer {
             : `${st.label}: ${lead.name}`;
         addLabel('lead', hit, q.x, q.y - 22, text, st.color);
       }
+    }
+
+    for (let index = 0; index < this.plannedLegs.length; index++) {
+      const leg = this.plannedLegs[index]!;
+      if (leg.path.length < 2) continue;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([9, 6]);
+      ctx.lineDashOffset = -(t * 0.02) % 15;
+      ctx.strokeStyle = 'rgba(251,191,36,0.8)';
+      ctx.lineWidth = 2.5;
+      let started = false;
+      for (let i = 0; i < leg.path.length; i += 2) {
+        const point = this.w2s({ x: leg.path[i]!, y: leg.path[i + 1]! });
+        if (!point) continue;
+        if (!started) {
+          ctx.moveTo(point.x, point.y);
+          started = true;
+        } else ctx.lineTo(point.x, point.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const destination = this.w2s({
+        x: leg.path[leg.path.length - 2]!,
+        y: leg.path[leg.path.length - 1]!,
+      });
+      if (destination) {
+        ctx.beginPath();
+        ctx.arc(destination.x, destination.y, 11, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fill();
+        ctx.strokeStyle = '#0b1226';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#0b1226';
+        ctx.font = '900 11px ui-sans-serif, system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${index + 1}`, destination.x, destination.y + 0.5);
+      }
+      ctx.restore();
     }
 
     // Move paths (player people)
@@ -553,6 +756,18 @@ export class RtsRenderer {
     }
 
     this.drawLabels(labels);
+    if (s.mode === 'turns' && this.planningTooltip) {
+      const point = this.w2s(this.planningTooltip.point);
+      const alreadyPlanned = this.planningTooltip.detail === 'Already in your plan';
+      if (point)
+        this.drawPlanningTooltip(point.x, point.y - 10, [
+          this.planningTooltip.title,
+          alreadyPlanned
+            ? this.planningTooltip.detail
+            : `${this.planningTooltip.travelSlots} travel + ${this.planningTooltip.actionSlots} action slots`,
+          ...(alreadyPlanned ? [] : [this.planningTooltip.detail]),
+        ]);
+    }
     this.stepParticles(dt);
 
     if (this.box) {
@@ -573,6 +788,14 @@ export class RtsRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillText(text, x, y);
     ctx.textBaseline = 'alphabetic';
+  }
+
+  private landmarkBadgeLabel(kind: LandmarkKind): string {
+    const perk = LANDMARK_PERKS[kind] ?? DEFAULT_LANDMARK_PERK;
+    if (perk.cash) return `+${fmtRtsMoney(perk.cash)}`;
+    if (perk.users) return `+${perk.users} users`;
+    if (perk.product) return `+${perk.product} product`;
+    return `+${perk.hype ?? DEFAULT_LANDMARK_PERK.hype} hype`;
   }
 
   /** Map pin: a rounded badge on a short stem, anchored at (x, y). */
@@ -696,6 +919,33 @@ export class RtsRenderer {
     ctx.textAlign = 'left';
     ctx.fillText(text, bx + 7, y - 3);
     ctx.textAlign = 'center';
+  }
+
+  private drawPlanningTooltip(x: number, y: number, lines: string[]): void {
+    const ctx = this.ctx;
+    const lineHeight = 14;
+    const padding = 7;
+    ctx.font = '700 11px ui-sans-serif, system-ui';
+    const maxTextWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const width = Math.min(this.cssW - 12, maxTextWidth + padding * 2);
+    const height = lineHeight * lines.length + padding * 2;
+    const bx = Math.min(Math.max(x - width / 2, 6), this.cssW - width - 6);
+    const by = Math.min(Math.max(y - height - 8, 6), this.cssH - height - 6);
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,17,36,0.97)';
+    ctx.strokeStyle = 'rgba(125,211,252,0.65)';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, width, height, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    lines.forEach((line, index) => {
+      ctx.font = index === 0 ? '800 11px ui-sans-serif, system-ui' : '600 10px ui-sans-serif, system-ui';
+      ctx.fillStyle = index === 0 ? '#f8fafc' : index === 1 ? '#bae6fd' : '#fde68a';
+      ctx.fillText(line, bx + padding, by + padding + index * lineHeight, width - padding * 2);
+    });
+    ctx.restore();
   }
 
   private stepParticles(dt: number) {

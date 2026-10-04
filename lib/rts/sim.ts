@@ -1,6 +1,6 @@
 import type { HubId, SectorId } from '@/lib/game/types';
 import { HUBS, STAGES, generateCompanyName, hubById, sectorById } from '@/lib/game/content';
-import { LANDMARKS, project } from '@/lib/game/geo';
+import { LANDMARKS, METERS_TO_WORLD, project } from '@/lib/game/geo';
 import { Dice, seedFromString } from '@/lib/game/rng';
 import { fmtRtsMoney } from './format';
 import {
@@ -9,6 +9,7 @@ import {
   BUILD_POINTS_PER_DAY,
   CHAPTERS,
   DILEMMAS,
+  DEFAULT_LANDMARK_PERK,
   ENGINEER_HIRE_FEE,
   ENGINEER_SALARY_WEEK,
   FEATURES,
@@ -16,6 +17,7 @@ import {
   GROWTH_SALARY_WEEK,
   JOURNAL_HYPE,
   JOURNAL_RADIUS,
+  LANDMARK_PERKS,
   MARKET_GROWTH_BY_STAGE,
   OFFICE_LEVELS,
   OFFICE_OPEN_COST,
@@ -72,6 +74,7 @@ const NEWS_LIMIT = 60;
 const HYPE_DECAY_PER_DAY = 0.015;
 const MAX_HYPE = 100;
 const MAX_PRODUCT = 100;
+const LEAD_FIND_RADIUS = 120 * METERS_TO_WORLD;
 const TRAVEL_CACHE_LIMIT = 20_000;
 const travelDayCache = new Map<string, number>();
 
@@ -103,6 +106,9 @@ function clone(state: RtsState): RtsState {
           : { ...place },
     ),
     leads: state.leads.map((lead) => ({ ...lead, takenBy: [...lead.takenBy] })),
+    ...(state.leadHistory
+      ? { leadHistory: Object.fromEntries(Object.entries(state.leadHistory).map(([id, item]) => [id, { ...item }])) }
+      : {}),
     milestones: { ...state.milestones },
     journal: { ...state.journal },
     campaign: {
@@ -340,6 +346,7 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
     nextLeadDay: 0,
     nextDilemmaDay: 0,
     nextAiDay: 0.5,
+    ...(cfg.mode === 'turns' ? { mode: 'turns' as const } : {}),
   };
   companies.player = makeCompany('player', cfg.companyName, cfg.sectorId, cfg.hqHub, PLAYER_COLOR);
   for (let index = 0; index < RIVAL_IDS.length; index++) {
@@ -393,6 +400,10 @@ export function newRtsGame(cfg: NewRtsConfig): RtsState {
     'good',
     cfg.hqHub,
   );
+  if (state.mode === 'turns') {
+    spawnLeadBatch(state, dice, 0);
+    state.rng = dice.state;
+  }
   return state;
 }
 
@@ -604,6 +615,7 @@ function pitchAt(state: RtsState, company: Company, place: Place, fx: RtsFx[]): 
 }
 
 function targetPosition(state: RtsState, target: MoveTarget): { x: number; y: number } | null {
+  if (target.kind === 'point') return { x: target.x, y: target.y };
   if (target.kind === 'place') {
     const place = findPlace(state, target.id);
     return place ? { x: place.x, y: place.y } : null;
@@ -617,6 +629,7 @@ function targetPosition(state: RtsState, target: MoveTarget): { x: number; y: nu
 }
 
 function targetName(state: RtsState, target: MoveTarget): string {
+  if (target.kind === 'point') return target.label;
   if (target.kind === 'place') return findPlace(state, target.id)?.name ?? 'place';
   if (target.kind === 'office') {
     const office = findOffice(state, target.id);
@@ -626,7 +639,11 @@ function targetName(state: RtsState, target: MoveTarget): string {
 }
 
 function sameTarget(left: MoveTarget, right: MoveTarget): boolean {
-  return left.kind === right.kind && left.id === right.id;
+  if (left.kind !== right.kind) return false;
+  if (left.kind === 'point' && right.kind === 'point')
+    return left.x === right.x && left.y === right.y && left.label === right.label;
+  if (left.kind !== 'point' && right.kind !== 'point') return left.id === right.id;
+  return false;
 }
 
 function movePerson(
@@ -637,7 +654,7 @@ function movePerson(
 ): void {
   const point = targetPosition(state, target);
   if (!point) return;
-  if (person.at === target.id && !person.order) return;
+  if (target.kind !== 'point' && person.at === target.id && !person.order) return;
   if (
     person.order &&
     sameTarget(person.order.target, target) &&
@@ -667,12 +684,25 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   if (leadIndex < 0 || lead.expiresDay <= state.day || !lead.takenBy.includes(person.role)) return;
   const company = state.companies[person.company];
   if (!company?.alive) return;
+  if (state.mode === 'turns') {
+    const history = state.leadHistory ?? (state.leadHistory = {});
+    history[lead.id] ??= {
+      kind: lead.kind,
+      venue: lead.venue,
+      x: lead.x,
+      y: lead.y,
+    };
+    history[lead.id]!.claimedBy = person.company;
+  }
   if (person.company !== 'player') {
     const playerPerson = state.people.find(
       (item) =>
         item.company === 'player' &&
-        item.order?.target.kind === 'lead' &&
-        item.order.target.id === lead.id,
+        ((item.order?.target.kind === 'lead' && item.order.target.id === lead.id) ||
+          (item.order?.target.kind === 'point' &&
+            lead.clue &&
+            item.order.target.x === lead.clue.x &&
+            item.order.target.y === lead.clue.y)),
     );
     if (playerPerson)
       addMoment(fx, {
@@ -769,6 +799,76 @@ function claimLead(state: RtsState, person: Person, lead: Lead, fx: RtsFx[]): vo
   fx.push({ kind: 'sparkle', ...point });
 }
 
+export function leadKindName(kind: Lead['kind']): string {
+  if (kind === 'angel') return 'angel investor';
+  if (kind === 'candidate') return 'candidate';
+  if (kind === 'journalist') return 'journalist';
+  return 'startup meetup';
+}
+
+function addFoundLeadFx(fx: RtsFx[], lead: Lead): void {
+  fx.push(
+    { kind: 'focus', x: lead.x, y: lead.y },
+    {
+      kind: 'float',
+      x: lead.x,
+      y: lead.y,
+      text: `Found ${leadKindName(lead.kind)}`,
+      color: '#34d399',
+    },
+  );
+}
+
+export function searchForLead(state: RtsState, personId: string, leadId: string): RtsResult {
+  if (state.mode !== 'turns') return refused(state, 'Lead searches are only available in turns mode.');
+  const next = clone(state);
+  const person = next.people.find((item) => item.id === personId);
+  if (!person) return { state: next, fx: [], error: 'The searcher is no longer available.' };
+  const lead = next.leads.find((item) => item.id === leadId);
+  const history = next.leadHistory?.[leadId];
+  if (!lead || lead.expiresDay <= next.day) {
+    if (history?.claimedBy === person.company && person.company === 'player')
+      return result(next);
+    const rival = history?.claimedBy ? next.companies[history.claimedBy] : undefined;
+    const venue = lead?.venue ?? history?.venue ?? 'the clue';
+    const kind = lead?.kind ?? history?.kind;
+    return {
+      state: next,
+      fx: [],
+      error: `Searched near ${venue}, but the ${kind ? leadKindName(kind) : 'opportunity'} had already gone${
+        rival && rival.id !== 'player' ? ` — ${rival.name} got there first` : ''
+      }.`,
+    };
+  }
+  if (!lead.clue)
+    return { state: next, fx: [], error: `There is no clue to search for near ${lead.venue}.` };
+  if (!lead.takenBy.includes(person.role))
+    return {
+      state: next,
+      fx: [],
+      error: `Searched near ${lead.venue}, but the ${leadKindName(lead.kind)} is not available to a ${person.role}.`,
+    };
+  if (!next.companies[person.company]?.alive)
+    return { state: next, fx: [], error: 'The searcher’s company is no longer operating.' };
+  if (Math.hypot(person.x - lead.x, person.y - lead.y) > lead.clue.radius)
+    return {
+      state: next,
+      fx: [],
+      error: `Searched near ${lead.venue}, but the ${leadKindName(lead.kind)} was not at this clue.`,
+    };
+
+  const fx: RtsFx[] = [];
+  claimLead(next, person, lead, fx);
+  if (next.leads.some((item) => item.id === leadId))
+    return {
+      state: next,
+      fx: [],
+      error: `Searched near ${lead.venue}, but the ${leadKindName(lead.kind)} had already gone.`,
+    };
+  addFoundLeadFx(fx, lead);
+  return result(next, fx);
+}
+
 function pointOnPath(path: number[], length: number, progress: number): { x: number; y: number } {
   const distance = clamp(length * progress, 0, length);
   let traversed = 0;
@@ -805,6 +905,8 @@ function advanceMovement(state: RtsState, dt: number, fx: RtsFx[]): void {
       person.at = null;
       const lead = state.leads.find((item) => item.id === target.id);
       if (lead) claimLead(state, person, lead, fx);
+    } else if (target.kind === 'point') {
+      person.at = null;
     } else if (target.kind === 'place' && findPlace(state, target.id)) {
       person.at = target.id;
     } else if (target.kind === 'office' && findOffice(state, target.id)) {
@@ -982,7 +1084,7 @@ function decayHype(state: RtsState, dt: number): void {
   }
 }
 
-function spawnLead(state: RtsState, dice: Dice): void {
+function spawnLead(state: RtsState, dice: Dice, weekStart = state.day): void {
   if (state.leads.length >= 5) return;
   const kindRoll = dice.float();
   const kind =
@@ -994,6 +1096,27 @@ function spawnLead(state: RtsState, dice: Dice): void {
           ? 'journalist'
           : 'angel';
   const details = generateLeadDetails(dice);
+  const expiresDay = state.mode === 'turns' ? weekStart + 5 : state.day + dice.int(4, 7);
+  let clue: Lead['clue'];
+  if (state.mode === 'turns') {
+    const radius = 300 * METERS_TO_WORLD;
+    const angle = dice.float() * Math.PI * 2;
+    const distance = Math.sqrt(dice.float()) * radius * 0.6;
+    const opener =
+      kind === 'angel'
+        ? 'An angel investor is having coffee somewhere near'
+        : kind === 'candidate'
+          ? 'A promising candidate is meeting founders somewhere near'
+          : kind === 'journalist'
+            ? 'A tech journalist is looking for a story somewhere near'
+            : 'Startup founders are networking somewhere near';
+    clue = {
+      x: details.x + Math.cos(angle) * distance,
+      y: details.y + Math.sin(angle) * distance,
+      radius,
+      hint: `${opener} ${details.venue} — this week only`,
+    };
+  }
   const lead: Lead = {
     id: nextId(state, 'lead'),
     kind,
@@ -1003,16 +1126,25 @@ function spawnLead(state: RtsState, dice: Dice): void {
     x: details.x,
     y: details.y,
     spawnDay: state.day,
-    expiresDay: state.day + dice.int(4, 7),
+    expiresDay,
     takenBy:
       kind === 'journalist'
         ? ['founder', 'growth']
         : kind === 'angel'
           ? ['founder']
           : ['founder', 'engineer', 'growth'],
+    ...(clue ? { clue } : {}),
   };
   state.leads.push(lead);
+  if (state.mode === 'turns') {
+    const history = state.leadHistory ?? (state.leadHistory = {});
+    history[lead.id] = { kind: lead.kind, venue: lead.venue, x: lead.x, y: lead.y };
+  }
   addNews(state, `${lead.name} is happening at ${lead.venue}.`, 'neutral', lead.hubId);
+}
+
+function spawnLeadBatch(state: RtsState, dice: Dice, weekStart: number): void {
+  for (let index = 0; index < 3; index++) spawnLead(state, dice, weekStart);
 }
 
 function hubForPerson(state: RtsState, person: Person): HubId | null {
@@ -1095,7 +1227,7 @@ function applyDilemmaEffect(state: RtsState, effect: string, label: string, fx: 
   fx.push({ kind: 'float', ...point, text: 'Decision made', color: '#f8c33a' });
 }
 
-function schedulerStep(state: RtsState, fx: RtsFx[]): void {
+function schedulerStep(state: RtsState, fx: RtsFx[], previousDay: number): void {
   const dice = new Dice(state.rng);
   for (const lead of state.leads) {
     if (lead.expiresDay <= state.day)
@@ -1103,7 +1235,11 @@ function schedulerStep(state: RtsState, fx: RtsFx[]): void {
   }
   state.leads = state.leads.filter((lead) => lead.expiresDay > state.day);
 
-  if (state.day >= state.nextLeadDay) {
+  if (state.mode === 'turns') {
+    const firstWeek = Math.floor(previousDay / 7) + 1;
+    const lastWeek = Math.floor((state.day + 1e-9) / 7);
+    for (let week = firstWeek; week <= lastWeek; week++) spawnLeadBatch(state, dice, week * 7);
+  } else if (state.day >= state.nextLeadDay) {
     spawnLead(state, dice);
     state.nextLeadDay = state.day + dice.int(2, 4);
   }
@@ -1246,6 +1382,31 @@ function distanceToSegmentSquared(
   return (point.x - nearestX) ** 2 + (point.y - nearestY) ** 2;
 }
 
+function claimNearbyClueLeads(
+  state: RtsState,
+  previous: Map<string, { x: number; y: number }>,
+  fx: RtsFx[],
+): void {
+  if (state.mode !== 'turns') return;
+  const radiusSquared = LEAD_FIND_RADIUS * LEAD_FIND_RADIUS;
+  for (const person of state.people) {
+    if (person.company !== 'player') continue;
+    const start = previous.get(person.id) ?? person;
+    for (const lead of [...state.leads]) {
+      if (
+        !lead.clue ||
+        lead.expiresDay <= state.day ||
+        !lead.takenBy.includes(person.role) ||
+        distanceToSegmentSquared(lead.clue, start, person) > radiusSquared
+      )
+        continue;
+      const leadsWonBefore = state.stats.leadsWon;
+      claimLead(state, person, lead, fx);
+      if (state.stats.leadsWon > leadsWonBefore) addFoundLeadFx(fx, lead);
+    }
+  }
+}
+
 function stampNearbyLandmarks(
   state: RtsState,
   previous: Map<string, { x: number; y: number }>,
@@ -1262,9 +1423,26 @@ function stampNearbyLandmarks(
       const point = project(landmark.at);
       if (distanceToSegmentSquared(point, start, person) > radiusSquared) continue;
       state.journal[landmark.kind] = state.day;
-      player.hype = clamp(player.hype + JOURNAL_HYPE, 0, MAX_HYPE);
-      addNews(state, `📮 Discovered ${landmark.name}`, 'good');
-      fx.push({ kind: 'postcard', landmark: landmark.kind, x: point.x, y: point.y });
+      const perk =
+        state.mode === 'turns'
+          ? (LANDMARK_PERKS[landmark.kind] ?? DEFAULT_LANDMARK_PERK)
+          : undefined;
+      player.hype = clamp(player.hype + JOURNAL_HYPE + (perk?.hype ?? 0), 0, MAX_HYPE);
+      player.users += perk?.users ?? 0;
+      player.cash += perk?.cash ?? 0;
+      player.product = clamp(player.product + (perk?.product ?? 0), 0, MAX_PRODUCT);
+      addNews(
+        state,
+        `📮 Discovered ${landmark.name}${perk ? ` · ${perk.label}` : ''}`,
+        'good',
+      );
+      fx.push({
+        kind: 'postcard',
+        landmark: landmark.kind,
+        x: point.x,
+        y: point.y,
+        ...(perk ? { perk: perk.label } : {}),
+      });
     }
   }
 }
@@ -1276,6 +1454,7 @@ export function tick(state: RtsState, dtDays: number): RtsResult {
   let remaining = dtDays;
   while (remaining > 1e-9 && next.phase === 'playing') {
     const dt = Math.min(0.1, remaining);
+    const dayBeforeTick = next.day;
     next.day += dt;
     const previous = new Map(
       next.people
@@ -1284,10 +1463,11 @@ export function tick(state: RtsState, dtDays: number): RtsResult {
     );
     advanceMovement(next, dt, fx);
     stampNearbyLandmarks(next, previous, fx);
+    claimNearbyClueLeads(next, previous, fx);
     performWork(next, dt, fx);
     applyEconomy(next, dt);
     decayHype(next, dt);
-    schedulerStep(next, fx);
+    schedulerStep(next, fx, dayBeforeTick);
     campaignStep(next, fx);
     updateEndConditions(next);
     remaining -= dt;

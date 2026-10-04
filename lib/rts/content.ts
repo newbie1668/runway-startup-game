@@ -86,6 +86,41 @@ export const LANDMARK_FACTS: Record<LandmarkKind, string> = {
   lcy: 'Its short runway means jets come in on a steep 5.5° approach.',
 };
 
+export const DEFAULT_LANDMARK_PERK: {
+  label: string;
+  hype?: number;
+  users?: number;
+  cash?: number;
+  product?: number;
+} = { label: '+3 hype', hype: 3 };
+
+export const LANDMARK_PERKS: Partial<
+  Record<LandmarkKind, { label: string; hype?: number; users?: number; cash?: number; product?: number }>
+> = {
+  ...Object.fromEntries(
+    (Object.keys(LANDMARK_FACTS) as LandmarkKind[])
+      .filter((kind) => kind.endsWith('br'))
+      .map((kind) => [kind, { label: 'Bridge crossing: +2 hype', hype: 2 }]),
+  ),
+  eye: { label: 'Photo op: +5 hype', hype: 5 },
+  bigben: { label: 'Photo op: +5 hype', hype: 5 },
+  abbey: { label: 'Photo op: +5 hype', hype: 5 },
+  towerbridge: { label: 'Photo op: +5 hype', hype: 5 },
+  stpauls: { label: 'Photo op: +5 hype', hype: 5 },
+  o2: { label: 'Photo op: +5 hype', hype: 5 },
+  shard: { label: 'A landmark moment: +6 hype', hype: 6 },
+  gherkin: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  walkie: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  grater: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  bishop: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  heron: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  tower42: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  canadasq: { label: 'Chance meeting with an angel: +£1.5k', cash: 1_500 },
+  oldstreet: { label: 'Silicon Roundabout buzz: +40 users', users: 40 },
+  battersea: { label: 'Local buzz: +60 users', users: 60 },
+  bttower: { label: 'Inspiration: +2 product', product: 2 },
+};
+
 /** Real venues where pop-up leads appear. Replaces hub-centre lead positions. */
 export const LEAD_VENUES: readonly { name: string; at: LngLat; hubId: HubId }[] = [
   { name: 'Tate Modern Turbine Hall', at: [-0.0993, 51.5077], hubId: 'londonbridge' },

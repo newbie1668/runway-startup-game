@@ -33,6 +33,7 @@ export async function createMapRenderer(
     onReady?: () => void;
     diagnostics: MapDiagnosticsReporter;
     hudInsetBottom?: number;
+    look?: 'flat' | 'diorama';
   },
 ): Promise<{ renderer: IMapRenderer; mode: RendererMode }> {
   const mapParam = new URLSearchParams(window.location.search).get('map');

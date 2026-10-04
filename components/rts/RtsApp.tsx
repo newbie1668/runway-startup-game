@@ -65,6 +65,15 @@ import {
   weeklyBurn,
   weeklyRevenue,
 } from '@/lib/rts/sim';
+import {
+  advanceWeek,
+  beginWeek,
+  SLOT_DAYS,
+  SLOTS_PER_WEEK,
+  summarizePlan,
+  tryAddStop,
+} from '@/lib/rts/turns';
+import type { PlanStop, StopAction, WeekRun } from '@/lib/rts/turns';
 import type {
   CompanyId,
   Feature,
@@ -84,6 +93,15 @@ const DAYS_PER_SECOND = 0.35;
 const SPEEDS = [0, 1, 2, 4] as const;
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const COMPANY_ORDER: CompanyId[] = ['player', 'rival1', 'rival2', 'rival3'];
+const STOP_ACTION_LABEL: Record<StopAction, string> = {
+  build: 'Build',
+  growth: 'Chase growth',
+  'hire-engineer': 'Hire engineer',
+  'hire-growth': 'Hire growth',
+  pitch: 'Pitch',
+  search: 'Search clue',
+  visit: 'Visit',
+};
 const MOMENT_DURATION_MS = 3700;
 const MOMENT_HOLD_MS = 3200;
 const MOMENT_MAX_AGE_DAYS = 20;
@@ -104,6 +122,20 @@ const LEAD_REWARD: Record<Lead['kind'], string> = {
 const hubName = (id: HubId) => HUBS.find((h) => h.id === id)!.name;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const featureById = (id: FeatureId) => FEATURES.find((f) => f.id === id)!;
+function planStopName(state: RtsState, stop: PlanStop): string {
+  const target = stop.target;
+  if (target.kind === 'point') return target.label;
+  if (target.kind === 'place')
+    return state.places.find((place) => place.id === target.id)?.name ?? 'Place';
+  if (target.kind === 'office') {
+    const office = state.offices.find((item) => item.id === target.id);
+    return office?.siteName ?? (office ? `${hubName(office.hubId)} office` : 'Office');
+  }
+  const lead = state.leads.find((item) => item.id === target.id);
+  return lead?.clue?.hint ?? lead?.name ?? 'Opportunity';
+}
+const signedChange = (value: number, format: (amount: number) => string) =>
+  `${value >= 0 ? '+' : '−'}${format(Math.abs(value))}`;
 
 interface SetupChoice {
   name: string;
@@ -112,13 +144,17 @@ interface SetupChoice {
   seed: string;
 }
 
-export function RtsApp() {
+type RtsMode = 'realtime' | 'turns';
+type TurnPhase = 'planning' | 'playback' | 'recap';
+
+export function RtsApp({ mode = 'realtime' }: { mode?: RtsMode }) {
   const [setup, setSetup] = useState<SetupChoice | null>(null);
   const [game, setGame] = useState<{ cfg: SetupChoice; key: number } | null>(null);
 
   if (!game) {
     return (
       <SetupScreen
+        mode={mode}
         initial={setup}
         onStart={(cfg) => {
           setSetup(cfg);
@@ -131,6 +167,7 @@ export function RtsApp() {
     <Live
       key={game.key}
       cfg={game.cfg}
+      mode={mode}
       onRestart={() => setGame({ cfg: game.cfg, key: Date.now() })}
       onNewSetup={() => setGame(null)}
     />
@@ -141,7 +178,15 @@ export function RtsApp() {
 // Setup
 // ---------------------------------------------------------------------------
 
-function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStart: (c: SetupChoice) => void }) {
+function SetupScreen({
+  initial,
+  mode,
+  onStart,
+}: {
+  initial: SetupChoice | null;
+  mode: RtsMode;
+  onStart: (c: SetupChoice) => void;
+}) {
   const [name, setName] = useState(
     () => initial?.name ?? generateCompanyName(new Dice(seedFromString('runway-live'))),
   );
@@ -157,9 +202,9 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
           London Live
         </h1>
         <p className="mt-3 max-w-2xl text-slate-300">
-          Run your startup on the map. Send your founder, engineers and growth people around London — ship
-          the roadmap at your office, sign customers across town, recruit at meetups and pitch investors in
-          person. Rivals are doing the same. Reach unicorn before the cash runs out.
+          {mode === 'turns'
+            ? 'Plan up to ten half-day slots each week, then watch your founder travel across a fully discoverable London. Hire, build, grow and pitch while rival startups make their moves.'
+            : 'Run your startup on the map. Send your founder, engineers and growth people around London — ship the roadmap at your office, sign customers across town, recruit at meetups and pitch investors in person. Rivals are doing the same. Reach unicorn before the cash runs out.'}
         </p>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -245,31 +290,83 @@ function SetupScreen({ initial, onStart }: { initial: SetupChoice | null; onStar
 // Live game
 // ---------------------------------------------------------------------------
 
-function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () => void; onNewSetup: () => void }) {
+function Live({
+  cfg,
+  mode,
+  onRestart,
+  onNewSetup,
+}: {
+  cfg: SetupChoice;
+  mode: RtsMode;
+  onRestart: () => void;
+  onNewSetup: () => void;
+}) {
   const autoplay =
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('autoplay') === '1';
+    mode === 'realtime' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('autoplay') === '1';
   const cityCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RtsRenderer | null>(null);
+  const hoverKeyRef = useRef<string | null>(null);
   const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   const mapRef = useRef<ProjectedMapRenderer | null>(null);
+  const cameraTargetRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  const cameraFlyFrameRef = useRef<number | null>(null);
   const mapReadyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [initial] = useState(() =>
-    newRtsGame({ seed: cfg.seed, companyName: cfg.name, sectorId: cfg.sectorId, hqHub: cfg.hqHub }),
+    newRtsGame({
+      seed: cfg.seed,
+      companyName: cfg.name,
+      sectorId: cfg.sectorId,
+      hqHub: cfg.hqHub,
+      mode,
+    }),
   );
   const stateRef = useRef<RtsState>(initial);
   const speedRef = useRef(0);
   const [ui, setUi] = useState<RtsState>(initial);
   const [speed, setSpeedState] = useState(0);
+  const [turnPhase, setTurnPhase] = useState<TurnPhase>('planning');
+  const turnPhaseRef = useRef<TurnPhase>('planning');
+  const [overview, setOverview] = useState(false);
+  const overviewRef = useRef(false);
+  const [planStops, setPlanStops] = useState<PlanStop[]>([]);
+  const planStopsRef = useRef(planStops);
+  const planListRef = useRef<HTMLDivElement>(null);
+  const planPanelRef = useRef<HTMLDivElement>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const planErrorTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    planStopsRef.current = planStops;
+  }, [planStops]);
+  useEffect(
+    () => () => {
+      if (planErrorTimerRef.current !== null) window.clearTimeout(planErrorTimerRef.current);
+    },
+    [],
+  );
+  useEffect(() => {
+    const list = planListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [planStops.length]);
+  const [weekRun, setWeekRun] = useState<WeekRun | null>(null);
+  const weekRunRef = useRef<WeekRun | null>(null);
+  const [weekStart, setWeekStart] = useState<RtsState | null>(null);
+  const weekStartRef = useRef<RtsState | null>(null);
+  const [skipPlayback, setSkipPlayback] = useState(false);
+  const skipPlaybackRef = useRef(false);
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>([]);
   const [ridingId, setRidingIdState] = useState<string | null>(null);
   const ridingIdRef = useRef<string | null>(null);
-  const [postcards, setPostcards] = useState<{ id: number; landmark: LandmarkKind }[]>([]);
+  const [postcards, setPostcards] = useState<
+    { id: number; landmark: LandmarkKind; perk?: string }[]
+  >([]);
   const postcardIdRef = useRef(0);
   const [focus, setFocus] = useState<RtsHit | null>(() => {
     const hq = initial.offices.find((o) => o.company === 'player');
@@ -420,6 +517,52 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     speedRef.current = v;
     setSpeedState(v);
   }, []);
+  const clearPlanningHover = useCallback(() => {
+    const renderer = rendererRef.current;
+    if (renderer) {
+      renderer.planningTooltip = null;
+      renderer.hover = null;
+    }
+    hoverKeyRef.current = null;
+  }, []);
+  const cancelCameraTarget = useCallback(() => {
+    if (cameraFlyFrameRef.current !== null)
+      cancelAnimationFrame(cameraFlyFrameRef.current);
+    cameraFlyFrameRef.current = null;
+    cameraTargetRef.current = null;
+  }, []);
+  const flyCameraTo = useCallback((point: { x: number; y: number }, viewH: number) => {
+    if (cameraFlyFrameRef.current !== null)
+      cancelAnimationFrame(cameraFlyFrameRef.current);
+    cameraTargetRef.current = null;
+    cameraFlyFrameRef.current = requestAnimationFrame(() => {
+      cameraFlyFrameRef.current = null;
+      const map = mapRef.current;
+      const canvas = canvasRef.current?.getBoundingClientRect();
+      if (!map || !canvas || canvas.height <= 0 || canvas.width <= 0 || viewH <= 0) return;
+
+      const camera = map.getCamera();
+      map.lookAt(camera.x, camera.y, viewH);
+      const targetZoom = map.getCamera().zoom;
+      const panelTop = planPanelRef.current?.getBoundingClientRect().top;
+      const visibleBottom = Math.max(
+        0,
+        Math.min(canvas.height, (panelTop ?? canvas.bottom) - canvas.top),
+      );
+      const center = map.screenToWorld(canvas.width / 2, canvas.height / 2);
+      const visibleCenter = map.screenToWorld(canvas.width / 2, visibleBottom / 2);
+      map.setCamera(camera);
+      cameraTargetRef.current = {
+        x: point.x + center.x - visibleCenter.x,
+        y: point.y + center.y - visibleCenter.y,
+        zoom: targetZoom,
+      };
+    });
+  }, []);
+  const setTurnPhaseNow = useCallback((phase: TurnPhase) => {
+    turnPhaseRef.current = phase;
+    setTurnPhase(phase);
+  }, []);
 
   const openBriefing = useCallback(
     (pause = true, resumeSpeed?: number) => {
@@ -470,6 +613,20 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     setToast(msg);
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2800);
   }, []);
+
+  const flashPlanError = useCallback(
+    (message: string) => {
+      flash(message);
+      setPlanError(message);
+      if (planErrorTimerRef.current !== null)
+        window.clearTimeout(planErrorTimerRef.current);
+      planErrorTimerRef.current = window.setTimeout(() => {
+        setPlanError((current) => (current === message ? null : current));
+        planErrorTimerRef.current = null;
+      }, 4000);
+    },
+    [flash],
+  );
 
   const handleFx = useCallback(
     (res: RtsResult) => {
@@ -530,7 +687,9 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         }
       }
       const found = res.fx.flatMap((f) =>
-        f.kind === 'postcard' ? [{ id: ++postcardIdRef.current, landmark: f.landmark }] : [],
+        f.kind === 'postcard'
+          ? [{ id: ++postcardIdRef.current, landmark: f.landmark, perk: f.perk }]
+          : [],
       );
       if (found.length > 0) setPostcards((queue) => [...queue, ...found]);
     },
@@ -576,6 +735,177 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       return true;
     },
     [flash, handleFx],
+  );
+
+  const updatePlanStops = useCallback(
+    (next: PlanStop[] | ((previous: PlanStop[]) => PlanStop[])) => {
+      const stops = typeof next === 'function' ? next(planStopsRef.current) : next;
+      planStopsRef.current = stops;
+      setPlanStops(stops);
+    },
+    [],
+  );
+
+  const appendPlanStop = useCallback(
+    (target: MoveTarget) => {
+      const result = tryAddStop(stateRef.current, planStopsRef.current, target);
+      if (!result.ok) {
+        flashPlanError(result.error);
+        return;
+      }
+      updatePlanStops(result.stops);
+      const lastLeg = result.summary.legs[result.summary.legs.length - 1];
+      if (lastLeg && lastLeg.path.length >= 2) {
+        overviewRef.current = false;
+        setOverview(false);
+        flyCameraTo(
+          { x: lastLeg.path[lastLeg.path.length - 2]!, y: lastLeg.path[lastLeg.path.length - 1]! },
+          8,
+        );
+      }
+    },
+    [flashPlanError, flyCameraTo, updatePlanStops],
+  );
+
+  const togglePlanOverview = useCallback(() => {
+    if (mode !== 'turns' || turnPhaseRef.current !== 'planning') return;
+    const state = stateRef.current;
+    const founder = state.people.find(
+      (person) => person.company === 'player' && person.role === 'founder',
+    );
+    if (!founder) return;
+    const summary = summarizePlan(state, planStopsRef.current);
+    if (!overviewRef.current) {
+      const points = [
+        { x: founder.x, y: founder.y },
+        ...summary.legs.flatMap((leg) =>
+          leg.path.length >= 2
+            ? [{ x: leg.path[leg.path.length - 2]!, y: leg.path[leg.path.length - 1]! }]
+            : [],
+        ),
+      ];
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      const panelTop = planPanelRef.current?.getBoundingClientRect().top;
+      const width = canvasRect?.width ?? 1;
+      const height = canvasRect
+        ? Math.max(
+            1,
+            Math.min(canvasRect.height, (panelTop ?? canvasRect.bottom) - canvasRect.top),
+          )
+        : 1;
+      const spanX = Math.max(...xs) - Math.min(...xs);
+      const spanY = Math.max(...ys) - Math.min(...ys);
+      const viewH = Math.max(
+        planStopsRef.current.length === 0 ? 25 : 14,
+        Math.max(spanY, spanX / Math.max(0.1, width / height)) * 1.3,
+      );
+      overviewRef.current = true;
+      setOverview(true);
+      flyCameraTo(
+        { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 },
+        viewH,
+      );
+      return;
+    }
+
+    overviewRef.current = false;
+    setOverview(false);
+    const lastLeg = summary.legs[summary.legs.length - 1];
+    flyCameraTo(
+      lastLeg && lastLeg.path.length >= 2
+        ? { x: lastLeg.path[lastLeg.path.length - 2]!, y: lastLeg.path[lastLeg.path.length - 1]! }
+        : { x: founder.x, y: founder.y },
+      8,
+    );
+  }, [flyCameraTo, mode]);
+
+  const beginTurnWeek = useCallback(() => {
+    if (
+      mode !== 'turns' ||
+      !mapReadyRef.current ||
+      turnPhaseRef.current !== 'planning' ||
+      modalOpenRef.current
+    )
+      return;
+    if (!briefingSeenRef.current) {
+      openBriefing(false);
+      return;
+    }
+    const start = stateRef.current;
+    const result = beginWeek(start, planStopsRef.current);
+    if (result.error) {
+      flash(result.error);
+      return;
+    }
+    weekStartRef.current = start;
+    setWeekStart(start);
+    weekRunRef.current = result.run;
+    setWeekRun(result.run);
+    stateRef.current = result.state;
+    handleFx({ state: result.state, fx: result.fx });
+    setUi(result.state);
+    skipPlaybackRef.current = false;
+    setSkipPlayback(false);
+    const founder = result.state.people.find(
+      (person) => person.company === 'player' && person.role === 'founder',
+    );
+    setRideAlong(founder?.id ?? null);
+    cancelCameraTarget();
+    clearPlanningHover();
+    setTurnPhaseNow('playback');
+  }, [
+    cancelCameraTarget,
+    clearPlanningHover,
+    flash,
+    handleFx,
+    mode,
+    openBriefing,
+    setRideAlong,
+    setTurnPhaseNow,
+  ]);
+
+  const planNextWeek = useCallback(() => {
+    clearPlanningHover();
+    updatePlanStops([]);
+    setPlanError(null);
+    setWeekRun(null);
+    weekRunRef.current = null;
+    setWeekStart(null);
+    weekStartRef.current = null;
+    setSkipPlayback(false);
+    skipPlaybackRef.current = false;
+    setRideAlong(null);
+    overviewRef.current = false;
+    setOverview(false);
+    setTurnPhaseNow('planning');
+    const founder = stateRef.current.people.find(
+      (person) => person.company === 'player' && person.role === 'founder',
+    );
+    if (founder) flyCameraTo(founder, 8);
+  }, [clearPlanningHover, flyCameraTo, setRideAlong, setTurnPhaseNow, updatePlanStops]);
+
+  const appendHitToPlan = useCallback(
+    (hit: RtsHit) => {
+      const s = stateRef.current;
+      let target: MoveTarget | null = null;
+      if (hit.type === 'place') target = { kind: 'place', id: hit.id };
+      else if (hit.type === 'office') {
+        const office = s.offices.find((item) => item.id === hit.id);
+        if (office?.company === 'player') target = { kind: 'office', id: office.id };
+      } else if (hit.type === 'lead' && s.leads.some((lead) => lead.id === hit.id))
+        target = { kind: 'lead', id: hit.id };
+      else if (hit.type === 'landmark') {
+        const landmark = LANDMARKS.find((item) => item.kind === hit.id);
+        if (landmark) {
+          const point = project(landmark.at);
+          target = { kind: 'point', x: point.x, y: point.y, label: landmark.name };
+        }
+      }
+      if (target) appendPlanStop(target);
+    },
+    [appendPlanStop],
   );
 
   useEffect(() => {
@@ -627,11 +957,29 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       let target: MoveTarget | null = null;
       if (hit.type === 'place') target = { kind: 'place', id: hit.id };
       else if (hit.type === 'office') target = { kind: 'office', id: hit.id };
+      else if (hit.type === 'landmark') {
+        const landmark = LANDMARKS.find((item) => item.kind === hit.id);
+        if (landmark) {
+          const point = project(landmark.at);
+          target = { kind: 'point', x: point.x, y: point.y, label: landmark.name };
+        }
+      }
       else if (hit.type === 'lead') {
         const lead = s.leads.find((l) => l.id === hit.id)!;
         const able = mine.filter((p) => lead.takenBy.includes(p.role));
         if (able.length === 0) {
           flash(`Only ${lead.takenBy.map((k) => ROLE_LABEL[k].toLowerCase()).join(' / ')} can take this one`);
+          return;
+        }
+        if (mode === 'turns' && lead.clue) {
+          run((st) =>
+            movePeople(st, able.map((person) => person.id), {
+              kind: 'point',
+              x: lead.clue!.x,
+              y: lead.clue!.y,
+              label: 'Opportunity clue',
+            }),
+          );
           return;
         }
         run((st) => movePeople(st, [able[0].id], { kind: 'lead', id: lead.id }));
@@ -651,7 +999,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         run((st) => movePeople(st, mine.map((p) => p.id), target!));
       }
     },
-    [flash, run],
+    [flash, mode, run],
   );
 
   // Renderer + loop + input
@@ -726,7 +1074,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       last = t;
       const before = stateRef.current;
       const gameDays =
-        speedRef.current > 0 && before.phase === 'playing'
+        mode === 'realtime' && speedRef.current > 0 && before.phase === 'playing'
           ? dt * speedRef.current * DAYS_PER_SECOND
           : 0;
       if (gameDays > 0) {
@@ -747,9 +1095,39 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         stateRef.current = res.state;
         handleFx(res);
       }
+      let playbackDays = 0;
+      const activeRun = weekRunRef.current;
+      if (
+        mode === 'turns' &&
+        turnPhaseRef.current === 'playback' &&
+        activeRun &&
+        !modalOpenRef.current &&
+        !activeMomentRef.current
+      ) {
+        playbackDays = dt * (7 / 12) * (skipPlaybackRef.current ? 8 : 1);
+        if (playbackDays > 0) {
+          const result = advanceWeek(stateRef.current, activeRun, playbackDays);
+          weekRunRef.current = result.run;
+          stateRef.current = result.state;
+          if (result.fx.length > 0) handleFx({ state: result.state, fx: result.fx });
+          if (
+            result.run.index !== activeRun.index ||
+            result.run.step !== activeRun.step ||
+            result.run.log.length !== activeRun.log.length ||
+            result.done
+          )
+            setWeekRun(result.run);
+          if (result.done) {
+            setSkipPlayback(false);
+            skipPlaybackRef.current = false;
+            setTurnPhaseNow('recap');
+          }
+        }
+      }
       const measureAmbient = profileAmbient && gameDays > 0 && ambientFrames < 300;
       const ambientStarted = measureAmbient ? performance.now() : 0;
-      if (gameDays > 0 && ambientRef.current) advanceAmbient(ambientRef.current, gameDays);
+      const ambientDays = gameDays + playbackDays;
+      if (ambientDays > 0 && ambientRef.current) advanceAmbient(ambientRef.current, ambientDays);
       const ambientUpdateMs = measureAmbient ? performance.now() - ambientStarted : 0;
       const map = mapRef.current;
       if (map) {
@@ -773,6 +1151,32 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               y: camera.y + (person.y - camera.y) * easing,
               zoom: camera.zoom + (targetZoom - camera.zoom) * easing,
             });
+          }
+        }
+        const cameraTarget = cameraTargetRef.current;
+        if (
+          cameraTarget &&
+          mode === 'turns' &&
+          turnPhaseRef.current === 'planning' &&
+          !followId
+        ) {
+          const camera = map.getCamera();
+          const easing = Math.min(1, dt * 4);
+          const next = {
+            ...camera,
+            x: camera.x + (cameraTarget.x - camera.x) * easing,
+            y: camera.y + (cameraTarget.y - camera.y) * easing,
+            zoom: camera.zoom + (cameraTarget.zoom - camera.zoom) * easing,
+          };
+          if (
+            Math.abs(next.x - cameraTarget.x) < 0.02 &&
+            Math.abs(next.y - cameraTarget.y) < 0.02 &&
+            Math.abs(next.zoom - cameraTarget.zoom) < 0.05
+          ) {
+            map.setCamera(cameraTarget);
+            cameraTargetRef.current = null;
+          } else {
+            map.setCamera(next);
           }
         }
         try {
@@ -810,12 +1214,13 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       onReady: fireReady,
       diagnostics: createMapDiagnostics(1, () => performance.now()),
       hudInsetBottom: 150,
-    }).then(({ renderer, mode }) => {
+      look: mode === 'turns' ? 'diorama' : undefined,
+    }).then(({ renderer, mode: rendererMode }) => {
       if (cancelled) {
         renderer.dispose();
         return;
       }
-      if (mode === '3d' && activeMode === '2d') {
+      if (rendererMode === '3d' && activeMode === '2d') {
         renderer.dispose();
         return;
       }
@@ -824,12 +1229,18 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       renderer.scene = mapScene;
       renderer.resize();
       const hqOffice = stateRef.current.offices.find((office) => office.company === 'player');
-      if (hqOffice) renderer.lookAt(hqOffice.x, hqOffice.y, 25);
+      const founder = stateRef.current.people.find(
+        (person) => person.company === 'player' && person.role === 'founder',
+      );
+      const startingPoint = mode === 'turns' ? founder : hqOffice;
+      if (startingPoint)
+        renderer.lookAt(startingPoint.x, startingPoint.y, mode === 'turns' ? 8 : 25);
       mapRef.current = renderer;
-      activeMode = mode;
+      if (mode === 'turns' && startingPoint) flyCameraTo(startingPoint, 8);
+      activeMode = rendererMode;
       ambientRef.current = createAmbient();
       r = new RtsRenderer(canvas, renderer);
-      r.atmosphere = mode === '3d' ? 'day' : 'night';
+      r.atmosphere = rendererMode === '3d' ? 'day' : 'night';
       r.ambient = ambientRef.current;
       r.profileAmbient = profileAmbient;
       rendererRef.current = r;
@@ -845,13 +1256,26 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         const p = pos(e);
         if (drag) {
           drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY);
-          if (drag.moved > 0) setRideAlong(null);
+          if (drag.moved > 0) {
+            setRideAlong(null);
+            cancelCameraTarget();
+            r!.planningTooltip = null;
+            r!.hover = null;
+            hoverKeyRef.current = null;
+          }
           if (drag.box) r!.box = { x0: drag.x, y0: drag.y, x1: p.x, y1: p.y };
           else if (drag.button === 0 || drag.button === 1) {
             mapRef.current?.pan(e.movementX, e.movementY);
           }
         } else {
           r!.hover = r!.hitTest(p.x, p.y);
+          const nextHoverKey = r!.hover ? `${r!.hover.type}:${r!.hover.id}` : null;
+          if (nextHoverKey !== hoverKeyRef.current) {
+            hoverKeyRef.current = nextHoverKey;
+            if (mode === 'turns' && turnPhaseRef.current === 'planning')
+              r!.updatePlanningTooltip(r!.hover, stateRef.current, planStopsRef.current);
+            else r!.planningTooltip = null;
+          }
           canvas.style.cursor = r!.hover ? 'pointer' : 'default';
         }
       };
@@ -886,6 +1310,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
         }
         selectPeople([]);
         setFocus(hit);
+        if (
+          mode === 'turns' &&
+          turnPhaseRef.current === 'planning' &&
+          ['place', 'office', 'lead', 'landmark'].includes(hit.type)
+        )
+          appendHitToPlan(hit);
       };
       const onContext = (e: MouseEvent) => {
         e.preventDefault();
@@ -894,27 +1324,75 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           flash('Select someone first (click a person, or Shift-drag a box)');
           return;
         }
+        if (mode === 'turns' && turnPhaseRef.current !== 'planning') {
+          flash('Staff orders are set during planning.');
+          return;
+        }
         const p = pos(e);
-        sendTo(r!.hitTest(p.x, p.y), ids);
+        const selectedIds =
+          mode === 'turns'
+            ? ids.filter((id) =>
+                stateRef.current.people.some(
+                  (person) => person.id === id && person.role !== 'founder',
+                ),
+              )
+            : ids;
+        if (selectedIds.length === 0) {
+          flash('Right-click orders are for engineers and growth people during planning.');
+          return;
+        }
+        sendTo(r!.hitTest(p.x, p.y), selectedIds);
       };
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
         setRideAlong(null);
+        cancelCameraTarget();
         const p = pos(e);
         mapRef.current?.zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0016));
       };
       const onKeyDown = (e: KeyboardEvent) => {
-        if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+        const keyTarget = e.target as HTMLElement | null;
+        if (
+          keyTarget?.tagName === 'INPUT' ||
+          (mode === 'turns' &&
+            (keyTarget?.tagName === 'TEXTAREA' || keyTarget?.isContentEditable))
+        )
+          return;
         if (campaignModalOpenRef.current) return;
         const k = e.key.toLowerCase();
+        if (mode === 'turns' && turnPhaseRef.current === 'planning' && k === 'o') {
+          togglePlanOverview();
+          return;
+        }
+        if (
+          mode === 'turns' &&
+          turnPhaseRef.current === 'planning' &&
+          (k === 'backspace' || ((e.metaKey || e.ctrlKey) && k === 'z'))
+        ) {
+          e.preventDefault();
+          updatePlanStops((items) => items.slice(0, -1));
+          return;
+        }
+        if (mode === 'turns' && k === 'enter') {
+          if (!modalOpenRef.current) beginTurnWeek();
+          return;
+        }
         if (k === ' ') {
           e.preventDefault();
-          startAtSpeed(speedRef.current === 0 ? 1 : 0);
-        } else if (k === '1' || k === '2' || k === '3') startAtSpeed(SPEEDS[Number(k)]);
+          if (mode === 'realtime') startAtSpeed(speedRef.current === 0 ? 1 : 0);
+        } else if ((k === '1' || k === '2' || k === '3') && mode === 'realtime')
+          startAtSpeed(SPEEDS[Number(k)]);
         else if (k === 'j') setShowJournal((value) => !value);
         else if (k === 'v') {
-          const ids = selectionRef.current;
-          if (ids.length === 1) setRideAlong(ridingIdRef.current === ids[0] ? null : ids[0]!);
+          if (mode === 'turns' && turnPhaseRef.current === 'playback') {
+            const founder = stateRef.current.people.find(
+              (person) => person.company === 'player' && person.role === 'founder',
+            );
+            if (founder) setRideAlong(ridingIdRef.current === founder.id ? null : founder.id);
+          } else {
+            const ids = selectionRef.current;
+            if (ids.length === 1) setRideAlong(ridingIdRef.current === ids[0] ? null : ids[0]!);
+          }
         }
         else if (k === 'f') {
           const f = stateRef.current.people.find((p) => p.company === 'player' && p.role === 'founder');
@@ -930,7 +1408,10 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           setShowJournal(false);
           setShowRoadmap(false);
         } else {
-          if (['w', 'a', 's', 'd'].includes(k)) setRideAlong(null);
+          if (['w', 'a', 's', 'd'].includes(k)) {
+            setRideAlong(null);
+            cancelCameraTarget();
+          }
           keys.add(k);
         }
       };
@@ -967,6 +1448,10 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
       rendererRef.current = null;
       ambientRef.current = null;
       mapReadyRef.current = false;
+      if (cameraFlyFrameRef.current !== null)
+        cancelAnimationFrame(cameraFlyFrameRef.current);
+      cameraFlyFrameRef.current = null;
+      cameraTargetRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1002,10 +1487,42 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
     completedResult.stars > 1 + Number(completedResult.days <= completedChapterSpec.parDays);
   const totalStars = s.campaign.results.reduce((total, result) => total + result.stars, 0);
   const researching = me.researching ? featureById(me.researching) : null;
+  const planSummary =
+    mode === 'turns' && turnPhase === 'planning' ? summarizePlan(s, planStops) : null;
+  const recapStart = weekStart ?? s;
+  const recapWeek = Math.floor(recapStart.day / 7) + 1;
+  const recapLandmarks = LANDMARKS.filter(
+    (landmark) => recapStart.journal[landmark.kind] === undefined && s.journal[landmark.kind] !== undefined,
+  );
+  const rivalNames = COMPANY_ORDER.filter((id) => id !== 'player').map((id) => s.companies[id].name);
+  const recapRivalNews =
+    weekStart && weekRun
+      ? s.news.filter(
+          (item) =>
+            item.day >= weekStart.day &&
+            item.day < weekRun.weekEndDay &&
+            (item.tone === 'rival' || rivalNames.some((name) => item.text.startsWith(name))),
+        )
+      : [];
+
+  useEffect(() => {
+    if (rendererRef.current)
+      rendererRef.current.plannedLegs =
+        mode === 'turns' && turnPhase === 'planning' ? planSummary?.legs ?? [] : [];
+  }, [mode, planSummary, turnPhase]);
+
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    if (mode === 'turns' && turnPhase === 'planning')
+      renderer.updatePlanningTooltip(renderer.hover, s, planStops);
+    else renderer.planningTooltip = null;
+  }, [mode, planStops, s, turnPhase]);
 
   const onMini = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = rendererRef.current;
     if (!r || !miniRef.current) return;
+    cancelCameraTarget();
     const rect = miniRef.current.getBoundingClientRect();
     r.centerOn(r.minimapToWorld(miniRef.current, e.clientX - rect.left, e.clientY - rect.top));
   };
@@ -1103,22 +1620,51 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           📮 Journal {journal.found}/{journal.total}
         </button>
         <div className="ml-auto flex items-center gap-3">
-          <span className="font-mono text-slate-300">
-            Week {week} · {dayName}
-          </span>
-          <div className="flex overflow-hidden rounded-lg border border-slate-700">
-            {SPEEDS.map((v, i) => (
-              <button
-                key={v}
-          onClick={() => startAtSpeed(v)}
-                disabled={!mapReady || briefingIndex !== null || completedChapter !== null}
-                className={`px-2.5 py-1 text-xs font-bold ${speed === v ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
-                title={i === 0 ? 'Pause (Space)' : `Speed ${v}× (${i})`}
-              >
-                {i === 0 ? '❚❚' : `${v}×`}
-              </button>
-            ))}
-          </div>
+          {mode === 'turns' ? (
+            <>
+              <span className="font-mono text-slate-300">
+                WEEK{' '}
+                {(turnPhase === 'playback' || turnPhase === 'recap') && weekRun
+                  ? Math.max(1, Math.floor((weekRun.weekEndDay - 1e-9) / 7) + 1)
+                  : week}{' '}
+                · {turnPhase.toUpperCase()}
+              </span>
+              {turnPhase === 'playback' && (
+                <button
+                  onClick={() => {
+                    skipPlaybackRef.current = !skipPlaybackRef.current;
+                    setSkipPlayback(skipPlaybackRef.current);
+                  }}
+                  className={`rounded-lg border px-3 py-1 text-xs font-bold ${
+                    skipPlayback
+                      ? 'border-amber-300 bg-amber-300 text-slate-950'
+                      : 'border-amber-400/50 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20'
+                  }`}
+                >
+                  {skipPlayback ? 'Fast-forwarding · 8×' : 'Skip ▶▶'}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="font-mono text-slate-300">
+                Week {week} · {dayName}
+              </span>
+              <div className="flex overflow-hidden rounded-lg border border-slate-700">
+                {SPEEDS.map((v, i) => (
+                  <button
+                    key={v}
+                    onClick={() => startAtSpeed(v)}
+                    disabled={!mapReady || briefingIndex !== null || completedChapter !== null}
+                    className={`px-2.5 py-1 text-xs font-bold ${speed === v ? 'bg-amber-400 text-slate-900' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
+                    title={i === 0 ? 'Pause (Space)' : `Speed ${v}× (${i})`}
+                  >
+                    {i === 0 ? '❚❚' : `${v}×`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <button
             onClick={() => {
               if (!campaignModalOpenRef.current) setShowHelp((value) => !value);
@@ -1237,7 +1783,9 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
                         </li>
                         {usersMet && productMet && (
                           <li className="ml-4 text-[10px] font-medium text-amber-300">
-                            Walk your founder to an investor to pitch
+                            {mode === 'turns'
+                              ? "Add a 💷 investor to this week's plan"
+                              : 'Walk your founder to an investor to pitch'}
                           </li>
                         )}
                       </ul>
@@ -1279,9 +1827,17 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
             {investorStage && (
               <p className="mt-2 text-slate-400">
                 {me.users >= investorStage.minTraction && me.product >= investorStage.minProduct ? (
-                  <>The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                  mode === 'turns' ? (
+                    <>The other goals are met; add a 💷 investor to this week&apos;s plan for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                  ) : (
+                    <>The other goals are met; walk your founder to a 💷 investor for {investorStage.name} ({fmtMoney(investorStage.raise)}).</>
+                  )
                 ) : (
-                  <>Hit the {investorStage.name} requirements above, then walk your founder to a 💷 investor.</>
+                  mode === 'turns' ? (
+                    <>Hit the {investorStage.name} requirements above, then add a 💷 investor to this week&apos;s plan.</>
+                  ) : (
+                    <>Hit the {investorStage.name} requirements above, then walk your founder to a 💷 investor.</>
+                  )
                 )}
               </p>
             )}
@@ -1306,8 +1862,275 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
       {/* Bottom panel + minimap */}
       <footer className="absolute inset-x-3 bottom-3 flex items-end gap-3">
-        <div className="min-h-[156px] flex-1 rounded-xl border border-slate-700/70 bg-[#0b1226]/95 p-3 text-sm shadow-2xl">
-          {selectedPeople.length > 0 ? (
+        <div
+          ref={planPanelRef}
+          className={`flex-1 rounded-xl border border-slate-700/70 bg-[#0b1226]/95 p-3 text-sm shadow-2xl ${
+            mode === 'turns' && turnPhase === 'planning' ? 'min-h-0' : 'min-h-[156px]'
+          }`}
+        >
+          {mode === 'turns' && turnPhase === 'planning' ? (
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-black tracking-wide text-amber-300">
+                    WEEK {week} · PLAN <span className="ml-1 text-xs font-semibold text-slate-400">· {planStops.length} stops</span>
+                  </h2>
+                  <p
+                    aria-live="polite"
+                    className={`text-xs font-semibold ${planError ? 'text-rose-300' : 'text-amber-100'}`}
+                  >
+                    {planError ??
+                      (planStops.length === 0
+                        ? 'Click a place on the map to send your founder there.'
+                        : (planSummary?.slotsLeft ?? 0) > 0
+                          ? `${planSummary?.slotsLeft ?? 0} slots left — add another stop, or End week ▶`
+                          : 'Week is full — End week ▶ or Undo')}
+                  </p>
+                </div>
+                <div className="text-right text-xs font-bold text-amber-100">
+                  {Math.max(0, planSummary?.slotsLeft ?? SLOTS_PER_WEEK)} slots left
+                  <span className="ml-1 font-normal text-slate-500">· {SLOT_DAYS} days each</span>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-10 gap-1" aria-label="Weekly travel and action slots">
+                {Array.from({ length: SLOTS_PER_WEEK }, (_, slot) => {
+                  const leg = planSummary?.legs.find(
+                    (item) => slot >= item.startSlot && slot < item.endSlot,
+                  );
+                  const kind = leg
+                    ? slot < leg.startSlot + leg.travelSlots
+                      ? 'travel'
+                      : 'action'
+                    : 'empty';
+                  return (
+                    <div
+                      key={slot}
+                      title={kind === 'travel' ? 'Travel slot' : kind === 'action' ? 'Action slot' : 'Free slot'}
+                      className={`h-2 rounded-sm ${
+                        kind === 'travel'
+                          ? 'bg-sky-400'
+                          : kind === 'action'
+                            ? 'bg-amber-300'
+                            : 'bg-slate-800'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <div
+                ref={planListRef}
+                className={
+                  planSummary?.legs.length
+                    ? 'mt-2 max-h-[300px] space-y-1 overflow-y-scroll pr-1'
+                    : 'hidden'
+                }
+                style={{ scrollbarWidth: 'thin', scrollbarColor: '#64748b #0f172a' }}
+              >
+                {planSummary?.legs.map((leg, index) => {
+                  const stop = leg.stop;
+                  const placeTarget = stop.target.kind === 'place' ? stop.target : null;
+                  const investor = placeTarget
+                    ? s.places.find((place) => place.id === placeTarget.id && place.kind === 'investor')
+                    : undefined;
+                  const preview = stop.action === 'pitch' ? pitchPreview(s, 'player') : undefined;
+                  const pitchDetail = preview
+                    ? preview.eligible
+                      ? `${preview.nextStageName} · ${pct(preview.odds)} odds`
+                      : preview.blockers.join(' · ')
+                    : null;
+                  return (
+                    <div
+                      key={`${index}-${leg.label}`}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-md bg-slate-900/80 px-2 py-1 text-xs"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="font-mono font-bold text-amber-300">{index + 1}.</span>
+                        <span className="truncate font-bold text-slate-100">{leg.label}</span>
+                        <span className="shrink-0 text-slate-400">{STOP_ACTION_LABEL[stop.action]}</span>
+                        {pitchDetail && (
+                          <span className={`min-w-0 truncate ${preview?.eligible ? 'text-emerald-300' : 'text-rose-300'}`}>
+                            {pitchDetail}
+                          </span>
+                        )}
+                        <span className="ml-auto shrink-0 font-mono text-slate-500">
+                          {leg.travelSlots} travel + {stop.actionSlots} action
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {stop.action === 'hire-engineer' || stop.action === 'hire-growth' ? (
+                          <button
+                            onClick={() =>
+                              updatePlanStops((items) =>
+                                items.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...item,
+                                        action:
+                                          item.action === 'hire-engineer'
+                                            ? 'hire-growth'
+                                            : 'hire-engineer',
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                            className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300 hover:border-amber-300"
+                            title="Toggle between hiring an engineer and growth person"
+                          >
+                            {stop.action === 'hire-engineer' ? 'Engineer ↔ Growth' : 'Growth ↔ Engineer'}
+                          </button>
+                        ) : (stop.action === 'build' || stop.action === 'growth') ? (
+                          <>
+                            <button
+                              onClick={() =>
+                                updatePlanStops((items) =>
+                                  items.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, actionSlots: Math.max(1, item.actionSlots - 1) }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              disabled={stop.actionSlots <= 1}
+                              className="h-5 w-5 rounded border border-slate-600 text-slate-300 disabled:opacity-30"
+                              aria-label="Use one fewer action slot"
+                            >
+                              −
+                            </button>
+                            <span className="w-4 text-center font-mono">{stop.actionSlots}</span>
+                            <button
+                              onClick={() =>
+                                updatePlanStops((items) => {
+                                  const next = items.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, actionSlots: Math.min(6, item.actionSlots + 1) }
+                                      : item,
+                                  );
+                                  return summarizePlan(stateRef.current, next).error ? items : next;
+                                })
+                              }
+                              disabled={stop.actionSlots >= 6 || (planSummary?.slotsLeft ?? 0) <= 0}
+                              className="h-5 w-5 rounded border border-slate-600 text-slate-300 disabled:opacity-30"
+                              aria-label="Use one more action slot"
+                            >
+                              +
+                            </button>
+                          </>
+                        ) : null}
+                        <button
+                          onClick={() =>
+                            updatePlanStops((items) =>
+                              items.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                          className="ml-1 rounded border border-rose-400/50 px-2 py-0.5 text-[10px] font-bold text-rose-200 hover:border-rose-300 hover:bg-rose-400/10"
+                          aria-label={`Remove ${leg.label} stop`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {investor && pitchDetail && (
+                        <span className="col-span-2 ml-5 text-[10px] text-slate-500">
+                          {preview?.eligible ? `Raise ${fmtMoney(preview.raise)} · dilution ${pct(preview.dilution)}` : 'Requirements may change before arrival.'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-auto flex items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                  <span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-sky-400" />Travel</span>
+                  <span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-amber-300" />Action</span>
+                  {planSummary?.error && <span className="font-bold text-rose-300">{planSummary.error}</span>}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    onClick={() => updatePlanStops((items) => items.slice(0, -1))}
+                    disabled={planStops.length === 0}
+                    className="rounded-lg border border-slate-600 px-2.5 py-2 text-xs font-bold text-slate-200 hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Undo
+                  </button>
+                  <button
+                    onClick={() => updatePlanStops([])}
+                    disabled={planStops.length === 0}
+                    className="rounded-lg border border-slate-600 px-2.5 py-2 text-xs font-bold text-slate-200 hover:border-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={togglePlanOverview}
+                    className={`rounded-lg border px-2.5 py-2 text-xs font-bold ${
+                      overview
+                        ? 'border-sky-300 bg-sky-300/10 text-sky-100'
+                        : 'border-slate-600 text-slate-200 hover:border-sky-300'
+                    }`}
+                    aria-pressed={overview}
+                  >
+                    {overview ? 'Street view' : 'Overview'}
+                  </button>
+                  <button
+                    onClick={beginTurnWeek}
+                    disabled={
+                      !mapReady ||
+                      Boolean(planSummary?.error) ||
+                      turnPhase !== 'planning' ||
+                      showHelp ||
+                      showRoadmap ||
+                      showJournal ||
+                      briefingIndex !== null ||
+                      completedChapter !== null
+                    }
+                    className="rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    End week ▶
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : mode === 'turns' && (turnPhase === 'playback' || turnPhase === 'recap') && weekRun ? (
+            <div className="flex h-full min-h-[156px] gap-3">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <h2 className="font-black tracking-wide text-amber-300">
+                  WEEK {Math.max(1, Math.floor((weekRun.weekEndDay - 1e-9) / 7) + 1)} · ITINERARY
+                </h2>
+                <ul className="mt-2 max-h-[108px] space-y-1 overflow-y-auto pr-1">
+                  {weekRun.stops.map((stop, index) => {
+                    const done = turnPhase === 'recap' || index < weekRun.index;
+                    const current = turnPhase === 'playback' && index === weekRun.index;
+                    return (
+                      <li
+                        key={`${index}-${planStopName(s, stop)}`}
+                        className="flex min-w-0 items-center gap-2 rounded bg-slate-900/80 px-2 py-1 text-xs"
+                      >
+                        <span className={`w-4 shrink-0 text-center font-black ${done ? 'text-emerald-300' : current ? 'text-amber-300' : 'text-slate-600'}`}>
+                          {done ? '✓' : current ? '▶' : '·'}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-slate-100" title={planStopName(s, stop)}>
+                          {planStopName(s, stop)}
+                        </span>
+                        <span className="shrink-0 text-slate-400">{STOP_ACTION_LABEL[stop.action]}</span>
+                      </li>
+                    );
+                  })}
+                  {weekRun.stops.length === 0 && (
+                    <li className="text-xs text-slate-500">No founder stops planned this week.</li>
+                  )}
+                </ul>
+              </div>
+              <div className="w-[42%] shrink-0 overflow-y-auto rounded-lg bg-slate-900/70 px-3 py-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Week log</h3>
+                <ul className="mt-1 space-y-1 text-[11px] text-slate-300">
+                  {weekRun.log.length ? (
+                    weekRun.log.map((line, index) => <li key={`${index}-${line}`}>· {line}</li>)
+                  ) : (
+                    <li className="text-slate-500">No events yet.</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          ) : selectedPeople.length > 0 ? (
             <PeoplePanel
               people={selectedPeople}
               state={s}
@@ -1336,7 +2159,12 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
               onSelectHere={selectPeople}
             />
           ) : focusedLead ? (
-            <LeadPanel lead={focusedLead} state={s} onSend={(p) => sendTo({ type: 'lead', id: focusedLead.id }, [p.id])} />
+            <LeadPanel
+              lead={focusedLead}
+              state={s}
+              turnsMode={mode === 'turns'}
+              onSend={(p) => sendTo({ type: 'lead', id: focusedLead.id }, [p.id])}
+            />
           ) : (
             <p className="text-slate-400">Click a person to select them, or a place to see what you can do there.</p>
           )}
@@ -1345,6 +2173,91 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <canvas ref={miniRef} onClick={onMini} className="block h-[150px] w-[260px] cursor-crosshair rounded-lg" aria-label="Minimap" />
         </div>
       </footer>
+
+      {mode === 'turns' && turnPhase === 'recap' && weekStart && weekRun && (
+        <section className="absolute bottom-[178px] left-1/2 z-30 max-h-[calc(100vh-12rem)] w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-amber-300/40 bg-[#0b1226]/97 p-5 shadow-2xl">
+          <header className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-extrabold tracking-[0.28em] text-amber-300">WEEKLY RECAP</p>
+              <h2 className="mt-1 text-xl font-black">FRIDAY · Week {recapWeek}</h2>
+            </div>
+            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold text-emerald-200">
+              Week complete
+            </span>
+          </header>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              {
+                label: 'Users',
+                value: signedChange(me.users - recapStart.companies.player.users, fmtUsers),
+              },
+              {
+                label: 'Cash',
+                value: signedChange(me.cash - recapStart.companies.player.cash, fmtMoney),
+              },
+              {
+                label: 'Product',
+                value: signedChange(me.product - recapStart.companies.player.product, (amount) =>
+                  Math.round(amount).toLocaleString(),
+                ),
+              },
+              {
+                label: 'Hype',
+                value: signedChange(me.hype - recapStart.companies.player.hype, (amount) =>
+                  Math.round(amount).toLocaleString(),
+                ),
+              },
+              {
+                label: 'Leads won',
+                value: signedChange(s.stats.leadsWon - recapStart.stats.leadsWon, (amount) =>
+                  Math.round(amount).toLocaleString(),
+                ),
+              },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{item.label}</p>
+                <p className="mt-0.5 font-black text-slate-100">{item.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 rounded-lg bg-violet-400/10 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200">
+              Landmarks found · {recapLandmarks.length}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-300">
+              {recapLandmarks.length ? recapLandmarks.map((landmark) => landmark.name).join(', ') : 'None this week'}
+            </p>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Your week</h3>
+              <ul className="mt-1 space-y-1 text-xs text-slate-300">
+                {weekRun.log.length ? (
+                  weekRun.log.map((line, index) => <li key={`${index}-${line}`}>· {line}</li>)
+                ) : (
+                  <li className="text-slate-500">A quiet week around London.</li>
+                )}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rival news</h3>
+              <ul className="mt-1 space-y-1 text-xs text-slate-300">
+                {recapRivalNews.length ? (
+                  recapRivalNews.slice(0, 5).map((item) => <li key={`${item.day}-${item.text}`}>· {item.text}</li>)
+                ) : (
+                  <li className="text-slate-500">No rival headlines this week.</li>
+                )}
+              </ul>
+            </div>
+          </div>
+          <button
+            onClick={planNextWeek}
+            className="mt-4 w-full rounded-lg bg-amber-400 py-2.5 text-sm font-black text-slate-950 hover:bg-amber-300"
+          >
+            Plan week {recapWeek + 1} →
+          </button>
+        </section>
+      )}
 
       {toast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 rounded-lg border border-amber-400/40 bg-[#0b1226] px-4 py-2 text-sm shadow-xl">
@@ -1364,6 +2277,9 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
           <div className="text-[10px] font-bold tracking-widest text-violet-300">📮 New in your London journal</div>
           <h3 className="mt-1 font-black">{postcardLandmark.name}</h3>
           <p className="mt-1 text-xs text-slate-300">{LANDMARK_FACTS[postcardLandmark.kind]}</p>
+          {visiblePostcard.perk && (
+            <p className="mt-2 text-xs font-bold text-amber-200">{visiblePostcard.perk}</p>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               onClick={() => {
@@ -1436,30 +2352,41 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
 
       {showHelp && s.phase === 'playing' && (
         <div className="absolute top-1/2 left-1/2 w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-amber-400/30 bg-[#0b1226]/97 p-5 text-sm shadow-2xl">
-          <h3 className="text-lg font-black text-amber-300">How it works</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
-            <li>
-              <b>Click</b> a person to select (Shift-click to add, Shift-drag to box-select, <b>F</b> founder, <b>Q</b> everyone).
-              <b> Right-click</b> (two-finger click) a place to send them.
-            </li>
-            <li>Work only happens at places:</li>
-            <li className="ml-4 list-none">🧑‍💻 Engineers at your 🏠 office build the roadmap (<b>R</b>).</li>
-            <li className="ml-4 list-none">📣 Growth people at ✨🛍️🏪⌨️🏦 customer spots sign users. Spots run dry — rivals share them.</li>
-            <li className="ml-4 list-none">🎓 Anyone at a talent spot can recruit. 🧑‍💼 Founder pitches at 💷 investors.</li>
-            <li>Pop-up pins expire. First person there wins.</li>
-            <li>
-              Drag / WASD to pan, scroll to zoom. <b>Space</b> pause, <b>1–3</b> speed.
-            </li>
-          </ul>
+          <h3 className="text-lg font-black text-amber-300">
+            {mode === 'turns' ? 'Plan your week' : 'How it works'}
+          </h3>
+          {mode === 'turns' ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
+              <li>London is open from the start. Click places, clue circles and landmark badges to add founder stops.</li>
+              <li>Each week has ten half-day slots. Travel and actions use slots; adjust build or growth time before ending the week.</li>
+              <li>Select engineers or growth people and right-click a place to set their standing orders.</li>
+              <li>The founder works while at an office or customer spot. Walk to an investor to pitch.</li>
+              <li>Drag / WASD to pan and scroll to zoom. Press <b>Enter</b> to end the planned week.</li>
+              <li><b>Backspace</b> or <b>Cmd/Ctrl+Z</b> undo the last stop; <b>Clear</b> resets the plan; <b>O</b> toggles the map overview.</li>
+            </ul>
+          ) : (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
+              <li>
+                <b>Click</b> a person to select (Shift-click to add, Shift-drag to box-select, <b>F</b> founder, <b>Q</b> everyone).
+                <b> Right-click</b> (two-finger click) a place to send them.
+              </li>
+              <li>Work only happens at places:</li>
+              <li className="ml-4 list-none">🧑‍💻 Engineers at your 🏠 office build the roadmap (<b>R</b>).</li>
+              <li className="ml-4 list-none">📣 Growth people at ✨🛍️🏪⌨️🏦 customer spots sign users. Spots run dry — rivals share them.</li>
+              <li className="ml-4 list-none">🎓 Anyone at a talent spot can recruit. 🧑‍💼 Founder pitches at 💷 investors.</li>
+              <li>Pop-up pins expire. First person there wins.</li>
+              <li>Drag / WASD to pan, scroll to zoom. <b>Space</b> pause, <b>1–3</b> speed.</li>
+            </ul>
+          )}
           <button
             onClick={() => {
               setShowHelp(false);
-              startAtSpeed(autoplay ? 4 : 1);
+              if (mode === 'realtime') startAtSpeed(autoplay ? 4 : 1);
             }}
             disabled={!mapReady}
             className="mt-4 w-full rounded-lg bg-amber-400 py-2 font-black text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {mapReady ? 'Start the clock' : 'Loading London…'}
+            {mapReady ? (mode === 'turns' ? 'Start planning' : 'Start the clock') : 'Loading London…'}
           </button>
         </div>
       )}
@@ -1495,7 +2422,7 @@ function Live({ cfg, onRestart, onNewSetup }: { cfg: SetupChoice; onRestart: () 
                 campaignModalOpenRef.current = false;
                 momentQueuePausedRef.current = false;
                 setBriefingIndex(null);
-                setSpeed(briefingResumeSpeedRef.current || 1);
+                setSpeed(mode === 'turns' ? 0 : briefingResumeSpeedRef.current || 1);
               }}
               className="mt-5 w-full rounded-lg bg-amber-400 py-2.5 font-black text-slate-950"
             >
@@ -1925,7 +2852,17 @@ function OfficePanel({
   );
 }
 
-function LeadPanel({ lead, state, onSend }: { lead: Lead; state: RtsState; onSend: (p: Person) => void }) {
+function LeadPanel({
+  lead,
+  state,
+  turnsMode,
+  onSend,
+}: {
+  lead: Lead;
+  state: RtsState;
+  turnsMode: boolean;
+  onSend: (p: Person) => void;
+}) {
   const st = LEAD_STYLE[lead.kind];
   const nearest = state.people
     .filter((p) => p.company === 'player' && lead.takenBy.includes(p.role))
@@ -1936,18 +2873,26 @@ function LeadPanel({ lead, state, onSend }: { lead: Lead; state: RtsState; onSen
       <p className="text-[10px] font-bold tracking-widest" style={{ color: st.color }}>
         {st.icon} {st.label.toUpperCase()} · {hubName(lead.hubId).toUpperCase()}
       </p>
-      <h3 className="text-lg font-black">{lead.name}</h3>
+      <h3 className="text-lg font-black">
+        {turnsMode && lead.clue ? 'Unidentified opportunity' : lead.name}
+      </h3>
       <p className="text-xs text-slate-400">
-        {lead.venue} · gone in {Math.max(0, lead.expiresDay - state.day).toFixed(1)} days · {LEAD_REWARD[lead.kind]}
+        {turnsMode && lead.clue
+          ? `${lead.clue.hint} · ${LEAD_REWARD[lead.kind]}`
+          : `${lead.venue} · gone in ${Math.max(0, lead.expiresDay - state.day).toFixed(1)} days · ${LEAD_REWARD[lead.kind]}`}
       </p>
       <p className="text-xs text-slate-500">
         Who can take it: {lead.takenBy.map((k) => ROLE_LABEL[k]).join(', ')}. First one there wins — rivals are racing too.
       </p>
-      {nearest && (
+      {turnsMode && lead.clue ? (
+        <p className="mt-2 text-xs font-medium text-amber-200">
+          Add this clue to your week plan by clicking its circle.
+        </p>
+      ) : nearest ? (
         <ActionButton className="mt-2" onClick={() => onSend(nearest.p)}>
           Send {nearest.p.name} ({ROLE_LABEL[nearest.p.role].toLowerCase()})
         </ActionButton>
-      )}
+      ) : null}
     </div>
   );
 }
